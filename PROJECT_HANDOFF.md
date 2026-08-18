@@ -6,19 +6,18 @@
 **Current Milestone:** M2 — Core Collector Engine
 **Milestone Status:** IN PROGRESS
 **Previous Milestone:** M1 — Application Skeleton — COMPLETED
-**M0 Final Consistency Review:** PASS
 
 ---
 
 # 1. Current Repository
 
-Verified repository path:
+Repository:
 
 ```text
 ~/Projects/roofroom-data-collector/
 ```
 
-Current branch:
+Branch:
 
 ```text
 main
@@ -27,194 +26,51 @@ main
 Latest verified checkpoint:
 
 ```text
-f9c6356 feat: persist artifacts and validation summaries
+add43fa feat: add raw artifact storage manager
 ```
 
 Previous verified checkpoints:
 
 ```text
+1fdac5d docs: update M2 handoff after artifact persistence
+f9c6356 feat: persist artifacts and validation summaries
 4852f1c docs: update M2 handoff after run lifecycle slice
 f7b7d46 feat: add run lifecycle aggregation
 46680d5 docs: update M2 handoff after attempt state slice
 31f427d feat: add attempt persistence and job state transitions
-47e725b docs: update M2 handoff after run job persistence
-996b34e feat: add persisted run and job state
 ```
 
-Working tree is clean after `f9c6356`.
+Working tree is clean after `add43fa`.
 
 ---
 
-# 2. M2 Completed Work
+# 2. M2 Completed Foundation
 
-## Run / Job Persistence
-
-Verified:
+Verified Core persistence chain:
 
 ```text
-runs persist
-jobs persist
-one query group = one ordered job
-configuration snapshot survives restart
-foreign-key integrity remains valid
-invalid persisted statuses fail closed
+run
+└── job
+    └── attempt
+        ├── candidate artifact
+        └── validation summary
 ```
 
-Initial state:
+Verified behavior:
 
 ```text
-run_status        = PENDING
-execution_status  = PENDING
-validation_status = NOT_RUN
-attempt_count     = 0
+runs/jobs persist
+attempts persist
+attempt history survives restart
+job execution state machine works
+run lifecycle aggregation works
+artifact records persist
+validation summaries persist
+accepted artifact references are explicit
+retry preserves historical evidence
 ```
 
-## Attempt Persistence
-
-SQLite schema version 3 introduced:
-
-```text
-attempts
-```
-
-Verified:
-
-```text
-first attempt = attempt_number 1
-retry attempt = attempt_number 2
-```
-
-Retry appends history instead of overwriting prior attempt evidence.
-
-## Job Execution State Machine
-
-Verified:
-
-```text
-PENDING → RUNNING
-RUNNING → VALIDATING
-VALIDATING → COMPLETED
-RUNNING → FAILED
-FAILED → RETRY_PENDING
-RETRY_PENDING → RUNNING
-RUNNING → MANUAL_ACTION_REQUIRED
-MANUAL_ACTION_REQUIRED → RUNNING
-```
-
-`startAttempt()` is required for entering `RUNNING` from `PENDING` or `RETRY_PENDING`.
-
-## Run Lifecycle / Aggregation
-
-Verified:
-
-```text
-new run                        → PENDING
-start run                      → RUNNING
-all jobs COMPLETED + VALID     → COMPLETED
-LOW_DATA / NO_DATA present     → COMPLETED_WITH_WARNINGS
-blocking manual-action job     → MANUAL_ACTION_REQUIRED
-retryable job failure remains  → RUNNING
-explicit user cancellation     → CANCELLED
-```
-
-Run timestamps persist across restart.
-
-## Artifact Persistence
-
-SQLite schema version 4 introduced:
-
-```text
-artifacts
-validations
-```
-
-Canonical artifact state support:
-
-```text
-CANDIDATE
-ACCEPTED
-ACCEPTED_WITH_WARNING
-REJECTED
-SUPERSEDED
-```
-
-Artifact metadata persistence includes:
-
-```text
-artifact_id
-run_id
-job_id
-attempt_number
-source_id
-artifact_kind
-artifact_state
-filename
-relative_path
-media_type
-byte_size
-sha256
-created_at
-```
-
-Candidate artifact registration links:
-
-```text
-attempt.candidate_artifact_id
-```
-
-A candidate artifact is not canonical before validation.
-
-## Validation Summary Persistence
-
-Validation summaries persist:
-
-```text
-validation_id
-run_id
-job_id
-artifact_id
-validation_status
-checks_total
-checks_passed
-checks_warning
-checks_failed
-validated_at
-validation_json_path
-```
-
-Attempt linkage:
-
-```text
-attempt.validation_id
-```
-
-Validation-to-artifact mapping verified:
-
-```text
-VALID           → ACCEPTED
-LOW_DATA        → ACCEPTED_WITH_WARNING
-NO_DATA         → ACCEPTED_WITH_WARNING
-INVALID_SCHEMA  → REJECTED
-ERROR_NOT_DATA  → REJECTED
-DATE_MISMATCH   → REJECTED
-QUERY_MISMATCH  → REJECTED
-```
-
-Accepted artifacts update:
-
-```text
-job.accepted_artifact_id
-```
-
-Rejected artifacts remain traceable and are not made canonical.
-
-Retry success can become the job's new canonical artifact while earlier attempt/artifact/validation history remains persisted.
-
----
-
-# 3. Current SQLite State
-
-Current application schema:
+Current SQLite schema:
 
 ```text
 schema version = 4
@@ -229,210 +85,231 @@ Migration history:
 4 artifact_validation_persistence
 ```
 
-Verified runtime health:
+---
+
+# 3. StorageManager
+
+Raw artifact filesystem persistence is now implemented and tested.
+
+Run-scoped layout:
 
 ```text
-journal mode = wal
-foreign keys = ON
-quick check  = ok
+data/runs/<run_id>/
+├── <source_id>/
+│   ├── raw/
+│   ├── metadata/
+│   └── validation/
+├── exports/
+└── logs/
 ```
 
-Deterministic tests use temporary databases.
+Verified behavior:
 
-The real application database is not populated with fake operational records by the integration tests.
+```text
+run/source directories created safely
+exact raw bytes preserved
+byte_size derived from persisted bytes
+SHA-256 derived from persisted bytes
+existing artifact never silently overwritten
+retry creates a distinct attempt-suffixed path
+unsafe filenames/path traversal fail closed
+relative artifact paths remain run-scoped
+persisted evidence survives StorageManager restart
+```
+
+Retry naming currently follows:
+
+```text
+attempt 1:
+GT01_TR_24M_interest_over_time.csv
+
+attempt 2:
+GT01_TR_24M_interest_over_time__attempt_2.csv
+```
+
+Raw evidence remains immutable.
+
+No SQLite schema change was required for this slice.
 
 ---
 
-# 4. Verified M2 Test Surface
-
-Current deterministic scripts:
+# 4. Current Deterministic Test Surface
 
 ```text
 npm run test:m2:state
 npm run test:m2:attempts
 npm run test:m2:runs
 npm run test:m2:artifacts
+npm run test:m2:storage
 ```
 
-Verified artifact/validation coverage:
+Storage tests verified:
 
 ```text
-PASS ARTIFACT-001: candidate artifact persists before validation
-PASS ARTIFACT-002: attempt links to one candidate artifact
-PASS VALIDATION-001: VALID maps artifact to ACCEPTED
-PASS VALIDATION-002: INVALID_SCHEMA maps artifact to REJECTED
-PASS VALIDATION-003: LOW_DATA maps artifact to ACCEPTED_WITH_WARNING
-PASS ACCEPT-001: accepted_artifact_id is set only after accepted validation
-PASS RETRY-001: retry success becomes the job canonical artifact
-PASS RETRY-002: rejected attempt/artifact/validation history is preserved
-PASS DB-ARTIFACT-001: artifact/validation records survive restart
-PASS: invalid artifact/validation persisted states fail closed
+PASS STORAGE-001: run/source filesystem directories are created
+PASS STORAGE-002: raw artifact bytes are preserved exactly
+PASS STORAGE-003: byte_size and SHA-256 come from persisted bytes
+PASS STORAGE-004: existing raw artifact is never silently overwritten
+PASS STORAGE-005: retry uses a separate attempt-suffixed path
+PASS STORAGE-006: unsafe filename/path traversal fails closed
+PASS STORAGE-007: artifact relative_path remains run-scoped
+PASS STORAGE-008: persisted raw evidence survives manager restart
 ```
 
-Previous run/job, attempt, and RunManager regression suites also remain passing.
+Previous M2 regression suites remain passing.
 
 ---
 
-# 5. Current M2 Persistence Chain
+# 5. Current M2 Acceptance-Gate Position
 
-The operational persistence chain is now:
-
-```text
-run
-└── job
-    └── attempt
-        ├── candidate artifact
-        └── validation summary
-```
-
-Canonical job result reference:
+Already proven:
 
 ```text
-job.accepted_artifact_id
-```
-
-Historical evidence remains append-preserving across retries.
-
----
-
-# 6. M2 Remaining Work
-
-Not yet implemented:
-
-```text
-StorageManager
-run filesystem directory creation
-candidate raw artifact file persistence
-filesystem-safe artifact naming
+runs/jobs persistence
+independent attempts
+attempt restart persistence
+artifact records
+accepted artifact references
+retry history preservation
+execution/validation status separation
+raw filesystem preservation
 collision protection
-immutable/raw-file preservation behavior
-SHA-256 computation from actual bytes
-byte-size verification from actual bytes
-metadata JSON persistence
-validation JSON persistence
-incomplete-run discovery
-resume reconciliation
-accepted-job skip behavior
-retry orchestration policy
-sequential fake-source orchestration
-structured logging
-sensitive-value redaction
-BrowserManager foundation
-M2 acceptance gate
 ```
 
-Real Google Trends browser automation remains M3 work.
+The most important remaining data-contract gap is:
+
+```text
+resume can reconstruct incomplete state
+```
+
+The source-module M2 gate also still requires a fake/test source to:
+
+```text
+receive a job context
+produce deterministic test evidence
+pass through storage
+pass through validation
+produce job state
+retry through a second attempt
+survive resume reconstruction
+```
+
+---
+
+# 6. Decision — Next Slice
+
+Resume/reconciliation foundation comes before metadata/validation JSON file persistence.
+
+Reason:
+
+```text
+resume reconstruction is an explicit M2 acceptance-gate requirement
+```
+
+while detailed metadata/validation JSON persistence is important but does not unblock the core run/job recovery semantics as directly.
+
+MetadataManager remains required before M2 closure and will follow after resume semantics are stable.
 
 ---
 
 # 7. Exact Next Action
 
-Continue M2 with a focused filesystem StorageManager slice:
+Implement the smallest resume/reconciliation slice:
 
 ```text
-inspect filesystem layout / artifact naming contracts
+inspect resume contracts + current StateRepository read APIs
 ↓
-define StorageManager boundary
+discover non-terminal/incomplete runs
 ↓
-create run directory safely
+load jobs, attempts, accepted artifact references
 ↓
-persist candidate raw bytes into run-scoped raw directory
+classify each job deterministically
 ↓
-never overwrite an existing raw artifact silently
+accepted + completed job
+→ SKIP / preserve
 ↓
-derive byte_size from actual persisted bytes
+FAILED retryable job
+→ RETRY_CANDIDATE
 ↓
-derive sha256 from actual persisted bytes
+RETRY_PENDING job
+→ RETRY_CANDIDATE
 ↓
-return stable ArtifactFileReference metadata
+MANUAL_ACTION_REQUIRED
+→ BLOCKED_MANUAL_ACTION
 ↓
-prove relative path is inside application data root
+RUNNING / VALIDATING interrupted state
+→ RECONCILE_REQUIRED
 ↓
-prove retry collision creates a separate artifact path
+PENDING
+→ PENDING
 ↓
-prove existing raw file is not mutated by later retry
+verify accepted artifact reference resolves to persisted artifact metadata
 ↓
-prove candidate file survives process/repository restart
+do not recollect automatically during reconstruction
 ↓
-deterministic local filesystem integration tests
-↓
-lint / type-check / regression tests
+restart tests
 ↓
 Git checkpoint
 ```
 
-This slice should not yet implement:
+Do not yet implement automatic retry execution.
 
-```text
-Google Trends browser collection
-Google Trends CSV parsing
-full validation engine
-resume orchestration
-fake-source orchestration
-BrowserManager
-XLSX export
-```
+Do not yet implement Google Trends browser work.
 
 ---
 
-# 8. StorageManager Guardrails
+# 8. Next Resume Slice Boundaries
 
-Raw source files should be immutable whenever practical.
+The first resume slice should answer only:
 
-Storage operations must fail closed on path traversal and unsafe paths.
+```text
+What persisted work exists?
+What state was each job in?
+Which jobs are already accepted and must be skipped?
+Which jobs need reconciliation?
+Which jobs are retry candidates?
+Which jobs require manual action?
+```
 
-Do not silently overwrite an existing artifact.
+It should not yet answer:
 
-Missing data remains missing; do not synthesize data.
+```text
+When should automatic retry run?
+How many retries are allowed?
+How long should cooldown be?
+How does live provider/browser state reconcile?
+```
 
-SQLite remains the operational/searchable metadata store.
-
-Filesystem remains the canonical storage location for raw artifact bytes and detailed JSON files.
-
-The StorageManager should return metadata to the core rather than directly deciding validation or acceptance.
+Those belong to later orchestration policy.
 
 ---
 
-# 9. M2 Gate Context
-
-Current completed foundation:
+# 9. Remaining M2 Work After Resume Foundation
 
 ```text
-runs/jobs persistence           PASS
-attempt persistence             PASS
-job state machine               PASS
-run state machine               PASS
-run aggregation                 PASS
-artifact records                PASS
-validation summaries            PASS
-accepted artifact references    PASS
-retry evidence preservation     PASS
-restart persistence             PASS
-```
-
-Still required before M2 completion:
-
-```text
-filesystem storage integrity
-resume reconstruction
-accepted-job skip behavior
-retry orchestration
+retry orchestration policy
 sequential fake-source orchestration
-safe structured logging
+MetadataManager / metadata JSON
+validation JSON file persistence
+structured logging
+sensitive-value redaction
 BrowserManager foundation
+M2 integrated acceptance gate
 ```
+
+Real Google Trends collection remains M3.
 
 ---
 
 # 10. Handoff Discipline
 
-At the end of every meaningful implementation session:
+At the end of each meaningful implementation session:
 
 1. verify actual behavior,
 2. record tests that actually ran,
-3. record known failures,
-4. update current milestone state,
-5. record latest verified Git checkpoint,
+3. record known issues,
+4. update milestone progress,
+5. record latest Git checkpoint,
 6. record one exact next action.
 
 Never record unverified work as completed.
