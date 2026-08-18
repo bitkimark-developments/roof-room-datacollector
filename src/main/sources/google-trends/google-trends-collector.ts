@@ -22,6 +22,9 @@ import {
   type GoogleTrendsConfiguredPageStage,
 } from './google-trends-configured-page-export';
 import {
+  GoogleTrendsDateDialogContractError,
+} from './google-trends-custom-date-dialog';
+import {
   GoogleTrendsDateRangeUiContractError,
 } from './google-trends-custom-date-range';
 import {
@@ -204,6 +207,8 @@ const isUiContractError = (
     GoogleTrendsQueryGroupUiContractError ||
   error instanceof
     GoogleTrendsGeographyUiContractError ||
+  error instanceof
+    GoogleTrendsDateDialogContractError ||
   error instanceof
     GoogleTrendsDateRangeUiContractError ||
   error instanceof

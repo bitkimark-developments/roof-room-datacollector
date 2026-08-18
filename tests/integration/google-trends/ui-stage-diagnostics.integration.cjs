@@ -55,6 +55,19 @@ const {
 );
 
 const {
+  GoogleTrendsDateDialogContractError,
+} = require(
+  path.join(
+    buildRoot,
+    'src',
+    'main',
+    'sources',
+    'google-trends',
+    'google-trends-custom-date-dialog.js',
+  ),
+);
+
+const {
   safeResultSummary,
 } = require(
   path.join(
@@ -288,6 +301,68 @@ const main = async () => {
     'PASS GT-DIAG-002: collector converts UI failures into bounded stage+error-class diagnostics without leaking underlying provider/error text',
   );
 
+  const nestedDateDialogCollector =
+    new GoogleTrendsCollector({
+      browser_manager:
+        browserManager,
+      download_store: {},
+      probe_provider:
+        async () => ({
+          provider_state:
+            'NO_RATE_LIMIT_SIGNAL',
+          error_code:
+            null,
+          retry_after:
+            null,
+          signals: [],
+          requested_url:
+            'https://trends.google.com/trends/explore',
+          final_url:
+            'https://trends.google.com/trends/explore',
+          response_status:
+            200,
+        }),
+      export_configured_page:
+        async (input) => {
+          input.on_stage?.(
+            'DATE_RANGE',
+          );
+
+          throw new GoogleTrendsDateDialogContractError(
+            'SENSITIVE_NESTED_DATE_DIALOG_DETAIL_MUST_NOT_ESCAPE',
+          );
+        },
+    });
+
+  const nestedDateDialogResult =
+    await nestedDateDialogCollector.collect(
+      context,
+    );
+
+  assert.equal(
+    nestedDateDialogResult.result_type,
+    'FAILED',
+  );
+
+  assert.equal(
+    nestedDateDialogResult.error_code,
+    'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+  );
+
+  assert.equal(
+    nestedDateDialogResult.message,
+    'Google Trends UI contract failed during DATE_RANGE (GoogleTrendsDateDialogContractError).',
+  );
+
+  assert.doesNotMatch(
+    nestedDateDialogResult.message,
+    /SENSITIVE_NESTED_DATE_DIALOG_DETAIL_MUST_NOT_ESCAPE/u,
+  );
+
+  console.log(
+    'PASS GT-DIAG-003: nested custom-date dialog failures stay inside the DATE_RANGE UI-contract diagnostic boundary instead of falling through as generic collection failures',
+  );
+
   const summary =
     safeResultSummary({
       result_type:
@@ -331,7 +406,7 @@ const main = async () => {
   );
 
   console.log(
-    'PASS GT-DIAG-003: live GT01 output exposes only the controlled UI-stage diagnostic and continues suppressing arbitrary failure messages',
+    'PASS GT-DIAG-004: live GT01 output exposes only the controlled UI-stage diagnostic and continues suppressing arbitrary failure messages',
   );
 };
 
