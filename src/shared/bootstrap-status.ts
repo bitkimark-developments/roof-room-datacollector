@@ -28,8 +28,26 @@ export interface SourceRegistryStatus {
   sources: SourceSummary[];
 }
 
+export type DatabaseBootstrapStatus =
+  | {
+      status: 'READY';
+      database_path: string;
+      schema_version: number;
+      sqlite_version: string;
+      journal_mode: string;
+      foreign_keys: boolean;
+      migrations_applied: number;
+      quick_check: 'ok';
+    }
+  | {
+      status: 'ERROR';
+      database_path: string;
+      error: string;
+    };
+
 export interface BootstrapStatus {
   directories: ApplicationDirectories;
   query_config: QueryConfigLoadStatus;
   source_registry: SourceRegistryStatus;
+  database: DatabaseBootstrapStatus;
 }

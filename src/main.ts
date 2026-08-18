@@ -10,6 +10,7 @@ import {
 } from './main/config/query-config-loader';
 import { SourceRegistry } from './main/core/source-registry';
 import { GoogleTrendsSource } from './main/sources/google-trends/google-trends-source';
+import { initializeDatabase } from './main/storage/database';
 import {
   IPC_CHANNELS,
   type ApplicationInfo,
@@ -92,7 +93,7 @@ const registerIpcHandlers = (
 const createWindow = (): void => {
   const mainWindow = new BrowserWindow({
     width: 1100,
-    height: 820,
+    height: 900,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -151,12 +152,13 @@ const initializeBootstrapStatus =
     const sourceRegistry = new SourceRegistry();
     sourceRegistry.register(new GoogleTrendsSource());
 
-    // Prove the Core lookup path uses the stable machine ID.
     sourceRegistry.get('google-trends');
 
     const sourceSummaries = await sourceRegistry.getSummaries({
       query_config_ready: queryConfig.status === 'READY',
     });
+
+    const database = initializeDatabase(directories);
 
     return {
       directories,
@@ -165,6 +167,7 @@ const initializeBootstrapStatus =
         status: 'READY',
         sources: sourceSummaries,
       },
+      database,
     };
   };
 

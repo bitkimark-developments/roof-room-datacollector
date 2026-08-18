@@ -68,6 +68,9 @@ export function App() {
   const sourceRegistryStatus =
     appState?.bootstrapStatus.source_registry.status ?? 'LOADING';
 
+  const databaseStatus =
+    appState?.bootstrapStatus.database.status ?? 'LOADING';
+
   const firstGroup =
     appState?.bootstrapStatus.query_config.status === 'READY'
       ? appState.bootstrapStatus.query_config.config.groups[0]
@@ -112,6 +115,11 @@ export function App() {
         <div className="status-row">
           <span>SourceRegistry</span>
           <strong>{sourceRegistryStatus}</strong>
+        </div>
+
+        <div className="status-row">
+          <span>SQLite bootstrap</span>
+          <strong>{databaseStatus}</strong>
         </div>
 
         {appState && (
@@ -241,11 +249,76 @@ export function App() {
           </dl>
         )}
 
+        {appState?.bootstrapStatus.database.status === 'READY' && (
+          <dl className="application-info">
+            <div>
+              <dt>Database</dt>
+              <dd>
+                {appState.bootstrapStatus.database.database_path}
+              </dd>
+            </div>
+
+            <div>
+              <dt>SQLite</dt>
+              <dd>
+                {appState.bootstrapStatus.database.sqlite_version}
+              </dd>
+            </div>
+
+            <div>
+              <dt>Schema version</dt>
+              <dd>
+                {appState.bootstrapStatus.database.schema_version}
+              </dd>
+            </div>
+
+            <div>
+              <dt>Migrations applied</dt>
+              <dd>
+                {
+                  appState.bootstrapStatus.database
+                    .migrations_applied
+                }
+              </dd>
+            </div>
+
+            <div>
+              <dt>Journal mode</dt>
+              <dd>
+                {appState.bootstrapStatus.database.journal_mode}
+              </dd>
+            </div>
+
+            <div>
+              <dt>Foreign keys</dt>
+              <dd>
+                {appState.bootstrapStatus.database.foreign_keys
+                  ? 'ON'
+                  : 'OFF'}
+              </dd>
+            </div>
+
+            <div>
+              <dt>Quick check</dt>
+              <dd>
+                {appState.bootstrapStatus.database.quick_check}
+              </dd>
+            </div>
+          </dl>
+        )}
+
         {appState?.bootstrapStatus.query_config.status ===
           'ERROR' && (
           <p className="error-message">
             QueryConfig error:{' '}
             {appState.bootstrapStatus.query_config.error}
+          </p>
+        )}
+
+        {appState?.bootstrapStatus.database.status === 'ERROR' && (
+          <p className="error-message">
+            SQLite error:{' '}
+            {appState.bootstrapStatus.database.error}
           </p>
         )}
 
