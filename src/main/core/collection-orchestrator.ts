@@ -20,6 +20,10 @@ import type {
   ValidationStatus,
 } from '../../shared/run-job';
 import type {
+  StructuredLogInput,
+  StructuredLogSink,
+} from '../../shared/logging';
+import type {
   ValidationSummaryRecord,
 } from '../../shared/validation-summary';
 import {
@@ -201,6 +205,8 @@ export class CollectionOrchestrator {
     private readonly runManager: RunManager,
     private readonly metadataManager =
       new MetadataManager(),
+    private readonly logger:
+      StructuredLogSink | null = null,
   ) {}
 
   async runNext(
@@ -414,6 +420,20 @@ export class CollectionOrchestrator {
       );
     }
 
+    await this.writeLog({
+      level: 'INFO',
+      event: 'collection_attempt_started',
+      run_id: runId,
+      job_id: jobId,
+      attempt_id: attempt.attempt_id,
+      context: {
+        source_id: job.source_id,
+        job_key: job.job_key,
+        attempt_number:
+          attempt.attempt_number,
+      },
+    });
+
     const source = this.registry.get(
       job.source_id,
     );
@@ -444,6 +464,22 @@ export class CollectionOrchestrator {
             'MANUAL_ACTION_REQUIRED',
           );
 
+        await this.writeLog({
+          level: 'WARN',
+          event:
+            'manual_action_required',
+          run_id: runId,
+          job_id: jobId,
+          attempt_id:
+            attempt.attempt_id,
+          context: {
+            readiness_status:
+              readiness.readiness_status,
+            message:
+              readiness.message,
+          },
+        });
+
         this.runManager.refreshRunStatus(
           runId,
         );
@@ -465,6 +501,20 @@ export class CollectionOrchestrator {
             'SOURCE_NOT_READY',
         },
       );
+
+      await this.writeLog({
+        level: 'ERROR',
+        event: 'collection_attempt_failed',
+        run_id: runId,
+        job_id: jobId,
+        attempt_id: attempt.attempt_id,
+        context: {
+          error_code: 'SOURCE_NOT_READY',
+          readiness_status:
+            readiness.readiness_status,
+          message: readiness.message,
+        },
+      });
 
       this.runManager.refreshRunStatus(
         runId,
@@ -501,17 +551,34 @@ export class CollectionOrchestrator {
       collection.result_type ===
         'NO_ARTIFACT'
     ) {
+      const errorCode =
+        requireNonEmptyErrorCode(
+          collection.error_code,
+        );
+
       const failed =
         this.store.transitionJobExecution(
           jobId,
           'FAILED',
           {
-            error_code:
-              requireNonEmptyErrorCode(
-                collection.error_code,
-              ),
+            error_code: errorCode,
           },
         );
+
+      await this.writeLog({
+        level: 'ERROR',
+        event: 'collection_attempt_failed',
+        run_id: runId,
+        job_id: jobId,
+        attempt_id: attempt.attempt_id,
+        context: {
+          error_code: errorCode,
+          result_type:
+            collection.result_type,
+          message:
+            collection.message,
+        },
+      });
 
       this.runManager.refreshRunStatus(
         runId,
@@ -535,6 +602,19 @@ export class CollectionOrchestrator {
           jobId,
           'MANUAL_ACTION_REQUIRED',
         );
+
+      await this.writeLog({
+        level: 'WARN',
+        event:
+          'manual_action_required',
+        run_id: runId,
+        job_id: jobId,
+        attempt_id: attempt.attempt_id,
+        context: {
+          message:
+            collection.message,
+        },
+      });
 
       this.runManager.refreshRunStatus(
         runId,
@@ -572,6 +652,24 @@ export class CollectionOrchestrator {
         byte_size: persisted.byte_size,
         sha256: persisted.sha256,
       });
+
+    await this.writeLog({
+      level: 'INFO',
+      event: 'raw_artifact_persisted',
+      run_id: runId,
+      job_id: jobId,
+      attempt_id: attempt.attempt_id,
+      context: {
+        artifact_id:
+          artifact.artifact_id,
+        relative_path:
+          artifact.relative_path,
+        byte_size:
+          artifact.byte_size,
+        sha256:
+          artifact.sha256,
+      },
+    });
 
     this.store.transitionJobExecution(
       jobId,
@@ -630,10 +728,11 @@ export class CollectionOrchestrator {
           document: validationDocument,
         });
 
-    this.store.setValidationJsonPath(
-      validationSummary.validation_id,
-      persistedValidation.relative_path,
-    );
+    const linkedValidationSummary =
+      this.store.setValidationJsonPath(
+        validationSummary.validation_id,
+        persistedValidation.relative_path,
+      );
 
     const queryGroup = getQueryGroup(
       run,
@@ -661,15 +760,38 @@ export class CollectionOrchestrator {
           country_name: null,
         });
 
-    await this.storage
-      .persistMetadataJson({
-        run_id: runId,
-        source_id: job.source_id,
-        attempt_number:
-          attempt.attempt_number,
-        document_key: job.job_key,
-        document: metadataDocument,
-      });
+    const persistedMetadata =
+      await this.storage
+        .persistMetadataJson({
+          run_id: runId,
+          source_id: job.source_id,
+          attempt_number:
+            attempt.attempt_number,
+          document_key: job.job_key,
+          document: metadataDocument,
+        });
+
+    await this.writeLog({
+      level: 'INFO',
+      event: 'validation_completed',
+      run_id: runId,
+      job_id: jobId,
+      attempt_id: attempt.attempt_id,
+      context: {
+        validation_id:
+          linkedValidationSummary.validation_id,
+        validation_status:
+          linkedValidationSummary.validation_status,
+        validation_json_path:
+          linkedValidationSummary.validation_json_path,
+        metadata_json_path:
+          persistedMetadata.relative_path,
+        checks_total:
+          linkedValidationSummary.checks_total,
+        checks_failed:
+          linkedValidationSummary.checks_failed,
+      },
+    });
 
     if (
       ACCEPTED_VALIDATION.has(
@@ -685,6 +807,21 @@ export class CollectionOrchestrator {
               validation.validation_status,
           },
         );
+
+      await this.writeLog({
+        level: 'INFO',
+        event:
+          'collection_attempt_completed',
+        run_id: runId,
+        job_id: jobId,
+        attempt_id: attempt.attempt_id,
+        context: {
+          validation_status:
+            validation.validation_status,
+          accepted_artifact_id:
+            completed.accepted_artifact_id,
+        },
+      });
 
       this.runManager.refreshRunStatus(
         runId,
@@ -709,6 +846,20 @@ export class CollectionOrchestrator {
         },
       );
 
+    await this.writeLog({
+      level: 'ERROR',
+      event: 'collection_attempt_failed',
+      run_id: runId,
+      job_id: jobId,
+      attempt_id: attempt.attempt_id,
+      context: {
+        error_code:
+          'VALIDATION_REJECTED',
+        validation_status:
+          validation.validation_status,
+      },
+    });
+
     this.runManager.refreshRunStatus(
       runId,
     );
@@ -720,5 +871,15 @@ export class CollectionOrchestrator {
       attempt,
       artifact,
     );
+  }
+
+  private async writeLog(
+    input: StructuredLogInput,
+  ): Promise<void> {
+    if (this.logger === null) {
+      return;
+    }
+
+    await this.logger.write(input);
   }
 }

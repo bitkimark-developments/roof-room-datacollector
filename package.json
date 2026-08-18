@@ -21,7 +21,8 @@
     "test:m2:orchestrator": "bash tests/integration/orchestration/run-sequential-fake-source-test.sh",
     "test:m2:documents": "bash tests/integration/filesystem/run-generated-documents-test.sh",
     "test:m2:logging": "bash tests/integration/logging/run-structured-logger-test.sh",
-    "test:m2:browser": "bash tests/integration/browser/run-browser-manager-test.sh"
+    "test:m2:browser": "bash tests/integration/browser/run-browser-manager-test.sh",
+    "test:m2:gate": "bash tests/integration/m2-gate/run-integrated-m2-gate.sh"
   },
   "keywords": [],
   "author": {
