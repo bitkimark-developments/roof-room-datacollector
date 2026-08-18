@@ -37,12 +37,49 @@ export interface ManagedBrowserResponse {
   ): Promise<string | null>;
 }
 
+export type ManagedBrowserRole =
+  | 'button'
+  | 'menuitem'
+  | 'option'
+  | 'searchbox'
+  | 'textbox';
+
 export interface ManagedBrowserLocator {
   innerText(
     options?: {
       timeout?: number;
     },
   ): Promise<string>;
+
+  click(
+    options?: {
+      timeout?: number;
+    },
+  ): Promise<void>;
+
+  fill(
+    value: string,
+    options?: {
+      timeout?: number;
+    },
+  ): Promise<void>;
+
+  press(
+    key: string,
+    options?: {
+      timeout?: number;
+    },
+  ): Promise<void>;
+}
+
+export interface ManagedBrowserDownload {
+  suggestedFilename(): string;
+
+  saveAs(
+    destinationPath: string,
+  ): Promise<void>;
+
+  failure(): Promise<string | null>;
 }
 
 export interface ManagedBrowserPage {
@@ -57,8 +94,22 @@ export interface ManagedBrowserPage {
   title(): Promise<string>;
 
   locator(
-    selector: 'body',
+    selector: string,
   ): ManagedBrowserLocator;
+
+  getByRole(
+    role: ManagedBrowserRole,
+    options?: {
+      name?: string;
+    },
+  ): ManagedBrowserLocator;
+
+  waitForEvent(
+    event: 'download',
+    options?: {
+      timeout?: number;
+    },
+  ): Promise<ManagedBrowserDownload>;
 
   close(): Promise<void>;
 }
