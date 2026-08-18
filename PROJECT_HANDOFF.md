@@ -26,27 +26,39 @@ main
 Latest verified checkpoint:
 
 ```text
-38dc16a feat: add resume reconciliation planning
+e14c959 feat: add reconciliation and retry policy
 ```
 
 Previous verified checkpoints:
 
 ```text
+65295d7 docs: update M2 handoff after resume planning
+38dc16a feat: add resume reconciliation planning
 65b239d docs: update M2 handoff after storage manager
 add43fa feat: add raw artifact storage manager
 1fdac5d docs: update M2 handoff after artifact persistence
 f9c6356 feat: persist artifacts and validation summaries
-4852f1c docs: update M2 handoff after run lifecycle slice
-f7b7d46 feat: add run lifecycle aggregation
 ```
 
-Working tree is clean after `38dc16a`.
+Working tree is clean after `e14c959`.
 
 ---
 
-# 2. M2 Completed Foundation
+# 2. M2 Completed Core Chain
 
-Verified persistence chain:
+Verified operational chain:
+
+```text
+persist
+→ restart
+→ discover
+→ classify
+→ reconcile
+→ explicit retry
+→ preserve history
+```
+
+Persisted entities:
 
 ```text
 run
@@ -54,20 +66,6 @@ run
     └── attempt
         ├── candidate artifact
         └── validation summary
-```
-
-Verified core behavior:
-
-```text
-run/job persistence
-attempt persistence
-job execution state machine
-run lifecycle aggregation
-artifact persistence
-validation-summary persistence
-accepted-artifact references
-raw filesystem persistence
-resume discovery/reconstruction
 ```
 
 Current SQLite schema:
@@ -89,51 +87,29 @@ Migration history:
 
 # 3. Storage Foundation
 
-StorageManager is implemented for raw source artifacts.
+StorageManager raw artifact persistence is implemented.
 
 Verified:
 
 ```text
-run/source directories are created safely
-raw bytes are preserved exactly
-byte_size is derived from persisted bytes
-SHA-256 is derived from persisted bytes
-silent overwrite is rejected
-retry gets a distinct attempt-suffixed filename
-path traversal fails closed
-relative paths remain run-scoped
-raw evidence survives StorageManager restart
-```
-
-Raw artifact layout:
-
-```text
-data/runs/<run_id>/
-├── <source_id>/
-│   ├── raw/
-│   ├── metadata/
-│   └── validation/
-├── exports/
-└── logs/
+safe run/source directory creation
+exact raw byte preservation
+byte_size from persisted bytes
+SHA-256 from persisted bytes
+no silent overwrite
+attempt-suffixed retry filename
+path traversal rejection
+run-scoped relative paths
+restart persistence
 ```
 
 ---
 
-# 4. Resume / Reconciliation Foundation
+# 4. Resume Planning
 
-ResumePlanner is implemented as a read-only reconstruction layer.
+ResumePlanner is a read-only reconstruction layer.
 
-StateRepository can discover non-terminal runs:
-
-```text
-PENDING
-RUNNING
-MANUAL_ACTION_REQUIRED
-```
-
-Completed terminal runs are excluded from incomplete-run discovery.
-
-Resume job classification:
+Classification:
 
 ```text
 COMPLETED + accepted artifact
@@ -142,50 +118,90 @@ COMPLETED + accepted artifact
 PENDING
 → PENDING
 
-FAILED
-→ RETRY_CANDIDATE
-
-RETRY_PENDING
+FAILED / RETRY_PENDING
 → RETRY_CANDIDATE
 
 MANUAL_ACTION_REQUIRED
 → BLOCKED_MANUAL_ACTION
 
-RUNNING
-→ RECONCILE_REQUIRED
-
-VALIDATING
-→ RECONCILE_REQUIRED
-
-COMPLETED without accepted artifact
+RUNNING / VALIDATING
 → RECONCILE_REQUIRED
 ```
 
-Resume planning preserves candidate and accepted artifact references.
+Candidate and accepted artifact references are preserved.
 
-It does not automatically recollect, retry, or mutate job state.
+Completed terminal runs are excluded from incomplete-run discovery.
 
 ---
 
-# 5. Verified Resume Tests
+# 5. Reconciliation / Retry Policy
+
+Implemented:
 
 ```text
-PASS DB-009: multiple incomplete runs are discovered while completed runs are excluded
-PASS RESUME-001/JOB-007: completed accepted job is classified SKIP_ACCEPTED
-PASS RESUME-002: interrupted RUNNING job without artifact requires reconciliation
-PASS RESUME-003: interrupted job with candidate is reconciled before recollection
-PASS RESUME-004: accepted artifact reference survives repository restart
-PASS RESUME-005: multiple interrupted runs reconstruct independently
-PASS: FAILED/RETRY_PENDING policy is represented as RETRY_CANDIDATE without auto-retry
-PASS: MANUAL_ACTION_REQUIRED remains blocked and is not auto-retried
-PASS: resume planning is read-only and does not rewrite persisted job states
+ReconciliationCoordinator
+RetryPolicy
+ReconciliationResult contract
 ```
 
-Previous M2 regression suites remain passing.
+Verified behavior:
+
+```text
+SKIP_ACCEPTED
+→ no mutation / no scheduling
+
+PENDING
+→ eligible for initial work
+→ not auto-started by reconciliation
+
+BLOCKED_MANUAL_ACTION
+→ no automatic failure
+→ no automatic retry
+
+RECONCILE_REQUIRED + candidate
+→ candidate preserved
+→ no recollection
+→ validation/reconciliation required first
+
+RECONCILE_REQUIRED without candidate
+→ interrupted attempt preserved as FAILED
+→ error_code = INTERRUPTED_ATTEMPT
+→ job becomes RETRY_PENDING if retry allowed
+
+RETRY_CANDIDATE
+→ explicit retry eligibility
+→ attempt_number increments
+→ prior attempts preserved
+
+retry exhausted
+→ RETRY_EXHAUSTED
+→ no new attempt
+```
+
+Stale resume plans fail closed before mutation.
 
 ---
 
-# 6. Current Deterministic Test Surface
+# 6. Verified Reconciliation / Retry Tests
+
+```text
+PASS RECONCILE-001: accepted job is skipped without mutation
+PASS RECONCILE-002: pending job is initial-work eligible but not auto-started
+PASS RECONCILE-003: manual-action job is never auto-failed or retried
+PASS RECONCILE-004: candidate evidence is preserved before recollection
+PASS RECONCILE-005: interrupted attempt without candidate becomes FAILED evidence then RETRY_PENDING
+PASS RETRY-003: explicit retry creates attempt_number 2 and preserves attempt 1
+PASS RETRY-004: FAILED job can be explicitly prepared and retried
+PASS RETRY-005: max-attempt policy denies exhausted retry without creating history
+PASS RECONCILE-006: stale resume plans fail closed before mutation
+PASS RECONCILE-007: reconciliation/retry evidence survives repository restart
+```
+
+All prior M2 regression suites remain passing.
+
+---
+
+# 7. Current Deterministic Test Surface
 
 ```text
 npm run test:m2:state
@@ -194,34 +210,36 @@ npm run test:m2:runs
 npm run test:m2:artifacts
 npm run test:m2:storage
 npm run test:m2:resume
+npm run test:m2:reconcile
 ```
 
 ---
 
-# 7. Current M2 Acceptance-Gate Position
+# 8. Current M2 Acceptance-Gate Position
 
 Completed:
 
 ```text
-runs/jobs persist
-attempt history persists
-state transitions persist
-artifact records persist
-validation summaries persist
-accepted artifact references are explicit
-raw bytes are preserved on filesystem
-collision protection exists
-resume can discover incomplete runs
-accepted jobs are identified for skip
-candidate evidence is preserved for reconciliation
-multiple interrupted runs reconstruct independently
+run/job persistence
+attempt history
+state transitions
+artifact records
+validation summaries
+accepted-artifact references
+raw filesystem preservation
+collision protection
+incomplete-run discovery
+accepted-job skip
+candidate preservation
+reconciliation mutation policy
+explicit retry policy
+retry limit behavior
+restart persistence
 ```
 
-Still missing:
+Remaining major M2 gaps:
 
 ```text
-reconciliation mutation policy
-retry orchestration policy
 sequential fake-source orchestration
 metadata JSON persistence
 validation JSON persistence
@@ -233,86 +251,126 @@ integrated M2 acceptance gate
 
 ---
 
-# 8. Exact Next Action
+# 9. Exact Next Action
 
-Implement the next smallest orchestration slice:
+Implement the smallest sequential fake-source orchestration vertical slice.
+
+Target flow:
 
 ```text
-read ResumeJobPlan
+create run
 ↓
-introduce explicit RetryPolicy / ReconciliationCoordinator boundary
+start run
 ↓
-SKIP_ACCEPTED
-→ no mutation / no scheduling
-
-PENDING
-→ schedulable initial work
-
-RETRY_CANDIDATE
-→ explicit retry eligibility check
-
-RECONCILE_REQUIRED without candidate
-→ mark interrupted attempt failed with structured error
-→ move job to RETRY_PENDING when retry is allowed
-
-RECONCILE_REQUIRED with candidate
-→ preserve candidate evidence
-→ do not recollect automatically
-→ hand off to validation/reconciliation path
-
-BLOCKED_MANUAL_ACTION
-→ no automatic retry
+select first schedulable job
 ↓
-prove attempt history is preserved
+start attempt
 ↓
-prove retry creates attempt_number +1
+fake source returns deterministic raw bytes
 ↓
-prove accepted jobs remain untouched
+StorageManager persists raw bytes
 ↓
-restart verification
+StateRepository registers candidate artifact
 ↓
-Git checkpoint
+transition to VALIDATING
+↓
+deterministic fake validator returns VALID
+↓
+record validation summary
+↓
+transition job to COMPLETED
+↓
+advance to next job
 ```
 
-The slice should not yet execute a fake source.
-
----
-
-# 9. Retry / Reconciliation Guardrails
-
-Retry must never overwrite previous attempt evidence.
-
-Accepted jobs must not be scheduled again during normal resume.
-
-Manual-action jobs must not be converted to failure automatically.
-
-Candidate artifacts must not be discarded merely because the process restarted.
-
-A retry decision must be explicit and deterministic.
-
-Do not embed provider-specific Google Trends behavior into the core retry policy.
-
----
-
-# 10. Work After Reconciliation / Retry Policy
-
-After the next slice:
+One deterministic job should intentionally fail on attempt 1:
 
 ```text
-sequential fake-source orchestration
+attempt 1
+→ FAILED with explicit fake error
+
+reconciliation / retry policy
+→ RETRY_PENDING
+→ attempt 2
+
+attempt 2
+→ deterministic success
+→ accepted artifact
+→ COMPLETED
+```
+
+Restart scenario must prove:
+
+```text
+already accepted jobs
+→ skipped
+
+retry-pending/retryable job
+→ reconstructed correctly
+
+remaining pending job
+→ continues in order
+```
+
+---
+
+# 10. Fake-Source Slice Boundaries
+
+This slice should use only deterministic local test behavior.
+
+Do not implement:
+
+```text
+Google Trends browser automation
+Playwright provider workflow
+real downloads
+provider authentication
+real CSV validation logic
+XLSX export
+```
+
+The goal is to prove the core orchestration contracts before introducing provider complexity.
+
+---
+
+# 11. Orchestration Guardrails
+
+Default execution remains sequential.
+
+One job should be active at a time for the fake-source slice.
+
+Source execution must return evidence/data to the core; it must not directly mutate SQLite state.
+
+StorageManager owns artifact bytes and paths.
+
+StateRepository owns persisted operational state.
+
+Validation result persistence must remain separate from execution status.
+
+Accepted jobs must not be recollected during resume.
+
+Retry must append attempts, never rewrite historical attempts.
+
+---
+
+# 12. Work After Fake-Source Orchestration
+
+After the fake-source vertical slice:
+
+```text
 MetadataManager / metadata JSON
 validation JSON file persistence
 structured logging
 sensitive-value redaction
 BrowserManager foundation
-M2 integrated acceptance gate
+integrated M2 acceptance gate
 ```
 
 Real Google Trends collection remains M3.
 
 ---
 
-# 11. Handoff Discipline
+# 13. Handoff Discipline
 
 At the end of each meaningful implementation session:
 
