@@ -4,7 +4,7 @@
 **Product:** RoofRoom Data Collector  
 **Last Updated:** 2026-08-18  
 **Current Milestone:** M2 — Core Collector Engine  
-**Milestone Status:** READY TO START  
+**Milestone Status:** IN PROGRESS  
 **Previous Milestone:** M1 — Application Skeleton — COMPLETED  
 **M0 Final Consistency Review:** PASS  
 
@@ -12,27 +12,29 @@
 
 # 1. Current Repository
 
-Verified repository:
+Verified repository path:
 
 ```text
 ~/Projects/roofroom-data-collector/
 ```
 
-Branch:
+Current branch:
 
 ```text
 main
 ```
 
-Latest verified implementation checkpoint:
+Latest verified checkpoint:
 
 ```text
-5503309 feat: add SQLite schema bootstrap
+996b34e feat: add persisted run and job state
 ```
 
 Previous verified checkpoints:
 
 ```text
+2320804 docs: close M1 and prepare M2
+5503309 feat: add SQLite schema bootstrap
 35d9b74 feat: add source registry and Google Trends placeholder
 b8d9505 docs: update M1 handoff after config slice
 9e3328b feat: add app directories and YAML query config loader
@@ -41,7 +43,7 @@ b8d9505 docs: update M1 handoff after config slice
 e2409cc chore: bootstrap Electron Forge Vite TypeScript app
 ```
 
-Working tree was clean after `5503309`.
+Working tree was clean immediately after `996b34e`.
 
 ---
 
@@ -59,17 +61,15 @@ STATUS: COMPLETED
 STATUS: COMPLETED
 ```
 
-M1 acceptance was verified on the target Apple Silicon Mac.
-
 ## M2 — Core Collector Engine
 
 ```text
-STATUS: READY TO START
+STATUS: IN PROGRESS
 ```
 
-M2 owns operational persistence and deterministic orchestration foundations.
+M2 currently has verified run/job persistence.
 
-M2 does not perform real Google Trends browser collection.
+Attempts, retry/resume orchestration, artifacts, validation summaries, storage infrastructure, logging, BrowserManager foundation, and fake-source orchestration are not yet complete.
 
 ## M3 — Google Trends MVP Collector
 
@@ -77,33 +77,11 @@ M2 does not perform real Google Trends browser collection.
 STATUS: NOT STARTED
 ```
 
-## M4 — Validation Engine
-
-```text
-STATUS: NOT STARTED
-```
-
-## M5 — Desktop UX
-
-```text
-STATUS: NOT STARTED
-```
-
-## M6 — Data Package & Workbook
-
-```text
-STATUS: NOT STARTED
-```
-
-## M7 — Hardening & Release 1.0
-
-```text
-STATUS: NOT STARTED
-```
+No real Google Trends browser collection has started.
 
 ---
 
-# 3. Verified M1 Environment
+# 3. Verified M1 Baseline
 
 Target machine:
 
@@ -112,200 +90,273 @@ macOS:        26.5.2
 Architecture: arm64
 Node.js dev:  24.19.0 via nvm
 npm:          11.17.0
+Electron:     43.4.0
+Electron Node:24.18.1
+SQLite:       3.53.1
 ```
 
-Electron runtime probe:
+Verified M1 chain:
 
 ```text
-Electron: 43.4.0
-Node:     24.18.1
-SQLite:   3.53.1
+Electron
+↓
+React
+↓
+safe typed IPC
+↓
+application directories
+↓
+YAML QueryConfig
+↓
+SourceRegistry
+↓
+SQLite bootstrap
+↓
+production package
+↓
+packaged macOS app launch
 ```
-
-Verified implementation baseline:
-
-```text
-Electron                         43.4.0
-Electron Forge                   7.11.2
-React                            18.3.1
-React DOM                        18.3.1
-Vite                             5.4.21
-TypeScript                       5.9.3
-ESLint                           8.57.1
-@typescript-eslint/parser        8.65.0
-@typescript-eslint/eslint-plugin 8.65.0
-yaml                             2.9.0
-```
-
-These are a verified baseline, not permanent forever-pins.
 
 ---
 
-# 4. M1 Completed Work
+# 4. M2 Completed Work
 
-## Electron / React / IPC
+## SQLite Schema Version 2
 
-Verified:
-
-- Electron launches,
-- React renderer loads,
-- typed preload/IPC bridge works,
-- `contextIsolation: true`,
-- `nodeIntegration: false`,
-- renderer sandbox enabled,
-- raw privileged Electron/Node objects are not exposed to React,
-- IPC sender validation is implemented.
-
-## Application Directories
-
-Verified writable root:
+Schema version 2 adds operational persistence for:
 
 ```text
-~/Library/Application Support/RoofRoom Data Collector/app-data/
+runs
+jobs
 ```
 
-Current subdirectories include:
+Migration history:
 
 ```text
-config/
-data/
-data/runs/
-database/
-browser-profiles/
-logs/
+1 bootstrap_schema
+2 run_job_persistence
 ```
 
-## YAML QueryConfig
+The existing M1 database successfully migrated from schema version 1 to version 2.
 
-Verified:
+Foreign-key enforcement remains enabled.
 
-- external YAML config creation,
-- strict YAML parsing,
-- canonical QueryConfig normalization,
-- config version validation,
-- `source = google-trends` validation,
-- GT group-ID validation,
-- duplicate group rejection,
-- duplicate query rejection within a group,
-- unsupported-field rejection,
-- query/group order preservation,
-- valid-config recovery after a controlled invalid-config test.
+SQLite quick-check remains healthy.
 
-Current deterministic M1 fixture contains GT01 and GT02 only. It is not the final GT01–GT20 Release 1.0 config.
+## Run Persistence
 
-## SourceRegistry
-
-Verified:
-
-- `google-trends` registration,
-- stable source-ID lookup,
-- duplicate registration rejection,
-- unknown source lookup rejection,
-- capabilities/readiness summary,
-- typed renderer transport.
-
-Current Google Trends source readiness is intentionally:
+A new run is persisted with:
 
 ```text
-UNAVAILABLE
+run_status = PENDING
 ```
 
-because real collection is not implemented in M1.
-
-## SQLite Bootstrap
-
-Current database:
+The run stores:
 
 ```text
-~/Library/Application Support/RoofRoom Data Collector/app-data/database/roofroom.sqlite
+run_id
+run_status
+created_at
+started_at
+completed_at
+application_version
+selected_sources
+configuration_snapshot
 ```
 
-Verified:
+The configuration snapshot preserves the effective source/query/date/search configuration used at run creation.
+
+Historical run interpretation does not depend on the current live config file.
+
+## Job Persistence
+
+For the Google Trends configuration:
 
 ```text
-schema version      = 1
-migrations applied  = 1
+one query group = one job
+```
+
+Jobs persist independently and in query-group order.
+
+Initial job state:
+
+```text
+execution_status = PENDING
+validation_status = NOT_RUN
+attempt_count = 0
+accepted_artifact_id = null
+```
+
+Job identity preserves:
+
+```text
+run_id
+source_id
+job_key
+query_group_id
+job_order
+```
+
+## StateRepository
+
+The first StateRepository slice can:
+
+```text
+create run from canonical QueryConfig
+create ordered jobs
+read a run
+list jobs in deterministic order
+read run/job counts
+close and reopen repository
+```
+
+A new repository instance can reload the same persisted run and jobs.
+
+## Persisted Status Guards
+
+SQLite-level constraints reject invalid persisted status values.
+
+Execution and validation remain separate domains.
+
+Examples verified to fail closed:
+
+```text
+run_status = NOT_A_STATUS
+execution_status = DOWNLOAD_FAILED
+validation_status = MANUAL_ACTION_REQUIRED
+```
+
+`DOWNLOAD_FAILED` remains an operational error code rather than an execution/validation status.
+
+`MANUAL_ACTION_REQUIRED` remains an execution/control-flow state rather than validation status.
+
+## Foreign-Key Integrity
+
+Verified relationship:
+
+```text
+runs
+└── jobs
+```
+
+Invalid job reassignment to a missing run is rejected.
+
+`PRAGMA foreign_key_check` returned no problems.
+
+---
+
+# 5. M2 Deterministic Verification Record
+
+Verified integration tests:
+
+```text
+PASS ID-001: run_id is filesystem-safe
+PASS ID-002: rapid run_id generation remained unique
+PASS DB-001: legacy schema v1 upgrades to v2
+PASS DB-002: run persisted as PENDING
+PASS DB-003: ordered jobs persisted independently
+PASS DB-008: run/jobs survive repository restart
+PASS DB-010: foreign-key integrity remains valid
+PASS: invalid persisted status values fail closed
+PASS: configuration snapshot survives restart
+```
+
+Verified runtime database state:
+
+```text
+schema version      = 2
+migrations applied  = 2
 journal mode        = wal
 foreign keys        = ON
 quick check         = ok
 ```
 
-Schema version 1 contains only bootstrap/migration infrastructure.
+The real application database was not populated with fake run/job records during deterministic integration testing.
 
-Operational run/job persistence begins in M2.
-
----
-
-# 5. M1 Acceptance Record
-
-Verified:
-
-```text
-Electron development launch                     PASS
-React renderer                                  PASS
-typed preload / IPC bridge                      PASS
-renderer privilege boundary                     PASS
-application directories                         PASS
-valid YAML config                               PASS
-invalid config rejection                        PASS
-duplicate query-group rejection                 PASS
-SourceRegistry                                  PASS
-stable source-ID lookup                         PASS
-duplicate source registration rejection         PASS
-unknown source rejection                        PASS
-Electron node:sqlite runtime probe               PASS
-SQLite fresh migration                          PASS
-SQLite restart/idempotency                      PASS
-SQLite future-schema rejection                  PASS
-SQLite quick_check                              PASS
-npm run lint                                    PASS
-npx tsc --noEmit                                PASS
-git diff --check                                PASS
-npm audit --omit=dev                            PASS / 0 vulnerabilities
-Electron Forge production package               PASS
-packaged macOS arm64 application launch          PASS
-```
-
-Packaged output:
-
-```text
-out/
-└── RoofRoom Data Collector-darwin-arm64/
-    └── RoofRoom Data Collector.app
-```
-
-Packaged application runtime showed:
-
-```text
-React renderer            READY
-Typed IPC bridge          READY
-Application directories  READY
-YAML QueryConfig          READY
-SourceRegistry            READY
-SQLite bootstrap          READY
-```
-
-No real Google Trends collection was performed.
+Temporary databases are used for persistence tests.
 
 ---
 
-# 6. Dependency / Security Notes
+# 6. Current Canonical Status Domains
 
-Production dependency audit remains:
+Execution status:
 
 ```text
+PENDING
+RUNNING
+VALIDATING
+COMPLETED
+FAILED
+CANCELLED
+MANUAL_ACTION_REQUIRED
+RETRY_PENDING
+```
+
+Validation status:
+
+```text
+NOT_RUN
+VALID
+LOW_DATA
+NO_DATA
+INVALID_SCHEMA
+ERROR_NOT_DATA
+DATE_MISMATCH
+QUERY_MISMATCH
+```
+
+These domains must remain separate.
+
+Operational conditions such as:
+
+```text
+DOWNLOAD_FAILED
+```
+
+belong in structured error/error-code context rather than validation status.
+
+---
+
+# 7. M2 Remaining Work
+
+Not yet implemented:
+
+```text
+attempt persistence
+attempt numbering
+job execution transition service
+run transition service
+retry creation semantics
+retry history preservation
+artifact persistence
+validation-summary persistence
+error persistence
+incomplete-run discovery
+resume reconciliation
+accepted-job skip behavior
+sequential fake-source orchestration
+cancellation behavior
+manual-action orchestration
+storage collision protection
+structured logging
+BrowserManager foundation
+M2 acceptance gate
+```
+
+Real Google Trends automation remains M3 work.
+
+---
+
+# 8. Current Dependency / Security Notes
+
+Production dependency audit previously verified:
+
+```text
+npm audit --omit=dev
 0 vulnerabilities
 ```
 
-The full development/build dependency tree has previously reported:
-
-```text
-32 vulnerabilities
-3 low
-1 moderate
-27 high
-1 critical
-```
+Full development/build dependency findings remain known technical debt.
 
 Do not run:
 
@@ -315,141 +366,124 @@ npm audit fix --force
 
 without a deliberate toolchain migration and regression test.
 
-Do not blindly approve install scripts.
+Do not log passwords, 2FA codes, cookies, session tokens, OAuth secrets, access tokens, or refresh tokens.
 
 ---
 
-# 7. M1 Closure
+# 9. Exact Next Action
 
-M1 is complete.
-
-The verified M1 chain is:
+Continue M2 with the next smallest persistence/state-machine slice:
 
 ```text
-Electron launch
+define canonical AttemptRecord
 ↓
-React renderer
+SQLite migration v3 → attempts
 ↓
-safe preload / typed IPC
+create first attempt with attempt_number = 1
 ↓
-application directories
+persist attempt independently from job
 ↓
-YAML → canonical QueryConfig
+increment job.attempt_count transactionally
 ↓
-SourceRegistry → google-trends
+reload attempt history after repository restart
 ↓
-SQLite open + schema/migration bootstrap
+define deterministic job execution transition guard
 ↓
-production package
+prove:
+PENDING → RUNNING
+RUNNING → VALIDATING
+VALIDATING → COMPLETED
+RUNNING → FAILED
+FAILED → RETRY_PENDING
+MANUAL_ACTION_REQUIRED remains distinct from FAILED
 ↓
-packaged app launch on target Mac
-```
-
-Persisted runs/jobs were intentionally not added to M1. That boundary belongs to M2.
-
----
-
-# 8. M2 Objective
-
-M2 — Core Collector Engine targets:
-
-- persisted runs,
-- persisted jobs,
-- persisted attempts,
-- deterministic execution-status transitions,
-- sequential orchestration,
-- resume/reconciliation foundation,
-- retry foundation,
-- artifact records,
-- validation-summary records,
-- shared storage foundation,
-- metadata foundation,
-- logging foundation,
-- BrowserManager foundation,
-- fake/test source pipeline.
-
-M2 must keep `execution_status` separate from `validation_status`.
-
-M2 should prove shared Core behavior deterministically before M3 connects the live Google Trends UI.
-
----
-
-# 9. Current Known Issues / Deferred Work
-
-1. No formal automated test runner has been selected yet.
-2. Existing deterministic checks are runtime/TypeScript/shell probes rather than a formal suite.
-3. Full development dependency audit still contains build-tool dependency findings.
-4. Playwright is not yet installed/configured.
-5. Google Trends source remains intentionally `UNAVAILABLE`.
-6. Current YAML fixture contains only GT01 and GT02.
-7. JSON/CSV config adapters remain Release 1.0 work.
-8. Run/job/attempt/artifact persistence is not yet implemented.
-9. BrowserManager is not yet implemented.
-10. Logging/schema-validation/XLSX/CSV implementation choices remain deferred where not yet required.
-
----
-
-# 10. Exact Next Action
-
-Begin M2 with the smallest persistence vertical slice:
-
-```text
-inspect canonical Run / Job contracts
+reject illegal transitions
 ↓
-define shared execution-status TypeScript contracts
-↓
-design SQLite migration v2 for runs + jobs only
-↓
-implement StateRepository run/job persistence
-↓
-create one run from canonical QueryConfig
-↓
-persist independent jobs in query-group order
-↓
-reload database
-↓
-prove run/jobs survive restart
-↓
-prove status values fail closed
-↓
-lint / type-check / deterministic integration test
-↓
-runtime summary
+lint / type-check / deterministic integration tests
 ↓
 Git checkpoint
 ```
 
-Do not add attempts, artifacts, retry, resume, BrowserManager, or real source collection to the first M2 slice unless required to prove the run/job persistence boundary.
-
-After run/job persistence is proven:
+The first attempt/state-transition slice should not yet implement:
 
 ```text
-attempts + transition rules
-↓
-sequential fake-source orchestration
-↓
-artifacts / validation summaries
-↓
-resume / retry
-↓
-shared storage / metadata / logging
-↓
-BrowserManager foundation
-↓
-M2 acceptance gate
+artifact persistence
+validation-summary persistence
+retry orchestration
+resume orchestration
+real source collection
+BrowserManager
+```
+
+Those follow after attempt persistence and transition semantics are stable.
+
+---
+
+# 10. Attempt Contract Target
+
+The canonical attempt record should preserve:
+
+```text
+attempt_id
+job_id
+attempt_number
+execution_status
+candidate_artifact_id
+validation_id
+error_code
+started_at
+completed_at
+```
+
+Attempt history must be append-only in normal retry behavior.
+
+A retry must not overwrite or delete the previous attempt.
+
+The first attempt starts at:
+
+```text
+attempt_number = 1
+```
+
+A later retry creates:
+
+```text
+attempt_number = 2
+```
+
+rather than rewriting attempt 1.
+
+---
+
+# 11. M2 Boundary
+
+Do not connect the live Google Trends UI yet.
+
+M2 proves reusable Core behavior using deterministic local tests and fake/test sources.
+
+M3 will own:
+
+```text
+Playwright Google Trends navigation
+real provider state
+real CSV export
+real parser evidence
+real source validation
+first live GT group
+progressive GT01–GT20 rollout
 ```
 
 ---
 
-# 11. Handoff Discipline
+# 12. Handoff Discipline
 
 At the end of every meaningful implementation session:
 
 1. verify actual behavior,
 2. record tests that actually ran,
 3. record known failures,
-4. update the current milestone,
-5. record the latest verified Git checkpoint,
+4. update current milestone state,
+5. record latest verified Git checkpoint,
 6. record one exact next action.
 
-Never record unverified work as completed.
+Never record unverified implementation work as completed.
