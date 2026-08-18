@@ -2074,6 +2074,30 @@ export class StateRepository {
     }
   }
 
+  listIncompleteRuns(): RunRecord[] {
+    return this.database
+      .prepare(`
+        SELECT
+          run_id,
+          run_status,
+          created_at,
+          started_at,
+          completed_at,
+          application_version,
+          selected_sources_json,
+          configuration_snapshot_json
+        FROM runs
+        WHERE run_status IN (
+          'PENDING',
+          'RUNNING',
+          'MANUAL_ACTION_REQUIRED'
+        )
+        ORDER BY created_at ASC, run_id ASC
+      `)
+      .all()
+      .map(mapRunRow);
+  }
+
   getRun(runId: string): RunRecord | null {
     const row = this.database
       .prepare(`
