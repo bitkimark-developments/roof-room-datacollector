@@ -1,11 +1,8 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Document:** `PROJECT_HANDOFF.md`
-**Product:** RoofRoom Data Collector
-**Last Updated:** 2026-08-18
-**Current Milestone:** M2 — Core Collector Engine
-**Milestone Status:** IN PROGRESS
-**Previous Milestone:** M1 — Application Skeleton — COMPLETED
+**Current Milestone:** M3 — Google Trends MVP Collector
+**Previous Milestone:** M2 — Core Collector Engine — COMPLETE
+**Latest verified Git checkpoint:** `46bf794 feat: wire orchestration logging and add M2 gate`
 
 ---
 
@@ -14,7 +11,7 @@
 Repository:
 
 ```text
-~/Projects/roofroom-data-collector/
+~/Projects/roofroom-data-collector
 ```
 
 Branch:
@@ -23,185 +20,135 @@ Branch:
 main
 ```
 
-Latest verified checkpoint:
+Current verified checkpoint:
 
 ```text
+46bf794 feat: wire orchestration logging and add M2 gate
+527a156 feat: add browser manager foundation
+75bdbb6 feat: add structured logging and redaction
+bd1300b feat: persist metadata and validation documents
+92378e9 feat: add sequential collection orchestration
 e14c959 feat: add reconciliation and retry policy
-```
-
-Previous verified checkpoints:
-
-```text
-65295d7 docs: update M2 handoff after resume planning
 38dc16a feat: add resume reconciliation planning
-65b239d docs: update M2 handoff after storage manager
 add43fa feat: add raw artifact storage manager
-1fdac5d docs: update M2 handoff after artifact persistence
 f9c6356 feat: persist artifacts and validation summaries
+f7b7d46 feat: add run lifecycle aggregation
+31f427d feat: add attempt persistence
+996b34e feat: persist runs and jobs
 ```
 
-Working tree is clean after `e14c959`.
+Development environment:
+
+```text
+MacBook Air M1
+macOS
+VS Code
+Node 24 via .nvmrc
+Electron + React + Vite + TypeScript
+SQLite via node:sqlite
+Playwright library installed
+```
+
+Playwright browser binaries were intentionally not installed during M2.
 
 ---
 
-# 2. M2 Completed Core Chain
+# 2. Product Boundary
 
-Verified operational chain:
+RoofRoom Data Collector is a local-first modular desktop data collection application.
+
+Core philosophy:
 
 ```text
-persist
-→ restart
-→ discover
-→ classify
-→ reconcile
-→ explicit retry
-→ preserve history
+Collect → Preserve → Validate → Document → Export
 ```
 
-Persisted entities:
+The collector does not make SEO, marketing, advertising, merchandising, or commercial decisions.
+
+One application contains multiple independent source modules. Google Trends is the first source module.
+
+Release 1.0 remains intentionally limited to the Google Trends MVP.
+
+---
+
+# 3. M2 Completion Status
+
+M2 — Core Collector Engine is complete.
+
+Verified core capabilities:
 
 ```text
-run
-└── job
-    └── attempt
-        ├── candidate artifact
-        └── validation summary
+run persistence
+job persistence
+attempt history
+execution state transitions
+run-state aggregation
+artifact persistence
+validation-summary persistence
+accepted-artifact references
+immutable raw filesystem storage
+SHA-256 + byte-size evidence
+metadata JSON persistence
+detailed validation JSON persistence
+resume planning
+accepted-job skip
+candidate preservation
+reconciliation
+explicit retry policy
+retry-attempt history preservation
+sequential source orchestration
+structured JSONL logging
+sensitive-value redaction
+application-specific persistent browser-profile boundary
+integrated deterministic acceptance gate
 ```
 
-Current SQLite schema:
+M2 did not implement real Google Trends collection.
+
+---
+
+# 4. M2 Integrated Acceptance Gate
+
+The deterministic M2 gate passes end to end.
+
+Verified flow:
 
 ```text
-schema version = 4
+fake source
+→ sequential orchestration
+→ raw artifact persistence
+→ metadata JSON
+→ validation JSON
+→ structured log events
+→ intentional attempt-1 DOWNLOAD_FAILED
+→ application/repository restart
+→ accepted jobs reconstructed as SKIP_ACCEPTED
+→ failed job reconstructed as RETRY_CANDIDATE
+→ explicit retry attempt 2
+→ canonical accepted artifact
+→ final run COMPLETED
+→ persistent browser-profile boundary survives reopen
+→ SQLite integrity checks pass
 ```
 
-Migration history:
+Gate assertions:
 
 ```text
-1 bootstrap_schema
-2 run_job_persistence
-3 attempt_persistence
-4 artifact_validation_persistence
+M2-GATE-001 sequential shared orchestration
+M2-GATE-002 raw + metadata + validation evidence
+M2-GATE-003 retry survives restart
+M2-GATE-004 accepted jobs are not recollected
+M2-GATE-005 orchestration logs persist and redact
+M2-GATE-006 app-owned browser profile persists
+M2-GATE-007 final run + history are preserved
+M2-GATE-008 SQLite FK + quick_check integrity
 ```
 
 ---
 
-# 3. Storage Foundation
+# 5. Current Test Surface
 
-StorageManager raw artifact persistence is implemented.
-
-Verified:
-
-```text
-safe run/source directory creation
-exact raw byte preservation
-byte_size from persisted bytes
-SHA-256 from persisted bytes
-no silent overwrite
-attempt-suffixed retry filename
-path traversal rejection
-run-scoped relative paths
-restart persistence
-```
-
----
-
-# 4. Resume Planning
-
-ResumePlanner is a read-only reconstruction layer.
-
-Classification:
-
-```text
-COMPLETED + accepted artifact
-→ SKIP_ACCEPTED
-
-PENDING
-→ PENDING
-
-FAILED / RETRY_PENDING
-→ RETRY_CANDIDATE
-
-MANUAL_ACTION_REQUIRED
-→ BLOCKED_MANUAL_ACTION
-
-RUNNING / VALIDATING
-→ RECONCILE_REQUIRED
-```
-
-Candidate and accepted artifact references are preserved.
-
-Completed terminal runs are excluded from incomplete-run discovery.
-
----
-
-# 5. Reconciliation / Retry Policy
-
-Implemented:
-
-```text
-ReconciliationCoordinator
-RetryPolicy
-ReconciliationResult contract
-```
-
-Verified behavior:
-
-```text
-SKIP_ACCEPTED
-→ no mutation / no scheduling
-
-PENDING
-→ eligible for initial work
-→ not auto-started by reconciliation
-
-BLOCKED_MANUAL_ACTION
-→ no automatic failure
-→ no automatic retry
-
-RECONCILE_REQUIRED + candidate
-→ candidate preserved
-→ no recollection
-→ validation/reconciliation required first
-
-RECONCILE_REQUIRED without candidate
-→ interrupted attempt preserved as FAILED
-→ error_code = INTERRUPTED_ATTEMPT
-→ job becomes RETRY_PENDING if retry allowed
-
-RETRY_CANDIDATE
-→ explicit retry eligibility
-→ attempt_number increments
-→ prior attempts preserved
-
-retry exhausted
-→ RETRY_EXHAUSTED
-→ no new attempt
-```
-
-Stale resume plans fail closed before mutation.
-
----
-
-# 6. Verified Reconciliation / Retry Tests
-
-```text
-PASS RECONCILE-001: accepted job is skipped without mutation
-PASS RECONCILE-002: pending job is initial-work eligible but not auto-started
-PASS RECONCILE-003: manual-action job is never auto-failed or retried
-PASS RECONCILE-004: candidate evidence is preserved before recollection
-PASS RECONCILE-005: interrupted attempt without candidate becomes FAILED evidence then RETRY_PENDING
-PASS RETRY-003: explicit retry creates attempt_number 2 and preserves attempt 1
-PASS RETRY-004: FAILED job can be explicitly prepared and retried
-PASS RETRY-005: max-attempt policy denies exhausted retry without creating history
-PASS RECONCILE-006: stale resume plans fail closed before mutation
-PASS RECONCILE-007: reconciliation/retry evidence survives repository restart
-```
-
-All prior M2 regression suites remain passing.
-
----
-
-# 7. Current Deterministic Test Surface
+Current M2 scripts:
 
 ```text
 npm run test:m2:state
@@ -211,174 +158,305 @@ npm run test:m2:artifacts
 npm run test:m2:storage
 npm run test:m2:resume
 npm run test:m2:reconcile
+npm run test:m2:documents
+npm run test:m2:orchestrator
+npm run test:m2:logging
+npm run test:m2:browser
+npm run test:m2:gate
+```
+
+All above passed at the M2 boundary.
+
+Production package smoke also passed:
+
+```text
+npm run package
+```
+
+Verified target:
+
+```text
+darwin arm64
 ```
 
 ---
 
-# 8. Current M2 Acceptance-Gate Position
+# 6. Current Storage / Evidence Model
 
-Completed:
+Run-scoped filesystem structure:
 
 ```text
-run/job persistence
-attempt history
-state transitions
-artifact records
-validation summaries
-accepted-artifact references
-raw filesystem preservation
-collision protection
-incomplete-run discovery
-accepted-job skip
-candidate preservation
-reconciliation mutation policy
-explicit retry policy
-retry limit behavior
-restart persistence
+data/runs/<run_id>/
+  <source_id>/
+    raw/
+    metadata/
+    validation/
+  exports/
+  logs/
 ```
 
-Remaining major M2 gaps:
+Raw source evidence is preserved exactly and never silently overwritten.
+
+Retry attempts use attempt-specific filenames where needed.
+
+Examples:
 
 ```text
-sequential fake-source orchestration
-metadata JSON persistence
-validation JSON persistence
-structured logging
-sensitive-value redaction
-BrowserManager foundation
-integrated M2 acceptance gate
+GT01.metadata.json
+GT01.validation.json
+
+GT01.attempt_2.metadata.json
+GT01.attempt_2.validation.json
+```
+
+Validation keeps:
+
+```text
+SQLite searchable summary
++
+filesystem detailed validation JSON
+```
+
+`validation_json_path` is stored as a run-relative path.
+
+Unknown source facts must remain unknown. For example, `actual_date_start` and `actual_date_end` remain `null` until verified from real source evidence.
+
+---
+
+# 7. Browser Foundation
+
+BrowserManager exists as a provider-neutral M2 foundation.
+
+Current guarantees:
+
+```text
+application-owned profile root
+app-data/browser-profiles/<profile_id>
+
+one managed persistent context
+same-profile concurrent open is idempotent
+different active profile fails closed
+clean/idempotent close
+profile directory survives reopen
+headed mode default
+downloads accepted by default
+unsafe profile IDs rejected
+unexpected close surfaced
+launch failure surfaced
+```
+
+Do not use the user's normal Chrome profile.
+
+Do not copy cookies or sessions from another profile.
+
+Do not store passwords.
+
+Do not bypass CAPTCHA, 2FA, anti-bot controls, or rate limits.
+
+Manual authentication/security intervention must surface as:
+
+```text
+MANUAL_ACTION_REQUIRED
 ```
 
 ---
 
-# 9. Exact Next Action
+# 8. M3 Scope
 
-Implement the smallest sequential fake-source orchestration vertical slice.
+M3 — Google Trends MVP Collector now begins.
 
-Target flow:
+M3 must remain narrow.
+
+Target:
 
 ```text
-create run
-↓
-start run
-↓
-select first schedulable job
-↓
-start attempt
-↓
-fake source returns deterministic raw bytes
-↓
-StorageManager persists raw bytes
-↓
-StateRepository registers candidate artifact
-↓
-transition to VALIDATING
-↓
-deterministic fake validator returns VALID
-↓
-record validation summary
-↓
-transition job to COMPLETED
-↓
-advance to next job
+Google Trends
+Turkey
+All Categories
+Web Search
+Search Term
+exact 24-month requested range
+Interest Over Time
+provider CSV export when feasible
+preserve original CSV
+metadata/provenance
+minimum source-specific validation
+retry/resume through existing core
 ```
 
-One deterministic job should intentionally fail on attempt 1:
+Do not expand M3 into:
 
 ```text
-attempt 1
-→ FAILED with explicit fake error
-
-reconciliation / retry policy
-→ RETRY_PENDING
-→ attempt 2
-
-attempt 2
-→ deterministic success
-→ accepted artifact
-→ COMPLETED
-```
-
-Restart scenario must prove:
-
-```text
-already accepted jobs
-→ skipped
-
-retry-pending/retryable job
-→ reconstructed correctly
-
-remaining pending job
-→ continues in order
+related queries
+subregions
+Topic datasets
+Keyword Planner
+Search Console
+Semrush
+Merchant Center
+GA4
+Google Ads
+XLSX product polish
+analysis/strategy
 ```
 
 ---
 
-# 10. Fake-Source Slice Boundaries
+# 9. Google Trends Source Rules
 
-This slice should use only deterministic local test behavior.
+Google Trends values are relative interest values from 0 to 100.
 
-Do not implement:
+Never convert them into estimated search counts.
+
+Different Google Trends comparison groups are independently normalized.
+
+Do not automatically compare values across independently normalized groups as if they shared one global scale.
+
+Preserve query-group context, including duplicate queries appearing in different groups.
+
+Search Term and Topic datasets remain separate.
+
+Release 1.0 M3 uses Search Term only.
+
+The Google Trends UI source mode remains distinct from any future API source mode.
+
+---
+
+# 10. M3 First Vertical Slice
+
+The first real M3 slice should make one Google Trends query group work reliably before expanding.
+
+Preferred first group:
 
 ```text
-Google Trends browser automation
-Playwright provider workflow
-real downloads
-provider authentication
-real CSV validation logic
-XLSX export
+GT01
 ```
 
-The goal is to prove the core orchestration contracts before introducing provider complexity.
-
----
-
-# 11. Orchestration Guardrails
-
-Default execution remains sequential.
-
-One job should be active at a time for the fake-source slice.
-
-Source execution must return evidence/data to the core; it must not directly mutate SQLite state.
-
-StorageManager owns artifact bytes and paths.
-
-StateRepository owns persisted operational state.
-
-Validation result persistence must remain separate from execution status.
-
-Accepted jobs must not be recollected during resume.
-
-Retry must append attempts, never rewrite historical attempts.
-
----
-
-# 12. Work After Fake-Source Orchestration
-
-After the fake-source vertical slice:
+Initial technical sequence:
 
 ```text
-MetadataManager / metadata JSON
-validation JSON file persistence
-structured logging
-sensitive-value redaction
-BrowserManager foundation
-integrated M2 acceptance gate
+inspect current GoogleTrendsSource placeholder
+inspect current source / collection contracts
+inspect query config shape
+inspect BrowserManager integration boundary
+inspect current official Google Trends UI behavior
+install Playwright Chromium only when the first live-browser test requires it
+open app-specific persistent Google profile
+surface manual login if required
+navigate through supported Google Trends UI
+configure Turkey / All Categories / Web Search / Search Term
+apply exact requested 24-month range
+request Interest Over Time CSV export
+capture the downloaded provider CSV
+preserve raw bytes through StorageManager
+perform minimum M3 source-specific validation
+persist metadata / validation evidence
+complete the job through existing orchestrator
 ```
 
-Real Google Trends collection remains M3.
+Do not build GT01–GT20 automation before GT01 is proven.
 
 ---
 
-# 13. Handoff Discipline
+# 11. M3 Acceptance Criteria for the First Real Group
 
-At the end of each meaningful implementation session:
+Before expanding beyond the first group, prove:
 
-1. verify actual behavior,
-2. record tests that actually ran,
-3. record known issues,
-4. update milestone progress,
-5. record latest Git checkpoint,
-6. record one exact next action.
+```text
+real provider UI can be reached through the app-specific profile
+manual auth can be completed without credential capture
+requested query group is represented correctly
+requested geography is Turkey
+search type is Web Search
+selection type is Search Term
+requested range is exactly the intended 24 months
+provider CSV download is captured
+raw CSV remains byte-preserved
+CSV is actually data, not HTML/login/error content
+expected query columns are present
+date coverage is checked
+numeric interest values are parseable
+all-zero / low-data cases are not silently accepted
+metadata points to the raw artifact
+validation result points to detailed validation JSON
+job reaches the correct execution state
+restart/resume does not recollect accepted evidence
+```
 
-Never record unverified work as completed.
+M3 should use only the minimum validation necessary to trust the first live artifact.
+
+Reusable/hardened validation remains M4.
+
+---
+
+# 12. Known Issues / Open Decisions
+
+Current known boundary conditions:
+
+```text
+Playwright browser binaries are not yet installed.
+Real Google Trends navigation has not yet been exercised.
+Real provider authentication state has not yet been tested.
+Exact current Google Trends UI selectors/workflow must be verified against the live provider before implementation.
+Actual provider CSV schema must be inspected from a real export before locking source-specific parsing assumptions.
+```
+
+No private or undocumented Google Trends endpoint should be adopted when the supported UI/export path is sufficient.
+
+If the provider requires manual authentication, pause cleanly rather than automating credentials.
+
+---
+
+# 13. Exact Next Action
+
+Start M3 with inspection, not implementation-by-assumption.
+
+Inspect the current repository surfaces relevant to the first Google Trends vertical slice:
+
+```text
+src/main/core/source-registry.ts
+src/shared/source.ts
+src/shared/collection.ts
+GoogleTrendsSource implementation
+query configuration loader/contracts
+BrowserManager
+Playwright launcher
+CollectionOrchestrator
+StorageManager
+metadata / validation contracts
+```
+
+Then verify current official Playwright behavior and current Google Trends UI/export behavior before writing provider-specific automation.
+
+The first provider-specific implementation target is:
+
+```text
+GT01 only
+→ real Google Trends UI
+→ real Interest Over Time CSV
+→ preserved raw artifact
+→ minimum trustworthy validation
+→ completed job
+```
+
+---
+
+# 14. Handoff Discipline
+
+`PROJECT_HANDOFF.md` is not a Git save mechanism.
+
+Update it only when project state meaningfully changes, including:
+
+```text
+session end / long pause
+several meaningful implementation slices
+milestone boundary
+important known issue
+material change to the exact next action
+```
+
+Use Git commits for technical checkpoints.
+
+Do not update this handoff after every small commit.
+
+`PROJECT_SPEC.md` should change even less frequently: only for scope, architecture, data-contract, acceptance-criteria, or locked technical-decision changes.
