@@ -27,7 +27,8 @@
     "test:m3:provider-probe": "bash tests/integration/google-trends/run-provider-probe-test.sh",
     "test:m3:browser-probe": "bash tests/integration/google-trends/run-browser-probe-service-test.sh",
     "test:m3:live-probe-command": "bash tests/integration/google-trends/run-live-provider-probe-command-test.sh",
-    "m3:live-provider-probe": "bash scripts/m3/run-live-google-trends-provider-probe.sh"
+    "m3:live-provider-probe": "bash scripts/m3/run-live-google-trends-provider-probe.sh",
+    "test:m3:downloads": "bash tests/integration/browser/run-persistent-download-store-test.sh"
   },
   "keywords": [],
   "author": {

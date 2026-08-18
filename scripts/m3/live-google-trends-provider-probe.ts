@@ -143,6 +143,11 @@ const createDirectories = (
     appDataRoot,
     'logs',
   ),
+  public_downloads: path.join(
+    os.homedir(),
+    'Downloads',
+    'RoofRoom Data Collector',
+  ),
 });
 
 const main = async (): Promise<void> => {

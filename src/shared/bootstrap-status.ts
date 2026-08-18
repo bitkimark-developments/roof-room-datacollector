@@ -9,6 +9,7 @@ export interface ApplicationDirectories {
   database: string;
   browser_profiles: string;
   logs: string;
+  public_downloads: string;
 }
 
 export type QueryConfigLoadStatus =

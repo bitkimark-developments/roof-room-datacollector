@@ -16,6 +16,10 @@ export const ensureApplicationDirectories =
       database: path.join(appDataRoot, 'database'),
       browser_profiles: path.join(appDataRoot, 'browser-profiles'),
       logs: path.join(appDataRoot, 'logs'),
+      public_downloads: path.join(
+        app.getPath('downloads'),
+        'RoofRoom Data Collector',
+      ),
     };
 
     await Promise.all(
