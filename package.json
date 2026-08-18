@@ -40,7 +40,8 @@
     "test:m3:gt-configured-export": "bash tests/integration/google-trends/run-configured-page-export-test.sh",
     "test:m3:gt-collecting-source": "bash tests/integration/google-trends/run-collecting-source-test.sh",
     "test:m3:gt-runtime": "bash tests/integration/google-trends/run-runtime-composition-test.sh",
-    "test:m3:gt-runtime-package-config": "bash tests/integration/google-trends/run-runtime-packaging-config-test.sh"
+    "test:m3:gt-runtime-package-config": "bash tests/integration/google-trends/run-runtime-packaging-config-test.sh",
+    "test:m3:gt-manual-action": "bash tests/integration/google-trends/run-manual-action-detection-test.sh"
   },
   "keywords": [],
   "author": {

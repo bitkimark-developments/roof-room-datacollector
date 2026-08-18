@@ -213,8 +213,18 @@ const main = async (): Promise<void> => {
       return;
     }
 
+    if (
+      result.provider_state ===
+      'MANUAL_ACTION_REQUIRED'
+    ) {
+      console.error(
+        'Google authentication or security confirmation requires manual user action. No password, CAPTCHA, 2FA, or security challenge automation was attempted.',
+      );
+      return;
+    }
+
     console.error(
-      'No rate-limit signal detected. This does not yet prove authentication state, UI readiness, selectors, or CSV export behavior.',
+      'No blocking provider-state signal detected. This does not yet prove full UI readiness or CSV export behavior.',
     );
   } finally {
     await browserManager.close();

@@ -50,6 +50,12 @@ export interface GoogleTrendsProbePage {
 
   title(): Promise<string>;
 
+  /**
+   * Optional for deterministic test doubles and managed-page adapters.
+   * Real Playwright pages expose this synchronously.
+   */
+  url?(): string;
+
   locator(
     selector: 'body',
   ): GoogleTrendsProbeLocator;
@@ -130,6 +136,28 @@ const readPageTextSafely = async (
   }
 };
 
+const readPageUrlSafely = (
+  page: GoogleTrendsProbePage,
+): string => {
+  try {
+    const currentUrl =
+      page.url?.();
+
+    if (
+      typeof currentUrl ===
+        'string' &&
+      currentUrl.trim().length >
+        0
+    ) {
+      return currentUrl.trim();
+    }
+  } catch {
+    // Fall through to the requested Explore URL.
+  }
+
+  return GOOGLE_TRENDS_EXPLORE_URL;
+};
+
 const readRetryAfterSafely = async (
   response:
     | GoogleTrendsProbeResponse
@@ -208,10 +236,15 @@ export const probeGoogleTrendsExplore = async (
     ),
   ]);
 
+  const finalUrl =
+    readPageUrlSafely(
+      page,
+    );
+
   const decision =
     detectGoogleTrendsProviderState({
       url:
-        GOOGLE_TRENDS_EXPLORE_URL,
+        finalUrl,
       response_status:
         responseStatus,
       response_headers:
@@ -232,7 +265,7 @@ export const probeGoogleTrendsExplore = async (
     requested_url:
       GOOGLE_TRENDS_EXPLORE_URL,
     final_url:
-      GOOGLE_TRENDS_EXPLORE_URL,
+      finalUrl,
     response_status:
       responseStatus,
   };
@@ -265,6 +298,9 @@ export const asGoogleTrendsProbePage = (
 
   title: () =>
     page.title(),
+
+  url: () =>
+    page.url(),
 
   locator: () => {
     const body:

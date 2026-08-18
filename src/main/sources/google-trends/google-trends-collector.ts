@@ -271,6 +271,9 @@ export class GoogleTrendsCollector {
       ManagedBrowserPage | null =
       null;
 
+    let keepPageOpenForManualAction =
+      false;
+
     let phase:
       | 'OPEN_BROWSER'
       | 'PROBE_PROVIDER'
@@ -312,6 +315,21 @@ export class GoogleTrendsCollector {
             ? 'Google Trends reported rate limiting. Collection stopped without refresh or retry.'
             : `Google Trends reported rate limiting (Retry-After: ${provider.retry_after}). Collection stopped without refresh or retry.`,
         );
+      }
+
+      if (
+        provider.provider_state ===
+        'MANUAL_ACTION_REQUIRED'
+      ) {
+        keepPageOpenForManualAction =
+          true;
+
+        return {
+          result_type:
+            'MANUAL_ACTION_REQUIRED',
+          message:
+            'Google requires manual authentication or security confirmation in the opened provider window. Complete it directly with Google; RoofRoom Data Collector will not automate passwords, CAPTCHA, 2FA, or security challenges.',
+        };
       }
 
       phase =
@@ -411,7 +429,10 @@ export class GoogleTrendsCollector {
         errorMessage(error),
       );
     } finally {
-      if (page !== null) {
+      if (
+        page !== null &&
+        !keepPageOpenForManualAction
+      ) {
         try {
           await page.close();
         } catch {
