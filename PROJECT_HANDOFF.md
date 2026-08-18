@@ -38,7 +38,7 @@ main
 
 Git repository is initialized and operational.
 
-The eight M0 baseline documents are now present in the repository root:
+The eight project documents are present in the repository root:
 
 ```text
 PROJECT_SPEC.md
@@ -63,7 +63,7 @@ FINAL CONSISTENCY REVIEW: PASS
 
 The approved M0 architecture and product baseline remains active.
 
-No fundamental architecture redesign has been introduced during M1 bootstrap.
+No fundamental architecture redesign has been introduced during M1.
 
 ---
 
@@ -134,6 +134,7 @@ TypeScript                       5.9.3
 ESLint                           8.57.1
 @typescript-eslint/parser        8.65.0
 @typescript-eslint/eslint-plugin 8.65.0
+yaml                             2.9.0
 ```
 
 These versions describe the currently verified M1 environment.
@@ -155,7 +156,7 @@ Completed and verified:
 - dependencies installed,
 - vanilla Electron application launched successfully on Apple Silicon.
 
-First verified Git checkpoint:
+Verified Git checkpoint:
 
 ```text
 e2409cc chore: bootstrap Electron Forge Vite TypeScript app
@@ -181,26 +182,140 @@ Completed and verified:
 - narrow preload API exposed using `contextBridge`,
 - renderer does not receive raw Electron/Node APIs,
 - typed shared IPC contract created,
-- renderer invokes `getApplicationInfo()`,
-- main process handles request through `ipcMain.handle`,
+- renderer invokes main-process methods through the narrow bridge,
 - IPC sender is validated before response,
-- application information successfully reaches React renderer.
+- application information successfully reaches the React renderer.
 
-Runtime verification displayed:
-
-```text
-React renderer       READY
-Typed IPC bridge     READY
-
-Application    roofroom-data-collector 1.0.0
-Runtime        Electron 43.4.0
-Platform       darwin / arm64
-```
-
-Second verified Git checkpoint:
+Verified Git checkpoint:
 
 ```text
 06740fb feat: add React renderer and typed IPC bridge
+```
+
+## Documentation Baseline
+
+Completed:
+
+- all eight M0/M1 repository documents added to Git,
+- M0 approved baseline is now stored with the codebase,
+- living handoff moved into the repository.
+
+Verified Git checkpoint:
+
+```text
+885b132 docs: add M0 baseline and update M1 handoff
+```
+
+## Application Directories
+
+Completed and runtime verified:
+
+- application-specific writable root resolves under Electron `userData`,
+- RoofRoom application data uses an `app-data` subdirectory,
+- config directory is created,
+- data directory is created,
+- runs directory is created,
+- database directory is created,
+- browser-profiles directory is created,
+- logs directory is created,
+- Electron application logs path is assigned to the RoofRoom logs directory.
+
+Verified external config path:
+
+```text
+~/Library/Application Support/RoofRoom Data Collector/app-data/config/query-groups.yaml
+```
+
+## YAML QueryConfig Loader
+
+Completed and verified:
+
+- YAML runtime dependency added,
+- repository default YAML config added,
+- external config is copied only when the application-specific config does not already exist,
+- YAML is parsed in strict mode,
+- duplicate YAML keys are rejected,
+- YAML aliases are disabled,
+- unsupported top-level/group fields are rejected,
+- config version is validated,
+- `source = google-trends` is validated for the current MVP,
+- Google Trends group IDs must match `GTNN`,
+- empty query lists are rejected,
+- duplicate query IDs/groups are rejected,
+- duplicate queries within a group are rejected,
+- leading/trailing whitespace in canonical strings is rejected,
+- query-group order and query order are preserved,
+- YAML input is normalized into canonical `QueryConfig`.
+
+Current deterministic M1 fixture contains:
+
+```text
+GT01
+GT02
+```
+
+with:
+
+```text
+2 query groups
+10 queries
+```
+
+This fixture intentionally proves the loader boundary before expansion to GT01–GT20.
+
+## Config Runtime / IPC Proof
+
+Completed and verified in the Electron application:
+
+```text
+React renderer            READY
+Typed IPC bridge          READY
+Application directories  READY
+YAML QueryConfig          READY
+```
+
+Renderer also displayed:
+
+```text
+Application       RoofRoom Data Collector 1.0.0
+Config source     google-trends
+Config version    1
+Query groups      2
+Queries           10
+GT01 query order  preserved
+```
+
+## Negative QueryConfig Test
+
+A deterministic invalid external YAML config containing duplicate:
+
+```text
+query_group_id = GT01
+```
+
+was injected temporarily.
+
+Verified result:
+
+```text
+YAML QueryConfig = ERROR
+Duplicate query_group_id: GT01
+```
+
+The original external config was restored.
+
+Verified result after restoration:
+
+```text
+YAML QueryConfig = READY
+```
+
+This proves that the current config boundary fails closed for the tested duplicate-group condition and recovers after valid configuration is restored.
+
+Verified Git checkpoint:
+
+```text
+9e3328b feat: add app directories and YAML query config loader
 ```
 
 ---
@@ -210,19 +325,28 @@ Second verified Git checkpoint:
 Verified during M1:
 
 ```text
-Electron launch                         PASS
-React renderer                          PASS
-Preload build                           PASS
-Main-process build                      PASS
-Typed renderer → main IPC               PASS
-IPC runtime response                    PASS
-Apple Silicon runtime                   PASS
-npm run lint                            PASS
-npx tsc --noEmit                        PASS
-git diff --check                        PASS
+Electron launch                              PASS
+React renderer                               PASS
+Preload build                                PASS
+Main-process build                           PASS
+Typed renderer → main IPC                    PASS
+IPC runtime response                         PASS
+Apple Silicon runtime                        PASS
+Application directory creation               PASS
+External YAML config creation                 PASS
+YAML parse / canonical normalization          PASS
+Query order preservation                      PASS
+Duplicate query-group rejection               PASS
+Recovery after valid config restore           PASS
+npm run lint                                 PASS
+npx tsc --noEmit                             PASS
+git diff --check                             PASS
+npm audit --omit=dev                         PASS / 0 vulnerabilities
 ```
 
 No automated unit/integration test suite exists yet.
+
+The duplicate-query-group test was performed manually as a controlled runtime test.
 
 No Google Trends browser automation has started.
 
@@ -274,11 +398,10 @@ No package scripts should be blindly approved without understanding the package 
 Not yet implemented:
 
 ```text
-application directories
-YAML QueryConfig loader
-canonical QueryConfig runtime validation
 SourceRegistry
 google-trends source placeholder
+source capability exposure
+source readiness exposure
 SQLite initialization
 SQLite schema/migration bootstrap
 M1 automated tests
@@ -286,6 +409,8 @@ packaging/build verification
 ```
 
 JSON and CSV config adapters remain Release 1.0 requirements, but YAML is the first implementation target.
+
+The current two-group YAML file is an M1 deterministic fixture, not the final GT01–GT20 Release 1.0 configuration.
 
 ---
 
@@ -313,18 +438,18 @@ Branch:
 main
 
 Latest verified commit:
-06740fb
+9e3328b
 
 Message:
-feat: add React renderer and typed IPC bridge
+feat: add app directories and YAML query config loader
 
-Previous verified commit:
+Previous verified commits:
+885b132 docs: add M0 baseline and update M1 handoff
+06740fb feat: add React renderer and typed IPC bridge
 e2409cc chore: bootstrap Electron Forge Vite TypeScript app
 ```
 
-The implementation working tree was clean immediately after commit `06740fb`.
-
-The eight M0 documentation files were subsequently copied into the repository and are not yet committed.
+Working tree was clean immediately after commit `9e3328b`.
 
 ---
 
@@ -332,13 +457,14 @@ The eight M0 documentation files were subsequently copied into the repository an
 
 1. Full npm audit reports development/build dependency vulnerabilities.
 2. No automated test suite exists yet.
-3. Application directories are not implemented.
-4. QueryConfig loading is not implemented.
+3. SourceRegistry is not yet implemented.
+4. Google Trends source placeholder is not yet implemented.
 5. SQLite library/bootstrap is not yet selected or implemented.
-6. SourceRegistry is not yet implemented.
-7. Playwright is not yet installed/configured for this repository.
+6. Playwright is not yet installed/configured for this repository.
+7. QueryConfig validation currently has manual runtime proof but not automated regression tests.
+8. GT01–GT20 has not yet replaced the two-group M1 deterministic config fixture.
 
-None of these invalidate the already verified Electron/React/IPC slice.
+None of these invalidate the already verified Electron/React/IPC/directory/config slice.
 
 ---
 
@@ -347,15 +473,19 @@ None of these invalidate the already verified Electron/React/IPC slice.
 Continue M1 with the next smallest vertical slice:
 
 ```text
-application directories
+define SourceRegistry contract
 ↓
-canonical QueryConfig TypeScript contract
+define source identity / capabilities / readiness contracts
 ↓
-YAML configuration loader
+register google-trends placeholder
 ↓
-load one deterministic local fixture
+resolve source by stable source_id
 ↓
-expose verified config result to renderer
+expose registry summary through typed IPC
+↓
+render Google Trends registry/readiness state
+↓
+test duplicate registration / unknown source behavior
 ↓
 lint
 ↓
@@ -366,21 +496,48 @@ runtime verification
 Git checkpoint
 ```
 
-Do not introduce SQLite or SourceRegistry into that slice until directory/config loading is proven independently.
+The placeholder must not pretend that browser collection is already implemented.
 
-After that:
+Capabilities must describe verified implementation behavior rather than future aspirations.
+
+After SourceRegistry is proven:
 
 ```text
-SourceRegistry + google-trends placeholder
+research SQLite options against current official documentation
 ↓
-SQLite selection and schema bootstrap
+select SQLite implementation
+↓
+SQLite initialization
+↓
+schema/migration bootstrap
 ↓
 final M1 verification
 ```
 
 ---
 
-# 15. Handoff Discipline
+# 15. SourceRegistry Design Guardrails
+
+The SourceRegistry must preserve the approved architecture:
+
+- one shared registry,
+- stable machine-readable source IDs,
+- `google-trends` is the only registered MVP source,
+- display name is separate from machine ID,
+- Core resolves a source through the registry rather than hard-coded branching,
+- source capabilities are explicit,
+- source readiness is explicit,
+- browser/API implementation details remain outside the registry,
+- no run/job persistence is introduced in this slice,
+- no real Google Trends browser automation is introduced in this slice.
+
+The M0 documents intentionally did not lock the exact TypeScript interface.
+
+M1 may now define the smallest concrete interface needed to prove the architecture.
+
+---
+
+# 16. Handoff Discipline
 
 At the end of every meaningful implementation session:
 
