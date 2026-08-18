@@ -529,6 +529,12 @@ export class CollectionOrchestrator {
       );
     }
 
+    const queryGroup =
+      getQueryGroup(
+        run,
+        job,
+      );
+
     const collection =
       await source.collect({
         run_id: runId,
@@ -540,10 +546,7 @@ export class CollectionOrchestrator {
         job_key: job.job_key,
         requested_configuration:
           run.requested_configuration,
-        query_group: getQueryGroup(
-          run,
-          job,
-        ),
+        query_group: queryGroup,
       });
 
     if (
@@ -687,9 +690,11 @@ export class CollectionOrchestrator {
 
     const validation =
       await this.validator.validate({
+        run,
         job: validatingJob,
         attempt,
         artifact,
+        query_group: queryGroup,
         absolute_path:
           persisted.absolute_path,
       });
@@ -733,11 +738,6 @@ export class CollectionOrchestrator {
         validationSummary.validation_id,
         persistedValidation.relative_path,
       );
-
-    const queryGroup = getQueryGroup(
-      run,
-      job,
-    );
 
     const metadataDocument =
       this.metadataManager

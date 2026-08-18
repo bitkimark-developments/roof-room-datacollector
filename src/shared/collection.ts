@@ -7,6 +7,7 @@ import type {
 import type {
   JobRecord,
   RequestedCollectionConfiguration,
+  RunRecord,
   ValidationStatus,
 } from './run-job';
 import type {
@@ -63,9 +64,11 @@ export const isCollectingDataSourceModule = (
   ).collect === 'function';
 
 export interface CollectionValidationContext {
+  run: RunRecord;
   job: JobRecord;
   attempt: AttemptRecord;
   artifact: ArtifactRecord;
+  query_group: QueryGroup;
   absolute_path: string;
 }
 
