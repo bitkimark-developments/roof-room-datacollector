@@ -69,6 +69,16 @@ class FakePersistentContext
     this.closeCalls = 0;
   }
 
+  pages() {
+    return [];
+  }
+
+  async newPage() {
+    throw new Error(
+      'BrowserManager foundation test does not open pages.',
+    );
+  }
+
   async close() {
     this.closeCalls += 1;
     this.emit('close');

@@ -29,8 +29,46 @@ export class BrowserManagerError extends Error {
   }
 }
 
+export interface ManagedBrowserResponse {
+  status(): number;
+
+  headerValue(
+    name: string,
+  ): Promise<string | null>;
+}
+
+export interface ManagedBrowserLocator {
+  innerText(
+    options?: {
+      timeout?: number;
+    },
+  ): Promise<string>;
+}
+
+export interface ManagedBrowserPage {
+  goto(
+    url: string,
+    options: {
+      waitUntil: 'domcontentloaded';
+      timeout: number;
+    },
+  ): Promise<ManagedBrowserResponse | null>;
+
+  title(): Promise<string>;
+
+  locator(
+    selector: 'body',
+  ): ManagedBrowserLocator;
+
+  close(): Promise<void>;
+}
+
 export interface ManagedPersistentBrowserContext {
   close(): Promise<void>;
+
+  pages(): ManagedBrowserPage[];
+
+  newPage(): Promise<ManagedBrowserPage>;
 
   on(
     event: 'close',
