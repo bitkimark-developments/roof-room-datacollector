@@ -22,7 +22,8 @@
     "test:m2:documents": "bash tests/integration/filesystem/run-generated-documents-test.sh",
     "test:m2:logging": "bash tests/integration/logging/run-structured-logger-test.sh",
     "test:m2:browser": "bash tests/integration/browser/run-browser-manager-test.sh",
-    "test:m2:gate": "bash tests/integration/m2-gate/run-integrated-m2-gate.sh"
+    "test:m2:gate": "bash tests/integration/m2-gate/run-integrated-m2-gate.sh",
+    "test:m3:provider-state": "bash tests/integration/google-trends/run-provider-state-detector-test.sh"
   },
   "keywords": [],
   "author": {
