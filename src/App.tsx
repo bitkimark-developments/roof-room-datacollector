@@ -65,10 +65,18 @@ export function App() {
   const queryConfigStatus =
     appState?.bootstrapStatus.query_config.status ?? 'LOADING';
 
+  const sourceRegistryStatus =
+    appState?.bootstrapStatus.source_registry.status ?? 'LOADING';
+
   const firstGroup =
     appState?.bootstrapStatus.query_config.status === 'READY'
       ? appState.bootstrapStatus.query_config.config.groups[0]
       : null;
+
+  const googleTrendsSource =
+    appState?.bootstrapStatus.source_registry.sources.find(
+      (source) => source.source_id === 'google-trends',
+    ) ?? null;
 
   return (
     <main className="app-shell">
@@ -99,6 +107,11 @@ export function App() {
         <div className="status-row">
           <span>YAML QueryConfig</span>
           <strong>{queryConfigStatus}</strong>
+        </div>
+
+        <div className="status-row">
+          <span>SourceRegistry</span>
+          <strong>{sourceRegistryStatus}</strong>
         </div>
 
         {appState && (
@@ -182,6 +195,49 @@ export function App() {
                 </dd>
               </div>
             )}
+          </dl>
+        )}
+
+        {googleTrendsSource && (
+          <dl className="application-info">
+            <div>
+              <dt>Registered source</dt>
+              <dd>
+                {googleTrendsSource.source_name} /{' '}
+                {googleTrendsSource.source_id}
+              </dd>
+            </div>
+
+            <div>
+              <dt>Source mode</dt>
+              <dd>{googleTrendsSource.source_mode}</dd>
+            </div>
+
+            <div>
+              <dt>Dataset</dt>
+              <dd>{googleTrendsSource.dataset_types.join(', ')}</dd>
+            </div>
+
+            <div>
+              <dt>Source readiness</dt>
+              <dd>
+                {googleTrendsSource.readiness.readiness_status}
+              </dd>
+            </div>
+
+            <div>
+              <dt>Readiness message</dt>
+              <dd>
+                {googleTrendsSource.readiness.message ?? 'None'}
+              </dd>
+            </div>
+
+            <div>
+              <dt>Max concurrency</dt>
+              <dd>
+                {googleTrendsSource.capabilities.max_concurrency}
+              </dd>
+            </div>
           </dl>
         )}
 

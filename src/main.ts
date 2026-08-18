@@ -8,11 +8,16 @@ import {
   ensureExternalQueryConfig,
   loadQueryConfig,
 } from './main/config/query-config-loader';
+import { SourceRegistry } from './main/core/source-registry';
+import { GoogleTrendsSource } from './main/sources/google-trends/google-trends-source';
 import {
   IPC_CHANNELS,
   type ApplicationInfo,
 } from './shared/application-info';
-import type { BootstrapStatus } from './shared/bootstrap-status';
+import type {
+  BootstrapStatus,
+  QueryConfigLoadStatus,
+} from './shared/bootstrap-status';
 
 if (started) {
   app.quit();
@@ -87,7 +92,7 @@ const registerIpcHandlers = (
 const createWindow = (): void => {
   const mainWindow = new BrowserWindow({
     width: 1100,
-    height: 760,
+    height: 820,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -109,6 +114,29 @@ const createWindow = (): void => {
   }
 };
 
+const loadQueryConfigStatus = async (
+  configPath: string,
+): Promise<QueryConfigLoadStatus> => {
+  try {
+    const config = await loadQueryConfig(configPath);
+
+    return {
+      status: 'READY',
+      config_path: configPath,
+      config,
+    };
+  } catch (error: unknown) {
+    return {
+      status: 'ERROR',
+      config_path: configPath,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Unknown query configuration error.',
+    };
+  }
+};
+
 const initializeBootstrapStatus =
   async (): Promise<BootstrapStatus> => {
     const directories = await ensureApplicationDirectories();
@@ -118,30 +146,26 @@ const initializeBootstrapStatus =
       app.getAppPath(),
     );
 
-    try {
-      const config = await loadQueryConfig(configPath);
+    const queryConfig = await loadQueryConfigStatus(configPath);
 
-      return {
-        directories,
-        query_config: {
-          status: 'READY',
-          config_path: configPath,
-          config,
-        },
-      };
-    } catch (error: unknown) {
-      return {
-        directories,
-        query_config: {
-          status: 'ERROR',
-          config_path: configPath,
-          error:
-            error instanceof Error
-              ? error.message
-              : 'Unknown query configuration error.',
-        },
-      };
-    }
+    const sourceRegistry = new SourceRegistry();
+    sourceRegistry.register(new GoogleTrendsSource());
+
+    // Prove the Core lookup path uses the stable machine ID.
+    sourceRegistry.get('google-trends');
+
+    const sourceSummaries = await sourceRegistry.getSummaries({
+      query_config_ready: queryConfig.status === 'READY',
+    });
+
+    return {
+      directories,
+      query_config: queryConfig,
+      source_registry: {
+        status: 'READY',
+        sources: sourceSummaries,
+      },
+    };
   };
 
 app.whenReady().then(async () => {

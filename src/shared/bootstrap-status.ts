@@ -1,4 +1,5 @@
 import type { QueryConfig } from './query-config';
+import type { SourceSummary } from './source';
 
 export interface ApplicationDirectories {
   app_data_root: string;
@@ -22,7 +23,13 @@ export type QueryConfigLoadStatus =
       error: string;
     };
 
+export interface SourceRegistryStatus {
+  status: 'READY';
+  sources: SourceSummary[];
+}
+
 export interface BootstrapStatus {
   directories: ApplicationDirectories;
   query_config: QueryConfigLoadStatus;
+  source_registry: SourceRegistryStatus;
 }
