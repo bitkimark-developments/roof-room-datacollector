@@ -35,7 +35,8 @@
     "test:m3:gt-download-selector": "bash tests/integration/google-trends/run-interest-over-time-download-selector-test.sh",
     "test:m3:gt-date-dialog": "bash tests/integration/google-trends/run-custom-date-dialog-test.sh",
     "test:m3:gt-date-range": "bash tests/integration/google-trends/run-custom-date-range-test.sh",
-    "test:m3:gt-query-geo": "bash tests/integration/google-trends/run-query-group-geography-ui-test.sh"
+    "test:m3:gt-query-geo": "bash tests/integration/google-trends/run-query-group-geography-ui-test.sh",
+    "test:m3:gt-fixed-filters": "bash tests/integration/google-trends/run-fixed-filter-verifier-test.sh"
   },
   "keywords": [],
   "author": {
