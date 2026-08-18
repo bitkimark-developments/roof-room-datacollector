@@ -20,7 +20,8 @@
     "test:m2:reconcile": "bash tests/integration/reconciliation/run-reconciliation-coordinator-test.sh",
     "test:m2:orchestrator": "bash tests/integration/orchestration/run-sequential-fake-source-test.sh",
     "test:m2:documents": "bash tests/integration/filesystem/run-generated-documents-test.sh",
-    "test:m2:logging": "bash tests/integration/logging/run-structured-logger-test.sh"
+    "test:m2:logging": "bash tests/integration/logging/run-structured-logger-test.sh",
+    "test:m2:browser": "bash tests/integration/browser/run-browser-manager-test.sh"
   },
   "keywords": [],
   "author": {
@@ -52,6 +53,7 @@
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
+    "playwright": "1.62.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "yaml": "2.9.0"
