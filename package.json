@@ -43,7 +43,8 @@
     "test:m3:gt-runtime-package-config": "bash tests/integration/google-trends/run-runtime-packaging-config-test.sh",
     "test:m3:gt-manual-action": "bash tests/integration/google-trends/run-manual-action-detection-test.sh",
     "test:m3:live-gt01-command": "bash tests/integration/google-trends/run-live-gt01-collection-command-test.sh",
-    "m3:live-gt01": "bash scripts/m3/run-live-google-trends-gt01-collection.sh"
+    "m3:live-gt01": "bash scripts/m3/run-live-google-trends-gt01-collection.sh",
+    "test:m3:gt-ui-diagnostics": "bash tests/integration/google-trends/run-ui-stage-diagnostics-test.sh"
   },
   "keywords": [],
   "author": {

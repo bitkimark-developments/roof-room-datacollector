@@ -19,6 +19,7 @@ import {
   GoogleTrendsConfiguredPageExportError,
   type ExportConfiguredGoogleTrendsPageInput,
   type GoogleTrendsConfiguredPageExportResult,
+  type GoogleTrendsConfiguredPageStage,
 } from './google-trends-configured-page-export';
 import {
   GoogleTrendsDateRangeUiContractError,
@@ -274,6 +275,10 @@ export class GoogleTrendsCollector {
     let keepPageOpenForManualAction =
       false;
 
+    let exportStage:
+      GoogleTrendsConfiguredPageStage | null =
+      null;
+
     let phase:
       | 'OPEN_BROWSER'
       | 'PROBE_PROVIDER'
@@ -359,6 +364,11 @@ export class GoogleTrendsCollector {
               .requested_date_end,
           public_preferred_filename:
             filename,
+          on_stage:
+            (stage): void => {
+              exportStage =
+                stage;
+            },
         });
 
       return {
@@ -416,10 +426,19 @@ export class GoogleTrendsCollector {
           error,
         )
       ) {
+        const safeStage =
+          exportStage ??
+          'UNKNOWN_EXPORT_STAGE';
+
+        const safeErrorName =
+          error instanceof Error
+            ? error.name
+            : 'UnknownUiContractError';
+
         return failed(
           GOOGLE_TRENDS_COLLECTION_ERROR_CODES
             .UI_CONTRACT_ERROR,
-          errorMessage(error),
+          `Google Trends UI contract failed during ${safeStage} (${safeErrorName}).`,
         );
       }
 

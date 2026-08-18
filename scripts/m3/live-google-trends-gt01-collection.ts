@@ -362,7 +362,7 @@ const waitForManualActionExit =
     }
   };
 
-const safeResultSummary = (
+export const safeResultSummary = (
   result:
     SourceCollectionResult,
 ): Record<string, unknown> => {
@@ -389,6 +389,25 @@ const safeResultSummary = (
     return {
       result_type:
         result.result_type,
+    };
+  }
+
+  if (
+    result.error_code ===
+      'GOOGLE_TRENDS_UI_CONTRACT_ERROR' &&
+    result.message !==
+      null &&
+    /^Google Trends UI contract failed during (QUERY_GROUP|GEOGRAPHY|DATE_RANGE|FIXED_FILTERS|DOWNLOAD|UNKNOWN_EXPORT_STAGE) \(GoogleTrends[A-Za-z]+Error\)\.$/u.test(
+      result.message,
+    )
+  ) {
+    return {
+      result_type:
+        result.result_type,
+      error_code:
+        result.error_code,
+      diagnostic:
+        result.message,
     };
   }
 

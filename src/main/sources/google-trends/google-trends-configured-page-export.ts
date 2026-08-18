@@ -34,6 +34,17 @@ import {
 const CSV_MEDIA_TYPE =
   'text/csv';
 
+export const GOOGLE_TRENDS_CONFIGURED_PAGE_STAGES = [
+  'QUERY_GROUP',
+  'GEOGRAPHY',
+  'DATE_RANGE',
+  'FIXED_FILTERS',
+  'DOWNLOAD',
+] as const;
+
+export type GoogleTrendsConfiguredPageStage =
+  (typeof GOOGLE_TRENDS_CONFIGURED_PAGE_STAGES)[number];
+
 export class GoogleTrendsConfiguredPageExportError
   extends Error
 {
@@ -53,6 +64,17 @@ export interface ExportConfiguredGoogleTrendsPageInput {
   public_preferred_filename?: string;
   ui_action_timeout_ms?: number;
   download_timeout_ms?: number;
+
+  /**
+   * Optional bounded diagnostic hook.
+   *
+   * Emits only a fixed stage identifier before each provider UI step.
+   * It must never receive page text, selectors, cookies, URLs, or
+   * authentication/session material.
+   */
+  on_stage?: (
+    stage: GoogleTrendsConfiguredPageStage,
+  ) => void;
 }
 
 export interface GoogleTrendsConfiguredPageExportResult {
@@ -166,6 +188,10 @@ export const exportConfiguredGoogleTrendsPage =
     const uiTimeout =
       input.ui_action_timeout_ms;
 
+    input.on_stage?.(
+      'QUERY_GROUP',
+    );
+
     await dependencies.apply_query_group({
       page:
         input.page,
@@ -179,6 +205,10 @@ export const exportConfiguredGoogleTrendsPage =
           }),
     });
 
+    input.on_stage?.(
+      'GEOGRAPHY',
+    );
+
     await dependencies.apply_turkey_geography({
       page:
         input.page,
@@ -189,6 +219,10 @@ export const exportConfiguredGoogleTrendsPage =
               uiTimeout,
           }),
     });
+
+    input.on_stage?.(
+      'DATE_RANGE',
+    );
 
     await dependencies.apply_custom_date_range({
       page:
@@ -205,6 +239,10 @@ export const exportConfiguredGoogleTrendsPage =
           }),
     });
 
+    input.on_stage?.(
+      'FIXED_FILTERS',
+    );
+
     await dependencies.verify_fixed_filters({
       page:
         input.page,
@@ -215,6 +253,10 @@ export const exportConfiguredGoogleTrendsPage =
               uiTimeout,
           }),
     });
+
+    input.on_stage?.(
+      'DOWNLOAD',
+    );
 
     const publicDownload =
       await dependencies
