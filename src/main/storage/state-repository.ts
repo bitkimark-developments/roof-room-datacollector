@@ -2,6 +2,10 @@ import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
 import { assertJobExecutionTransition } from '../core/job-execution-state-machine';
+import {
+  assertRunStatusTransition,
+  isTerminalRunStatus,
+} from '../core/run-execution-state-machine';
 import type { AttemptRecord } from '../../shared/attempt';
 import type { QueryConfig } from '../../shared/query-config';
 import {
@@ -13,6 +17,7 @@ import {
   type RequestedCollectionConfiguration,
   type RunConfigurationSnapshot,
   type RunRecord,
+  type RunStatus,
   type ValidationStatus,
 } from '../../shared/run-job';
 
@@ -1133,6 +1138,98 @@ export class StateRepository {
       }
 
       return updatedJob;
+    } catch (error: unknown) {
+      try {
+        this.database.exec('ROLLBACK');
+      } catch {
+        // Preserve the original transition failure.
+      }
+
+      throw error;
+    }
+  }
+
+  transitionRunStatus(
+    runId: string,
+    nextStatus: RunStatus,
+  ): RunRecord {
+    this.database.exec('BEGIN IMMEDIATE');
+
+    try {
+      const rawRun = this.database
+        .prepare(`
+          SELECT
+            run_status,
+            started_at,
+            completed_at
+          FROM runs
+          WHERE run_id = ?
+        `)
+        .get(runId);
+
+      if (rawRun === undefined) {
+        throw new Error(`Unknown run: ${runId}`);
+      }
+
+      const run = requireRecord(rawRun, 'run');
+      const currentStatus = run.run_status;
+
+      if (!isRunStatus(currentStatus)) {
+        throw new Error(
+          `Persisted run_status is invalid: ${String(currentStatus)}`,
+        );
+      }
+
+      assertRunStatusTransition(
+        currentStatus,
+        nextStatus,
+      );
+
+      const persistedStartedAt = requireNullableString(
+        run,
+        'started_at',
+        'run',
+      );
+
+      const now = new Date().toISOString();
+
+      const startedAt =
+        nextStatus === 'RUNNING' &&
+        persistedStartedAt === null
+          ? now
+          : persistedStartedAt;
+
+      const completedAt = isTerminalRunStatus(nextStatus)
+        ? now
+        : null;
+
+      this.database
+        .prepare(`
+          UPDATE runs
+          SET
+            run_status = ?,
+            started_at = ?,
+            completed_at = ?
+          WHERE run_id = ?
+        `)
+        .run(
+          nextStatus,
+          startedAt,
+          completedAt,
+          runId,
+        );
+
+      this.database.exec('COMMIT');
+
+      const updatedRun = this.getRun(runId);
+
+      if (!updatedRun) {
+        throw new Error(
+          `Run ${runId} was not readable after transition.`,
+        );
+      }
+
+      return updatedRun;
     } catch (error: unknown) {
       try {
         this.database.exec('ROLLBACK');
