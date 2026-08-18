@@ -7,7 +7,7 @@ import type {
 } from '../../shared/bootstrap-status';
 
 const DATABASE_FILENAME = 'roofroom.sqlite';
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 type SqliteRow = Record<string, unknown>;
 
@@ -220,6 +220,72 @@ const migrateToVersion2 = (database: DatabaseSync): void => {
   }
 };
 
+const migrateToVersion3 = (database: DatabaseSync): void => {
+  database.exec('BEGIN IMMEDIATE');
+
+  try {
+    database.exec(`
+      CREATE TABLE attempts (
+        attempt_id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL,
+        attempt_number INTEGER NOT NULL
+          CHECK (attempt_number >= 1),
+        execution_status TEXT NOT NULL
+          CHECK (
+            execution_status IN (
+              'PENDING',
+              'RUNNING',
+              'VALIDATING',
+              'COMPLETED',
+              'FAILED',
+              'CANCELLED',
+              'MANUAL_ACTION_REQUIRED',
+              'RETRY_PENDING'
+            )
+          ),
+        candidate_artifact_id TEXT,
+        validation_id TEXT,
+        error_code TEXT,
+        started_at TEXT NOT NULL,
+        completed_at TEXT,
+        FOREIGN KEY (job_id)
+          REFERENCES jobs(job_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT,
+        UNIQUE (job_id, attempt_number)
+      ) STRICT;
+
+      CREATE INDEX idx_attempts_job_number
+        ON attempts(job_id, attempt_number);
+    `);
+
+    database
+      .prepare(`
+        INSERT INTO schema_migrations (
+          version,
+          name,
+          applied_at
+        ) VALUES (?, ?, ?)
+      `)
+      .run(
+        3,
+        'attempt_persistence',
+        new Date().toISOString(),
+      );
+
+    database.exec('PRAGMA user_version = 3');
+    database.exec('COMMIT');
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK');
+    } catch {
+      // Preserve the original migration failure.
+    }
+
+    throw error;
+  }
+};
+
 const applyMigrations = (database: DatabaseSync): number => {
   let schemaVersion = readUserVersion(database);
 
@@ -236,6 +302,11 @@ const applyMigrations = (database: DatabaseSync): number => {
 
   if (schemaVersion < 2) {
     migrateToVersion2(database);
+    schemaVersion = readUserVersion(database);
+  }
+
+  if (schemaVersion < 3) {
+    migrateToVersion3(database);
     schemaVersion = readUserVersion(database);
   }
 

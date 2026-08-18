@@ -11,7 +11,8 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
-    "test:m2:state": "bash tests/integration/sqlite/run-state-repository-test.sh"
+    "test:m2:state": "bash tests/integration/sqlite/run-state-repository-test.sh",
+    "test:m2:attempts": "bash tests/integration/sqlite/run-attempt-state-test.sh"
   },
   "keywords": [],
   "author": {

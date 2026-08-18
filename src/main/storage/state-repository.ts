@@ -1,18 +1,22 @@
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
+import { assertJobExecutionTransition } from '../core/job-execution-state-machine';
+import type { AttemptRecord } from '../../shared/attempt';
 import type { QueryConfig } from '../../shared/query-config';
 import {
   isExecutionStatus,
   isRunStatus,
   isValidationStatus,
+  type ExecutionStatus,
   type JobRecord,
   type RequestedCollectionConfiguration,
   type RunConfigurationSnapshot,
   type RunRecord,
+  type ValidationStatus,
 } from '../../shared/run-job';
 
-const REQUIRED_SCHEMA_VERSION = 2;
+const REQUIRED_SCHEMA_VERSION = 3;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const RUN_ID_PATTERN =
   /^rr_\d{8}T\d{9}Z_[0-9a-f]{6}$/;
@@ -28,6 +32,11 @@ export interface CreateRunInput {
 export interface StateCounts {
   runs: number;
   jobs: number;
+}
+
+export interface TransitionJobExecutionOptions {
+  validation_status?: ValidationStatus;
+  error_code?: string | null;
 }
 
 const requireRecord = (
@@ -238,20 +247,23 @@ const parseConfigurationSnapshot = (
   );
 
   const requireNullableConfigString = (
-    value: unknown,
+    rawValue: unknown,
     context: string,
   ): string | null => {
-    if (value === null) {
+    if (rawValue === null) {
       return null;
     }
 
-    if (typeof value !== 'string' || value.length === 0) {
+    if (
+      typeof rawValue !== 'string' ||
+      rawValue.length === 0
+    ) {
       throw new Error(
         `${context} must be a string or null.`,
       );
     }
 
-    return value;
+    return rawValue;
   };
 
   const languageCode = requireNullableConfigString(
@@ -478,6 +490,71 @@ const mapJobRow = (rawRow: unknown): JobRecord => {
   };
 };
 
+const mapAttemptRow = (
+  rawRow: unknown,
+): AttemptRecord => {
+  const row = requireRecord(rawRow, 'attempt');
+  const executionStatus = row.execution_status;
+
+  if (!isExecutionStatus(executionStatus)) {
+    throw new Error(
+      `Persisted attempt execution_status is invalid: ${String(executionStatus)}`,
+    );
+  }
+
+  return {
+    attempt_id: requireString(
+      row,
+      'attempt_id',
+      'attempt',
+    ),
+    job_id: requireString(row, 'job_id', 'attempt'),
+    attempt_number: requireInteger(
+      row,
+      'attempt_number',
+      'attempt',
+    ),
+    execution_status: executionStatus,
+    candidate_artifact_id: requireNullableString(
+      row,
+      'candidate_artifact_id',
+      'attempt',
+    ),
+    validation_id: requireNullableString(
+      row,
+      'validation_id',
+      'attempt',
+    ),
+    error_code: requireNullableString(
+      row,
+      'error_code',
+      'attempt',
+    ),
+    started_at: requireUtcTimestamp(
+      requireString(
+        row,
+        'started_at',
+        'attempt',
+      ),
+      'attempt.started_at',
+    ),
+    completed_at: (() => {
+      const value = requireNullableString(
+        row,
+        'completed_at',
+        'attempt',
+      );
+
+      return value === null
+        ? null
+        : requireUtcTimestamp(
+            value,
+            'attempt.completed_at',
+          );
+    })(),
+  };
+};
+
 export const createRunId = (): string => {
   const timestamp = new Date()
     .toISOString()
@@ -502,6 +579,12 @@ const createJobId = (
   jobKey: string,
 ): string =>
   `${runId}__${sourceId}__${jobKey}`;
+
+const createAttemptId = (
+  jobId: string,
+  attemptNumber: number,
+): string =>
+  `${jobId}__attempt_${attemptNumber}`;
 
 const validateCreateRunInput = (
   input: CreateRunInput,
@@ -566,6 +649,21 @@ const buildSnapshot = (
     }),
   ),
 });
+
+const requireErrorCode = (
+  errorCode: unknown,
+): string => {
+  if (
+    typeof errorCode !== 'string' ||
+    errorCode.trim().length === 0
+  ) {
+    throw new Error(
+      'FAILED transition requires a non-empty error_code.',
+    );
+  }
+
+  return errorCode;
+};
 
 export class StateRepository {
   private readonly database: DatabaseSync;
@@ -710,6 +808,342 @@ export class StateRepository {
     };
   }
 
+  startAttempt(jobId: string): AttemptRecord {
+    this.database.exec('BEGIN IMMEDIATE');
+
+    try {
+      const rawJob = this.database
+        .prepare(`
+          SELECT
+            job_id,
+            execution_status,
+            attempt_count
+          FROM jobs
+          WHERE job_id = ?
+        `)
+        .get(jobId);
+
+      if (rawJob === undefined) {
+        throw new Error(`Unknown job: ${jobId}`);
+      }
+
+      const job = requireRecord(rawJob, 'job');
+      const currentStatus = job.execution_status;
+
+      if (!isExecutionStatus(currentStatus)) {
+        throw new Error(
+          `Persisted execution_status is invalid: ${String(currentStatus)}`,
+        );
+      }
+
+      if (
+        currentStatus !== 'PENDING' &&
+        currentStatus !== 'RETRY_PENDING'
+      ) {
+        throw new Error(
+          `Cannot start an attempt while job is ${currentStatus}.`,
+        );
+      }
+
+      assertJobExecutionTransition(
+        currentStatus,
+        'RUNNING',
+      );
+
+      const attemptNumber =
+        requireInteger(
+          job,
+          'attempt_count',
+          'job',
+        ) + 1;
+
+      const attemptId = createAttemptId(
+        jobId,
+        attemptNumber,
+      );
+      const startedAt = new Date().toISOString();
+
+      this.database
+        .prepare(`
+          INSERT INTO attempts (
+            attempt_id,
+            job_id,
+            attempt_number,
+            execution_status,
+            candidate_artifact_id,
+            validation_id,
+            error_code,
+            started_at,
+            completed_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          attemptId,
+          jobId,
+          attemptNumber,
+          'RUNNING',
+          null,
+          null,
+          null,
+          startedAt,
+          null,
+        );
+
+      this.database
+        .prepare(`
+          UPDATE jobs
+          SET
+            execution_status = 'RUNNING',
+            validation_status = 'NOT_RUN',
+            attempt_count = ?,
+            started_at = COALESCE(started_at, ?),
+            completed_at = NULL
+          WHERE job_id = ?
+        `)
+        .run(
+          attemptNumber,
+          startedAt,
+          jobId,
+        );
+
+      this.database.exec('COMMIT');
+
+      const attempt = this.getAttempt(attemptId);
+
+      if (!attempt) {
+        throw new Error(
+          `Attempt ${attemptId} was not readable after creation.`,
+        );
+      }
+
+      return attempt;
+    } catch (error: unknown) {
+      try {
+        this.database.exec('ROLLBACK');
+      } catch {
+        // Preserve the original persistence failure.
+      }
+
+      throw error;
+    }
+  }
+
+  transitionJobExecution(
+    jobId: string,
+    nextStatus: ExecutionStatus,
+    options: TransitionJobExecutionOptions = {},
+  ): JobRecord {
+    this.database.exec('BEGIN IMMEDIATE');
+
+    try {
+      const rawJob = this.database
+        .prepare(`
+          SELECT
+            job_id,
+            execution_status,
+            validation_status,
+            attempt_count
+          FROM jobs
+          WHERE job_id = ?
+        `)
+        .get(jobId);
+
+      if (rawJob === undefined) {
+        throw new Error(`Unknown job: ${jobId}`);
+      }
+
+      const job = requireRecord(rawJob, 'job');
+      const currentStatus = job.execution_status;
+
+      if (!isExecutionStatus(currentStatus)) {
+        throw new Error(
+          `Persisted execution_status is invalid: ${String(currentStatus)}`,
+        );
+      }
+
+      if (
+        nextStatus === 'RUNNING' &&
+        (currentStatus === 'PENDING' ||
+          currentStatus === 'RETRY_PENDING')
+      ) {
+        throw new Error(
+          `Use startAttempt() for ${currentStatus} -> RUNNING so attempt history is preserved.`,
+        );
+      }
+
+      assertJobExecutionTransition(
+        currentStatus,
+        nextStatus,
+      );
+
+      const persistedValidationStatus =
+        job.validation_status;
+
+      if (!isValidationStatus(persistedValidationStatus)) {
+        throw new Error(
+          `Persisted validation_status is invalid: ${String(persistedValidationStatus)}`,
+        );
+      }
+
+      let nextValidationStatus: ValidationStatus =
+        persistedValidationStatus;
+
+      let errorCode: string | null = null;
+
+      if (nextStatus === 'COMPLETED') {
+        const requestedValidation =
+          options.validation_status;
+
+        if (
+          !isValidationStatus(requestedValidation) ||
+          requestedValidation === 'NOT_RUN'
+        ) {
+          throw new Error(
+            'COMPLETED transition requires a terminal validation_status.',
+          );
+        }
+
+        nextValidationStatus =
+          requestedValidation;
+      } else if (
+        options.validation_status !== undefined
+      ) {
+        throw new Error(
+          'validation_status may only be supplied when transitioning to COMPLETED.',
+        );
+      }
+
+      if (nextStatus === 'FAILED') {
+        errorCode = requireErrorCode(
+          options.error_code,
+        );
+      } else if (
+        options.error_code !== undefined &&
+        options.error_code !== null
+      ) {
+        throw new Error(
+          'error_code may only be supplied when transitioning to FAILED.',
+        );
+      }
+
+      const attemptCount = requireInteger(
+        job,
+        'attempt_count',
+        'job',
+      );
+
+      const activeAttempt =
+        attemptCount > 0
+          ? this.database
+              .prepare(`
+                SELECT attempt_id
+                FROM attempts
+                WHERE job_id = ?
+                  AND attempt_number = ?
+              `)
+              .get(jobId, attemptCount)
+          : undefined;
+
+      const transitionNeedsAttempt =
+        currentStatus === 'RUNNING' ||
+        currentStatus === 'VALIDATING' ||
+        currentStatus ===
+          'MANUAL_ACTION_REQUIRED';
+
+      if (
+        transitionNeedsAttempt &&
+        activeAttempt === undefined
+      ) {
+        throw new Error(
+          `Job ${jobId} has no persisted active attempt.`,
+        );
+      }
+
+      const now = new Date().toISOString();
+      const jobCompletedAt =
+        nextStatus === 'COMPLETED' ||
+        nextStatus === 'FAILED' ||
+        nextStatus === 'CANCELLED'
+          ? now
+          : null;
+
+      this.database
+        .prepare(`
+          UPDATE jobs
+          SET
+            execution_status = ?,
+            validation_status = ?,
+            completed_at = ?
+          WHERE job_id = ?
+        `)
+        .run(
+          nextStatus,
+          nextValidationStatus,
+          jobCompletedAt,
+          jobId,
+        );
+
+      if (
+        activeAttempt !== undefined &&
+        nextStatus !== 'RETRY_PENDING'
+      ) {
+        const attempt = requireRecord(
+          activeAttempt,
+          'active attempt',
+        );
+
+        const attemptId = requireString(
+          attempt,
+          'attempt_id',
+          'active attempt',
+        );
+
+        const attemptCompletedAt =
+          nextStatus === 'COMPLETED' ||
+          nextStatus === 'FAILED' ||
+          nextStatus === 'CANCELLED'
+            ? now
+            : null;
+
+        this.database
+          .prepare(`
+            UPDATE attempts
+            SET
+              execution_status = ?,
+              error_code = ?,
+              completed_at = ?
+            WHERE attempt_id = ?
+          `)
+          .run(
+            nextStatus,
+            errorCode,
+            attemptCompletedAt,
+            attemptId,
+          );
+      }
+
+      this.database.exec('COMMIT');
+
+      const updatedJob = this.getJob(jobId);
+
+      if (!updatedJob) {
+        throw new Error(
+          `Job ${jobId} was not readable after transition.`,
+        );
+      }
+
+      return updatedJob;
+    } catch (error: unknown) {
+      try {
+        this.database.exec('ROLLBACK');
+      } catch {
+        // Preserve the original transition failure.
+      }
+
+      throw error;
+    }
+  }
+
   getRun(runId: string): RunRecord | null {
     const row = this.database
       .prepare(`
@@ -728,6 +1162,31 @@ export class StateRepository {
       .get(runId);
 
     return row === undefined ? null : mapRunRow(row);
+  }
+
+  getJob(jobId: string): JobRecord | null {
+    const row = this.database
+      .prepare(`
+        SELECT
+          job_id,
+          run_id,
+          source_id,
+          job_key,
+          query_group_id,
+          job_order,
+          execution_status,
+          validation_status,
+          attempt_count,
+          accepted_artifact_id,
+          created_at,
+          started_at,
+          completed_at
+        FROM jobs
+        WHERE job_id = ?
+      `)
+      .get(jobId);
+
+    return row === undefined ? null : mapJobRow(row);
   }
 
   listJobs(runId: string): JobRecord[] {
@@ -753,6 +1212,52 @@ export class StateRepository {
       `)
       .all(runId)
       .map(mapJobRow);
+  }
+
+  getAttempt(
+    attemptId: string,
+  ): AttemptRecord | null {
+    const row = this.database
+      .prepare(`
+        SELECT
+          attempt_id,
+          job_id,
+          attempt_number,
+          execution_status,
+          candidate_artifact_id,
+          validation_id,
+          error_code,
+          started_at,
+          completed_at
+        FROM attempts
+        WHERE attempt_id = ?
+      `)
+      .get(attemptId);
+
+    return row === undefined
+      ? null
+      : mapAttemptRow(row);
+  }
+
+  listAttempts(jobId: string): AttemptRecord[] {
+    return this.database
+      .prepare(`
+        SELECT
+          attempt_id,
+          job_id,
+          attempt_number,
+          execution_status,
+          candidate_artifact_id,
+          validation_id,
+          error_code,
+          started_at,
+          completed_at
+        FROM attempts
+        WHERE job_id = ?
+        ORDER BY attempt_number ASC
+      `)
+      .all(jobId)
+      .map(mapAttemptRow);
   }
 
   getCounts(): StateCounts {
