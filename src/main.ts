@@ -3,10 +3,16 @@ import type { IpcMainInvokeEvent } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
+import { ensureApplicationDirectories } from './main/app/application-directories';
+import {
+  ensureExternalQueryConfig,
+  loadQueryConfig,
+} from './main/config/query-config-loader';
 import {
   IPC_CHANNELS,
   type ApplicationInfo,
 } from './shared/application-info';
+import type { BootstrapStatus } from './shared/bootstrap-status';
 
 if (started) {
   app.quit();
@@ -41,13 +47,23 @@ const isTrustedIpcSender = (event: IpcMainInvokeEvent): boolean => {
   }
 };
 
-const registerIpcHandlers = (): void => {
+const assertTrustedIpcSender = (
+  event: IpcMainInvokeEvent,
+): void => {
+  if (!isTrustedIpcSender(event)) {
+    throw new Error(
+      'Rejected IPC request from an untrusted sender.',
+    );
+  }
+};
+
+const registerIpcHandlers = (
+  bootstrapStatus: BootstrapStatus,
+): void => {
   ipcMain.handle(
     IPC_CHANNELS.GET_APPLICATION_INFO,
     (event): ApplicationInfo => {
-      if (!isTrustedIpcSender(event)) {
-        throw new Error('Rejected IPC request from an untrusted sender.');
-      }
+      assertTrustedIpcSender(event);
 
       return {
         name: app.getName(),
@@ -58,12 +74,20 @@ const registerIpcHandlers = (): void => {
       };
     },
   );
+
+  ipcMain.handle(
+    IPC_CHANNELS.GET_BOOTSTRAP_STATUS,
+    (event): BootstrapStatus => {
+      assertTrustedIpcSender(event);
+      return bootstrapStatus;
+    },
+  );
 };
 
 const createWindow = (): void => {
   const mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 700,
+    width: 1100,
+    height: 760,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -85,8 +109,45 @@ const createWindow = (): void => {
   }
 };
 
-app.whenReady().then(() => {
-  registerIpcHandlers();
+const initializeBootstrapStatus =
+  async (): Promise<BootstrapStatus> => {
+    const directories = await ensureApplicationDirectories();
+
+    const configPath = await ensureExternalQueryConfig(
+      directories,
+      app.getAppPath(),
+    );
+
+    try {
+      const config = await loadQueryConfig(configPath);
+
+      return {
+        directories,
+        query_config: {
+          status: 'READY',
+          config_path: configPath,
+          config,
+        },
+      };
+    } catch (error: unknown) {
+      return {
+        directories,
+        query_config: {
+          status: 'ERROR',
+          config_path: configPath,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Unknown query configuration error.',
+        },
+      };
+    }
+  };
+
+app.whenReady().then(async () => {
+  const bootstrapStatus = await initializeBootstrapStatus();
+
+  registerIpcHandlers(bootstrapStatus);
   createWindow();
 
   app.on('activate', () => {

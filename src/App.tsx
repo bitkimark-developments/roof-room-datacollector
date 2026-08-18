@@ -1,21 +1,30 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { ApplicationInfo } from './shared/application-info';
+import type { BootstrapStatus } from './shared/bootstrap-status';
+
+interface AppState {
+  applicationInfo: ApplicationInfo;
+  bootstrapStatus: BootstrapStatus;
+}
 
 export function App() {
-  const [applicationInfo, setApplicationInfo] =
-    useState<ApplicationInfo | null>(null);
-
+  const [appState, setAppState] = useState<AppState | null>(null);
   const [ipcError, setIpcError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    window.roofroom
-      .getApplicationInfo()
-      .then((info) => {
+    Promise.all([
+      window.roofroom.getApplicationInfo(),
+      window.roofroom.getBootstrapStatus(),
+    ])
+      .then(([applicationInfo, bootstrapStatus]) => {
         if (active) {
-          setApplicationInfo(info);
+          setAppState({
+            applicationInfo,
+            bootstrapStatus,
+          });
         }
       })
       .catch((error: unknown) => {
@@ -33,11 +42,33 @@ export function App() {
     };
   }, []);
 
+  const queryCount = useMemo(() => {
+    if (
+      !appState ||
+      appState.bootstrapStatus.query_config.status !== 'READY'
+    ) {
+      return 0;
+    }
+
+    return appState.bootstrapStatus.query_config.config.groups.reduce(
+      (total, group) => total + group.queries.length,
+      0,
+    );
+  }, [appState]);
+
   const ipcStatus = ipcError
     ? 'ERROR'
-    : applicationInfo
+    : appState
       ? 'READY'
       : 'LOADING';
+
+  const queryConfigStatus =
+    appState?.bootstrapStatus.query_config.status ?? 'LOADING';
+
+  const firstGroup =
+    appState?.bootstrapStatus.query_config.status === 'READY'
+      ? appState.bootstrapStatus.query_config.config.groups[0]
+      : null;
 
   return (
     <main className="app-shell">
@@ -60,30 +91,106 @@ export function App() {
           <strong>{ipcStatus}</strong>
         </div>
 
-        {applicationInfo && (
+        <div className="status-row">
+          <span>Application directories</span>
+          <strong>{appState ? 'READY' : 'LOADING'}</strong>
+        </div>
+
+        <div className="status-row">
+          <span>YAML QueryConfig</span>
+          <strong>{queryConfigStatus}</strong>
+        </div>
+
+        {appState && (
           <dl className="application-info">
             <div>
               <dt>Application</dt>
               <dd>
-                {applicationInfo.name} {applicationInfo.version}
+                {appState.applicationInfo.name}{' '}
+                {appState.applicationInfo.version}
               </dd>
             </div>
 
             <div>
               <dt>Runtime</dt>
               <dd>
-                Electron {applicationInfo.electronVersion}
+                Electron {appState.applicationInfo.electronVersion}
               </dd>
             </div>
 
             <div>
               <dt>Platform</dt>
               <dd>
-                {applicationInfo.platform} /{' '}
-                {applicationInfo.architecture}
+                {appState.applicationInfo.platform} /{' '}
+                {appState.applicationInfo.architecture}
+              </dd>
+            </div>
+
+            <div>
+              <dt>App data</dt>
+              <dd>
+                {appState.bootstrapStatus.directories.app_data_root}
               </dd>
             </div>
           </dl>
+        )}
+
+        {appState?.bootstrapStatus.query_config.status ===
+          'READY' && (
+          <dl className="application-info">
+            <div>
+              <dt>Config source</dt>
+              <dd>
+                {
+                  appState.bootstrapStatus.query_config.config
+                    .source_id
+                }
+              </dd>
+            </div>
+
+            <div>
+              <dt>Config version</dt>
+              <dd>
+                {
+                  appState.bootstrapStatus.query_config.config
+                    .config_version
+                }
+              </dd>
+            </div>
+
+            <div>
+              <dt>Query groups</dt>
+              <dd>
+                {
+                  appState.bootstrapStatus.query_config.config.groups
+                    .length
+                }
+              </dd>
+            </div>
+
+            <div>
+              <dt>Queries</dt>
+              <dd>{queryCount}</dd>
+            </div>
+
+            {firstGroup && (
+              <div>
+                <dt>Order proof</dt>
+                <dd>
+                  {firstGroup.query_group_id}: {' '}
+                  {firstGroup.queries.join(' → ')}
+                </dd>
+              </div>
+            )}
+          </dl>
+        )}
+
+        {appState?.bootstrapStatus.query_config.status ===
+          'ERROR' && (
+          <p className="error-message">
+            QueryConfig error:{' '}
+            {appState.bootstrapStatus.query_config.error}
+          </p>
         )}
 
         {ipcError && (

@@ -104,3 +104,8 @@ h1 {
   border: 1px solid #d0d5dd;
   border-radius: 8px;
 }
+
+.application-info dd {
+  max-width: 65%;
+  overflow-wrap: anywhere;
+}

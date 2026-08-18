@@ -1,8 +1,8 @@
 {
   "name": "roofroom-data-collector",
-  "productName": "roofroom-data-collector",
+  "productName": "RoofRoom Data Collector",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "Local-first modular desktop application for reliable raw data collection, validation, provenance, and export.",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
@@ -43,6 +43,7 @@
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "yaml": "2.9.0"
   }
 }

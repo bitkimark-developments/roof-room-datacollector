@@ -1,0 +1,23 @@
+version: 1
+source: google-trends
+
+# M1 deterministic configuration slice.
+# Expand to GT01-GT20 only after the loader/validation boundary is verified.
+groups:
+  - id: GT01
+    name: generic_commercial
+    queries:
+      - canlı bitki
+      - online bitki
+      - bitki satın al
+      - bitki siparişi
+      - saksılı bitki
+
+  - id: GT02
+    name: indoor_terminology
+    queries:
+      - salon bitkisi
+      - salon bitkileri
+      - iç mekan bitkisi
+      - iç mekan bitkileri
+      - ev bitkileri
