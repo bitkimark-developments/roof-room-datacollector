@@ -132,6 +132,61 @@ const formatGoogleTrendsDateInput = (
   );
 };
 
+export interface ValidatedGoogleTrendsDateRange {
+  start_input_value: string;
+  end_input_value: string;
+}
+
+export const validateGoogleTrendsRequestedDateRange = (
+  requestedDateStart: string,
+  requestedDateEnd: string,
+): ValidatedGoogleTrendsDateRange => {
+  const startDate =
+    parseIsoDate(
+      requestedDateStart,
+      'requested_date_start',
+    );
+
+  const endDate =
+    parseIsoDate(
+      requestedDateEnd,
+      'requested_date_end',
+    );
+
+  const startEpoch =
+    Date.UTC(
+      startDate.year,
+      startDate.month - 1,
+      startDate.day,
+    );
+
+  const endEpoch =
+    Date.UTC(
+      endDate.year,
+      endDate.month - 1,
+      endDate.day,
+    );
+
+  if (startEpoch > endEpoch) {
+    throw new GoogleTrendsDateDialogContractError(
+      'requested_date_start must not be after requested_date_end.',
+    );
+  }
+
+  return {
+    start_input_value:
+      formatGoogleTrendsDateInput(
+        requestedDateStart,
+        'requested_date_start',
+      ),
+    end_input_value:
+      formatGoogleTrendsDateInput(
+        requestedDateEnd,
+        'requested_date_end',
+      ),
+  };
+};
+
 const requireExactlyOne = async (
   locator: ManagedBrowserLocator,
   description: string,
@@ -170,37 +225,11 @@ export const applyGoogleTrendsCustomDateFields =
         input.ui_action_timeout_ms,
       );
 
-    const startDate =
-      parseIsoDate(
+    const validatedRange =
+      validateGoogleTrendsRequestedDateRange(
         input.requested_date_start,
-        'requested_date_start',
-      );
-
-    const endDate =
-      parseIsoDate(
         input.requested_date_end,
-        'requested_date_end',
       );
-
-    const startEpoch =
-      Date.UTC(
-        startDate.year,
-        startDate.month - 1,
-        startDate.day,
-      );
-
-    const endEpoch =
-      Date.UTC(
-        endDate.year,
-        endDate.month - 1,
-        endDate.day,
-      );
-
-    if (startEpoch > endEpoch) {
-      throw new GoogleTrendsDateDialogContractError(
-        'requested_date_start must not be after requested_date_end.',
-      );
-    }
 
     const archiveDialog =
       input.page.getByLabel(
@@ -236,20 +265,16 @@ export const applyGoogleTrendsCustomDateFields =
     );
 
     await startInput.fill(
-      formatGoogleTrendsDateInput(
-        input.requested_date_start,
-        'requested_date_start',
-      ),
+      validatedRange
+        .start_input_value,
       {
         timeout,
       },
     );
 
     await endInput.fill(
-      formatGoogleTrendsDateInput(
-        input.requested_date_end,
-        'requested_date_end',
-      ),
+      validatedRange
+        .end_input_value,
       {
         timeout,
       },
