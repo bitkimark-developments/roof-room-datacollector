@@ -2,7 +2,7 @@
 
 **Document:** `DECISIONS.md`  
 **Product:** RoofRoom Data Collector  
-**Status:** M0 approved decision log  
+**Status:** Active architecture decision log  
 **Last Updated:** 2026-08-18  
 **Purpose:** Record important product, architecture, data-integrity, validation, testing, and implementation decisions so they are not repeatedly reopened without new evidence.
 
@@ -1460,6 +1460,152 @@ Live authenticated Google Trends tests should not automatically become unattende
 
 ---
 
+# ADR-045 — M1 Verified Desktop Toolchain Baseline
+
+**Status:** ACCEPTED  
+**Date:** 2026-08-18
+
+## Decision
+
+The verified M1 desktop implementation baseline is:
+
+```text
+Project Node via nvm = 24
+Verified dev Node    = 24.19.0
+Electron             = 43.4.0
+Electron Forge       = 7.11.2
+Vite                 = 5.4.21
+React                = 18.3.1
+TypeScript           = 5.9.3
+```
+
+Electron Forge with the Vite plugin remains the current desktop build/package integration.
+
+These versions are a verified project baseline, not permanent forever-pins.
+
+## Context
+
+M0 intentionally deferred exact runtime/tooling choices until current implementation evidence was available.
+
+M1 verified development launch, production packaging, and packaged application launch on the target Apple Silicon Mac.
+
+## Consequences
+
+Toolchain upgrades must be deliberate and followed by lint, type-check, package/build, and runtime smoke verification.
+
+## Resolves
+
+```text
+ADR-D001 — Exact Node.js Version
+ADR-D002 — Exact Electron Version
+ADR-D003 — Exact Vite / Electron Integration Setup
+```
+
+## Revisit If
+
+A required dependency, security requirement, packaging defect, or demonstrated maintenance benefit justifies migration.
+
+---
+
+# ADR-046 — Use Electron userData With an App-Owned Subdirectory
+
+**Status:** ACCEPTED  
+**Date:** 2026-08-18
+
+## Decision
+
+Writable RoofRoom application state uses Electron's application-specific `userData` path with an additional:
+
+```text
+app-data/
+```
+
+subdirectory.
+
+Verified macOS layout:
+
+```text
+~/Library/Application Support/RoofRoom Data Collector/app-data/
+```
+
+Current children include:
+
+```text
+config/
+data/
+data/runs/
+database/
+browser-profiles/
+logs/
+```
+
+## Consequences
+
+Source modules must not invent unrelated writable roots.
+
+Tests should prefer temporary roots rather than real user application data.
+
+## Revisit If
+
+A future platform or deliberate user-selectable data-root feature requires a different path strategy.
+
+---
+
+# ADR-047 — Use Built-In node:sqlite Behind the Storage Boundary
+
+**Status:** ACCEPTED  
+**Date:** 2026-08-18
+
+## Decision
+
+The current SQLite implementation uses Electron's bundled Node:
+
+```text
+node:sqlite
+```
+
+behind the privileged main-process storage boundary.
+
+No third-party SQLite native addon is required at the current baseline.
+
+Verified M1 runtime:
+
+```text
+Electron = 43.4.0
+Node     = 24.18.1
+SQLite   = 3.53.1
+```
+
+## Context
+
+A direct probe in the actual Electron runtime successfully opened SQLite, created a STRICT table, inserted data, read it back, and closed the database.
+
+The packaged application also launched successfully with the SQLite bootstrap enabled.
+
+## Consequences
+
+Renderer code must not access `node:sqlite`.
+
+`DatabaseSync` is acceptable for the current small operational-state workload, but SQLite remains encapsulated so the implementation can change if measured blocking or concurrency becomes material.
+
+Schema changes use explicit migrations and `PRAGMA user_version`.
+
+Unsupported future schema versions fail closed.
+
+## Resolves
+
+```text
+ADR-D004 — Exact SQLite Package
+```
+
+The resolution is to use the runtime's built-in module rather than an external SQLite package.
+
+## Revisit If
+
+Electron compatibility changes, measured main-process blocking becomes unacceptable, concurrency requirements change materially, or packaging reliability regresses.
+
+---
+
 # 4. Deferred Decisions
 
 The following decisions are intentionally not locked in M0.
@@ -1470,7 +1616,8 @@ They should be resolved only after current official documentation and/or impleme
 
 # ADR-D001 — Exact Node.js Version
 
-**Status:** DEFERRED
+**Status:** SUPERSEDED  
+**Resolution:** ADR-045
 
 Resolve during project bootstrap.
 
@@ -1485,7 +1632,8 @@ Criteria:
 
 # ADR-D002 — Exact Electron Version
 
-**Status:** DEFERRED
+**Status:** SUPERSEDED  
+**Resolution:** ADR-045
 
 Resolve during M1 using official Electron documentation.
 
@@ -1493,7 +1641,8 @@ Resolve during M1 using official Electron documentation.
 
 # ADR-D003 — Exact Vite / Electron Integration Setup
 
-**Status:** DEFERRED
+**Status:** SUPERSEDED  
+**Resolution:** ADR-045
 
 Do not lock a starter/template structure before validating current tooling.
 
@@ -1501,7 +1650,8 @@ Do not lock a starter/template structure before validating current tooling.
 
 # ADR-D004 — Exact SQLite Package
 
-**Status:** DEFERRED
+**Status:** SUPERSEDED  
+**Resolution:** ADR-047
 
 Selection criteria:
 
