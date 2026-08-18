@@ -9,7 +9,10 @@ import {
   loadQueryConfig,
 } from './main/config/query-config-loader';
 import { SourceRegistry } from './main/core/source-registry';
-import { GoogleTrendsSource } from './main/sources/google-trends/google-trends-source';
+import {
+  createGoogleTrendsRuntime,
+  type GoogleTrendsRuntime,
+} from './main/sources/google-trends/google-trends-runtime';
 import { initializeDatabase } from './main/storage/database';
 import {
   IPC_CHANNELS,
@@ -23,6 +26,14 @@ import type {
 if (started) {
   app.quit();
 }
+
+let googleTrendsRuntime:
+  GoogleTrendsRuntime | null =
+    null;
+
+let googleTrendsShutdownPromise:
+  Promise<void> | null =
+    null;
 
 const isTrustedIpcSender = (event: IpcMainInvokeEvent): boolean => {
   const frame = event.senderFrame;
@@ -150,7 +161,18 @@ const initializeBootstrapStatus =
     const queryConfig = await loadQueryConfigStatus(configPath);
 
     const sourceRegistry = new SourceRegistry();
-    sourceRegistry.register(new GoogleTrendsSource());
+
+    const runtime =
+      createGoogleTrendsRuntime(
+        directories,
+      );
+
+    googleTrendsRuntime =
+      runtime;
+
+    sourceRegistry.register(
+      runtime.source,
+    );
 
     sourceRegistry.get('google-trends');
 
@@ -182,6 +204,48 @@ app.whenReady().then(async () => {
       createWindow();
     }
   });
+});
+
+app.on('before-quit', (event) => {
+  if (
+    googleTrendsShutdownPromise !==
+    null
+  ) {
+    event.preventDefault();
+    return;
+  }
+
+  const runtime =
+    googleTrendsRuntime;
+
+  if (runtime === null) {
+    return;
+  }
+
+  event.preventDefault();
+
+  // Clear the active runtime before re-entering app.quit() after
+  // asynchronous persistent-browser shutdown. The second before-quit
+  // event can then continue normally.
+  googleTrendsRuntime =
+    null;
+
+  googleTrendsShutdownPromise =
+    runtime.browser_manager
+      .close()
+      .catch(
+        (): void => {
+          // Shutdown failure must not trap Electron in a quit loop.
+          console.error(
+            'Google Trends browser runtime shutdown failed.',
+          );
+        },
+      )
+      .finally((): void => {
+        googleTrendsShutdownPromise =
+          null;
+        app.quit();
+      });
 });
 
 app.on('window-all-closed', () => {

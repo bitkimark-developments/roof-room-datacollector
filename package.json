@@ -38,7 +38,9 @@
     "test:m3:gt-query-geo": "bash tests/integration/google-trends/run-query-group-geography-ui-test.sh",
     "test:m3:gt-fixed-filters": "bash tests/integration/google-trends/run-fixed-filter-verifier-test.sh",
     "test:m3:gt-configured-export": "bash tests/integration/google-trends/run-configured-page-export-test.sh",
-    "test:m3:gt-collecting-source": "bash tests/integration/google-trends/run-collecting-source-test.sh"
+    "test:m3:gt-collecting-source": "bash tests/integration/google-trends/run-collecting-source-test.sh",
+    "test:m3:gt-runtime": "bash tests/integration/google-trends/run-runtime-composition-test.sh",
+    "test:m3:gt-runtime-package-config": "bash tests/integration/google-trends/run-runtime-packaging-config-test.sh"
   },
   "keywords": [],
   "author": {
