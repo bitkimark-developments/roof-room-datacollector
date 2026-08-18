@@ -16,6 +16,7 @@ if (!buildRoot) {
 
 const {
   applyGoogleTrendsSearchTermQueryGroup,
+  GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS,
   GoogleTrendsQueryGroupUiContractError,
 } = require(
   path.join(
@@ -179,6 +180,7 @@ class FakeQueryPage {
     firstInputCount = 1,
     addCount = 1,
     emptySlotCount = 1,
+    emptyInputCount = 1,
   } = {}) {
     this.trace = [];
 
@@ -196,6 +198,8 @@ class FakeQueryPage {
       new FakeLocator({
         name:
           'empty-slot-query-input',
+        count:
+          emptyInputCount,
         trace:
           this.trace,
       });
@@ -766,7 +770,19 @@ const main = async () => {
           'canlı bitki',
         ],
       }),
-    /exactly one/u,
+    (error) =>
+      error instanceof
+        GoogleTrendsQueryGroupUiContractError &&
+      error.diagnostic_context
+        ?.control ===
+        GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+          .INITIAL_QUERY_INPUT &&
+      error.diagnostic_context
+        ?.observed_count ===
+        2 &&
+      error.diagnostic_context
+        ?.query_index ===
+        0,
   );
 
   assert.equal(
@@ -779,6 +795,160 @@ const main = async () => {
 
   console.log(
     'PASS GT-QUERY-006: ambiguous initial query input fails closed rather than selecting by DOM position',
+  );
+
+  const missingInitialPage =
+    new FakeQueryPage({
+      firstInputCount:
+        0,
+    });
+
+  await assert.rejects(
+    () =>
+      applyGoogleTrendsSearchTermQueryGroup({
+        page:
+          missingInitialPage,
+        queries: [
+          'canlı bitki',
+        ],
+      }),
+    (error) =>
+      error instanceof
+        GoogleTrendsQueryGroupUiContractError &&
+      error.diagnostic_context
+        ?.control ===
+        GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+          .INITIAL_QUERY_INPUT &&
+      error.diagnostic_context
+        ?.observed_count ===
+        0 &&
+      error.diagnostic_context
+        ?.query_index ===
+        0,
+  );
+
+  console.log(
+    'PASS GT-QUERY-007: missing initial query input reports structured INITIAL_QUERY_INPUT cardinality evidence',
+  );
+
+  for (
+    const observedCount of
+      [0, 2]
+  ) {
+    const addComparisonPage =
+      new FakeQueryPage({
+        addCount:
+          observedCount,
+      });
+
+    await assert.rejects(
+      () =>
+        applyGoogleTrendsSearchTermQueryGroup({
+          page:
+            addComparisonPage,
+          queries: [
+            'canlı bitki',
+            'online bitki',
+          ],
+        }),
+      (error) =>
+        error instanceof
+          GoogleTrendsQueryGroupUiContractError &&
+        error.diagnostic_context
+          ?.control ===
+          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+            .ADD_COMPARISON &&
+        error.diagnostic_context
+          ?.observed_count ===
+          observedCount &&
+        error.diagnostic_context
+          ?.query_index ===
+          1,
+    );
+  }
+
+  console.log(
+    'PASS GT-QUERY-008: missing or ambiguous comparison-add control reports structured ADD_COMPARISON cardinality evidence',
+  );
+
+  for (
+    const observedCount of
+      [0, 2]
+  ) {
+    const emptySlotPage =
+      new FakeQueryPage({
+        emptySlotCount:
+          observedCount,
+      });
+
+    await assert.rejects(
+      () =>
+        applyGoogleTrendsSearchTermQueryGroup({
+          page:
+            emptySlotPage,
+          queries: [
+            'canlı bitki',
+            'online bitki',
+          ],
+        }),
+      (error) =>
+        error instanceof
+          GoogleTrendsQueryGroupUiContractError &&
+        error.diagnostic_context
+          ?.control ===
+          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+            .EMPTY_COMPARISON_SLOT &&
+        error.diagnostic_context
+          ?.observed_count ===
+          observedCount &&
+        error.diagnostic_context
+          ?.query_index ===
+          1,
+    );
+  }
+
+  console.log(
+    'PASS GT-QUERY-009: missing or ambiguous unselected slot reports structured EMPTY_COMPARISON_SLOT cardinality evidence',
+  );
+
+  for (
+    const observedCount of
+      [0, 2]
+  ) {
+    const comparisonInputPage =
+      new FakeQueryPage({
+        emptyInputCount:
+          observedCount,
+      });
+
+    await assert.rejects(
+      () =>
+        applyGoogleTrendsSearchTermQueryGroup({
+          page:
+            comparisonInputPage,
+          queries: [
+            'canlı bitki',
+            'online bitki',
+          ],
+        }),
+      (error) =>
+        error instanceof
+          GoogleTrendsQueryGroupUiContractError &&
+        error.diagnostic_context
+          ?.control ===
+          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+            .COMPARISON_QUERY_INPUT &&
+        error.diagnostic_context
+          ?.observed_count ===
+          observedCount &&
+        error.diagnostic_context
+          ?.query_index ===
+          1,
+    );
+  }
+
+  console.log(
+    'PASS GT-QUERY-010: missing or ambiguous nested comparison input reports structured COMPARISON_QUERY_INPUT cardinality evidence',
   );
 
   const alreadyTurkeyPage =

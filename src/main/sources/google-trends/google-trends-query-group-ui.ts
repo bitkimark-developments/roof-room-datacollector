@@ -21,13 +21,46 @@ const GOOGLE_TRENDS_COMPARISON_LIMIT =
 const DEFAULT_UI_ACTION_TIMEOUT_MS =
   10_000;
 
+export const GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS = {
+  INITIAL_QUERY_INPUT:
+    'INITIAL_QUERY_INPUT',
+  ADD_COMPARISON:
+    'ADD_COMPARISON',
+  EMPTY_COMPARISON_SLOT:
+    'EMPTY_COMPARISON_SLOT',
+  COMPARISON_QUERY_INPUT:
+    'COMPARISON_QUERY_INPUT',
+} as const;
+
+export type GoogleTrendsQueryGroupDiagnosticControl =
+  (typeof GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS)[
+    keyof typeof GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+  ];
+
+export interface GoogleTrendsQueryGroupDiagnosticContext {
+  control:
+    GoogleTrendsQueryGroupDiagnosticControl;
+  observed_count: number;
+  query_index: number;
+}
+
 export class GoogleTrendsQueryGroupUiContractError
   extends Error
 {
-  constructor(message: string) {
+  readonly diagnostic_context:
+    GoogleTrendsQueryGroupDiagnosticContext | null;
+
+  constructor(
+    message: string,
+    diagnosticContext:
+      GoogleTrendsQueryGroupDiagnosticContext | null =
+      null,
+  ) {
     super(message);
     this.name =
       'GoogleTrendsQueryGroupUiContractError';
+    this.diagnostic_context =
+      diagnosticContext;
   }
 }
 
@@ -91,6 +124,11 @@ const validateQueries = (
 const requireExactlyOne = async (
   locator: ManagedBrowserLocator,
   description: string,
+  diagnostic: {
+    control:
+      GoogleTrendsQueryGroupDiagnosticControl;
+    query_index: number;
+  },
 ): Promise<void> => {
   const count =
     await locator.count();
@@ -98,6 +136,14 @@ const requireExactlyOne = async (
   if (count !== 1) {
     throw new GoogleTrendsQueryGroupUiContractError(
       `Expected exactly one ${description}; found ${count}.`,
+      {
+        control:
+          diagnostic.control,
+        observed_count:
+          count,
+        query_index:
+          diagnostic.query_index,
+      },
     );
   }
 };
@@ -129,10 +175,19 @@ const fillAndSelectQuery = async (
   input: ManagedBrowserLocator,
   query: string,
   timeout: number,
+  diagnosticControl:
+    GoogleTrendsQueryGroupDiagnosticControl,
+  queryIndex: number,
 ): Promise<void> => {
   await requireExactlyOne(
     input,
     `"${QUERY_SEARCHBOX_NAME}" query input`,
+    {
+      control:
+        diagnosticControl,
+      query_index:
+        queryIndex,
+    },
   );
 
   await input.fill(
@@ -192,6 +247,9 @@ export const applyGoogleTrendsSearchTermQueryGroup =
       firstInput,
       input.queries[0],
       timeout,
+      GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+        .INITIAL_QUERY_INPUT,
+      0,
     );
 
     for (
@@ -211,6 +269,13 @@ export const applyGoogleTrendsSearchTermQueryGroup =
       await requireExactlyOne(
         addComparison,
         `"${ADD_COMPARISON_NAME}" button`,
+        {
+          control:
+            GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+              .ADD_COMPARISON,
+          query_index:
+            index,
+        },
       );
 
       await addComparison.click({
@@ -225,6 +290,13 @@ export const applyGoogleTrendsSearchTermQueryGroup =
       await requireExactlyOne(
         emptySlot,
         'unselected comparison slot',
+        {
+          control:
+            GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+              .EMPTY_COMPARISON_SLOT,
+          query_index:
+            index,
+        },
       );
 
       const queryInput =
@@ -241,6 +313,9 @@ export const applyGoogleTrendsSearchTermQueryGroup =
         queryInput,
         input.queries[index],
         timeout,
+        GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+          .COMPARISON_QUERY_INPUT,
+        index,
       );
     }
   };

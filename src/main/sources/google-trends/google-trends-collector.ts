@@ -42,6 +42,7 @@ import {
   type GoogleTrendsProviderProbeResult,
 } from './google-trends-provider-probe';
 import {
+  GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS,
   GoogleTrendsQueryGroupUiContractError,
 } from './google-trends-query-group-ui';
 
@@ -227,6 +228,50 @@ const failed = (
     errorCode,
   message,
 });
+
+const QUERY_GROUP_DIAGNOSTIC_CONTROL_VALUES =
+  new Set<string>(
+    Object.values(
+      GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS,
+    ),
+  );
+
+const formatQueryGroupDiagnostic = (
+  stage:
+    GoogleTrendsConfiguredPageStage | null,
+  error: unknown,
+): string | null => {
+  if (
+    stage !==
+      'QUERY_GROUP' ||
+    !(error instanceof
+      GoogleTrendsQueryGroupUiContractError)
+  ) {
+    return null;
+  }
+
+  const diagnostic =
+    error.diagnostic_context;
+
+  if (
+    diagnostic === null ||
+    !QUERY_GROUP_DIAGNOSTIC_CONTROL_VALUES.has(
+      diagnostic.control,
+    ) ||
+    !Number.isSafeInteger(
+      diagnostic.observed_count,
+    ) ||
+    diagnostic.observed_count < 0 ||
+    !Number.isSafeInteger(
+      diagnostic.query_index,
+    ) ||
+    diagnostic.query_index < 0
+  ) {
+    return null;
+  }
+
+  return `Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError; control=${diagnostic.control}; observed_count=${diagnostic.observed_count}; query_index=${diagnostic.query_index}).`;
+};
 
 export class GoogleTrendsCollector {
   private readonly probeProvider:
@@ -440,10 +485,17 @@ export class GoogleTrendsCollector {
             ? error.name
             : 'UnknownUiContractError';
 
+        const queryGroupDiagnostic =
+          formatQueryGroupDiagnostic(
+            exportStage,
+            error,
+          );
+
         return failed(
           GOOGLE_TRENDS_COLLECTION_ERROR_CODES
             .UI_CONTRACT_ERROR,
-          `Google Trends UI contract failed during ${safeStage} (${safeErrorName}).`,
+          queryGroupDiagnostic ??
+            `Google Trends UI contract failed during ${safeStage} (${safeErrorName}).`,
         );
       }
 

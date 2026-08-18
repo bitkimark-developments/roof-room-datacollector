@@ -362,6 +362,12 @@ const waitForManualActionExit =
     }
   };
 
+const GENERIC_UI_DIAGNOSTIC_PATTERN =
+  /^Google Trends UI contract failed during (QUERY_GROUP|GEOGRAPHY|DATE_RANGE|FIXED_FILTERS|DOWNLOAD|UNKNOWN_EXPORT_STAGE) \(GoogleTrends[A-Za-z]+Error\)\.$/u;
+
+const QUERY_GROUP_UI_DIAGNOSTIC_PATTERN =
+  /^Google Trends UI contract failed during QUERY_GROUP \(GoogleTrendsQueryGroupUiContractError; control=(INITIAL_QUERY_INPUT|ADD_COMPARISON|EMPTY_COMPARISON_SLOT|COMPARISON_QUERY_INPUT); observed_count=[0-9]+; query_index=[0-9]+\)\.$/u;
+
 export const safeResultSummary = (
   result:
     SourceCollectionResult,
@@ -397,8 +403,13 @@ export const safeResultSummary = (
       'GOOGLE_TRENDS_UI_CONTRACT_ERROR' &&
     result.message !==
       null &&
-    /^Google Trends UI contract failed during (QUERY_GROUP|GEOGRAPHY|DATE_RANGE|FIXED_FILTERS|DOWNLOAD|UNKNOWN_EXPORT_STAGE) \(GoogleTrends[A-Za-z]+Error\)\.$/u.test(
-      result.message,
+    (
+      GENERIC_UI_DIAGNOSTIC_PATTERN.test(
+        result.message,
+      ) ||
+      QUERY_GROUP_UI_DIAGNOSTIC_PATTERN.test(
+        result.message,
+      )
     )
   ) {
     return {

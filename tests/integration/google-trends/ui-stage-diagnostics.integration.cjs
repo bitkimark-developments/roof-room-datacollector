@@ -55,6 +55,20 @@ const {
 );
 
 const {
+  GoogleTrendsQueryGroupUiContractError,
+  GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS,
+} = require(
+  path.join(
+    buildRoot,
+    'src',
+    'main',
+    'sources',
+    'google-trends',
+    'google-trends-query-group-ui.js',
+  ),
+);
+
+const {
   GoogleTrendsDateDialogContractError,
 } = require(
   path.join(
@@ -363,6 +377,231 @@ const main = async () => {
     'PASS GT-DIAG-003: nested custom-date dialog failures stay inside the DATE_RANGE UI-contract diagnostic boundary instead of falling through as generic collection failures',
   );
 
+  const queryGroupCollector =
+    new GoogleTrendsCollector({
+      browser_manager:
+        browserManager,
+      download_store: {},
+      probe_provider:
+        async () => ({
+          provider_state:
+            'NO_RATE_LIMIT_SIGNAL',
+          error_code:
+            null,
+          retry_after:
+            null,
+          signals: [],
+          requested_url:
+            'https://trends.google.com/trends/explore',
+          final_url:
+            'https://trends.google.com/trends/explore',
+          response_status:
+            200,
+        }),
+      export_configured_page:
+        async (input) => {
+          input.on_stage?.(
+            'QUERY_GROUP',
+          );
+
+          throw new GoogleTrendsQueryGroupUiContractError(
+            'SENSITIVE_QUERY_GROUP_DETAIL_MUST_NOT_ESCAPE',
+            {
+              control:
+                GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+                  .INITIAL_QUERY_INPUT,
+              observed_count:
+                0,
+              query_index:
+                0,
+            },
+          );
+        },
+    });
+
+  const queryGroupResult =
+    await queryGroupCollector.collect(
+      context,
+    );
+
+  assert.equal(
+    queryGroupResult.result_type,
+    'FAILED',
+  );
+
+  assert.equal(
+    queryGroupResult.error_code,
+    'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+  );
+
+  assert.equal(
+    queryGroupResult.message,
+    'Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError; control=INITIAL_QUERY_INPUT; observed_count=0; query_index=0).',
+  );
+
+  assert.doesNotMatch(
+    queryGroupResult.message,
+    /SENSITIVE_QUERY_GROUP_DETAIL_MUST_NOT_ESCAPE/u,
+  );
+
+  console.log(
+    'PASS GT-DIAG-004: collector exposes only structured allowlisted QUERY_GROUP cardinality evidence and never the underlying provider/error message',
+  );
+
+  const wrongStageQueryGroupCollector =
+    new GoogleTrendsCollector({
+      browser_manager:
+        browserManager,
+      download_store: {},
+      probe_provider:
+        async () => ({
+          provider_state:
+            'NO_RATE_LIMIT_SIGNAL',
+          error_code:
+            null,
+          retry_after:
+            null,
+          signals: [],
+          requested_url:
+            'https://trends.google.com/trends/explore',
+          final_url:
+            'https://trends.google.com/trends/explore',
+          response_status:
+            200,
+        }),
+      export_configured_page:
+        async (input) => {
+          input.on_stage?.(
+            'GEOGRAPHY',
+          );
+
+          throw new GoogleTrendsQueryGroupUiContractError(
+            'SENSITIVE_WRONG_STAGE_DETAIL_MUST_NOT_ESCAPE',
+            {
+              control:
+                GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+                  .INITIAL_QUERY_INPUT,
+              observed_count:
+                0,
+              query_index:
+                0,
+            },
+          );
+        },
+    });
+
+  const wrongStageQueryGroupResult =
+    await wrongStageQueryGroupCollector.collect(
+      context,
+    );
+
+  assert.equal(
+    wrongStageQueryGroupResult.message,
+    'Google Trends UI contract failed during GEOGRAPHY (GoogleTrendsQueryGroupUiContractError).',
+  );
+
+  assert.doesNotMatch(
+    wrongStageQueryGroupResult.message,
+    /SENSITIVE_WRONG_STAGE_DETAIL_MUST_NOT_ESCAPE|control=|observed_count=|query_index=/u,
+  );
+
+  const forgedControlCollector =
+    new GoogleTrendsCollector({
+      browser_manager:
+        browserManager,
+      download_store: {},
+      probe_provider:
+        async () => ({
+          provider_state:
+            'NO_RATE_LIMIT_SIGNAL',
+          error_code:
+            null,
+          retry_after:
+            null,
+          signals: [],
+          requested_url:
+            'https://trends.google.com/trends/explore',
+          final_url:
+            'https://trends.google.com/trends/explore',
+          response_status:
+            200,
+        }),
+      export_configured_page:
+        async (input) => {
+          input.on_stage?.(
+            'QUERY_GROUP',
+          );
+
+          throw new GoogleTrendsQueryGroupUiContractError(
+            'SENSITIVE_FORGED_CONTROL_DETAIL_MUST_NOT_ESCAPE',
+            {
+              control:
+                'FORGED_CONTROL',
+              observed_count:
+                0,
+              query_index:
+                0,
+            },
+          );
+        },
+    });
+
+  const forgedControlResult =
+    await forgedControlCollector.collect(
+      context,
+    );
+
+  assert.equal(
+    forgedControlResult.message,
+    'Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError).',
+  );
+
+  assert.doesNotMatch(
+    forgedControlResult.message,
+    /SENSITIVE_FORGED_CONTROL_DETAIL_MUST_NOT_ESCAPE|FORGED_CONTROL|observed_count=|query_index=/u,
+  );
+
+  console.log(
+    'PASS GT-DIAG-005: structured QUERY_GROUP evidence is emitted only for the actual QUERY_GROUP stage and an allowlisted control value',
+  );
+
+  const safeQueryGroupSummary =
+    safeResultSummary(
+      queryGroupResult,
+    );
+
+  assert.deepEqual(
+    safeQueryGroupSummary,
+    {
+      result_type:
+        'FAILED',
+      error_code:
+        'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+      diagnostic:
+        'Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError; control=INITIAL_QUERY_INPUT; observed_count=0; query_index=0).',
+    },
+  );
+
+  const forgedQueryGroupSummary =
+    safeResultSummary({
+      result_type:
+        'FAILED',
+      error_code:
+        'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+      message:
+        'Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError; control=INITIAL_QUERY_INPUT; observed_count=0; query_index=0; secret=LEAK).',
+    });
+
+  assert.deepEqual(
+    forgedQueryGroupSummary,
+    {
+      result_type:
+        'FAILED',
+      error_code:
+        'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+    },
+  );
+
   const summary =
     safeResultSummary({
       result_type:
@@ -406,7 +645,7 @@ const main = async () => {
   );
 
   console.log(
-    'PASS GT-DIAG-004: live GT01 output exposes only the controlled UI-stage diagnostic and continues suppressing arbitrary failure messages',
+    'PASS GT-DIAG-006: live GT01 output allowlists structured QUERY_GROUP diagnostics while continuing to suppress malformed or unrelated failure detail',
   );
 };
 
