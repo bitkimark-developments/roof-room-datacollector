@@ -124,6 +124,13 @@ export interface ManagedBrowserPage {
     },
   ): ManagedBrowserLocator;
 
+  getByLabel(
+    text: string,
+    options?: {
+      exact?: boolean;
+    },
+  ): ManagedBrowserLocator;
+
   waitForEvent(
     event: 'download',
     options?: {
