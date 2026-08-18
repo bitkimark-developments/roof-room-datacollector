@@ -31,7 +31,8 @@
     "test:m3:downloads": "bash tests/integration/browser/run-persistent-download-store-test.sh",
     "test:m3:gt-csv": "bash tests/integration/google-trends/run-interest-over-time-parser-validator-test.sh",
     "test:m3:gt-validator-adapter": "bash tests/integration/google-trends/run-collection-validator-adapter-test.sh",
-    "test:m3:browser-download": "bash tests/integration/browser/run-browser-download-capture-test.sh"
+    "test:m3:browser-download": "bash tests/integration/browser/run-browser-download-capture-test.sh",
+    "test:m3:gt-download-selector": "bash tests/integration/google-trends/run-interest-over-time-download-selector-test.sh"
   },
   "keywords": [],
   "author": {

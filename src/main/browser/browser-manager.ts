@@ -70,6 +70,19 @@ export interface ManagedBrowserLocator {
       timeout?: number;
     },
   ): Promise<void>;
+
+  locator(
+    selector: string,
+  ): ManagedBrowserLocator;
+
+  getByRole(
+    role: ManagedBrowserRole,
+    options?: {
+      name?: string;
+    },
+  ): ManagedBrowserLocator;
+
+  count(): Promise<number>;
 }
 
 export interface ManagedBrowserDownload {
@@ -101,6 +114,13 @@ export interface ManagedBrowserPage {
     role: ManagedBrowserRole,
     options?: {
       name?: string;
+    },
+  ): ManagedBrowserLocator;
+
+  getByText(
+    text: string,
+    options?: {
+      exact?: boolean;
     },
   ): ManagedBrowserLocator;
 
