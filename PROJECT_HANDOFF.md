@@ -1,12 +1,12 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Document:** `PROJECT_HANDOFF.md`  
-**Product:** RoofRoom Data Collector  
-**Last Updated:** 2026-08-18  
-**Current Milestone:** M2 — Core Collector Engine  
-**Milestone Status:** IN PROGRESS  
-**Previous Milestone:** M1 — Application Skeleton — COMPLETED  
-**M0 Final Consistency Review:** PASS  
+**Document:** `PROJECT_HANDOFF.md`
+**Product:** RoofRoom Data Collector
+**Last Updated:** 2026-08-18
+**Current Milestone:** M2 — Core Collector Engine
+**Milestone Status:** IN PROGRESS
+**Previous Milestone:** M1 — Application Skeleton — COMPLETED
+**M0 Final Consistency Review:** PASS
 
 ---
 
@@ -27,107 +27,155 @@ main
 Latest verified checkpoint:
 
 ```text
-996b34e feat: add persisted run and job state
+31f427d feat: add attempt persistence and job state transitions
 ```
 
 Previous verified checkpoints:
 
 ```text
+47e725b docs: update M2 handoff after run job persistence
+996b34e feat: add persisted run and job state
 2320804 docs: close M1 and prepare M2
 5503309 feat: add SQLite schema bootstrap
 35d9b74 feat: add source registry and Google Trends placeholder
-b8d9505 docs: update M1 handoff after config slice
-9e3328b feat: add app directories and YAML query config loader
-885b132 docs: add M0 baseline and update M1 handoff
-06740fb feat: add React renderer and typed IPC bridge
-e2409cc chore: bootstrap Electron Forge Vite TypeScript app
 ```
 
-Working tree was clean immediately after `996b34e`.
+Working tree was clean immediately after `31f427d`.
 
 ---
 
-# 2. Milestone Status
+# 2. M2 Completed Work
 
-## M0 — Product & Architecture Lock
+## Run / Job Persistence
 
-```text
-STATUS: COMPLETED
-```
+Verified:
 
-## M1 — Application Skeleton
+- SQLite schema version 2 introduced `runs` and `jobs`,
+- one query group persists as one independently tracked job,
+- job order follows QueryConfig order,
+- run configuration snapshot survives restart,
+- run/job records survive repository reopen,
+- foreign-key integrity remains valid,
+- invalid persisted status values fail closed.
 
-```text
-STATUS: COMPLETED
-```
-
-## M2 — Core Collector Engine
-
-```text
-STATUS: IN PROGRESS
-```
-
-M2 currently has verified run/job persistence.
-
-Attempts, retry/resume orchestration, artifacts, validation summaries, storage infrastructure, logging, BrowserManager foundation, and fake-source orchestration are not yet complete.
-
-## M3 — Google Trends MVP Collector
+Initial states:
 
 ```text
-STATUS: NOT STARTED
+run_status        = PENDING
+execution_status  = PENDING
+validation_status = NOT_RUN
+attempt_count     = 0
 ```
 
-No real Google Trends browser collection has started.
+## Attempt Persistence
+
+SQLite schema version 3 introduced:
+
+```text
+attempts
+```
+
+Canonical attempt context now preserves:
+
+```text
+attempt_id
+job_id
+attempt_number
+execution_status
+candidate_artifact_id
+validation_id
+error_code
+started_at
+completed_at
+```
+
+Verified:
+
+```text
+first attempt → attempt_number = 1
+retry         → attempt_number = 2
+```
+
+Retry appends a new attempt and does not overwrite the previous attempt.
+
+A previous failed attempt retains its historical:
+
+```text
+execution_status
+error_code
+timestamps
+```
+
+after a later retry succeeds.
+
+## Job Execution State Machine
+
+Verified legal transitions include:
+
+```text
+PENDING → RUNNING
+RUNNING → VALIDATING
+VALIDATING → COMPLETED
+RUNNING → FAILED
+FAILED → RETRY_PENDING
+RETRY_PENDING → RUNNING
+RUNNING → MANUAL_ACTION_REQUIRED
+MANUAL_ACTION_REQUIRED → RUNNING
+```
+
+Starting:
+
+```text
+PENDING → RUNNING
+```
+
+or:
+
+```text
+RETRY_PENDING → RUNNING
+```
+
+must pass through `startAttempt()` so attempt history cannot be bypassed.
+
+Verified failure semantics:
+
+```text
+execution_status = FAILED
+error_code = DOWNLOAD_FAILED
+validation_status = NOT_RUN
+```
+
+`DOWNLOAD_FAILED` is not stored as a validation status.
+
+`MANUAL_ACTION_REQUIRED` remains distinct from `FAILED`.
+
+## Validation Completion Guard
+
+A job may move:
+
+```text
+VALIDATING → COMPLETED
+```
+
+only with a terminal validation status.
+
+Example verified:
+
+```text
+execution_status  = COMPLETED
+validation_status = VALID
+```
+
+Illegal transitions fail closed.
 
 ---
 
-# 3. Verified M1 Baseline
+# 3. Current SQLite State
 
-Target machine:
-
-```text
-macOS:        26.5.2
-Architecture: arm64
-Node.js dev:  24.19.0 via nvm
-npm:          11.17.0
-Electron:     43.4.0
-Electron Node:24.18.1
-SQLite:       3.53.1
-```
-
-Verified M1 chain:
+Current application schema:
 
 ```text
-Electron
-↓
-React
-↓
-safe typed IPC
-↓
-application directories
-↓
-YAML QueryConfig
-↓
-SourceRegistry
-↓
-SQLite bootstrap
-↓
-production package
-↓
-packaged macOS app launch
-```
-
----
-
-# 4. M2 Completed Work
-
-## SQLite Schema Version 2
-
-Schema version 2 adds operational persistence for:
-
-```text
-runs
-jobs
+schema version = 3
 ```
 
 Migration history:
@@ -135,124 +183,29 @@ Migration history:
 ```text
 1 bootstrap_schema
 2 run_job_persistence
+3 attempt_persistence
 ```
 
-The existing M1 database successfully migrated from schema version 1 to version 2.
-
-Foreign-key enforcement remains enabled.
-
-SQLite quick-check remains healthy.
-
-## Run Persistence
-
-A new run is persisted with:
+Verified runtime health remains:
 
 ```text
-run_status = PENDING
+journal mode = wal
+foreign keys = ON
+quick check  = ok
 ```
 
-The run stores:
-
-```text
-run_id
-run_status
-created_at
-started_at
-completed_at
-application_version
-selected_sources
-configuration_snapshot
-```
-
-The configuration snapshot preserves the effective source/query/date/search configuration used at run creation.
-
-Historical run interpretation does not depend on the current live config file.
-
-## Job Persistence
-
-For the Google Trends configuration:
-
-```text
-one query group = one job
-```
-
-Jobs persist independently and in query-group order.
-
-Initial job state:
-
-```text
-execution_status = PENDING
-validation_status = NOT_RUN
-attempt_count = 0
-accepted_artifact_id = null
-```
-
-Job identity preserves:
-
-```text
-run_id
-source_id
-job_key
-query_group_id
-job_order
-```
-
-## StateRepository
-
-The first StateRepository slice can:
-
-```text
-create run from canonical QueryConfig
-create ordered jobs
-read a run
-list jobs in deterministic order
-read run/job counts
-close and reopen repository
-```
-
-A new repository instance can reload the same persisted run and jobs.
-
-## Persisted Status Guards
-
-SQLite-level constraints reject invalid persisted status values.
-
-Execution and validation remain separate domains.
-
-Examples verified to fail closed:
-
-```text
-run_status = NOT_A_STATUS
-execution_status = DOWNLOAD_FAILED
-validation_status = MANUAL_ACTION_REQUIRED
-```
-
-`DOWNLOAD_FAILED` remains an operational error code rather than an execution/validation status.
-
-`MANUAL_ACTION_REQUIRED` remains an execution/control-flow state rather than validation status.
-
-## Foreign-Key Integrity
-
-Verified relationship:
-
-```text
-runs
-└── jobs
-```
-
-Invalid job reassignment to a missing run is rejected.
-
-`PRAGMA foreign_key_check` returned no problems.
+Deterministic integration tests use temporary databases and do not populate the real application database with fake operational records.
 
 ---
 
-# 5. M2 Deterministic Verification Record
+# 4. Verified M2 Tests
 
-Verified integration tests:
+Verified run/job persistence tests:
 
 ```text
 PASS ID-001: run_id is filesystem-safe
 PASS ID-002: rapid run_id generation remained unique
-PASS DB-001: legacy schema v1 upgrades to v2
+PASS DB-001: legacy schema upgrades correctly
 PASS DB-002: run persisted as PENDING
 PASS DB-003: ordered jobs persisted independently
 PASS DB-008: run/jobs survive repository restart
@@ -261,23 +214,39 @@ PASS: invalid persisted status values fail closed
 PASS: configuration snapshot survives restart
 ```
 
-Verified runtime database state:
+Verified attempt / state-machine tests:
 
 ```text
-schema version      = 2
-migrations applied  = 2
-journal mode        = wal
-foreign keys        = ON
-quick check         = ok
+PASS ID-004: first attempt starts at attempt_number 1
+PASS ID-005: retry creates attempt_number 2
+PASS JOB-001: PENDING -> RUNNING via startAttempt
+PASS JOB-002: RUNNING -> VALIDATING
+PASS JOB-003: VALIDATING -> COMPLETED + VALID
+PASS JOB-004: RUNNING -> FAILED with error_code
+PASS JOB-005: FAILED -> RETRY_PENDING
+PASS JOB-006: MANUAL_ACTION_REQUIRED stays distinct from FAILED
+PASS ATTEMPT-001: first attempt persisted
+PASS ATTEMPT-002: retry appends a new attempt
+PASS ATTEMPT-003: prior failed attempt evidence preserved
+PASS DB-004/DB-008: attempts survive repository restart
+PASS: illegal transitions and invalid attempt states fail closed
 ```
-
-The real application database was not populated with fake run/job records during deterministic integration testing.
-
-Temporary databases are used for persistence tests.
 
 ---
 
-# 6. Current Canonical Status Domains
+# 5. Current Canonical Status Domains
+
+Run status:
+
+```text
+PENDING
+RUNNING
+MANUAL_ACTION_REQUIRED
+COMPLETED
+COMPLETED_WITH_WARNINGS
+FAILED
+CANCELLED
+```
 
 Execution status:
 
@@ -305,177 +274,122 @@ DATE_MISMATCH
 QUERY_MISMATCH
 ```
 
-These domains must remain separate.
-
-Operational conditions such as:
-
-```text
-DOWNLOAD_FAILED
-```
-
-belong in structured error/error-code context rather than validation status.
+These persisted domains remain separate.
 
 ---
 
-# 7. M2 Remaining Work
+# 6. M2 Remaining Work
 
 Not yet implemented:
 
 ```text
-attempt persistence
-attempt numbering
-job execution transition service
-run transition service
-retry creation semantics
-retry history preservation
+RunManager lifecycle / aggregation
+run timestamp transitions
+run-level cancellation behavior
 artifact persistence
 validation-summary persistence
-error persistence
+accepted artifact references
 incomplete-run discovery
 resume reconciliation
 accepted-job skip behavior
 sequential fake-source orchestration
-cancellation behavior
-manual-action orchestration
+retry orchestration policy
 storage collision protection
 structured logging
 BrowserManager foundation
 M2 acceptance gate
 ```
 
-Real Google Trends automation remains M3 work.
+Real Google Trends browser automation remains M3 work.
 
 ---
 
-# 8. Current Dependency / Security Notes
+# 7. Exact Next Action
 
-Production dependency audit previously verified:
-
-```text
-npm audit --omit=dev
-0 vulnerabilities
-```
-
-Full development/build dependency findings remain known technical debt.
-
-Do not run:
+Continue M2 with a focused RunManager slice:
 
 ```text
-npm audit fix --force
-```
-
-without a deliberate toolchain migration and regression test.
-
-Do not log passwords, 2FA codes, cookies, session tokens, OAuth secrets, access tokens, or refresh tokens.
-
----
-
-# 9. Exact Next Action
-
-Continue M2 with the next smallest persistence/state-machine slice:
-
-```text
-define canonical AttemptRecord
+define run transition / aggregation service
 ↓
-SQLite migration v3 → attempts
+persist PENDING → RUNNING
 ↓
-create first attempt with attempt_number = 1
+set run.started_at exactly once
 ↓
-persist attempt independently from job
+derive run state from persisted jobs
 ↓
-increment job.attempt_count transactionally
+prove all VALID jobs → COMPLETED
 ↓
-reload attempt history after repository restart
+prove LOW_DATA / NO_DATA warning outcome → COMPLETED_WITH_WARNINGS
 ↓
-define deterministic job execution transition guard
+prove blocking MANUAL_ACTION_REQUIRED → run MANUAL_ACTION_REQUIRED
 ↓
-prove:
-PENDING → RUNNING
-RUNNING → VALIDATING
-VALIDATING → COMPLETED
-RUNNING → FAILED
-FAILED → RETRY_PENDING
-MANUAL_ACTION_REQUIRED remains distinct from FAILED
+prove remaining pending/retryable work → RUNNING
 ↓
-reject illegal transitions
+prove single retryable job failure does not automatically force run FAILED
+↓
+persist terminal completed_at
+↓
+prove user cancellation → CANCELLED
+↓
+reject illegal run transitions
+↓
+restart and verify persisted run state
 ↓
 lint / type-check / deterministic integration tests
 ↓
 Git checkpoint
 ```
 
-The first attempt/state-transition slice should not yet implement:
+This slice should not yet implement:
 
 ```text
 artifact persistence
-validation-summary persistence
-retry orchestration
-resume orchestration
-real source collection
+validation-summary records
+fake-source orchestration
+resume reconciliation
 BrowserManager
+real Google Trends collection
 ```
 
-Those follow after attempt persistence and transition semantics are stable.
+Those follow after run-level lifecycle semantics are stable.
 
 ---
 
-# 10. Attempt Contract Target
+# 8. M2 Gate Context
 
-The canonical attempt record should preserve:
-
-```text
-attempt_id
-job_id
-attempt_number
-execution_status
-candidate_artifact_id
-validation_id
-error_code
-started_at
-completed_at
-```
-
-Attempt history must be append-only in normal retry behavior.
-
-A retry must not overwrite or delete the previous attempt.
-
-The first attempt starts at:
+The M2 deterministic gate still requires:
 
 ```text
-attempt_number = 1
+runs/jobs persist
+run/job state transitions
+sequential fake-source orchestration
+attempt persistence
+artifact persistence
+validation-summary persistence
+resume
+accepted-job skip behavior
+retry history preservation
+cancellation
+manual-action state
+storage collision protection
+sensitive-safe logging
 ```
 
-A later retry creates:
+Current progress covers:
 
 ```text
-attempt_number = 2
+runs/jobs persistence         PASS
+job state transitions         PASS
+attempt persistence           PASS
+retry attempt preservation    PASS
+manual-action job semantics   PASS
 ```
 
-rather than rewriting attempt 1.
+Run-level aggregation is the next missing state-machine foundation.
 
 ---
 
-# 11. M2 Boundary
-
-Do not connect the live Google Trends UI yet.
-
-M2 proves reusable Core behavior using deterministic local tests and fake/test sources.
-
-M3 will own:
-
-```text
-Playwright Google Trends navigation
-real provider state
-real CSV export
-real parser evidence
-real source validation
-first live GT group
-progressive GT01–GT20 rollout
-```
-
----
-
-# 12. Handoff Discipline
+# 9. Handoff Discipline
 
 At the end of every meaningful implementation session:
 
@@ -486,4 +400,4 @@ At the end of every meaningful implementation session:
 5. record latest verified Git checkpoint,
 6. record one exact next action.
 
-Never record unverified implementation work as completed.
+Never record unverified work as completed.
