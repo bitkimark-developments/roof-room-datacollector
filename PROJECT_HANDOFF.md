@@ -2,11 +2,12 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified Git checkpoint:** `46bf794 feat: wire orchestration logging and add M2 gate`
+**Latest verified technical checkpoint:** `5024e66 fix: classify Google Trends date dialog errors`
+**Verified baseline date:** 2026-08-19
 
 ---
 
-# 1. Current Repository
+# 1. Current Repository State
 
 Repository:
 
@@ -20,42 +21,59 @@ Branch:
 main
 ```
 
-Current verified checkpoint:
+Latest verified checkpoint:
 
 ```text
-46bf794 feat: wire orchestration logging and add M2 gate
-527a156 feat: add browser manager foundation
-75bdbb6 feat: add structured logging and redaction
-bd1300b feat: persist metadata and validation documents
-92378e9 feat: add sequential collection orchestration
-e14c959 feat: add reconciliation and retry policy
-38dc16a feat: add resume reconciliation planning
-add43fa feat: add raw artifact storage manager
-f9c6356 feat: persist artifacts and validation summaries
-f7b7d46 feat: add run lifecycle aggregation
-31f427d feat: add attempt persistence
-996b34e feat: persist runs and jobs
+5024e66 fix: classify Google Trends date dialog errors
+9979d70 feat: add Google Trends UI stage diagnostics
+4ab8600 feat: add explicit live GT01 collection
+6fe72a0 feat: detect Google Trends manual action
+aac9d3b feat: compose Google Trends runtime
+439b851 feat: add Google Trends collecting source
+cfeab0d feat: compose Google Trends configured page export
+b562f3c feat: verify Google Trends fixed filters
+f1409e0 feat: apply Google Trends query group and geography
+6f28744 feat: apply Google Trends custom date range
+351f0ed feat: add Google Trends custom date dialog adapter
+d47ff2a feat: scope Google Trends interest over time download
+acc7d4d feat: add managed browser download capture
+6d5b407 feat: wire Google Trends collection validator
+2b65577 feat: parse and validate Google Trends CSV
+7aa3900 feat: add persistent public download storage
+7f62df5 feat: add explicit Google Trends live probe command
+e06c2e7 feat: connect Google Trends probe to browser manager
+7030b42 feat: add Google Trends provider probe
+86d4c51 feat: detect Google Trends rate limiting
 ```
 
-Development environment:
+Verified code baseline before this handoff update:
+
+```text
+clean
+```
+
+The abandoned/unverified QUERY_GROUP `waitFor()` experiment was removed from the worktree before the baseline gate. It must not be treated as implemented or accepted behavior.
+
+Development environment currently verified:
 
 ```text
 MacBook Air M1
-macOS
-VS Code
-Node 24 via .nvmrc
+macOS / arm64
+Node v24.19.0
+npm v11.17.0
+system Bash 3.2.57
 Electron + React + Vite + TypeScript
 SQLite via node:sqlite
-Playwright library installed
+Playwright + Chromium installed for M3 development
 ```
 
-Playwright browser binaries were intentionally not installed during M2.
+Development helper scripts must remain compatible with the target macOS environment. Do not assume newer GNU/Bash-only commands such as `mapfile`.
 
 ---
 
 # 2. Product Boundary
 
-RoofRoom Data Collector is a local-first modular desktop data collection application.
+RoofRoom Data Collector remains a local-first modular desktop data collection application.
 
 Core philosophy:
 
@@ -65,23 +83,63 @@ Collect → Preserve → Validate → Document → Export
 
 The collector does not make SEO, marketing, advertising, merchandising, or commercial decisions.
 
-One application contains multiple independent source modules. Google Trends is the first source module.
-
-Release 1.0 remains intentionally limited to the Google Trends MVP.
+Release 1.0 remains intentionally limited to the Google Trends MVP. Do not begin later source modules until the base Google Trends collector is stable.
 
 ---
 
-# 3. M2 Completion Status
+# 3. Milestone Status
 
-M2 — Core Collector Engine is complete.
+```text
+M0 — Product & Architecture Lock       COMPLETE
+M1 — Application Skeleton             COMPLETE
+M2 — Core Collector Engine            COMPLETE
+M3 — Google Trends MVP Collector      IN PROGRESS
+M4 — Validation Engine                NOT STARTED
+M5 — Desktop UX                       NOT STARTED
+M6 — Data Package & Workbook          NOT STARTED
+M7 — Hardening & Release 1.0          NOT STARTED
+```
 
-Verified core capabilities:
+M3 must first prove one trustworthy real query-group vertical slice before expansion.
+
+Current first group:
+
+```text
+GT01
+generic_commercial
+
+canlı bitki
+online bitki
+bitki satın al
+bitki siparişi
+saksılı bitki
+```
+
+Current locked live test request:
+
+```text
+country: TR
+category: All Categories
+search type: Web Search
+selection: Search Term
+dataset: Interest Over Time
+requested_date_start: 2024-08-18
+requested_date_end: 2026-08-17
+```
+
+---
+
+# 4. M2 Core Baseline
+
+M2 is complete and must not be reopened without evidence of a core regression.
+
+Verified shared-core capabilities include:
 
 ```text
 run persistence
 job persistence
 attempt history
-execution state transitions
+execution-state transitions
 run-state aggregation
 artifact persistence
 validation-summary persistence
@@ -100,352 +158,466 @@ sequential source orchestration
 structured JSONL logging
 sensitive-value redaction
 application-specific persistent browser-profile boundary
-integrated deterministic acceptance gate
+integrated deterministic M2 acceptance gate
 ```
 
-M2 did not implement real Google Trends collection.
+The 2026-08-19 baseline verification reconfirmed all eight integrated M2 gate assertions.
 
 ---
 
-# 4. M2 Integrated Acceptance Gate
+# 5. Implemented M3 Google Trends Surfaces
 
-The deterministic M2 gate passes end to end.
-
-Verified flow:
+The following M3 slices are committed and were retained by the clean `5024e66` baseline:
 
 ```text
-fake source
-→ sequential orchestration
-→ raw artifact persistence
-→ metadata JSON
-→ validation JSON
-→ structured log events
-→ intentional attempt-1 DOWNLOAD_FAILED
-→ application/repository restart
-→ accepted jobs reconstructed as SKIP_ACCEPTED
-→ failed job reconstructed as RETRY_CANDIDATE
-→ explicit retry attempt 2
-→ canonical accepted artifact
-→ final run COMPLETED
-→ persistent browser-profile boundary survives reopen
-→ SQLite integrity checks pass
+rate-limit detection
+provider probe
+BrowserManager → provider probe integration
+explicit live provider-probe command
+persistent public download storage
+real Google Trends Interest Over Time CSV parser
+minimum M3 source-specific CSV validator
+CollectionValidator adapter
+managed browser download capture
+Interest Over Time scoped download selection
+custom-date dialog field adapter
+full custom-date workflow
+ordered Search Term query-group UI adapter
+Türkiye geography adapter
+All categories / Web Search verification
+configured-page export composition
+GoogleTrendsCollector
+GoogleTrendsSource collecting integration
+main-process Google Trends runtime composition
+manual-action detection
+explicit live GT01 collection command
+safe configured-page stage diagnostics
+nested date-dialog UI error classification
 ```
 
-Gate assertions:
+The provider-facing workflow remains fail-closed. Critical controls do not use positional `.first()` / `.nth()` selection as a fallback.
+
+---
+
+# 6. Real Provider Evidence Established During M3
+
+Real Google Trends behavior has been exercised. Earlier handoff statements saying otherwise are obsolete.
+
+Verified real-source evidence includes:
 
 ```text
-M2-GATE-001 sequential shared orchestration
-M2-GATE-002 raw + metadata + validation evidence
-M2-GATE-003 retry survives restart
-M2-GATE-004 accepted jobs are not recollected
-M2-GATE-005 orchestration logs persist and redact
-M2-GATE-006 app-owned browser profile persists
-M2-GATE-007 final run + history are preserved
-M2-GATE-008 SQLite FK + quick_check integrity
+Google Trends Explore provider can be reached through the app-owned profile
+provider probe has returned HTTP 200 with no rate-limit signal
+one manual discovery session observed HTTP 429 and was stopped without refresh/evasion
+classic Explore UI controls were manually inspected
+a real GT01 Interest Over Time CSV was exported and preserved
+a second real GT01 export confirmed the same structural schema while live numeric values varied
+real CSV uses weekly rows for the locked 24-month request
+real export contains the five canonical GT01 query series
+missing CSV values remain missing/null rather than becoming zero
+```
+
+Live numeric values must never be asserted as exact stable values.
+
+Google Trends 0–100 values remain relative interest only and must never be converted into estimated search counts.
+
+---
+
+# 7. Current Live GT01 Status
+
+The source-level GT01 live vertical slice has **not** succeeded yet.
+
+Latest verified live result:
+
+```json
+{
+  "live_scope": "GT01",
+  "query_group_name": "generic_commercial",
+  "query_count": 5,
+  "requested_date_start": "2024-08-18",
+  "requested_date_end": "2026-08-17",
+  "result_type": "FAILED",
+  "error_code": "GOOGLE_TRENDS_UI_CONTRACT_ERROR",
+  "diagnostic": "Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError)."
+}
+```
+
+No accepted GT01 artifact was produced by that live attempt.
+
+This proves only:
+
+```text
+the provider was reached
+collection entered configured-page export
+the failure occurred during QUERY_GROUP
+the failure was a controlled GoogleTrendsQueryGroupUiContractError
+the workflow failed closed
+```
+
+It does **not** yet prove:
+
+```text
+selector drift
+late/dynamic rendering
+a missing control
+an ambiguous control
+a provider-language mismatch
+which exact QUERY_GROUP guard failed
+```
+
+Do not add waits, sleeps, selector changes, retries, or refreshes based only on the stage-level error.
+
+---
+
+# 8. QUERY_GROUP Contract at the Verified Baseline
+
+The committed query-group adapter currently relies on these provider contracts:
+
+```text
+initial query input:
+role=searchbox
+name="Add a search term"
+
+Search Term suggestion:
+role=button
+name="<query> Search term"
+
+comparison add control:
+role=button
+name="Add a search term for comparison"
+
+new/unselected comparison slot:
+.compare-term-container .search-term-wrapper.term-not-selected
+
+nested new-slot input:
+role=searchbox
+name="Add a search term"
+```
+
+For structural controls, the adapter currently calls `count()` and requires exactly one match.
+
+The committed baseline does **not** contain the abandoned `locator.waitFor()` experiment.
+
+The Search Term suggestion is selected using Playwright click action with the existing bounded UI timeout; Playwright action waiting is distinct from the explicit cardinality checks above.
+
+---
+
+# 9. Current Diagnostic Boundary
+
+Configured-page export reports only fixed stages:
+
+```text
+QUERY_GROUP
+GEOGRAPHY
+DATE_RANGE
+FIXED_FILTERS
+DOWNLOAD
+```
+
+Collector UI-contract failures are converted into bounded diagnostics that expose:
+
+```text
+fixed stage
+known internal error class
+```
+
+Raw provider text, arbitrary exception messages, HTML, cookies, authentication state, or session data must not be surfaced by the live CLI.
+
+The date-dialog classifier gap found during M3 was fixed in:
+
+```text
+5024e66 fix: classify Google Trends date dialog errors
 ```
 
 ---
 
-# 5. Current Test Surface
+# 10. Verified Baseline Gate — 2026-08-19
 
-Current M2 scripts:
+After removing the unverified `waitFor()` worktree experiment, the following passed from a clean `5024e66` baseline:
 
 ```text
-npm run test:m2:state
-npm run test:m2:attempts
-npm run test:m2:runs
-npm run test:m2:artifacts
-npm run test:m2:storage
-npm run test:m2:resume
-npm run test:m2:reconcile
-npm run test:m2:documents
-npm run test:m2:orchestrator
-npm run test:m2:logging
-npm run test:m2:browser
+npm run lint
+npx tsc --noEmit
+
+npm run test:m3:gt-query-geo
+npm run test:m3:gt-ui-diagnostics
+npm run test:m3:gt-configured-export
+npm run test:m3:gt-collecting-source
+npm run test:m3:live-gt01-command
+npm run test:m3:gt-manual-action
+npm run test:m3:provider-state
+npm run test:m3:gt-runtime
+npm run test:m3:gt-runtime-package-config
+
 npm run test:m2:gate
-```
-
-All above passed at the M2 boundary.
-
-Production package smoke also passed:
-
-```text
 npm run package
 ```
 
-Verified target:
+Observed results:
 
 ```text
-darwin arm64
+GT-QUERY-001..006 PASS
+GT-GEO-001..006 PASS
+GT-DIAG-001..004 PASS
+GT-CONFIGURED-EXPORT-001..007 PASS
+GT-SOURCE-001..003 PASS
+GT-COLLECTOR-001..005 PASS
+GT-LIVE-GT01-CMD-001..004 PASS
+GT-MANUAL-001..006 PASS
+GT-PROVIDER-001..006 PASS
+GT-RUNTIME-001..005 PASS
+GT-PACKAGE-001 PASS
+M2-GATE-001..008 PASS
+Electron Forge package PASS on darwin arm64
+```
+
+The Vite CJS Node API deprecation message remains a warning only; it is not currently a failing gate.
+
+Final verified Git state after this gate:
+
+```text
+## main
+5024e66 fix: classify Google Trends date dialog errors
 ```
 
 ---
 
-# 6. Current Storage / Evidence Model
+# 11. Current Safety / Compliance Rules
 
-Run-scoped filesystem structure:
-
-```text
-data/runs/<run_id>/
-  <source_id>/
-    raw/
-    metadata/
-    validation/
-  exports/
-  logs/
-```
-
-Raw source evidence is preserved exactly and never silently overwritten.
-
-Retry attempts use attempt-specific filenames where needed.
-
-Examples:
+Do not:
 
 ```text
-GT01.metadata.json
-GT01.validation.json
-
-GT01.attempt_2.metadata.json
-GT01.attempt_2.validation.json
+store passwords
+copy the user's normal browser profile
+copy cookies/sessions without explicit consent
+automate CAPTCHA or 2FA
+bypass anti-bot protections
+bypass rate limits
+use CAPTCHA solvers
+use proxy rotation for evasion
+auto-refresh after provider blocking
+blindly auto-retry live provider failures
+use undocumented/private endpoints when the supported UI/export path is sufficient
 ```
 
-Validation keeps:
-
-```text
-SQLite searchable summary
-+
-filesystem detailed validation JSON
-```
-
-`validation_json_path` is stored as a run-relative path.
-
-Unknown source facts must remain unknown. For example, `actual_date_start` and `actual_date_end` remain `null` until verified from real source evidence.
-
----
-
-# 7. Browser Foundation
-
-BrowserManager exists as a provider-neutral M2 foundation.
-
-Current guarantees:
-
-```text
-application-owned profile root
-app-data/browser-profiles/<profile_id>
-
-one managed persistent context
-same-profile concurrent open is idempotent
-different active profile fails closed
-clean/idempotent close
-profile directory survives reopen
-headed mode default
-downloads accepted by default
-unsafe profile IDs rejected
-unexpected close surfaced
-launch failure surfaced
-```
-
-Do not use the user's normal Chrome profile.
-
-Do not copy cookies or sessions from another profile.
-
-Do not store passwords.
-
-Do not bypass CAPTCHA, 2FA, anti-bot controls, or rate limits.
-
-Manual authentication/security intervention must surface as:
+When authentication/security intervention is required:
 
 ```text
 MANUAL_ACTION_REQUIRED
 ```
 
----
-
-# 8. M3 Scope
-
-M3 — Google Trends MVP Collector now begins.
-
-M3 must remain narrow.
-
-Target:
+When rate limited:
 
 ```text
-Google Trends
-Turkey
-All Categories
-Web Search
-Search Term
-exact 24-month requested range
-Interest Over Time
-provider CSV export when feasible
-preserve original CSV
-metadata/provenance
-minimum source-specific validation
-retry/resume through existing core
-```
-
-Do not expand M3 into:
-
-```text
-related queries
-subregions
-Topic datasets
-Keyword Planner
-Search Console
-Semrush
-Merchant Center
-GA4
-Google Ads
-XLSX product polish
-analysis/strategy
+stop
+preserve the controlled state/evidence
+do not refresh/retry immediately
 ```
 
 ---
 
-# 9. Google Trends Source Rules
+# 12. Current M3 Data / Validation Boundary
 
-Google Trends values are relative interest values from 0 to 100.
+A real GT01 CSV structure has already been used to establish the minimum M3 parser/validator behavior.
 
-Never convert them into estimated search counts.
+Current important guarantees include:
 
-Different Google Trends comparison groups are independently normalized.
+```text
+raw source bytes preserved
+public provider download preserved separately
+HTML/login/error content rejected as data
+expected GT01 query identity checked
+weekly temporal structure parsed
+requested-vs-actual coverage checked
+relative-interest numeric fields parsed
+0..100 range checked
+empty source values remain null
+duplicate periods rejected
+geography/category evidence checked where represented/observed
+```
 
-Do not automatically compare values across independently normalized groups as if they shared one global scale.
-
-Preserve query-group context, including duplicate queries appearing in different groups.
-
-Search Term and Topic datasets remain separate.
-
-Release 1.0 M3 uses Search Term only.
-
-The Google Trends UI source mode remains distinct from any future API source mode.
+`LOW_DATA`, `NO_DATA`, and all-zero calibration remain intentionally deferred until enough real provider behavior exists. The reusable/hardened validation framework remains M4 work.
 
 ---
 
-# 10. M3 First Vertical Slice
+# 13. Current Storage Boundary
 
-The first real M3 slice should make one Google Trends query group work reliably before expanding.
-
-Preferred first group:
+There are two intentional persistence concerns:
 
 ```text
-GT01
+PersistentDownloadStore
+→ preserves the provider download in the user-visible Downloads tree
+
+StorageManager / CollectionOrchestrator
+→ owns canonical run-scoped raw artifact persistence and audit evidence
 ```
 
-Initial technical sequence:
+The source-level live GT01 command currently proves the provider-facing collection boundary. It does not by itself prove the full run/job/attempt/orchestrator persistence vertical slice.
+
+After a source-level GT01 artifact becomes trustworthy, the next architectural M3 slice must run the real Google Trends source through the existing CollectionOrchestrator so real evidence includes:
 
 ```text
-inspect current GoogleTrendsSource placeholder
-inspect current source / collection contracts
-inspect query config shape
-inspect BrowserManager integration boundary
-inspect current official Google Trends UI behavior
-install Playwright Chromium only when the first live-browser test requires it
-open app-specific persistent Google profile
-surface manual login if required
-navigate through supported Google Trends UI
-configure Turkey / All Categories / Web Search / Search Term
-apply exact requested 24-month range
-request Interest Over Time CSV export
-capture the downloaded provider CSV
-preserve raw bytes through StorageManager
-perform minimum M3 source-specific validation
-persist metadata / validation evidence
-complete the job through existing orchestrator
+run
+job
+attempt
+canonical run-scoped raw artifact
+metadata JSON
+validation JSON
+validation status
+SQLite state
+public preserved provider copy
 ```
 
-Do not build GT01–GT20 automation before GT01 is proven.
+M3 must not be declared complete before this integration is proven.
 
 ---
 
-# 11. M3 Acceptance Criteria for the First Real Group
+# 14. Known Issues / Open Decisions
 
-Before expanding beyond the first group, prove:
+Current blocking issue:
 
 ```text
-real provider UI can be reached through the app-specific profile
-manual auth can be completed without credential capture
-requested query group is represented correctly
-requested geography is Turkey
-search type is Web Search
-selection type is Search Term
-requested range is exactly the intended 24 months
-provider CSV download is captured
-raw CSV remains byte-preserved
-CSV is actually data, not HTML/login/error content
-expected query columns are present
-date coverage is checked
-numeric interest values are parseable
-all-zero / low-data cases are not silently accepted
-metadata points to the raw artifact
-validation result points to detailed validation JSON
-job reaches the correct execution state
-restart/resume does not recollect accepted evidence
+GT01 live collection fails during QUERY_GROUP with
+GoogleTrendsQueryGroupUiContractError.
 ```
 
-M3 should use only the minimum validation necessary to trust the first live artifact.
-
-Reusable/hardened validation remains M4.
-
----
-
-# 12. Known Issues / Open Decisions
-
-Current known boundary conditions:
+Unknown within that stage:
 
 ```text
-Playwright browser binaries are not yet installed.
-Real Google Trends navigation has not yet been exercised.
-Real provider authentication state has not yet been tested.
-Exact current Google Trends UI selectors/workflow must be verified against the live provider before implementation.
-Actual provider CSV schema must be inspected from a real export before locking source-specific parsing assumptions.
+which structural query control failed
+whether observed match count was 0, 1-but-action-failed, or >1
+whether the issue is readiness/timing, selector drift, ambiguity, or provider state
 ```
 
-No private or undocumented Google Trends endpoint should be adopted when the supported UI/export path is sufficient.
-
-If the provider requires manual authentication, pause cleanly rather than automating credentials.
-
----
-
-# 13. Exact Next Action
-
-Start M3 with inspection, not implementation-by-assumption.
-
-Inspect the current repository surfaces relevant to the first Google Trends vertical slice:
+Other intentional deferrals:
 
 ```text
-src/main/core/source-registry.ts
-src/shared/source.ts
-src/shared/collection.ts
-GoogleTrendsSource implementation
-query configuration loader/contracts
-BrowserManager
-Playwright launcher
-CollectionOrchestrator
-StorageManager
-metadata / validation contracts
-```
-
-Then verify current official Playwright behavior and current Google Trends UI/export behavior before writing provider-specific automation.
-
-The first provider-specific implementation target is:
-
-```text
-GT01 only
-→ real Google Trends UI
-→ real Interest Over Time CSV
-→ preserved raw artifact
-→ minimum trustworthy validation
-→ completed job
+LOW_DATA calibration
+NO_DATA calibration
+all-zero policy calibration
+GT02–GT20 expansion
+real Google Trends source → CollectionOrchestrator vertical slice until source-level GT01 succeeds
+release browser-binary distribution / fresh-install hardening until M7
 ```
 
 ---
 
-# 14. Handoff Discipline
+# 15. Exact Next Action
+
+Do **not** change provider behavior yet.
+
+Implement one diagnostic-only QUERY_GROUP slice whose purpose is to identify the exact failing structural guard without leaking arbitrary provider data.
+
+Preferred diagnostic contract:
+
+```text
+QUERY_GROUP control identifiers:
+INITIAL_QUERY_INPUT
+ADD_COMPARISON
+EMPTY_COMPARISON_SLOT
+```
+
+For exact-cardinality failures, expose only controlled fields such as:
+
+```text
+control
+observed_count
+query_index where relevant
+```
+
+Requirements:
+
+```text
+no selector changes
+no waitFor/sleep addition
+no refresh
+no retry
+no live-provider request during implementation
+no raw provider text/HTML
+no query text in diagnostics
+no cookie/session/auth material
+no dynamic DOM IDs
+```
+
+Implementation should preserve `GoogleTrendsQueryGroupUiContractError` as the known error family, but give it structured, allowlisted diagnostic context rather than parsing arbitrary error messages.
+
+Add deterministic tests proving at minimum:
+
+```text
+missing initial query input → INITIAL_QUERY_INPUT + observed_count=0
+ambiguous initial query input → INITIAL_QUERY_INPUT + observed_count=2
+missing/ambiguous comparison add control reports ADD_COMPARISON
+missing/ambiguous empty slot reports EMPTY_COMPARISON_SLOT
+live summary exposes only the allowlisted QUERY_GROUP diagnostic grammar
+arbitrary underlying messages remain suppressed
+```
+
+Run deterministic regressions and production package first.
+
+Only after that slice is committed and the tree is clean:
+
+```text
+make exactly one explicit live GT01 attempt
+```
+
+Interpret the resulting evidence:
+
+```text
+observed_count=0
+→ inspect provider DOM/state and readiness evidence before considering a bounded wait
+
+observed_count>1
+→ inspect scoping/ambiguity; do not choose by DOM position
+
+different control
+→ inspect only that control's provider contract
+```
+
+Do not revive the abandoned `waitFor()` experiment unless live evidence later justifies it.
+
+---
+
+# 16. M3 Success Sequence From Here
+
+```text
+clean verified baseline
+↓
+diagnostic-only QUERY_GROUP substage evidence
+↓
+one explicit live GT01 attempt
+↓
+evidence-based minimal query-group fix
+↓
+deterministic regression gate
+↓
+one explicit live GT01 attempt
+↓
+continue fail-closed through geography/date/filter/download if another stage fails
+↓
+ARTIFACT_PRODUCED
+↓
+minimum M3 validation
+↓
+VALID / acceptable real GT01 artifact
+↓
+real Google Trends source through CollectionOrchestrator
+↓
+run/job/attempt/raw/metadata/validation persistence proof
+↓
+small multi-group proof
+↓
+progressively expand toward GT01–GT20
+```
+
+Do not skip directly from the current QUERY_GROUP failure to broad GT01–GT20 automation.
+
+---
+
+# 17. Handoff Discipline
 
 `PROJECT_HANDOFF.md` is not a Git save mechanism.
 
-Update it only when project state meaningfully changes, including:
+Update it when project state meaningfully changes, including:
 
 ```text
 session end / long pause
@@ -460,3 +632,5 @@ Use Git commits for technical checkpoints.
 Do not update this handoff after every small commit.
 
 `PROJECT_SPEC.md` should change even less frequently: only for scope, architecture, data-contract, acceptance-criteria, or locked technical-decision changes.
+
+Never record an unverified implementation state as completed.
