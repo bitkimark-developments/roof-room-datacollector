@@ -7,7 +7,7 @@ import type {
 } from '../../shared/bootstrap-status';
 
 const DATABASE_FILENAME = 'roofroom.sqlite';
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 
 type SqliteRow = Record<string, unknown>;
 
@@ -15,7 +15,11 @@ const requireRow = (
   row: unknown,
   context: string,
 ): SqliteRow => {
-  if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+  if (
+    typeof row !== 'object' ||
+    row === null ||
+    Array.isArray(row)
+  ) {
     throw new Error(`${context} did not return a row.`);
   }
 
@@ -106,6 +110,116 @@ const migrateToVersion1 = (database: DatabaseSync): void => {
   }
 };
 
+const migrateToVersion2 = (database: DatabaseSync): void => {
+  database.exec('BEGIN IMMEDIATE');
+
+  try {
+    database.exec(`
+      CREATE TABLE runs (
+        run_id TEXT PRIMARY KEY,
+        run_status TEXT NOT NULL
+          CHECK (
+            run_status IN (
+              'PENDING',
+              'RUNNING',
+              'MANUAL_ACTION_REQUIRED',
+              'COMPLETED',
+              'COMPLETED_WITH_WARNINGS',
+              'FAILED',
+              'CANCELLED'
+            )
+          ),
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT,
+        application_version TEXT NOT NULL,
+        selected_sources_json TEXT NOT NULL
+          CHECK (json_valid(selected_sources_json))
+          CHECK (json_type(selected_sources_json) = 'array'),
+        configuration_snapshot_json TEXT NOT NULL
+          CHECK (json_valid(configuration_snapshot_json))
+          CHECK (json_type(configuration_snapshot_json) = 'object')
+      ) STRICT;
+
+      CREATE TABLE jobs (
+        job_id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        job_key TEXT NOT NULL,
+        query_group_id TEXT NOT NULL,
+        job_order INTEGER NOT NULL
+          CHECK (job_order >= 0),
+        execution_status TEXT NOT NULL
+          CHECK (
+            execution_status IN (
+              'PENDING',
+              'RUNNING',
+              'VALIDATING',
+              'COMPLETED',
+              'FAILED',
+              'CANCELLED',
+              'MANUAL_ACTION_REQUIRED',
+              'RETRY_PENDING'
+            )
+          ),
+        validation_status TEXT NOT NULL
+          CHECK (
+            validation_status IN (
+              'NOT_RUN',
+              'VALID',
+              'LOW_DATA',
+              'NO_DATA',
+              'INVALID_SCHEMA',
+              'ERROR_NOT_DATA',
+              'DATE_MISMATCH',
+              'QUERY_MISMATCH'
+            )
+          ),
+        attempt_count INTEGER NOT NULL DEFAULT 0
+          CHECK (attempt_count >= 0),
+        accepted_artifact_id TEXT,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT,
+        FOREIGN KEY (run_id)
+          REFERENCES runs(run_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT,
+        UNIQUE (run_id, source_id, job_key),
+        UNIQUE (run_id, job_order)
+      ) STRICT;
+
+      CREATE INDEX idx_jobs_run_order
+        ON jobs(run_id, job_order);
+    `);
+
+    database
+      .prepare(`
+        INSERT INTO schema_migrations (
+          version,
+          name,
+          applied_at
+        ) VALUES (?, ?, ?)
+      `)
+      .run(
+        2,
+        'run_job_persistence',
+        new Date().toISOString(),
+      );
+
+    database.exec('PRAGMA user_version = 2');
+    database.exec('COMMIT');
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK');
+    } catch {
+      // Preserve the original migration failure.
+    }
+
+    throw error;
+  }
+};
+
 const applyMigrations = (database: DatabaseSync): number => {
   let schemaVersion = readUserVersion(database);
 
@@ -117,6 +231,11 @@ const applyMigrations = (database: DatabaseSync): number => {
 
   if (schemaVersion < 1) {
     migrateToVersion1(database);
+    schemaVersion = readUserVersion(database);
+  }
+
+  if (schemaVersion < 2) {
+    migrateToVersion2(database);
     schemaVersion = readUserVersion(database);
   }
 
@@ -299,7 +418,8 @@ export const initializeDatabase = (
   try {
     database = new DatabaseSync(databasePath);
 
-    const databaseHealth = configureAndVerifyDatabase(database);
+    const databaseHealth =
+      configureAndVerifyDatabase(database);
     const schemaVersion = applyMigrations(database);
     const migrationsApplied =
       validateMigrationHistory(database);
