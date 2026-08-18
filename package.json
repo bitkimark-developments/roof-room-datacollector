@@ -17,7 +17,8 @@
     "test:m2:artifacts": "bash tests/integration/sqlite/run-artifact-validation-test.sh",
     "test:m2:storage": "bash tests/integration/filesystem/run-storage-manager-test.sh",
     "test:m2:resume": "bash tests/integration/resume/run-resume-planner-test.sh",
-    "test:m2:reconcile": "bash tests/integration/reconciliation/run-reconciliation-coordinator-test.sh"
+    "test:m2:reconcile": "bash tests/integration/reconciliation/run-reconciliation-coordinator-test.sh",
+    "test:m2:orchestrator": "bash tests/integration/orchestration/run-sequential-fake-source-test.sh"
   },
   "keywords": [],
   "author": {
