@@ -26,27 +26,27 @@ main
 Latest verified checkpoint:
 
 ```text
-add43fa feat: add raw artifact storage manager
+38dc16a feat: add resume reconciliation planning
 ```
 
 Previous verified checkpoints:
 
 ```text
+65b239d docs: update M2 handoff after storage manager
+add43fa feat: add raw artifact storage manager
 1fdac5d docs: update M2 handoff after artifact persistence
 f9c6356 feat: persist artifacts and validation summaries
 4852f1c docs: update M2 handoff after run lifecycle slice
 f7b7d46 feat: add run lifecycle aggregation
-46680d5 docs: update M2 handoff after attempt state slice
-31f427d feat: add attempt persistence and job state transitions
 ```
 
-Working tree is clean after `add43fa`.
+Working tree is clean after `38dc16a`.
 
 ---
 
 # 2. M2 Completed Foundation
 
-Verified Core persistence chain:
+Verified persistence chain:
 
 ```text
 run
@@ -56,18 +56,18 @@ run
         └── validation summary
 ```
 
-Verified behavior:
+Verified core behavior:
 
 ```text
-runs/jobs persist
-attempts persist
-attempt history survives restart
-job execution state machine works
-run lifecycle aggregation works
-artifact records persist
-validation summaries persist
-accepted artifact references are explicit
-retry preserves historical evidence
+run/job persistence
+attempt persistence
+job execution state machine
+run lifecycle aggregation
+artifact persistence
+validation-summary persistence
+accepted-artifact references
+raw filesystem persistence
+resume discovery/reconstruction
 ```
 
 Current SQLite schema:
@@ -87,11 +87,25 @@ Migration history:
 
 ---
 
-# 3. StorageManager
+# 3. Storage Foundation
 
-Raw artifact filesystem persistence is now implemented and tested.
+StorageManager is implemented for raw source artifacts.
 
-Run-scoped layout:
+Verified:
+
+```text
+run/source directories are created safely
+raw bytes are preserved exactly
+byte_size is derived from persisted bytes
+SHA-256 is derived from persisted bytes
+silent overwrite is rejected
+retry gets a distinct attempt-suffixed filename
+path traversal fails closed
+relative paths remain run-scoped
+raw evidence survives StorageManager restart
+```
+
+Raw artifact layout:
 
 ```text
 data/runs/<run_id>/
@@ -103,37 +117,75 @@ data/runs/<run_id>/
 └── logs/
 ```
 
-Verified behavior:
+---
+
+# 4. Resume / Reconciliation Foundation
+
+ResumePlanner is implemented as a read-only reconstruction layer.
+
+StateRepository can discover non-terminal runs:
 
 ```text
-run/source directories created safely
-exact raw bytes preserved
-byte_size derived from persisted bytes
-SHA-256 derived from persisted bytes
-existing artifact never silently overwritten
-retry creates a distinct attempt-suffixed path
-unsafe filenames/path traversal fail closed
-relative artifact paths remain run-scoped
-persisted evidence survives StorageManager restart
+PENDING
+RUNNING
+MANUAL_ACTION_REQUIRED
 ```
 
-Retry naming currently follows:
+Completed terminal runs are excluded from incomplete-run discovery.
+
+Resume job classification:
 
 ```text
-attempt 1:
-GT01_TR_24M_interest_over_time.csv
+COMPLETED + accepted artifact
+→ SKIP_ACCEPTED
 
-attempt 2:
-GT01_TR_24M_interest_over_time__attempt_2.csv
+PENDING
+→ PENDING
+
+FAILED
+→ RETRY_CANDIDATE
+
+RETRY_PENDING
+→ RETRY_CANDIDATE
+
+MANUAL_ACTION_REQUIRED
+→ BLOCKED_MANUAL_ACTION
+
+RUNNING
+→ RECONCILE_REQUIRED
+
+VALIDATING
+→ RECONCILE_REQUIRED
+
+COMPLETED without accepted artifact
+→ RECONCILE_REQUIRED
 ```
 
-Raw evidence remains immutable.
+Resume planning preserves candidate and accepted artifact references.
 
-No SQLite schema change was required for this slice.
+It does not automatically recollect, retry, or mutate job state.
 
 ---
 
-# 4. Current Deterministic Test Surface
+# 5. Verified Resume Tests
+
+```text
+PASS DB-009: multiple incomplete runs are discovered while completed runs are excluded
+PASS RESUME-001/JOB-007: completed accepted job is classified SKIP_ACCEPTED
+PASS RESUME-002: interrupted RUNNING job without artifact requires reconciliation
+PASS RESUME-003: interrupted job with candidate is reconciled before recollection
+PASS RESUME-004: accepted artifact reference survives repository restart
+PASS RESUME-005: multiple interrupted runs reconstruct independently
+PASS: FAILED/RETRY_PENDING policy is represented as RETRY_CANDIDATE without auto-retry
+PASS: MANUAL_ACTION_REQUIRED remains blocked and is not auto-retried
+PASS: resume planning is read-only and does not rewrite persisted job states
+```
+
+Previous M2 regression suites remain passing.
+
+---
+
+# 6. Current Deterministic Test Surface
 
 ```text
 npm run test:m2:state
@@ -141,153 +193,112 @@ npm run test:m2:attempts
 npm run test:m2:runs
 npm run test:m2:artifacts
 npm run test:m2:storage
-```
-
-Storage tests verified:
-
-```text
-PASS STORAGE-001: run/source filesystem directories are created
-PASS STORAGE-002: raw artifact bytes are preserved exactly
-PASS STORAGE-003: byte_size and SHA-256 come from persisted bytes
-PASS STORAGE-004: existing raw artifact is never silently overwritten
-PASS STORAGE-005: retry uses a separate attempt-suffixed path
-PASS STORAGE-006: unsafe filename/path traversal fails closed
-PASS STORAGE-007: artifact relative_path remains run-scoped
-PASS STORAGE-008: persisted raw evidence survives manager restart
-```
-
-Previous M2 regression suites remain passing.
-
----
-
-# 5. Current M2 Acceptance-Gate Position
-
-Already proven:
-
-```text
-runs/jobs persistence
-independent attempts
-attempt restart persistence
-artifact records
-accepted artifact references
-retry history preservation
-execution/validation status separation
-raw filesystem preservation
-collision protection
-```
-
-The most important remaining data-contract gap is:
-
-```text
-resume can reconstruct incomplete state
-```
-
-The source-module M2 gate also still requires a fake/test source to:
-
-```text
-receive a job context
-produce deterministic test evidence
-pass through storage
-pass through validation
-produce job state
-retry through a second attempt
-survive resume reconstruction
+npm run test:m2:resume
 ```
 
 ---
 
-# 6. Decision — Next Slice
+# 7. Current M2 Acceptance-Gate Position
 
-Resume/reconciliation foundation comes before metadata/validation JSON file persistence.
-
-Reason:
+Completed:
 
 ```text
-resume reconstruction is an explicit M2 acceptance-gate requirement
+runs/jobs persist
+attempt history persists
+state transitions persist
+artifact records persist
+validation summaries persist
+accepted artifact references are explicit
+raw bytes are preserved on filesystem
+collision protection exists
+resume can discover incomplete runs
+accepted jobs are identified for skip
+candidate evidence is preserved for reconciliation
+multiple interrupted runs reconstruct independently
 ```
 
-while detailed metadata/validation JSON persistence is important but does not unblock the core run/job recovery semantics as directly.
+Still missing:
 
-MetadataManager remains required before M2 closure and will follow after resume semantics are stable.
+```text
+reconciliation mutation policy
+retry orchestration policy
+sequential fake-source orchestration
+metadata JSON persistence
+validation JSON persistence
+structured logging
+sensitive-value redaction
+BrowserManager foundation
+integrated M2 acceptance gate
+```
 
 ---
 
-# 7. Exact Next Action
+# 8. Exact Next Action
 
-Implement the smallest resume/reconciliation slice:
+Implement the next smallest orchestration slice:
 
 ```text
-inspect resume contracts + current StateRepository read APIs
+read ResumeJobPlan
 ↓
-discover non-terminal/incomplete runs
+introduce explicit RetryPolicy / ReconciliationCoordinator boundary
 ↓
-load jobs, attempts, accepted artifact references
-↓
-classify each job deterministically
-↓
-accepted + completed job
-→ SKIP / preserve
-↓
-FAILED retryable job
-→ RETRY_CANDIDATE
-↓
-RETRY_PENDING job
-→ RETRY_CANDIDATE
-↓
-MANUAL_ACTION_REQUIRED
-→ BLOCKED_MANUAL_ACTION
-↓
-RUNNING / VALIDATING interrupted state
-→ RECONCILE_REQUIRED
-↓
+SKIP_ACCEPTED
+→ no mutation / no scheduling
+
 PENDING
-→ PENDING
+→ schedulable initial work
+
+RETRY_CANDIDATE
+→ explicit retry eligibility check
+
+RECONCILE_REQUIRED without candidate
+→ mark interrupted attempt failed with structured error
+→ move job to RETRY_PENDING when retry is allowed
+
+RECONCILE_REQUIRED with candidate
+→ preserve candidate evidence
+→ do not recollect automatically
+→ hand off to validation/reconciliation path
+
+BLOCKED_MANUAL_ACTION
+→ no automatic retry
 ↓
-verify accepted artifact reference resolves to persisted artifact metadata
+prove attempt history is preserved
 ↓
-do not recollect automatically during reconstruction
+prove retry creates attempt_number +1
 ↓
-restart tests
+prove accepted jobs remain untouched
+↓
+restart verification
 ↓
 Git checkpoint
 ```
 
-Do not yet implement automatic retry execution.
-
-Do not yet implement Google Trends browser work.
+The slice should not yet execute a fake source.
 
 ---
 
-# 8. Next Resume Slice Boundaries
+# 9. Retry / Reconciliation Guardrails
 
-The first resume slice should answer only:
+Retry must never overwrite previous attempt evidence.
 
-```text
-What persisted work exists?
-What state was each job in?
-Which jobs are already accepted and must be skipped?
-Which jobs need reconciliation?
-Which jobs are retry candidates?
-Which jobs require manual action?
-```
+Accepted jobs must not be scheduled again during normal resume.
 
-It should not yet answer:
+Manual-action jobs must not be converted to failure automatically.
 
-```text
-When should automatic retry run?
-How many retries are allowed?
-How long should cooldown be?
-How does live provider/browser state reconcile?
-```
+Candidate artifacts must not be discarded merely because the process restarted.
 
-Those belong to later orchestration policy.
+A retry decision must be explicit and deterministic.
+
+Do not embed provider-specific Google Trends behavior into the core retry policy.
 
 ---
 
-# 9. Remaining M2 Work After Resume Foundation
+# 10. Work After Reconciliation / Retry Policy
+
+After the next slice:
 
 ```text
-retry orchestration policy
 sequential fake-source orchestration
 MetadataManager / metadata JSON
 validation JSON file persistence
@@ -301,7 +312,7 @@ Real Google Trends collection remains M3.
 
 ---
 
-# 10. Handoff Discipline
+# 11. Handoff Discipline
 
 At the end of each meaningful implementation session:
 
