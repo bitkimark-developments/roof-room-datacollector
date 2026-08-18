@@ -58,8 +58,8 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 3);
-assert.equal(bootstrap.migrations_applied, 3);
+assert.equal(bootstrap.schema_version, 4);
+assert.equal(bootstrap.migrations_applied, 4);
 
 const queryConfig = {
   config_version: 1,

@@ -7,7 +7,7 @@ import type {
 } from '../../shared/bootstrap-status';
 
 const DATABASE_FILENAME = 'roofroom.sqlite';
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 type SqliteRow = Record<string, unknown>;
 
@@ -286,6 +286,148 @@ const migrateToVersion3 = (database: DatabaseSync): void => {
   }
 };
 
+
+const migrateToVersion4 = (database: DatabaseSync): void => {
+  database.exec('BEGIN IMMEDIATE');
+
+  try {
+    database.exec(`
+      CREATE TABLE artifacts (
+        artifact_id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL,
+        job_id TEXT NOT NULL,
+        attempt_number INTEGER NOT NULL
+          CHECK (attempt_number >= 1),
+        source_id TEXT NOT NULL,
+        artifact_kind TEXT NOT NULL
+          CHECK (
+            artifact_kind IN (
+              'RAW_SOURCE_FILE',
+              'METADATA_JSON',
+              'VALIDATION_JSON',
+              'NORMALIZED_CSV',
+              'EXPORT_XLSX',
+              'LOG_FILE'
+            )
+          ),
+        artifact_state TEXT NOT NULL
+          CHECK (
+            artifact_state IN (
+              'CANDIDATE',
+              'ACCEPTED',
+              'ACCEPTED_WITH_WARNING',
+              'REJECTED',
+              'SUPERSEDED'
+            )
+          ),
+        filename TEXT NOT NULL,
+        relative_path TEXT NOT NULL,
+        media_type TEXT NOT NULL,
+        byte_size INTEGER NOT NULL
+          CHECK (byte_size >= 0),
+        sha256 TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (run_id)
+          REFERENCES runs(run_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT,
+        FOREIGN KEY (job_id)
+          REFERENCES jobs(job_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT,
+        FOREIGN KEY (job_id, attempt_number)
+          REFERENCES attempts(job_id, attempt_number)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT
+      ) STRICT;
+
+      CREATE INDEX idx_artifacts_job_attempt
+        ON artifacts(job_id, attempt_number);
+
+      CREATE INDEX idx_artifacts_run
+        ON artifacts(run_id);
+
+      CREATE TABLE validations (
+        validation_id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL,
+        job_id TEXT NOT NULL,
+        artifact_id TEXT NOT NULL,
+        validation_status TEXT NOT NULL
+          CHECK (
+            validation_status IN (
+              'VALID',
+              'LOW_DATA',
+              'NO_DATA',
+              'INVALID_SCHEMA',
+              'ERROR_NOT_DATA',
+              'DATE_MISMATCH',
+              'QUERY_MISMATCH'
+            )
+          ),
+        checks_total INTEGER NOT NULL
+          CHECK (checks_total >= 0),
+        checks_passed INTEGER NOT NULL
+          CHECK (checks_passed >= 0),
+        checks_warning INTEGER NOT NULL
+          CHECK (checks_warning >= 0),
+        checks_failed INTEGER NOT NULL
+          CHECK (checks_failed >= 0),
+        validated_at TEXT NOT NULL,
+        validation_json_path TEXT,
+        CHECK (
+          checks_total =
+            checks_passed +
+            checks_warning +
+            checks_failed
+        ),
+        FOREIGN KEY (run_id)
+          REFERENCES runs(run_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT,
+        FOREIGN KEY (job_id)
+          REFERENCES jobs(job_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT,
+        FOREIGN KEY (artifact_id)
+          REFERENCES artifacts(artifact_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT
+      ) STRICT;
+
+      CREATE INDEX idx_validations_job
+        ON validations(job_id);
+
+      CREATE INDEX idx_validations_artifact
+        ON validations(artifact_id);
+    `);
+
+    database
+      .prepare(`
+        INSERT INTO schema_migrations (
+          version,
+          name,
+          applied_at
+        ) VALUES (?, ?, ?)
+      `)
+      .run(
+        4,
+        'artifact_validation_persistence',
+        new Date().toISOString(),
+      );
+
+    database.exec('PRAGMA user_version = 4');
+    database.exec('COMMIT');
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK');
+    } catch {
+      // Preserve the original migration failure.
+    }
+
+    throw error;
+  }
+};
+
 const applyMigrations = (database: DatabaseSync): number => {
   let schemaVersion = readUserVersion(database);
 
@@ -307,6 +449,11 @@ const applyMigrations = (database: DatabaseSync): number => {
 
   if (schemaVersion < 3) {
     migrateToVersion3(database);
+    schemaVersion = readUserVersion(database);
+  }
+
+  if (schemaVersion < 4) {
+    migrateToVersion4(database);
     schemaVersion = readUserVersion(database);
   }
 

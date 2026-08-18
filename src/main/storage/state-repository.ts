@@ -7,6 +7,12 @@ import {
   isTerminalRunStatus,
 } from '../core/run-execution-state-machine';
 import type { AttemptRecord } from '../../shared/attempt';
+import {
+  isArtifactKind,
+  isArtifactState,
+  type ArtifactRecord,
+  type ArtifactState,
+} from '../../shared/artifact';
 import type { QueryConfig } from '../../shared/query-config';
 import {
   isExecutionStatus,
@@ -20,8 +26,9 @@ import {
   type RunStatus,
   type ValidationStatus,
 } from '../../shared/run-job';
+import type { ValidationSummaryRecord } from '../../shared/validation-summary';
 
-const REQUIRED_SCHEMA_VERSION = 3;
+const REQUIRED_SCHEMA_VERSION = 4;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const RUN_ID_PATTERN =
   /^rr_\d{8}T\d{9}Z_[0-9a-f]{6}$/;
@@ -42,6 +49,29 @@ export interface StateCounts {
 export interface TransitionJobExecutionOptions {
   validation_status?: ValidationStatus;
   error_code?: string | null;
+}
+
+export interface RegisterCandidateArtifactInput {
+  attempt_id: string;
+  filename: string;
+  relative_path: string;
+  media_type: string;
+  byte_size: number;
+  sha256: string | null;
+}
+
+export interface RecordValidationSummaryInput {
+  attempt_id: string;
+  artifact_id: string;
+  validation_status: Exclude<
+    ValidationStatus,
+    'NOT_RUN'
+  >;
+  checks_total: number;
+  checks_passed: number;
+  checks_warning: number;
+  checks_failed: number;
+  validation_json_path: string | null;
 }
 
 const requireRecord = (
@@ -108,6 +138,39 @@ const requireInteger = (
   ) {
     throw new Error(
       `${context}.${field} must be an integer.`,
+    );
+  }
+
+  return value;
+};
+
+const requireNonNegativeInteger = (
+  value: unknown,
+  context: string,
+): number => {
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value < 0
+  ) {
+    throw new Error(
+      `${context} must be a non-negative integer.`,
+    );
+  }
+
+  return value;
+};
+
+const requireSha256 = (
+  value: string | null,
+): string | null => {
+  if (value === null) {
+    return null;
+  }
+
+  if (!/^[0-9a-f]{64}$/.test(value)) {
+    throw new Error(
+      'sha256 must be 64 lowercase hexadecimal characters or null.',
     );
   }
 
@@ -560,6 +623,222 @@ const mapAttemptRow = (
   };
 };
 
+const mapArtifactRow = (
+  rawRow: unknown,
+): ArtifactRecord => {
+  const row = requireRecord(rawRow, 'artifact');
+
+  const artifactKind = row.artifact_kind;
+  const artifactState = row.artifact_state;
+
+  if (!isArtifactKind(artifactKind)) {
+    throw new Error(
+      `Persisted artifact_kind is invalid: ${String(artifactKind)}`,
+    );
+  }
+
+  if (!isArtifactState(artifactState)) {
+    throw new Error(
+      `Persisted artifact_state is invalid: ${String(artifactState)}`,
+    );
+  }
+
+  const byteSize = requireInteger(
+    row,
+    'byte_size',
+    'artifact',
+  );
+
+  if (byteSize < 0) {
+    throw new Error(
+      'artifact.byte_size must be non-negative.',
+    );
+  }
+
+  const sha256 = requireNullableString(
+    row,
+    'sha256',
+    'artifact',
+  );
+
+  if (
+    sha256 !== null &&
+    !/^[0-9a-f]{64}$/.test(sha256)
+  ) {
+    throw new Error(
+      'artifact.sha256 must be 64 lowercase hexadecimal characters or null.',
+    );
+  }
+
+  return {
+    artifact_id: requireString(
+      row,
+      'artifact_id',
+      'artifact',
+    ),
+    run_id: requireString(row, 'run_id', 'artifact'),
+    job_id: requireString(row, 'job_id', 'artifact'),
+    attempt_number: requireInteger(
+      row,
+      'attempt_number',
+      'artifact',
+    ),
+    source_id: requireString(
+      row,
+      'source_id',
+      'artifact',
+    ),
+    artifact_kind: artifactKind,
+    artifact_state: artifactState,
+    filename: requireString(
+      row,
+      'filename',
+      'artifact',
+    ),
+    relative_path: requireString(
+      row,
+      'relative_path',
+      'artifact',
+    ),
+    media_type: requireString(
+      row,
+      'media_type',
+      'artifact',
+    ),
+    byte_size: byteSize,
+    sha256,
+    created_at: requireUtcTimestamp(
+      requireString(
+        row,
+        'created_at',
+        'artifact',
+      ),
+      'artifact.created_at',
+    ),
+  };
+};
+
+const mapValidationSummaryRow = (
+  rawRow: unknown,
+): ValidationSummaryRecord => {
+  const row = requireRecord(
+    rawRow,
+    'validation summary',
+  );
+
+  const validationStatus = row.validation_status;
+
+  if (
+    !isValidationStatus(validationStatus) ||
+    validationStatus === 'NOT_RUN'
+  ) {
+    throw new Error(
+      `Persisted validation_status is invalid for a validation record: ${String(validationStatus)}`,
+    );
+  }
+
+  const checksTotal = requireInteger(
+    row,
+    'checks_total',
+    'validation summary',
+  );
+  const checksPassed = requireInteger(
+    row,
+    'checks_passed',
+    'validation summary',
+  );
+  const checksWarning = requireInteger(
+    row,
+    'checks_warning',
+    'validation summary',
+  );
+  const checksFailed = requireInteger(
+    row,
+    'checks_failed',
+    'validation summary',
+  );
+
+  if (
+    checksTotal < 0 ||
+    checksPassed < 0 ||
+    checksWarning < 0 ||
+    checksFailed < 0 ||
+    checksTotal !==
+      checksPassed +
+        checksWarning +
+        checksFailed
+  ) {
+    throw new Error(
+      'Persisted validation check counts are inconsistent.',
+    );
+  }
+
+  return {
+    validation_id: requireString(
+      row,
+      'validation_id',
+      'validation summary',
+    ),
+    run_id: requireString(
+      row,
+      'run_id',
+      'validation summary',
+    ),
+    job_id: requireString(
+      row,
+      'job_id',
+      'validation summary',
+    ),
+    artifact_id: requireString(
+      row,
+      'artifact_id',
+      'validation summary',
+    ),
+    validation_status: validationStatus,
+    checks_total: checksTotal,
+    checks_passed: checksPassed,
+    checks_warning: checksWarning,
+    checks_failed: checksFailed,
+    validated_at: requireUtcTimestamp(
+      requireString(
+        row,
+        'validated_at',
+        'validation summary',
+      ),
+      'validation_summary.validated_at',
+    ),
+    validation_json_path: requireNullableString(
+      row,
+      'validation_json_path',
+      'validation summary',
+    ),
+  };
+};
+
+const mapValidationStatusToArtifactState = (
+  validationStatus: Exclude<
+    ValidationStatus,
+    'NOT_RUN'
+  >,
+): ArtifactState => {
+  switch (validationStatus) {
+    case 'VALID':
+      return 'ACCEPTED';
+    case 'LOW_DATA':
+    case 'NO_DATA':
+      return 'ACCEPTED_WITH_WARNING';
+    case 'INVALID_SCHEMA':
+    case 'ERROR_NOT_DATA':
+    case 'DATE_MISMATCH':
+    case 'QUERY_MISMATCH':
+      return 'REJECTED';
+  }
+};
+
+const createOpaqueId = (
+  prefix: 'artifact' | 'validation',
+): string => `${prefix}_${randomBytes(8).toString('hex')}`;
+
 export const createRunId = (): string => {
   const timestamp = new Date()
     .toISOString()
@@ -922,6 +1201,560 @@ export class StateRepository {
       }
 
       return attempt;
+    } catch (error: unknown) {
+      try {
+        this.database.exec('ROLLBACK');
+      } catch {
+        // Preserve the original persistence failure.
+      }
+
+      throw error;
+    }
+  }
+
+  registerCandidateArtifact(
+    input: RegisterCandidateArtifactInput,
+  ): ArtifactRecord {
+    requireNonEmpty(
+      input.attempt_id,
+      'attempt_id',
+    );
+    requireNonEmpty(
+      input.filename,
+      'filename',
+    );
+    requireNonEmpty(
+      input.relative_path,
+      'relative_path',
+    );
+    requireNonEmpty(
+      input.media_type,
+      'media_type',
+    );
+
+    const byteSize = requireNonNegativeInteger(
+      input.byte_size,
+      'byte_size',
+    );
+    const sha256 = requireSha256(input.sha256);
+
+    this.database.exec('BEGIN IMMEDIATE');
+
+    try {
+      const rawContext = this.database
+        .prepare(`
+          SELECT
+            a.attempt_id,
+            a.job_id,
+            a.attempt_number,
+            a.execution_status AS attempt_execution_status,
+            a.candidate_artifact_id,
+            a.validation_id,
+            j.run_id,
+            j.source_id,
+            j.execution_status AS job_execution_status
+          FROM attempts AS a
+          INNER JOIN jobs AS j
+            ON j.job_id = a.job_id
+          WHERE a.attempt_id = ?
+        `)
+        .get(input.attempt_id);
+
+      if (rawContext === undefined) {
+        throw new Error(
+          `Unknown attempt: ${input.attempt_id}`,
+        );
+      }
+
+      const context = requireRecord(
+        rawContext,
+        'artifact attempt context',
+      );
+
+      const attemptStatus =
+        context.attempt_execution_status;
+      const jobStatus = context.job_execution_status;
+
+      if (
+        !isExecutionStatus(attemptStatus) ||
+        !isExecutionStatus(jobStatus)
+      ) {
+        throw new Error(
+          'Persisted execution status is invalid while registering artifact.',
+        );
+      }
+
+      if (
+        attemptStatus !== 'RUNNING' ||
+        jobStatus !== 'RUNNING'
+      ) {
+        throw new Error(
+          'Candidate artifact may only be registered for a RUNNING attempt/job.',
+        );
+      }
+
+      if (context.candidate_artifact_id !== null) {
+        throw new Error(
+          `Attempt ${input.attempt_id} already has a candidate artifact.`,
+        );
+      }
+
+      if (context.validation_id !== null) {
+        throw new Error(
+          `Attempt ${input.attempt_id} already has validation evidence.`,
+        );
+      }
+
+      const artifactId = createOpaqueId('artifact');
+      const createdAt = new Date().toISOString();
+      const jobId = requireString(
+        context,
+        'job_id',
+        'artifact attempt context',
+      );
+      const runId = requireString(
+        context,
+        'run_id',
+        'artifact attempt context',
+      );
+      const sourceId = requireString(
+        context,
+        'source_id',
+        'artifact attempt context',
+      );
+      const attemptNumber = requireInteger(
+        context,
+        'attempt_number',
+        'artifact attempt context',
+      );
+
+      this.database
+        .prepare(`
+          INSERT INTO artifacts (
+            artifact_id,
+            run_id,
+            job_id,
+            attempt_number,
+            source_id,
+            artifact_kind,
+            artifact_state,
+            filename,
+            relative_path,
+            media_type,
+            byte_size,
+            sha256,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          artifactId,
+          runId,
+          jobId,
+          attemptNumber,
+          sourceId,
+          'RAW_SOURCE_FILE',
+          'CANDIDATE',
+          input.filename,
+          input.relative_path,
+          input.media_type,
+          byteSize,
+          sha256,
+          createdAt,
+        );
+
+      this.database
+        .prepare(`
+          UPDATE attempts
+          SET candidate_artifact_id = ?
+          WHERE attempt_id = ?
+        `)
+        .run(
+          artifactId,
+          input.attempt_id,
+        );
+
+      this.database.exec('COMMIT');
+
+      const artifact = this.getArtifact(artifactId);
+
+      if (!artifact) {
+        throw new Error(
+          `Artifact ${artifactId} was not readable after creation.`,
+        );
+      }
+
+      return artifact;
+    } catch (error: unknown) {
+      try {
+        this.database.exec('ROLLBACK');
+      } catch {
+        // Preserve the original persistence failure.
+      }
+
+      throw error;
+    }
+  }
+
+  recordValidationSummary(
+    input: RecordValidationSummaryInput,
+  ): ValidationSummaryRecord {
+    requireNonEmpty(
+      input.attempt_id,
+      'attempt_id',
+    );
+    requireNonEmpty(
+      input.artifact_id,
+      'artifact_id',
+    );
+
+    const requestedValidationStatus: unknown =
+      input.validation_status;
+
+    if (
+      !isValidationStatus(requestedValidationStatus) ||
+      requestedValidationStatus === 'NOT_RUN'
+    ) {
+      throw new Error(
+        'validation_status must be a terminal dataset validation status.',
+      );
+    }
+
+    const checksTotal = requireNonNegativeInteger(
+      input.checks_total,
+      'checks_total',
+    );
+    const checksPassed = requireNonNegativeInteger(
+      input.checks_passed,
+      'checks_passed',
+    );
+    const checksWarning = requireNonNegativeInteger(
+      input.checks_warning,
+      'checks_warning',
+    );
+    const checksFailed = requireNonNegativeInteger(
+      input.checks_failed,
+      'checks_failed',
+    );
+
+    if (
+      checksTotal !==
+      checksPassed +
+        checksWarning +
+        checksFailed
+    ) {
+      throw new Error(
+        'Validation check counts must add up to checks_total.',
+      );
+    }
+
+    if (
+      input.validation_json_path !== null
+    ) {
+      requireNonEmpty(
+        input.validation_json_path,
+        'validation_json_path',
+      );
+    }
+
+    const artifactState =
+      mapValidationStatusToArtifactState(
+        input.validation_status,
+      );
+
+    this.database.exec('BEGIN IMMEDIATE');
+
+    try {
+      const rawContext = this.database
+        .prepare(`
+          SELECT
+            a.job_id,
+            a.attempt_number,
+            a.execution_status AS attempt_execution_status,
+            a.candidate_artifact_id,
+            a.validation_id,
+            j.run_id,
+            j.execution_status AS job_execution_status,
+            j.accepted_artifact_id
+          FROM attempts AS a
+          INNER JOIN jobs AS j
+            ON j.job_id = a.job_id
+          WHERE a.attempt_id = ?
+        `)
+        .get(input.attempt_id);
+
+      if (rawContext === undefined) {
+        throw new Error(
+          `Unknown attempt: ${input.attempt_id}`,
+        );
+      }
+
+      const context = requireRecord(
+        rawContext,
+        'validation attempt context',
+      );
+
+      const attemptStatus =
+        context.attempt_execution_status;
+      const jobStatus = context.job_execution_status;
+
+      if (
+        attemptStatus !== 'VALIDATING' ||
+        jobStatus !== 'VALIDATING'
+      ) {
+        throw new Error(
+          'Validation summary may only be recorded while attempt/job is VALIDATING.',
+        );
+      }
+
+      if (
+        context.candidate_artifact_id !==
+        input.artifact_id
+      ) {
+        throw new Error(
+          'Validation artifact does not match the attempt candidate artifact.',
+        );
+      }
+
+      if (context.validation_id !== null) {
+        throw new Error(
+          `Attempt ${input.attempt_id} already has a validation result.`,
+        );
+      }
+
+      const rawArtifact = this.database
+        .prepare(`
+          SELECT
+            artifact_id,
+            run_id,
+            job_id,
+            attempt_number,
+            artifact_state
+          FROM artifacts
+          WHERE artifact_id = ?
+        `)
+        .get(input.artifact_id);
+
+      if (rawArtifact === undefined) {
+        throw new Error(
+          `Unknown artifact: ${input.artifact_id}`,
+        );
+      }
+
+      const artifact = requireRecord(
+        rawArtifact,
+        'validation artifact',
+      );
+
+      const persistedArtifactState =
+        artifact.artifact_state;
+
+      if (
+        !isArtifactState(persistedArtifactState) ||
+        persistedArtifactState !== 'CANDIDATE'
+      ) {
+        throw new Error(
+          'Validation may only finalize a CANDIDATE artifact.',
+        );
+      }
+
+      const jobId = requireString(
+        context,
+        'job_id',
+        'validation attempt context',
+      );
+      const runId = requireString(
+        context,
+        'run_id',
+        'validation attempt context',
+      );
+      const attemptNumber = requireInteger(
+        context,
+        'attempt_number',
+        'validation attempt context',
+      );
+
+      if (
+        requireString(
+          artifact,
+          'job_id',
+          'validation artifact',
+        ) !== jobId ||
+        requireString(
+          artifact,
+          'run_id',
+          'validation artifact',
+        ) !== runId ||
+        requireInteger(
+          artifact,
+          'attempt_number',
+          'validation artifact',
+        ) !== attemptNumber
+      ) {
+        throw new Error(
+          'Artifact run/job/attempt context does not match validation attempt.',
+        );
+      }
+
+      const validationId =
+        createOpaqueId('validation');
+      const validatedAt = new Date().toISOString();
+
+      this.database
+        .prepare(`
+          INSERT INTO validations (
+            validation_id,
+            run_id,
+            job_id,
+            artifact_id,
+            validation_status,
+            checks_total,
+            checks_passed,
+            checks_warning,
+            checks_failed,
+            validated_at,
+            validation_json_path
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          validationId,
+          runId,
+          jobId,
+          input.artifact_id,
+          input.validation_status,
+          checksTotal,
+          checksPassed,
+          checksWarning,
+          checksFailed,
+          validatedAt,
+          input.validation_json_path,
+        );
+
+      const previousAcceptedArtifactId =
+        context.accepted_artifact_id;
+
+      if (
+        artifactState === 'ACCEPTED' ||
+        artifactState ===
+          'ACCEPTED_WITH_WARNING'
+      ) {
+        if (
+          previousAcceptedArtifactId !== null &&
+          previousAcceptedArtifactId !==
+            input.artifact_id
+        ) {
+          if (
+            typeof previousAcceptedArtifactId !==
+            'string'
+          ) {
+            throw new Error(
+              'Persisted accepted_artifact_id is invalid.',
+            );
+          }
+
+          const previous = this.database
+            .prepare(`
+              SELECT artifact_state
+              FROM artifacts
+              WHERE artifact_id = ?
+                AND job_id = ?
+            `)
+            .get(
+              previousAcceptedArtifactId,
+              jobId,
+            );
+
+          if (previous === undefined) {
+            throw new Error(
+              'Persisted accepted_artifact_id does not reference a job artifact.',
+            );
+          }
+
+          const previousRow = requireRecord(
+            previous,
+            'previous accepted artifact',
+          );
+          const previousState =
+            previousRow.artifact_state;
+
+          if (
+            previousState !== 'ACCEPTED' &&
+            previousState !==
+              'ACCEPTED_WITH_WARNING'
+          ) {
+            throw new Error(
+              'Previous accepted artifact is not in an accepted state.',
+            );
+          }
+
+          this.database
+            .prepare(`
+              UPDATE artifacts
+              SET artifact_state = 'SUPERSEDED'
+              WHERE artifact_id = ?
+            `)
+            .run(previousAcceptedArtifactId);
+        }
+
+        this.database
+          .prepare(`
+            UPDATE jobs
+            SET
+              validation_status = ?,
+              accepted_artifact_id = ?
+            WHERE job_id = ?
+          `)
+          .run(
+            input.validation_status,
+            input.artifact_id,
+            jobId,
+          );
+      } else {
+        this.database
+          .prepare(`
+            UPDATE jobs
+            SET validation_status = ?
+            WHERE job_id = ?
+          `)
+          .run(
+            input.validation_status,
+            jobId,
+          );
+      }
+
+      this.database
+        .prepare(`
+          UPDATE artifacts
+          SET artifact_state = ?
+          WHERE artifact_id = ?
+        `)
+        .run(
+          artifactState,
+          input.artifact_id,
+        );
+
+      this.database
+        .prepare(`
+          UPDATE attempts
+          SET validation_id = ?
+          WHERE attempt_id = ?
+        `)
+        .run(
+          validationId,
+          input.attempt_id,
+        );
+
+      this.database.exec('COMMIT');
+
+      const validation =
+        this.getValidationSummary(validationId);
+
+      if (!validation) {
+        throw new Error(
+          `Validation ${validationId} was not readable after creation.`,
+        );
+      }
+
+      return validation;
     } catch (error: unknown) {
       try {
         this.database.exec('ROLLBACK');
@@ -1355,6 +2188,112 @@ export class StateRepository {
       `)
       .all(jobId)
       .map(mapAttemptRow);
+  }
+
+  getArtifact(
+    artifactId: string,
+  ): ArtifactRecord | null {
+    const row = this.database
+      .prepare(`
+        SELECT
+          artifact_id,
+          run_id,
+          job_id,
+          attempt_number,
+          source_id,
+          artifact_kind,
+          artifact_state,
+          filename,
+          relative_path,
+          media_type,
+          byte_size,
+          sha256,
+          created_at
+        FROM artifacts
+        WHERE artifact_id = ?
+      `)
+      .get(artifactId);
+
+    return row === undefined
+      ? null
+      : mapArtifactRow(row);
+  }
+
+  listArtifacts(jobId: string): ArtifactRecord[] {
+    return this.database
+      .prepare(`
+        SELECT
+          artifact_id,
+          run_id,
+          job_id,
+          attempt_number,
+          source_id,
+          artifact_kind,
+          artifact_state,
+          filename,
+          relative_path,
+          media_type,
+          byte_size,
+          sha256,
+          created_at
+        FROM artifacts
+        WHERE job_id = ?
+        ORDER BY attempt_number ASC, created_at ASC
+      `)
+      .all(jobId)
+      .map(mapArtifactRow);
+  }
+
+  getValidationSummary(
+    validationId: string,
+  ): ValidationSummaryRecord | null {
+    const row = this.database
+      .prepare(`
+        SELECT
+          validation_id,
+          run_id,
+          job_id,
+          artifact_id,
+          validation_status,
+          checks_total,
+          checks_passed,
+          checks_warning,
+          checks_failed,
+          validated_at,
+          validation_json_path
+        FROM validations
+        WHERE validation_id = ?
+      `)
+      .get(validationId);
+
+    return row === undefined
+      ? null
+      : mapValidationSummaryRow(row);
+  }
+
+  listValidationSummaries(
+    jobId: string,
+  ): ValidationSummaryRecord[] {
+    return this.database
+      .prepare(`
+        SELECT
+          validation_id,
+          run_id,
+          job_id,
+          artifact_id,
+          validation_status,
+          checks_total,
+          checks_passed,
+          checks_warning,
+          checks_failed,
+          validated_at,
+          validation_json_path
+        FROM validations
+        WHERE job_id = ?
+        ORDER BY validated_at ASC
+      `)
+      .all(jobId)
+      .map(mapValidationSummaryRow);
   }
 
   getCounts(): StateCounts {
