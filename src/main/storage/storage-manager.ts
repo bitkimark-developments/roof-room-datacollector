@@ -43,6 +43,23 @@ export interface RunStorageDirectories {
   logs: string;
 }
 
+export interface PersistJsonDocumentInput {
+  run_id: string;
+  source_id: string;
+  attempt_number: number;
+  document_key: string;
+  document: unknown;
+}
+
+export interface PersistedJsonDocument {
+  filename: string;
+  relative_path: string;
+  absolute_path: string;
+  media_type: 'application/json';
+  byte_size: number;
+  sha256: string;
+}
+
 export class StorageCollisionError extends Error {
   constructor(public readonly target_path: string) {
     super(
@@ -149,6 +166,66 @@ const requireAttemptNumber = (
   }
 
   return attemptNumber;
+};
+
+const requireDocumentKey = (
+  documentKey: string,
+): string => {
+  requireNonEmpty(documentKey, 'document_key');
+
+  if (
+    !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(
+      documentKey,
+    )
+  ) {
+    throw new UnsafeStoragePathError(
+      `Unsafe JSON document key: ${documentKey}`,
+    );
+  }
+
+  return documentKey;
+};
+
+const createAttemptDocumentFilename = (
+  documentKey: string,
+  attemptNumber: number,
+  documentKind: 'metadata' | 'validation',
+): string =>
+  attemptNumber === 1
+    ? `${documentKey}.${documentKind}.json`
+    : `${documentKey}.attempt_${attemptNumber}.${documentKind}.json`;
+
+const serializeJsonDocument = (
+  document: unknown,
+): Uint8Array => {
+  let serialized: string;
+
+  try {
+    serialized = JSON.stringify(
+      document,
+      null,
+      2,
+    );
+  } catch (error: unknown) {
+    throw new Error(
+      `JSON document could not be serialized: ${
+        error instanceof Error
+          ? error.message
+          : 'unknown serialization error'
+      }`,
+    );
+  }
+
+  if (serialized === undefined) {
+    throw new Error(
+      'JSON document serialized to undefined.',
+    );
+  }
+
+  return Buffer.from(
+    `${serialized}\n`,
+    'utf8',
+  );
 };
 
 const withAttemptSuffix = (
@@ -395,6 +472,138 @@ export class StorageManager {
       relative_path: relativePath,
       absolute_path: absolutePath,
       media_type: input.media_type,
+      byte_size: fileStat.size,
+      sha256,
+    };
+  }
+
+  async persistMetadataJson(
+    input: PersistJsonDocumentInput,
+  ): Promise<PersistedJsonDocument> {
+    return this.persistJsonDocument(
+      input,
+      'metadata',
+    );
+  }
+
+  async persistValidationJson(
+    input: PersistJsonDocumentInput,
+  ): Promise<PersistedJsonDocument> {
+    return this.persistJsonDocument(
+      input,
+      'validation',
+    );
+  }
+
+  private async persistJsonDocument(
+    input: PersistJsonDocumentInput,
+    documentKind:
+      | 'metadata'
+      | 'validation',
+  ): Promise<PersistedJsonDocument> {
+    const attemptNumber =
+      requireAttemptNumber(
+        input.attempt_number,
+      );
+    const documentKey =
+      requireDocumentKey(
+        input.document_key,
+      );
+
+    const storage =
+      await this.ensureRunSourceDirectories(
+        input.run_id,
+        input.source_id,
+      );
+
+    const directory =
+      documentKind === 'metadata'
+        ? storage.metadata
+        : storage.validation;
+
+    const filename =
+      createAttemptDocumentFilename(
+        documentKey,
+        attemptNumber,
+        documentKind,
+      );
+
+    const absolutePath = path.resolve(
+      directory,
+      filename,
+    );
+
+    assertInside(
+      directory,
+      absolutePath,
+      `${documentKind} JSON path`,
+    );
+
+    const bytes =
+      serializeJsonDocument(
+        input.document,
+      );
+
+    try {
+      await writeFile(
+        absolutePath,
+        bytes,
+        {
+          flag: 'wx',
+        },
+      );
+    } catch (error: unknown) {
+      if (isAlreadyExistsError(error)) {
+        throw new StorageCollisionError(
+          absolutePath,
+        );
+      }
+
+      throw error;
+    }
+
+    const [
+      persistedBytes,
+      fileStat,
+    ] = await Promise.all([
+      readFile(absolutePath),
+      stat(absolutePath),
+    ]);
+
+    if (!fileStat.isFile()) {
+      throw new Error(
+        `Persisted ${documentKind} JSON is not a regular file: ${absolutePath}`,
+      );
+    }
+
+    const sha256 = createHash('sha256')
+      .update(persistedBytes)
+      .digest('hex');
+
+    const relativePath =
+      toPortableRelativePath(
+        path.relative(
+          storage.run,
+          absolutePath,
+        ),
+      );
+
+    if (
+      relativePath.length === 0 ||
+      relativePath === '..' ||
+      relativePath.startsWith('../') ||
+      path.isAbsolute(relativePath)
+    ) {
+      throw new UnsafeStoragePathError(
+        `Persisted ${documentKind} JSON path escaped the run directory.`,
+      );
+    }
+
+    return {
+      filename,
+      relative_path: relativePath,
+      absolute_path: absolutePath,
+      media_type: 'application/json',
       byte_size: fileStat.size,
       sha256,
     };

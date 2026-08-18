@@ -9,6 +9,9 @@ import type {
   RequestedCollectionConfiguration,
   ValidationStatus,
 } from './run-job';
+import type {
+  ValidationFinding,
+} from './validation-detail';
 
 export interface SourceCollectionContext {
   run_id: string;
@@ -75,6 +78,7 @@ export interface CollectionValidationDecision {
   checks_passed: number;
   checks_warning: number;
   checks_failed: number;
+  findings: ValidationFinding[];
 }
 
 export interface CollectionValidator {

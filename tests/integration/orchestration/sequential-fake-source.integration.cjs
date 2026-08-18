@@ -363,6 +363,18 @@ class DeterministicValidator {
       checks_passed: 1,
       checks_warning: 0,
       checks_failed: 0,
+      findings: [
+        {
+          check_id:
+            'FAKE_ARTIFACT_READABLE',
+          severity: 'ERROR',
+          passed: true,
+          message:
+            'Deterministic fake artifact is readable.',
+          expected: true,
+          actual: true,
+        },
+      ],
     };
   }
 }
@@ -633,6 +645,103 @@ assert.equal(
   'COMPLETED',
 );
 
+const gt01MetadataPath =
+  storage.resolveRunRelativePath(
+    mainRun.run.run_id,
+    'fake-source/metadata/GT01.metadata.json',
+  );
+
+const gt01Metadata = JSON.parse(
+  await fsp.readFile(
+    gt01MetadataPath,
+    'utf8',
+  ),
+);
+
+assert.equal(
+  gt01Metadata.schema_version,
+  1,
+);
+assert.equal(
+  gt01Metadata.run_id,
+  mainRun.run.run_id,
+);
+assert.equal(
+  gt01Metadata.job_id,
+  gt01.job_id,
+);
+assert.equal(
+  gt01Metadata.raw_artifact_id,
+  gt01.accepted_artifact_id,
+);
+assert.equal(
+  gt01Metadata.validation_status,
+  'VALID',
+);
+assert.equal(
+  gt01Metadata.actual_date_start,
+  null,
+);
+assert.equal(
+  gt01Metadata.actual_date_end,
+  null,
+);
+
+const gt01ValidationSummary =
+  repositoryA.listValidationSummaries(
+    gt01.job_id,
+  )[0];
+
+assert.equal(
+  gt01ValidationSummary.validation_json_path,
+  'fake-source/validation/GT01.validation.json',
+);
+
+const gt01ValidationDocument =
+  JSON.parse(
+    await fsp.readFile(
+      storage.resolveRunRelativePath(
+        mainRun.run.run_id,
+        gt01ValidationSummary
+          .validation_json_path,
+      ),
+      'utf8',
+    ),
+  );
+
+assert.equal(
+  gt01ValidationDocument.validation_id,
+  gt01ValidationSummary.validation_id,
+);
+assert.equal(
+  gt01ValidationDocument.artifact_id,
+  gt01.accepted_artifact_id,
+);
+assert.equal(
+  gt01ValidationDocument.findings.length,
+  1,
+);
+
+const gt02ValidationSummary =
+  repositoryA.listValidationSummaries(
+    finalGt02.job_id,
+  )[0];
+
+assert.equal(
+  gt02ValidationSummary.validation_json_path,
+  'fake-source/validation/GT02.attempt_2.validation.json',
+);
+
+assert.equal(
+  fs.existsSync(
+    storage.resolveRunRelativePath(
+      mainRun.run.run_id,
+      'fake-source/metadata/GT02.attempt_2.metadata.json',
+    ),
+  ),
+  true,
+);
+
 // Restart/resume scenario: isolate resume behavior from the
 // intentional retry fault used by the main vertical-slice scenario.
 fakeSource.setFailGt02Attempt1(false);
@@ -785,6 +894,12 @@ console.log(
 );
 console.log(
   'PASS SOURCE-GATE-002: deterministic fake source survives storage, validation, retry, and resume reconstruction',
+);
+console.log(
+  'PASS PIPELINE-002: dataset metadata JSON persists canonical provenance with unknown actual dates left null',
+);
+console.log(
+  'PASS PIPELINE-003: detailed validation JSON persists and SQLite stores its run-relative path',
 );
 };
 

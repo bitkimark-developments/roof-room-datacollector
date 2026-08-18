@@ -1766,6 +1766,105 @@ export class StateRepository {
     }
   }
 
+  setValidationJsonPath(
+    validationId: string,
+    validationJsonPath: string,
+  ): ValidationSummaryRecord {
+    if (
+      validationJsonPath.trim().length === 0 ||
+      validationJsonPath.startsWith('/') ||
+      validationJsonPath.includes('\\') ||
+      validationJsonPath.includes('\0') ||
+      validationJsonPath
+        .split('/')
+        .includes('..')
+    ) {
+      throw new Error(
+        'validation_json_path must be a safe run-relative portable path.',
+      );
+    }
+
+    this.database.exec('BEGIN IMMEDIATE');
+
+    try {
+      const rawValidation = this.database
+        .prepare(`
+          SELECT validation_json_path
+          FROM validations
+          WHERE validation_id = ?
+        `)
+        .get(validationId);
+
+      if (rawValidation === undefined) {
+        throw new Error(
+          `Unknown validation: ${validationId}`,
+        );
+      }
+
+      const validation = requireRecord(
+        rawValidation,
+        'validation',
+      );
+
+      const currentPath =
+        validation.validation_json_path;
+
+      if (
+        currentPath !== null &&
+        typeof currentPath !== 'string'
+      ) {
+        throw new Error(
+          'Persisted validation_json_path is invalid.',
+        );
+      }
+
+      if (
+        currentPath !== null &&
+        currentPath !== validationJsonPath
+      ) {
+        throw new Error(
+          `Validation ${validationId} already references a different JSON path.`,
+        );
+      }
+
+      if (currentPath === null) {
+        this.database
+          .prepare(`
+            UPDATE validations
+            SET validation_json_path = ?
+            WHERE validation_id = ?
+          `)
+          .run(
+            validationJsonPath,
+            validationId,
+          );
+      }
+
+      this.database.exec('COMMIT');
+
+      const updated =
+        this.getValidationSummary(
+          validationId,
+        );
+
+      if (!updated) {
+        throw new Error(
+          `Validation ${validationId} was not readable after JSON-path update.`,
+        );
+      }
+
+      return updated;
+    } catch (error: unknown) {
+      try {
+        this.database.exec('ROLLBACK');
+      } catch {
+        // Preserve the original persistence failure.
+      }
+
+      throw error;
+    }
+  }
+
   transitionJobExecution(
     jobId: string,
     nextStatus: ExecutionStatus,

@@ -20,6 +20,15 @@ import type {
   ValidationStatus,
 } from '../../shared/run-job';
 import type {
+  ValidationSummaryRecord,
+} from '../../shared/validation-summary';
+import {
+  createValidationDetailDocument,
+} from '../../shared/validation-detail';
+import {
+  MetadataManager,
+} from './metadata-manager';
+import type {
   SourceRegistry,
 } from './source-registry';
 import type {
@@ -59,7 +68,11 @@ export interface CollectionOrchestratorStateStore {
   ): ArtifactRecord;
   recordValidationSummary(
     input: ValidationSummaryInput,
-  ): unknown;
+  ): ValidationSummaryRecord;
+  setValidationJsonPath(
+    validationId: string,
+    validationJsonPath: string,
+  ): ValidationSummaryRecord;
   transitionJobExecution(
     jobId: string,
     nextStatus: ExecutionStatus,
@@ -83,6 +96,34 @@ export interface CollectionOrchestratorStorage {
     relative_path: string;
     absolute_path: string;
     media_type: string;
+    byte_size: number;
+    sha256: string;
+  }>;
+  persistMetadataJson(input: {
+    run_id: string;
+    source_id: string;
+    attempt_number: number;
+    document_key: string;
+    document: unknown;
+  }): Promise<{
+    filename: string;
+    relative_path: string;
+    absolute_path: string;
+    media_type: 'application/json';
+    byte_size: number;
+    sha256: string;
+  }>;
+  persistValidationJson(input: {
+    run_id: string;
+    source_id: string;
+    attempt_number: number;
+    document_key: string;
+    document: unknown;
+  }): Promise<{
+    filename: string;
+    relative_path: string;
+    absolute_path: string;
+    media_type: 'application/json';
     byte_size: number;
     sha256: string;
   }>;
@@ -158,6 +199,8 @@ export class CollectionOrchestrator {
     private readonly validator:
       CollectionValidator,
     private readonly runManager: RunManager,
+    private readonly metadataManager =
+      new MetadataManager(),
   ) {}
 
   async runNext(
@@ -553,21 +596,80 @@ export class CollectionOrchestrator {
           persisted.absolute_path,
       });
 
-    this.store.recordValidationSummary({
-      attempt_id: attempt.attempt_id,
-      artifact_id: artifact.artifact_id,
-      validation_status:
-        validation.validation_status,
-      checks_total:
-        validation.checks_total,
-      checks_passed:
-        validation.checks_passed,
-      checks_warning:
-        validation.checks_warning,
-      checks_failed:
-        validation.checks_failed,
-      validation_json_path: null,
-    });
+    const validationSummary =
+      this.store.recordValidationSummary({
+        attempt_id: attempt.attempt_id,
+        artifact_id: artifact.artifact_id,
+        validation_status:
+          validation.validation_status,
+        checks_total:
+          validation.checks_total,
+        checks_passed:
+          validation.checks_passed,
+        checks_warning:
+          validation.checks_warning,
+        checks_failed:
+          validation.checks_failed,
+        validation_json_path: null,
+      });
+
+    const validationDocument =
+      createValidationDetailDocument(
+        validationSummary,
+        validation.findings,
+      );
+
+    const persistedValidation =
+      await this.storage
+        .persistValidationJson({
+          run_id: runId,
+          source_id: job.source_id,
+          attempt_number:
+            attempt.attempt_number,
+          document_key: job.job_key,
+          document: validationDocument,
+        });
+
+    this.store.setValidationJsonPath(
+      validationSummary.validation_id,
+      persistedValidation.relative_path,
+    );
+
+    const queryGroup = getQueryGroup(
+      run,
+      job,
+    );
+
+    const metadataDocument =
+      this.metadataManager
+        .createDatasetMetadata({
+          run,
+          job: validatingJob,
+          attempt,
+          raw_artifact: artifact,
+          source: {
+            source_id: source.id,
+            source_name: source.name,
+            source_mode:
+              source.sourceMode,
+          },
+          query_group: queryGroup,
+          validation_status:
+            validation.validation_status,
+          actual_date_start: null,
+          actual_date_end: null,
+          country_name: null,
+        });
+
+    await this.storage
+      .persistMetadataJson({
+        run_id: runId,
+        source_id: job.source_id,
+        attempt_number:
+          attempt.attempt_number,
+        document_key: job.job_key,
+        document: metadataDocument,
+      });
 
     if (
       ACCEPTED_VALIDATION.has(
