@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `5024e66 fix: classify Google Trends date dialog errors`
+**Latest verified technical checkpoint:** `2fe1f70 feat: add Google Trends query diagnostics`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -24,6 +24,8 @@ main
 Latest verified checkpoint:
 
 ```text
+2fe1f70 feat: add Google Trends query diagnostics
+1d6d0a1 docs: reconcile M3 project handoff
 5024e66 fix: classify Google Trends date dialog errors
 9979d70 feat: add Google Trends UI stage diagnostics
 4ab8600 feat: add explicit live GT01 collection
@@ -46,13 +48,16 @@ e06c2e7 feat: connect Google Trends probe to browser manager
 86d4c51 feat: detect Google Trends rate limiting
 ```
 
-Verified code baseline before this handoff update:
+Verified committed technical baseline before this handoff update:
 
 ```text
-clean
+main
+2fe1f70 feat: add Google Trends query diagnostics
 ```
 
 The abandoned/unverified QUERY_GROUP `waitFor()` experiment was removed from the worktree before the baseline gate. It must not be treated as implemented or accepted behavior.
+
+The structured QUERY_GROUP diagnostics were implemented without changing selectors, waits, retries, refresh behavior, navigation, or other provider-facing behavior. No live GT01 request has been made after `2fe1f70`.
 
 Development environment currently verified:
 
@@ -167,7 +172,7 @@ The 2026-08-19 baseline verification reconfirmed all eight integrated M2 gate as
 
 # 5. Implemented M3 Google Trends Surfaces
 
-The following M3 slices are committed and were retained by the clean `5024e66` baseline:
+The following M3 slices are committed and retained by the verified `2fe1f70` baseline:
 
 ```text
 rate-limit detection
@@ -193,6 +198,7 @@ manual-action detection
 explicit live GT01 collection command
 safe configured-page stage diagnostics
 nested date-dialog UI error classification
+structured QUERY_GROUP control/count diagnostics
 ```
 
 The provider-facing workflow remains fail-closed. Critical controls do not use positional `.first()` / `.nth()` selection as a fallback.
@@ -243,6 +249,8 @@ Latest verified live result:
 ```
 
 No accepted GT01 artifact was produced by that live attempt.
+
+That live attempt predates `2fe1f70`. No live GT01 request has been made after the structured diagnostics were committed, so the previous failure cannot yet be assigned to an exact control or observed count.
 
 This proves only:
 
@@ -296,6 +304,25 @@ name="Add a search term"
 
 For structural controls, the adapter currently calls `count()` and requires exactly one match.
 
+At `2fe1f70`, exact-cardinality failures carry structured, allowlisted diagnostic context for:
+
+```text
+INITIAL_QUERY_INPUT
+ADD_COMPARISON
+EMPTY_COMPARISON_SLOT
+COMPARISON_QUERY_INPUT
+```
+
+The controlled diagnostic fields are:
+
+```text
+control
+observed_count
+query_index
+```
+
+Arbitrary provider text, query text, raw exception messages, HTML, cookies, authentication state, session material, and dynamic DOM IDs are not exposed by this diagnostic contract.
+
 The committed baseline does **not** contain the abandoned `locator.waitFor()` experiment.
 
 The Search Term suggestion is selected using Playwright click action with the existing bounded UI timeout; Playwright action waiting is distinct from the explicit cardinality checks above.
@@ -319,6 +346,7 @@ Collector UI-contract failures are converted into bounded diagnostics that expos
 ```text
 fixed stage
 known internal error class
+allowlisted QUERY_GROUP control/count/index context when available
 ```
 
 Raw provider text, arbitrary exception messages, HTML, cookies, authentication state, or session data must not be surfaced by the live CLI.
@@ -329,11 +357,17 @@ The date-dialog classifier gap found during M3 was fixed in:
 5024e66 fix: classify Google Trends date dialog errors
 ```
 
+The structured QUERY_GROUP diagnostic boundary was added in:
+
+```text
+2fe1f70 feat: add Google Trends query diagnostics
+```
+
 ---
 
 # 10. Verified Baseline Gate — 2026-08-19
 
-After removing the unverified `waitFor()` worktree experiment, the following passed from a clean `5024e66` baseline:
+The following deterministic checks passed against the `2fe1f70` implementation during the 2026-08-19 repository audit:
 
 ```text
 npm run lint
@@ -344,40 +378,51 @@ npm run test:m3:gt-ui-diagnostics
 npm run test:m3:gt-configured-export
 npm run test:m3:gt-collecting-source
 npm run test:m3:live-gt01-command
-npm run test:m3:gt-manual-action
-npm run test:m3:provider-state
 npm run test:m3:gt-runtime
 npm run test:m3:gt-runtime-package-config
+npm run test:m3:gt-csv
+npm run test:m3:gt-validator-adapter
+npm run test:m3:downloads
 
 npm run test:m2:gate
-npm run package
 ```
 
 Observed results:
 
 ```text
-GT-QUERY-001..006 PASS
+GT-QUERY-001..010 PASS
 GT-GEO-001..006 PASS
-GT-DIAG-001..004 PASS
+GT-DIAG-001..006 PASS
 GT-CONFIGURED-EXPORT-001..007 PASS
 GT-SOURCE-001..003 PASS
 GT-COLLECTOR-001..005 PASS
 GT-LIVE-GT01-CMD-001..004 PASS
-GT-MANUAL-001..006 PASS
-GT-PROVIDER-001..006 PASS
 GT-RUNTIME-001..005 PASS
 GT-PACKAGE-001 PASS
+GT-PARSE-001..004 PASS
+GT-DATE-001..002 PASS
+GT-VAL-001..007 PASS
+GT-ADAPTER-001..007 PASS
+DOWNLOAD-001..006 PASS
 M2-GATE-001..008 PASS
+```
+
+The preceding clean `5024e66` baseline also verified these deterministic/runtime gates, and that evidence remains recorded:
+
+```text
+GT-MANUAL-001..006 PASS
+GT-PROVIDER-001..006 PASS
 Electron Forge package PASS on darwin arm64
 ```
 
+The current generated package artifact was inspected during the repository audit and contains the structured QUERY_GROUP diagnostic implementation. The full `npm run package` command was not rerun during that read-only audit.
+
 The Vite CJS Node API deprecation message remains a warning only; it is not currently a failing gate.
 
-Final verified Git state after this gate:
+Verified committed technical checkpoint:
 
 ```text
-## main
-5024e66 fix: classify Google Trends date dialog errors
+2fe1f70 feat: add Google Trends query diagnostics
 ```
 
 ---
@@ -454,6 +499,17 @@ StorageManager / CollectionOrchestrator
 
 The source-level live GT01 command currently proves the provider-facing collection boundary. It does not by itself prove the full run/job/attempt/orchestrator persistence vertical slice.
 
+Current open M3 storage integration issue:
+
+```text
+provider downloads are persisted first to the user-visible Downloads area
+the verified bytes are then returned for later canonical run-scoped persistence
+the live GT01 CLI calls the real source directly
+the live GT01 CLI does not yet use CollectionOrchestrator / StorageManager / SQLite
+```
+
+Therefore a source-level live artifact may currently have its only durable copy in Downloads. Downloads is an intentional user-visible preservation area, but it must not be treated as the intended authoritative application datastore. Canonical application state and raw run evidence belong under the application-owned run/storage boundary. Existing provider evidence must not be deleted, moved, or rewritten until its provenance and canonical relationship are inspected.
+
 After a source-level GT01 artifact becomes trustworthy, the next architectural M3 slice must run the real Google Trends source through the existing CollectionOrchestrator so real evidence includes:
 
 ```text
@@ -477,8 +533,10 @@ M3 must not be declared complete before this integration is proven.
 Current blocking issue:
 
 ```text
-GT01 live collection fails during QUERY_GROUP with
-GoogleTrendsQueryGroupUiContractError.
+the previous live GT01 attempt failed during QUERY_GROUP with
+GoogleTrendsQueryGroupUiContractError
+the attempt predates the structured diagnostics in 2fe1f70
+the exact control and observed count are therefore still unknown
 ```
 
 Unknown within that stage:
@@ -506,58 +564,24 @@ release browser-binary distribution / fresh-install hardening until M7
 
 Do **not** change provider behavior yet.
 
-Implement one diagnostic-only QUERY_GROUP slice whose purpose is to identify the exact failing structural guard without leaking arbitrary provider data.
+The structured QUERY_GROUP diagnostic slice is already implemented, deterministically verified, committed, and present in `2fe1f70`.
 
-Preferred diagnostic contract:
-
-```text
-QUERY_GROUP control identifiers:
-INITIAL_QUERY_INPUT
-ADD_COMPARISON
-EMPTY_COMPARISON_SLOT
-```
-
-For exact-cardinality failures, expose only controlled fields such as:
+The exact next technical action is:
 
 ```text
-control
-observed_count
-query_index where relevant
+make exactly one explicitly approved live GT01 collection
+using the existing 2fe1f70 implementation
 ```
 
-Requirements:
+Before that live evidence, do not make any provider-behavior change:
 
 ```text
 no selector changes
-no waitFor/sleep addition
-no refresh
+no waitFor/sleep changes
 no retry
-no live-provider request during implementation
-no raw provider text/HTML
-no query text in diagnostics
-no cookie/session/auth material
-no dynamic DOM IDs
-```
-
-Implementation should preserve `GoogleTrendsQueryGroupUiContractError` as the known error family, but give it structured, allowlisted diagnostic context rather than parsing arbitrary error messages.
-
-Add deterministic tests proving at minimum:
-
-```text
-missing initial query input → INITIAL_QUERY_INPUT + observed_count=0
-ambiguous initial query input → INITIAL_QUERY_INPUT + observed_count=2
-missing/ambiguous comparison add control reports ADD_COMPARISON
-missing/ambiguous empty slot reports EMPTY_COMPARISON_SLOT
-live summary exposes only the allowlisted QUERY_GROUP diagnostic grammar
-arbitrary underlying messages remain suppressed
-```
-
-Run deterministic regressions and production package first.
-
-Only after that slice is committed and the tree is clean:
-
-```text
-make exactly one explicit live GT01 attempt
+no refresh
+no navigation changes
+no other provider-behavior changes
 ```
 
 Interpret the resulting evidence:
@@ -580,9 +604,7 @@ Do not revive the abandoned `waitFor()` experiment unless live evidence later ju
 # 16. M3 Success Sequence From Here
 
 ```text
-clean verified baseline
-↓
-diagnostic-only QUERY_GROUP substage evidence
+verified 2fe1f70 diagnostic baseline
 ↓
 one explicit live GT01 attempt
 ↓
