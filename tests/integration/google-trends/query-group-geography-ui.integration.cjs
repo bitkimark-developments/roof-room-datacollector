@@ -420,6 +420,12 @@ class FakeGeographyPage {
     );
 
     this.picker.setRoleChild(
+      'button',
+      'Türkiye',
+      this.opener,
+    );
+
+    this.picker.setRoleChild(
       'searchbox',
       undefined,
       this.searchbox,
@@ -1453,6 +1459,25 @@ const main = async () => {
 
   console.log(
     'PASS GT-GEO-007: geography opener, search input, and Türkiye result failures expose structured allowlisted cardinality evidence',
+  );
+
+  assert.equal(
+    geographyPage.trace.some(
+      (entry) =>
+        entry.op ===
+          'locator.getByRole' &&
+        entry.locator ===
+          'geo-picker' &&
+        entry.role ===
+          'button' &&
+        entry.options?.name ===
+          'Türkiye',
+    ),
+    true,
+  );
+
+  console.log(
+    'PASS GT-GEO-008: post-selection verification waits on the expected Türkiye-labelled picker button instead of reading the stale generic opener state',
   );
 };
 

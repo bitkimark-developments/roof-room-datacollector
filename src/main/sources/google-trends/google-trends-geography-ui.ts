@@ -265,9 +265,18 @@ export const applyGoogleTrendsTurkeyGeography =
         }),
     );
 
+    const appliedOpener =
+      geographyPicker.getByRole(
+        'button',
+        {
+          name:
+            TURKEY_PROVIDER_LABEL,
+        },
+      );
+
     const appliedLabel =
       await readTrimmedText(
-        opener,
+        appliedOpener,
         timeout,
         GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
           .APPLIED_GEOGRAPHY_LABEL,
