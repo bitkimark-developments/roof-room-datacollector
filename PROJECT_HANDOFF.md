@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `e1539dd feat: persist validated source metadata`
+**Latest verified technical checkpoint:** `3142606 fix: route provider downloads through Core`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -19,6 +19,8 @@ Branch and latest verified checkpoints:
 
 ```text
 main
+3142606 fix: route provider downloads through Core
+f14440f docs: record validated metadata checkpoint
 e1539dd feat: persist validated source metadata
 339d287 docs: record live GT01 rate limit
 cf56053 fix: detect Google Trends interaction rate limits
@@ -165,8 +167,7 @@ Committed M3 surfaces include:
 rate-limit and manual-action detection
 provider probe and app-owned BrowserManager integration
 explicit guarded live commands
-public provider-download preservation
-managed browser download capture
+managed browser byte-stream download capture
 real Interest Over Time CSV parser and validator
 CollectionValidator adapter
 Interest Over Time card-scoped download selection
@@ -185,6 +186,8 @@ bounded Core persistence and validation summary in live command output
 same-origin HTTP 429 observation across provider UI interaction
 source-validated actual date coverage and canonical country-name provenance
 fail-closed metadata validation before candidate-artifact promotion
+collection ingress that does not write a pre-Core Downloads copy
+reserved user-visible export path excluded from eager application-state creation
 ```
 
 Provider-facing behavior remains fail-closed. Critical controls do not fall back to positional `.first()` / `.nth()` selection.
@@ -389,7 +392,7 @@ Google Trends 0–100 values are relative interest only. They must never be conv
 
 # 10. Verified Deterministic Gate — 2026-08-19
 
-The complete deterministic M3 surface, integrated M2 gate, lint, TypeScript, and package were rerun after `42ebbe9`.
+The complete deterministic M3 surface, integrated M2 gate, lint, TypeScript, and package were rerun after `3142606`.
 
 Current verified ranges:
 
@@ -398,12 +401,11 @@ GT-PROVIDER-001..006 PASS
 GT-PROBE-001..007 PASS
 GT-BROWSER-PROBE-001..006 PASS
 GT-LIVE-CMD-001..004 PASS
-DOWNLOAD-001..006 PASS
 GT-PARSE-001..004 PASS
 GT-DATE-001..002 PASS
 GT-VAL-001..008 PASS
 GT-ADAPTER-001..007 PASS
-BROWSER-DOWNLOAD-001..006 PASS
+BROWSER-DOWNLOAD-001..007 PASS
 GT-DOWNLOAD-001..007 PASS
 GT-DATE-DIALOG-001..009 PASS
 GT-DATE-RANGE-001..008 PASS
@@ -412,7 +414,7 @@ GT-GEO-001..008 PASS
 GT-FILTER-001..007 PASS
 GT-CONFIGURED-EXPORT-001..007 PASS
 GT-SOURCE-001..003 PASS
-GT-COLLECTOR-001..008 PASS
+GT-COLLECTOR-001..009 PASS
 GT-RUNTIME-001..005 PASS
 GT-PACKAGE-001 PASS
 GT-MANUAL-001..006 PASS
@@ -422,6 +424,7 @@ GT-DIAG-001..008 PASS
 GT-LIVE-QUERY-DIAG-CMD-001..003 PASS
 M2-GATE-001..008 PASS
 PIPELINE-001..004 PASS
+STORAGE-BOUNDARY-001..002 PASS
 ```
 
 Also verified:
@@ -433,7 +436,7 @@ npm run package PASS on darwin/arm64
 git diff --check PASS before each checkpoint
 ```
 
-After `97f0afb`, the affected storage/source/runtime/validator/manual-action suites, the sequential orchestrator suite, the integrated M2 gate, lint, TypeScript, and packaging were rerun successfully. After `cf56053`, provider-state/probe, collector, UI-diagnostic, live-command, Core-runner, BrowserManager, lint, TypeScript, and darwin/arm64 packaging checks also passed. After `e1539dd`, the Google Trends CSV validator, CollectionValidator adapter, Core persistence runner, sequential orchestrator, integrated M2 gate, lint, TypeScript, and darwin/arm64 packaging checks passed. The first package attempt was blocked only by sandboxed `github.com` DNS access; the same package command passed with network access.
+After `97f0afb`, the affected storage/source/runtime/validator/manual-action suites, the sequential orchestrator suite, the integrated M2 gate, lint, TypeScript, and packaging were rerun successfully. After `cf56053`, provider-state/probe, collector, UI-diagnostic, live-command, Core-runner, BrowserManager, lint, TypeScript, and darwin/arm64 packaging checks also passed. After `e1539dd`, the Google Trends CSV validator, CollectionValidator adapter, Core persistence runner, sequential orchestrator, integrated M2 gate, lint, TypeScript, and darwin/arm64 packaging checks passed. After `3142606`, the full deterministic M3 surface, sequential orchestrator, integrated M2 gate, storage-boundary tests, lint, TypeScript, and darwin/arm64 packaging checks passed. The first package attempt was blocked only by sandboxed `github.com` DNS access; the same package command passed with network access.
 
 The Vite CJS Node API deprecation message remains a non-failing warning.
 
@@ -465,14 +468,17 @@ invalid source metadata fails before a candidate artifact can be accepted
 
 # 12. Storage Boundary and Remaining Live Proof
 
-Two persistence concerns currently exist:
+Collection and user-visible export storage are now separated:
 
 ```text
-PersistentDownloadStore
-→ preserves provider downloads under the user-visible Downloads tree
+provider browser download stream
+→ captured as exact byte evidence without a public copy
+→ returned by GoogleTrendsSource to CollectionOrchestrator
+→ persisted by StorageManager as run-scoped candidate raw evidence
 
-StorageManager / CollectionOrchestrator
-→ owns intended canonical run-scoped raw artifacts and audit evidence
+reserved public_downloads path
+→ downstream user-visible export destination only
+→ not eagerly created as application runtime state
 ```
 
 The implemented GT01 live command now follows this evidence path:
@@ -487,18 +493,9 @@ real GoogleTrendsSource
 → metadata JSON + validation JSON + structured run log
 ```
 
-This path is deterministically verified by `GT-CORE-001..011` for accepted data, source failure, manual action, rejected non-data content, validated actual-date/country metadata, and fail-closed metadata checks. It is restricted to exactly one GT01 group and does not add provider retry, refresh, navigation, selector, or timing behavior.
+This path is deterministically verified by `GT-CORE-001..011` for accepted data, source failure, manual action, rejected non-data content, validated actual-date/country metadata, and fail-closed metadata checks. `BROWSER-DOWNLOAD-001..007`, `GT-DOWNLOAD-001..007`, and `STORAGE-BOUNDARY-001..002` verify direct byte capture, typed download failure, no pre-Core Downloads write, and no eager public-directory creation. The path is restricted to exactly one GT01 group and does not add provider retry, refresh, navigation, selector, or timing behavior.
 
-One storage-order issue remains open:
-
-```text
-the browser download is first preserved as an intentional user-visible copy under Downloads
-the verified bytes are then returned to Core for run-scoped persistence and validation
-```
-
-Downloads is not the authoritative application datastore. Only an accepted artifact linked through the application-owned run/job/attempt/validation chain is canonical. A rejected run-scoped artifact remains immutable audit evidence but is not canonical data.
-
-The Core boundary itself does not depend on Downloads; `GT-CORE-005` proves that supplied source bytes can be persisted and accepted while the public-download directory remains empty. The current Google Trends UI source still creates its intentional public copy before returning those bytes.
+Downloads is not the authoritative application datastore. Only an accepted artifact linked through the application-owned run/job/attempt/validation chain is canonical. A rejected run-scoped artifact remains immutable audit evidence but is not canonical data. User-visible CSV/XLSX packages remain a downstream ExportManager responsibility and may consume only validated accepted artifacts.
 
 Do not delete, move, or rewrite existing provider evidence. First inventory provenance and determine whether another canonical copy exists. Developer helper files in Downloads are not application state.
 
@@ -513,7 +510,6 @@ metadata JSON
 validation JSON
 validation status
 SQLite state
-public provider copy
 ```
 
 The `cf56053` live attempt proves that a real provider failure traverses Core into durable run/job/attempt/log evidence. No real artifact has yet traversed the integrated persistence/validation path, so M3 is not complete.
@@ -538,7 +534,7 @@ Exact next provider action:
 stop live provider work
 make no further Google Trends request while the restriction may remain active
 do not refresh, retry, or evade the restriction
-after a deliberate later pause and only when a new controlled run is justified, run at most one GT01 collection from e1539dd or a later deterministically verified checkpoint
+after a deliberate later pause and only when a new controlled run is justified, run at most one GT01 collection from 3142606 or a later deterministically verified checkpoint
 ```
 
 Interpret that run as follows:
@@ -596,7 +592,7 @@ do not refresh or immediately retry
 # 15. M3 Success Sequence
 
 ```text
-current deterministic e1539dd Core-integrated, interaction-429-aware, source-metadata-aware baseline
+current deterministic 3142606 Core-integrated, interaction-429-aware, source-metadata-aware, Core-owned-storage baseline
 ↓
 wait for provider restriction to clear without refresh/retry/evasion
 ↓
