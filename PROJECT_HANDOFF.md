@@ -450,7 +450,7 @@ Google Trends 0–100 values are relative interest only. They must never be conv
 
 # 10. Verified Deterministic Gate — 2026-08-19
 
-The complete deterministic M3 surface, integrated M2 gate, lint, TypeScript, and package were rerun after `3142606`.
+The complete deterministic M3 surface, integrated M2 gate, sequential orchestrator regression, lint, TypeScript, and package were rerun from the current `087a2ba` technical baseline after the `c01f4eb` handoff reconciliation.
 
 Current verified ranges:
 
@@ -496,7 +496,7 @@ git diff --check PASS before each checkpoint
 
 After `97f0afb`, the affected storage/source/runtime/validator/manual-action suites, the sequential orchestrator suite, the integrated M2 gate, lint, TypeScript, and packaging were rerun successfully. After `cf56053`, provider-state/probe, collector, UI-diagnostic, live-command, Core-runner, BrowserManager, lint, TypeScript, and darwin/arm64 packaging checks also passed. After `e1539dd`, the Google Trends CSV validator, CollectionValidator adapter, Core persistence runner, sequential orchestrator, integrated M2 gate, lint, TypeScript, and darwin/arm64 packaging checks passed. After `3142606`, the full deterministic M3 surface, sequential orchestrator, integrated M2 gate, storage-boundary tests, lint, TypeScript, and darwin/arm64 packaging checks passed. The first package attempt was blocked only by sandboxed `github.com` DNS access; the same package command passed with network access.
 
-After `0f217fa`, the custom-date-dialog, custom-date-range, UI-diagnostic, and collecting-source suites, lint, and TypeScript passed. After `50fd156` and `087a2ba`, the live-query-diagnostic command suite passed through `GT-LIVE-QUERY-DIAG-CMD-005`; the collecting-source suite, lint, TypeScript, and `git diff --check` also passed. No later checkpoint claims a full package rerun; the latest full M3/M2/package gate remains the verified `3142606` baseline plus these affected-suite checks.
+After `0f217fa`, the custom-date-dialog, custom-date-range, UI-diagnostic, and collecting-source suites, lint, and TypeScript passed. After `50fd156` and `087a2ba`, the live-query-diagnostic command suite passed through `GT-LIVE-QUERY-DIAG-CMD-005`; the collecting-source suite, lint, TypeScript, and `git diff --check` also passed. The subsequent full rerun passed every current deterministic `test:m3:*` command, the integrated M2 gate, the sequential orchestrator regression, lint, `npx tsc --noEmit`, and `npm run package` for `darwin/arm64`.
 
 The Vite CJS Node API deprecation message remains a non-failing warning.
 
