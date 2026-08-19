@@ -13,6 +13,18 @@ const INTEREST_OVER_TIME_HEADING =
 const DOWNLOAD_ACCESSIBLE_NAME =
   'file_download';
 
+const DOWNLOAD_ACCESSIBLE_NAME_DOWNLOAD =
+  'Download';
+
+const DOWNLOAD_ACCESSIBLE_NAME_CSV =
+  'CSV';
+
+const TIMESERIES_WIDGET_SELECTOR =
+  '[widget-name="TIMESERIES"]';
+
+const EXPORT_CONTROL_SELECTOR =
+  'button.widget-actions-item.export';
+
 const DEFAULT_UI_ACTION_TIMEOUT_MS =
   30_000;
 
@@ -27,6 +39,41 @@ export type GoogleTrendsDownloadDiagnosticControl =
   (typeof GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS)[
     keyof typeof GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
   ];
+
+export const GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS = {
+  HEADING_PARENT_FILE_DOWNLOAD:
+    'HEADING_PARENT_FILE_DOWNLOAD',
+  TIMESERIES_FILE_DOWNLOAD:
+    'TIMESERIES_FILE_DOWNLOAD',
+  TIMESERIES_DOWNLOAD:
+    'TIMESERIES_DOWNLOAD',
+  TIMESERIES_CSV:
+    'TIMESERIES_CSV',
+  TIMESERIES_EXPORT_CONTROL:
+    'TIMESERIES_EXPORT_CONTROL',
+} as const;
+
+export type GoogleTrendsDownloadStrategyId =
+  (typeof GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS)[
+    keyof typeof GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+  ];
+
+export interface GoogleTrendsDownloadStrategyAssessment {
+  strategy_id:
+    GoogleTrendsDownloadStrategyId;
+  anchor_count: number;
+  control_count: number;
+  ready: boolean;
+}
+
+export interface GoogleTrendsDownloadReadiness {
+  assessments:
+    readonly GoogleTrendsDownloadStrategyAssessment[];
+  successful_strategy_ids:
+    readonly GoogleTrendsDownloadStrategyId[];
+  selected_strategy_id:
+    GoogleTrendsDownloadStrategyId | null;
+}
 
 export interface GoogleTrendsDownloadDiagnosticContext {
   control:
@@ -60,6 +107,15 @@ export interface DownloadGoogleTrendsInterestOverTimeInput {
   ui_action_timeout_ms?: number;
 }
 
+interface GoogleTrendsDownloadStrategyCandidate {
+  strategy_id:
+    GoogleTrendsDownloadStrategyId;
+  anchor:
+    ManagedBrowserLocator;
+  control:
+    ManagedBrowserLocator;
+}
+
 const requirePositiveTimeout = (
   value: number | undefined,
   fallback: number,
@@ -81,72 +137,283 @@ const requirePositiveTimeout = (
   return value;
 };
 
-const requireExactlyOne = async (
-  locator: ManagedBrowserLocator,
-  description: string,
-  control:
-    GoogleTrendsDownloadDiagnosticControl,
-): Promise<void> => {
-  const count =
-    await locator.count();
-
-  if (count !== 1) {
-    throw new GoogleTrendsUiContractError(
-      `Expected exactly one ${description}; found ${count}.`,
+const createStrategyCandidates = (
+  page: ManagedBrowserPage,
+): readonly GoogleTrendsDownloadStrategyCandidate[] => {
+  const heading =
+    page.getByText(
+      INTEREST_OVER_TIME_HEADING,
       {
-        control,
-        observed_count:
-          count,
+        exact: true,
       },
     );
-  }
+
+  const headingParent =
+    heading.locator('..');
+
+  const timeseriesWidget =
+    page.locator(
+      TIMESERIES_WIDGET_SELECTOR,
+    );
+
+  return [
+    {
+      strategy_id:
+        GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+          .TIMESERIES_FILE_DOWNLOAD,
+      anchor:
+        timeseriesWidget,
+      control:
+        timeseriesWidget.getByRole(
+          'button',
+          {
+            name:
+              DOWNLOAD_ACCESSIBLE_NAME,
+          },
+        ),
+    },
+    {
+      strategy_id:
+        GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+          .TIMESERIES_DOWNLOAD,
+      anchor:
+        timeseriesWidget,
+      control:
+        timeseriesWidget.getByRole(
+          'button',
+          {
+            name:
+              DOWNLOAD_ACCESSIBLE_NAME_DOWNLOAD,
+          },
+        ),
+    },
+    {
+      strategy_id:
+        GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+          .TIMESERIES_CSV,
+      anchor:
+        timeseriesWidget,
+      control:
+        timeseriesWidget.getByRole(
+          'button',
+          {
+            name:
+              DOWNLOAD_ACCESSIBLE_NAME_CSV,
+          },
+        ),
+    },
+    {
+      strategy_id:
+        GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+          .TIMESERIES_EXPORT_CONTROL,
+      anchor:
+        timeseriesWidget,
+      control:
+        timeseriesWidget.locator(
+          EXPORT_CONTROL_SELECTOR,
+        ),
+    },
+    {
+      strategy_id:
+        GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+          .HEADING_PARENT_FILE_DOWNLOAD,
+      anchor:
+        heading,
+      control:
+        headingParent.getByRole(
+          'button',
+          {
+            name:
+              DOWNLOAD_ACCESSIBLE_NAME,
+          },
+        ),
+    },
+  ];
 };
 
-const waitForExactlyOne = async (
-  locator: ManagedBrowserLocator,
-  description: string,
-  timeout: number,
-  control:
-    GoogleTrendsDownloadDiagnosticControl,
-): Promise<void> => {
-  const initialCount =
-    await locator.count();
+const assessStrategyCandidates = async (
+  candidates:
+    readonly GoogleTrendsDownloadStrategyCandidate[],
+): Promise<GoogleTrendsDownloadStrategyAssessment[]> =>
+  Promise.all(
+    candidates.map(
+      async (candidate) => {
+        const [
+          anchorCount,
+          controlCount,
+        ] = await Promise.all([
+          candidate.anchor.count(),
+          candidate.control.count(),
+        ]);
 
-  if (initialCount > 1) {
-    throw new GoogleTrendsUiContractError(
-      `Expected at most one ${description} while waiting for it to become available; found ${initialCount}.`,
-      {
-        control,
-        observed_count:
-          initialCount,
+        return {
+          strategy_id:
+            candidate.strategy_id,
+          anchor_count:
+            anchorCount,
+          control_count:
+            controlCount,
+          ready:
+            anchorCount === 1 &&
+            controlCount === 1,
+        };
       },
-    );
-  }
+    ),
+  );
 
-  if (initialCount === 0) {
-    try {
-      await locator.innerText({
-        timeout,
-      });
-    } catch {
-      const finalCount =
-        await locator.count();
-
-      throw new GoogleTrendsUiContractError(
-        `Download control readiness failed with ${finalCount} matching controls.`,
-        {
-          control,
-          observed_count:
-            finalCount,
-        },
+const readinessFromAssessments = (
+  assessments:
+    readonly GoogleTrendsDownloadStrategyAssessment[],
+): GoogleTrendsDownloadReadiness => {
+  const successfulStrategyIds =
+    assessments
+      .filter(
+        (assessment) =>
+          assessment.ready,
+      )
+      .map(
+        (assessment) =>
+          assessment.strategy_id,
       );
+
+  return {
+    assessments,
+    successful_strategy_ids:
+      successfulStrategyIds,
+    selected_strategy_id:
+      successfulStrategyIds[0] ??
+      null,
+  };
+};
+
+/**
+ * Evaluates every bounded Interest over time download strategy before
+ * selecting one. The strategy order is deliberate:
+ *
+ * 1. prefer the semantic TIMESERIES dataset boundary;
+ * 2. prefer accessible button names inside that card;
+ * 3. retain the provider's card-scoped export class;
+ * 4. preserve the previously live-proven exact-heading contract as a
+ *    bounded compatibility path.
+ *
+ * No strategy clicks, navigates, refreshes, retries, or downloads.
+ */
+export const inspectGoogleTrendsInterestOverTimeDownloadReadiness =
+  async (
+    input:
+      DownloadGoogleTrendsInterestOverTimeInput,
+  ): Promise<GoogleTrendsDownloadReadiness> => {
+    const uiActionTimeout =
+      requirePositiveTimeout(
+        input.ui_action_timeout_ms,
+        DEFAULT_UI_ACTION_TIMEOUT_MS,
+        'ui_action_timeout_ms',
+      );
+
+    const candidates =
+      createStrategyCandidates(
+        input.page,
+      );
+
+    let assessments =
+      await assessStrategyCandidates(
+        candidates,
+      );
+
+    if (
+      !assessments.some(
+        (assessment) =>
+          assessment.ready,
+      )
+    ) {
+      try {
+        await Promise.any(
+          candidates.map(
+            (candidate) =>
+              candidate.control.innerText({
+                timeout:
+                  uiActionTimeout,
+              }),
+          ),
+        );
+      } catch {
+        // The final assessment below is the stable diagnostic. A
+        // readiness timeout never authorizes a click or fallback.
+      }
+
+      assessments =
+        await assessStrategyCandidates(
+          candidates,
+        );
+    }
+
+    return readinessFromAssessments(
+      assessments,
+    );
+  };
+
+const requireSelectedStrategy = (
+  candidates:
+    readonly GoogleTrendsDownloadStrategyCandidate[],
+  readiness:
+    GoogleTrendsDownloadReadiness,
+): GoogleTrendsDownloadStrategyCandidate => {
+  if (
+    readiness.selected_strategy_id !==
+    null
+  ) {
+    const selected =
+      candidates.find(
+        (candidate) =>
+          candidate.strategy_id ===
+          readiness.selected_strategy_id,
+      );
+
+    if (selected !== undefined) {
+      return selected;
     }
   }
 
-  await requireExactlyOne(
-    locator,
-    description,
-    control,
+  const maximumAnchorCount =
+    Math.max(
+      0,
+      ...readiness.assessments.map(
+        (assessment) =>
+          assessment.anchor_count,
+      ),
+    );
+
+  if (maximumAnchorCount === 0) {
+    throw new GoogleTrendsUiContractError(
+      'Interest over time heading/card readiness failed for every bounded semantic strategy.',
+      {
+        control:
+          GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
+            .INTEREST_OVER_TIME_HEADING,
+        observed_count:
+          0,
+      },
+    );
+  }
+
+  const maximumControlCount =
+    Math.max(
+      0,
+      ...readiness.assessments.map(
+        (assessment) =>
+          assessment.control_count,
+      ),
+    );
+
+  throw new GoogleTrendsUiContractError(
+    'Interest over time card was present but every bounded card-scoped download button strategy failed.',
+    {
+      control:
+        GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
+          .DOWNLOAD_BUTTON,
+      observed_count:
+        maximumControlCount,
+    },
   );
 };
 
@@ -178,48 +445,31 @@ export const downloadGoogleTrendsInterestOverTime =
         'ui_action_timeout_ms',
       );
 
-    const heading =
-      input.page.getByText(
-        INTEREST_OVER_TIME_HEADING,
-        {
-          exact: true,
-        },
+    const candidates =
+      createStrategyCandidates(
+        input.page,
       );
 
-    await waitForExactlyOne(
-      heading,
-      '"Interest over time" heading',
-      uiActionTimeout,
-      GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
-        .INTEREST_OVER_TIME_HEADING,
-    );
+    const readiness =
+      await inspectGoogleTrendsInterestOverTimeDownloadReadiness({
+        page:
+          input.page,
+        ui_action_timeout_ms:
+          uiActionTimeout,
+      });
 
-    const cardHeader =
-      heading.locator('..');
-
-    const downloadButton =
-      cardHeader.getByRole(
-        'button',
-        {
-          name:
-            DOWNLOAD_ACCESSIBLE_NAME,
-        },
+    const selected =
+      requireSelectedStrategy(
+        candidates,
+        readiness,
       );
-
-    await waitForExactlyOne(
-      downloadButton,
-      '"Interest over time" download button',
-      uiActionTimeout,
-      GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
-        .DOWNLOAD_BUTTON,
-    );
 
     return captureBrowserDownload({
       page:
         input.page,
       trigger_download:
         () =>
-          downloadButton.click({
+          selected.control.click({
             timeout:
               uiActionTimeout,
           }),

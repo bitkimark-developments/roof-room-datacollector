@@ -21,8 +21,10 @@ if (!buildRoot) {
 
 const {
   GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS,
+  GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS,
   downloadGoogleTrendsInterestOverTime,
   GoogleTrendsUiContractError,
+  inspectGoogleTrendsInterestOverTimeDownloadReadiness,
 } = require(
   path.join(
     buildRoot,
@@ -71,12 +73,15 @@ class FakeLocator {
     name,
     count = 1,
     readyAfterInnerText = false,
+    onInnerText = null,
     trace,
   }) {
     this.name = name;
     this.countValue = count;
     this.readyAfterInnerText =
       readyAfterInnerText;
+    this.onInnerText =
+      onInnerText;
     this.trace = trace;
     this.children =
       new Map();
@@ -103,6 +108,14 @@ class FakeLocator {
 
     if (this.readyAfterInnerText) {
       this.countValue = 1;
+    }
+
+    this.onInnerText?.();
+
+    if (this.countValue !== 1) {
+      throw new Error(
+        `Locator ${this.name} is not exactly-one ready.`,
+      );
     }
 
     return this.name;
@@ -194,9 +207,14 @@ class FakeLocator {
 class FakePage {
   constructor({
     headingCount = 1,
-    downloadButtonCount = 1,
-    headingReadyAfterInnerText = false,
+    downloadButtonCount,
     downloadButtonReadyAfterInnerText = false,
+    headingReadyAfterControl = false,
+    timeseriesCount = 0,
+    timeseriesFileDownloadCount = 0,
+    timeseriesDownloadCount = 0,
+    timeseriesCsvCount = 0,
+    timeseriesExportCount = 0,
   } = {}) {
     this.trace = [];
     this.download =
@@ -208,8 +226,6 @@ class FakePage {
           'interest-heading',
         count:
           headingCount,
-        readyAfterInnerText:
-          headingReadyAfterInnerText,
         trace:
           this.trace,
       });
@@ -227,9 +243,69 @@ class FakePage {
         name:
           'interest-download-button',
         count:
-          downloadButtonCount,
+          downloadButtonCount ??
+          (headingCount === 1
+            ? 1
+            : 0),
         readyAfterInnerText:
           downloadButtonReadyAfterInnerText,
+        onInnerText:
+          headingReadyAfterControl
+            ? () => {
+                this.heading.countValue = 1;
+                this.downloadButton.countValue = 1;
+              }
+            : null,
+        trace:
+          this.trace,
+      });
+
+    this.timeseriesWidget =
+      new FakeLocator({
+        name:
+          'timeseries-widget',
+        count:
+          timeseriesCount,
+        trace:
+          this.trace,
+      });
+
+    this.timeseriesFileDownload =
+      new FakeLocator({
+        name:
+          'timeseries-file-download',
+        count:
+          timeseriesFileDownloadCount,
+        trace:
+          this.trace,
+      });
+
+    this.timeseriesDownload =
+      new FakeLocator({
+        name:
+          'timeseries-download',
+        count:
+          timeseriesDownloadCount,
+        trace:
+          this.trace,
+      });
+
+    this.timeseriesCsv =
+      new FakeLocator({
+        name:
+          'timeseries-csv',
+        count:
+          timeseriesCsvCount,
+        trace:
+          this.trace,
+      });
+
+    this.timeseriesExport =
+      new FakeLocator({
+        name:
+          'timeseries-export',
+        count:
+          timeseriesExportCount,
         trace:
           this.trace,
       });
@@ -243,6 +319,26 @@ class FakePage {
       'role:button:file_download',
       this.downloadButton,
     );
+
+    this.timeseriesWidget.setChild(
+      'role:button:file_download',
+      this.timeseriesFileDownload,
+    );
+
+    this.timeseriesWidget.setChild(
+      'role:button:Download',
+      this.timeseriesDownload,
+    );
+
+    this.timeseriesWidget.setChild(
+      'role:button:CSV',
+      this.timeseriesCsv,
+    );
+
+    this.timeseriesWidget.setChild(
+      'locator:button.widget-actions-item.export',
+      this.timeseriesExport,
+    );
   }
 
   async goto() {
@@ -253,10 +349,19 @@ class FakePage {
     return 'Google Trends';
   }
 
-  locator() {
-    throw new Error(
-      'page.locator must not be used by this selector contract',
+  locator(selector) {
+    this.trace.push({
+      op:
+        'page.locator',
+      selector,
+    });
+
+    assert.equal(
+      selector,
+      '[widget-name="TIMESERIES"]',
     );
+
+    return this.timeseriesWidget;
   }
 
   getByRole() {
@@ -522,7 +627,7 @@ const main = async () => {
     new FakePage({
       headingCount:
         0,
-      headingReadyAfterInnerText:
+      headingReadyAfterControl:
         true,
     });
 
@@ -539,13 +644,13 @@ const main = async () => {
         entry.op ===
           'innerText' &&
         entry.locator ===
-          'interest-heading',
+          'interest-download-button',
     ),
     {
       op:
         'innerText',
       locator:
-        'interest-heading',
+        'interest-download-button',
       options: {
         timeout:
           7_000,
@@ -554,7 +659,7 @@ const main = async () => {
   );
 
   console.log(
-    'PASS GT-DOWNLOAD-008: an asynchronously rendered Interest over time heading uses the existing bounded UI timeout instead of failing on an immediate zero count',
+    'PASS GT-DOWNLOAD-008: an asynchronously rendered heading/control pair uses the existing bounded UI timeout instead of failing on an immediate zero count',
   );
 
   const asyncButtonPage =
@@ -600,7 +705,7 @@ const main = async () => {
     new FakePage({
       headingCount:
         0,
-      headingReadyAfterInnerText:
+      headingReadyAfterControl:
         true,
     });
 
@@ -615,13 +720,177 @@ const main = async () => {
         entry.op ===
           'innerText' &&
         entry.locator ===
-          'interest-heading',
+          'interest-download-button',
     ).options.timeout,
     30_000,
   );
 
   console.log(
     'PASS GT-DOWNLOAD-010: default card readiness is bounded to the same 30-second window as provider download capture',
+  );
+
+  const allStrategiesPage =
+    new FakePage({
+      headingCount:
+        1,
+      downloadButtonCount:
+        1,
+      timeseriesCount:
+        1,
+      timeseriesFileDownloadCount:
+        1,
+      timeseriesDownloadCount:
+        1,
+      timeseriesCsvCount:
+        1,
+      timeseriesExportCount:
+        1,
+    });
+
+  const allStrategies =
+    await inspectGoogleTrendsInterestOverTimeDownloadReadiness({
+      page:
+        allStrategiesPage,
+    });
+
+  assert.deepEqual(
+    allStrategies.successful_strategy_ids,
+    [
+      GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+        .TIMESERIES_FILE_DOWNLOAD,
+      GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+        .TIMESERIES_DOWNLOAD,
+      GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+        .TIMESERIES_CSV,
+      GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+        .TIMESERIES_EXPORT_CONTROL,
+      GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+        .HEADING_PARENT_FILE_DOWNLOAD,
+    ],
+  );
+
+  assert.equal(
+    allStrategies.selected_strategy_id,
+    GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+      .TIMESERIES_FILE_DOWNLOAD,
+  );
+
+  console.log(
+    'PASS GT-DOWNLOAD-011: every candidate strategy is assessed before the semantic TIMESERIES/file_download contract is selected',
+  );
+
+  const alternatives = [
+    {
+      option: {
+        timeseriesCount:
+          1,
+        timeseriesFileDownloadCount:
+          1,
+      },
+      strategy:
+        GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+          .TIMESERIES_FILE_DOWNLOAD,
+      locator:
+        'timeseries-file-download',
+    },
+    {
+      option: {
+        timeseriesCount:
+          1,
+        timeseriesDownloadCount:
+          1,
+      },
+      strategy:
+        GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+          .TIMESERIES_DOWNLOAD,
+      locator:
+        'timeseries-download',
+    },
+    {
+      option: {
+        timeseriesCount:
+          1,
+        timeseriesCsvCount:
+          1,
+      },
+      strategy:
+        GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+          .TIMESERIES_CSV,
+      locator:
+        'timeseries-csv',
+    },
+    {
+      option: {
+        timeseriesCount:
+          1,
+        timeseriesExportCount:
+          1,
+      },
+      strategy:
+        GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+          .TIMESERIES_EXPORT_CONTROL,
+      locator:
+        'timeseries-export',
+    },
+  ];
+
+  for (const alternative of alternatives) {
+    const alternativePage =
+      new FakePage({
+        headingCount:
+          0,
+        ...alternative.option,
+      });
+
+    const readiness =
+      await inspectGoogleTrendsInterestOverTimeDownloadReadiness({
+        page:
+          alternativePage,
+      });
+
+    assert.equal(
+      readiness.selected_strategy_id,
+      alternative.strategy,
+    );
+
+    await downloadGoogleTrendsInterestOverTime({
+      page:
+        alternativePage,
+    });
+
+    assert.equal(
+      alternativePage.trace.some(
+        (entry) =>
+          entry.op ===
+            'click' &&
+          entry.locator ===
+            alternative.locator,
+      ),
+      true,
+    );
+  }
+
+  console.log(
+    'PASS GT-DOWNLOAD-012: all four semantic TIMESERIES button alternatives independently capture exact provider bytes without the heading-parent contract',
+  );
+
+  const legacyCompatibilityPage =
+    new FakePage();
+
+  const legacyReadiness =
+    await inspectGoogleTrendsInterestOverTimeDownloadReadiness({
+      page:
+        legacyCompatibilityPage,
+    });
+
+  assert.equal(
+    legacyReadiness.selected_strategy_id,
+    GOOGLE_TRENDS_DOWNLOAD_STRATEGY_IDS
+      .HEADING_PARENT_FILE_DOWNLOAD,
+  );
+
+  console.log(
+    'PASS GT-DOWNLOAD-013: the previously live-proven heading-parent contract remains a bounded compatibility strategy',
   );
 };
 

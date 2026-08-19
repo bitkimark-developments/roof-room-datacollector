@@ -39,6 +39,10 @@ import {
   GoogleTrendsGeographyUiContractError,
 } from '../../src/main/sources/google-trends/google-trends-geography-ui';
 import {
+  inspectGoogleTrendsInterestOverTimeDownloadReadiness,
+  type GoogleTrendsDownloadReadiness,
+} from '../../src/main/sources/google-trends/google-trends-interest-over-time-download';
+import {
   GOOGLE_TRENDS_EXPLORE_URL,
   probeGoogleTrendsExplore,
 } from '../../src/main/sources/google-trends/google-trends-provider-probe';
@@ -137,6 +141,8 @@ export type SafeDownloadReadinessRow =
   RawDownloadReadinessRow;
 
 export interface SafeDownloadReadinessDiagnostic {
+  strategy_readiness:
+    GoogleTrendsDownloadReadiness;
   selector_counts:
     Record<string, number>;
   heading_contracts:
@@ -454,6 +460,11 @@ const inspectDownloadReadiness = async (
   page: Page,
   queries: readonly string[],
 ): Promise<SafeDownloadReadinessDiagnostic> => {
+  const strategyReadiness =
+    await inspectGoogleTrendsInterestOverTimeDownloadReadiness({
+      page,
+    });
+
   const selectors = [
     'trends-widget',
     'widget',
@@ -510,6 +521,8 @@ const inspectDownloadReadiness = async (
     );
 
   return {
+    strategy_readiness:
+      strategyReadiness,
     selector_counts:
       selectorCounts,
     heading_contracts:
@@ -1014,6 +1027,35 @@ const main = async (): Promise<void> => {
         return;
       }
 
+      const downloadReadiness =
+        parsed
+          .inspect_download_readiness
+          ? await inspectDownloadReadiness(
+              page,
+              queryGroup.queries,
+            )
+          : null;
+
+      if (
+        rateLimitedResponseObserved
+      ) {
+        console.log(
+          JSON.stringify(
+            {
+              result_type:
+                'RATE_LIMITED',
+              signals: [
+                'HTTP_STATUS_429',
+              ],
+            },
+            null,
+            2,
+          ),
+        );
+        process.exitCode = 4;
+        return;
+      }
+
       console.log(
         JSON.stringify(
           {
@@ -1023,16 +1065,13 @@ const main = async (): Promise<void> => {
               targetStage,
             completed_stages:
               completedStages,
-            ...(parsed
-              .inspect_download_readiness
-              ? {
+            ...(downloadReadiness ===
+            null
+              ? {}
+              : {
                   download_readiness:
-                    await inspectDownloadReadiness(
-                      page,
-                      queryGroup.queries,
-                    ),
-                }
-              : {}),
+                    downloadReadiness,
+                }),
           },
           null,
           2,
