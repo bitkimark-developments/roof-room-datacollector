@@ -750,9 +750,28 @@ Normalized internal representation:
 }
 ```
 
-Release 1.0 must accept YAML, JSON, and CSV configuration inputs. YAML is the canonical human-authored format and the first implementation target. JSON and CSV are import adapters.
+Release 1.0 accepts YAML/YML, JSON, and CSV configuration inputs. YAML is the canonical human-authored format; JSON and CSV are import adapters.
 
 All three formats must normalize into the same canonical internal `QueryConfig` representation before collector logic consumes them. Input-format differences must not change job/query semantics.
+
+The application config directory must contain at most one supported authority:
+
+```text
+query-groups.yaml
+query-groups.yml
+query-groups.json
+query-groups.csv
+```
+
+Multiple supported files fail closed.
+
+Canonical CSV header:
+
+```text
+version,source,group_id,group_name,query_order,query
+```
+
+`query_order` must be positive and contiguous within each group.
 
 ---
 
@@ -1418,7 +1437,7 @@ Do not set observed values by assumption.
 
 The raw Google Trends CSV remains unchanged.
 
-A future normalized in-memory/CSV row may use:
+The implemented normalized CSV/XLSX row uses:
 
 ```json
 {
@@ -1431,16 +1450,20 @@ A future normalized in-memory/CSV row may use:
   "country_code": "TR",
   "search_type": "WEB_SEARCH",
   "selection_type": "SEARCH_TERM",
+  "requested_date_start": "2024-08-18",
+  "requested_date_end": "2026-08-17",
+  "actual_date_start": "2024-08-18",
+  "actual_date_end": "2026-08-16",
   "period_start": "2026-08-09",
   "period_end": null,
   "query": "monstera",
-  "relative_interest": 72
+  "relative_interest": 72,
+  "validation_status": "VALID",
+  "raw_artifact_id": "artifact_<opaque_id>"
 }
 ```
 
-The exact temporal granularity returned by Google Trends must be discovered from the actual export.
-
-Do not assume daily/weekly/monthly granularity before testing.
+The verified Release 1.0 classic Explore exports use weekly `period_start` rows for the locked 24-month scope.
 
 Therefore:
 
@@ -1904,7 +1927,7 @@ A schema version changes only when persisted contract interpretation changes.
 
 # 54. Export Workbook Contract
 
-Initial workbook filename:
+Implemented workbook filename:
 
 ```text
 ROOFROOM_SEARCH_DEMAND_RAW_<YYYY-MM-DD>.xlsx
@@ -1916,7 +1939,7 @@ Example:
 ROOFROOM_SEARCH_DEMAND_RAW_2026-08-18.xlsx
 ```
 
-Potential MVP sheets:
+Release 1.0 sheets:
 
 ```text
 README
@@ -1926,6 +1949,20 @@ GT_24M_RAW
 VALIDATION_LOG
 ERROR_LOG
 ```
+
+The same export operation emits a run-scoped CSV package:
+
+```text
+exports/ROOFROOM_SEARCH_DEMAND_RAW_<YYYY-MM-DD>/
+  RUN_METADATA.csv
+  QUERY_UNIVERSE.csv
+  GT_24M_RAW.csv
+  VALIDATION_LOG.csv
+  ERROR_LOG.csv
+  README.txt
+```
+
+Derived export creation must refuse to overwrite an existing package or workbook.
 
 ---
 
@@ -2280,19 +2317,12 @@ Search Term and Topic modes remain distinguishable.
 
 # 69. Deferred Contract Decisions
 
-The following should be verified during M1/M2/M3 rather than guessed now:
+The following still require provider or future-version evidence rather than guesswork:
 
-- exact SQLite DDL,
-- exact internal UUID/ULID library,
-- exact application versioning strategy,
-- exact schema-validation library,
-- exact Google Trends CSV column names,
-- exact Google Trends temporal granularity,
-- exact provider category identifier,
-- exact Google Trends locale/header behavior,
-- exact hash implementation timing,
-- exact retry artifact directory strategy,
-- exact workbook library behavior for null cells.
+- explicit Google Trends provider `NO_DATA` representation,
+- a non-zero `LOW_DATA` density threshold, if one is ever needed,
+- behavior of future Google Trends locale/header variants,
+- breaking-schema migration requirements for future persisted versions.
 
 When these are resolved, update this document only if they affect stable contracts.
 

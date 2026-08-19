@@ -1606,6 +1606,79 @@ Electron compatibility changes, measured main-process blocking becomes unaccepta
 
 ---
 
+# ADR-048 — Use write-excel-file for the MVP Workbook
+
+**Status:** ACCEPTED
+**Date:** 2026-08-19
+
+## Decision
+
+The Release 1.0 structured XLSX package uses:
+
+```text
+write-excel-file 4.1.1
+```
+
+from the privileged main-process export boundary.
+
+## Context
+
+The implemented export gate verified:
+
+- six named worksheets,
+- numeric `0` preservation,
+- missing numeric cells remaining empty,
+- duplicate query preservation across comparison groups,
+- Apple Silicon Electron packaging,
+- no overwrite of an existing derived package.
+
+The selected package has a small runtime dependency surface and passed the production dependency audit at the verified checkpoint.
+
+## Consequences
+
+Raw provider files remain authoritative evidence. XLSX remains a derived, provenance-preserving export and must not become a replacement for run-scoped raw artifacts.
+
+## Resolves
+
+```text
+ADR-D005 — Exact XLSX Library
+```
+
+## Revisit If
+
+Dataset size, formatting requirements, maintenance status, security findings, or Electron packaging behavior materially changes.
+
+---
+
+# ADR-049 — Exact No-Positive-Signal Evidence Is LOW_DATA
+
+**Status:** ACCEPTED
+**Date:** 2026-08-19
+
+## Decision
+
+A structurally valid Google Trends dataset with no positive relative-interest value across the complete accepted artifact is classified as:
+
+```text
+LOW_DATA
+```
+
+All-zero and all-missing evidence remain distinguishable in validation findings. Missing values remain `null`; they are not rewritten as zero.
+
+This rule does not define an arbitrary non-zero density threshold.
+
+## Context
+
+The application needs a visible warning for accepted evidence that contains no positive signal without inventing provider semantics.
+
+`NO_DATA` remains reserved for a separately verified explicit provider no-data outcome. Parser failure, HTML content, all-zero data, and all-missing data do not become fabricated `NO_DATA` results.
+
+## Consequences
+
+The exact no-positive-signal boundary is deterministic. Calibration for sparse but non-zero datasets remains deferred and evidence-based under ADR-040 and ADR-D014.
+
+---
+
 # 4. Deferred Decisions
 
 The following decisions are intentionally not locked in M0.
@@ -1667,15 +1740,10 @@ SQLite itself remains accepted.
 
 # ADR-D005 — Exact XLSX Library
 
-**Status:** DEFERRED
+**Status:** SUPERSEDED
+**Resolution:** ADR-048
 
-Selection criteria:
-
-- missing-value behavior,
-- multi-sheet support,
-- Electron packaging,
-- maintained project,
-- expected dataset size.
+The Release 1.0 choice is recorded with its verified constraints in ADR-048.
 
 ---
 
@@ -2008,6 +2076,11 @@ Validation is mandatory.
 | ADR-042 | Unknown schema fails closed | ACCEPTED |
 | ADR-043 | No exact live GT numeric assertions | ACCEPTED |
 | ADR-044 | CI not required for M1 | ACCEPTED |
+| ADR-045 | Verified desktop toolchain baseline | ACCEPTED |
+| ADR-046 | Electron userData application storage | ACCEPTED |
+| ADR-047 | Built-in node:sqlite storage backend | ACCEPTED |
+| ADR-048 | write-excel-file for MVP workbook | ACCEPTED |
+| ADR-049 | Exact no-positive-signal evidence is LOW_DATA | ACCEPTED |
 
 ---
 
