@@ -643,6 +643,61 @@ const main = async (): Promise<void> => {
         return;
       }
 
+      const initialInputAfterFill =
+        classifyQueryInputState(
+          await initialInput.inputValue(),
+          firstQuery,
+        );
+
+      await initialInput.fill(
+        '',
+        {
+          timeout:
+            UI_ACTION_TIMEOUT_MS,
+        },
+      );
+
+      await initialInput
+        .pressSequentially(
+          firstQuery,
+          {
+            timeout:
+              UI_ACTION_TIMEOUT_MS,
+          },
+        );
+
+      const sequentialInputAfterEntry =
+        classifyQueryInputState(
+          await initialInput.inputValue(),
+          firstQuery,
+        );
+
+      const sequentialSuggestionCount =
+        await initialSuggestion.count();
+
+      let sequentialSuggestionAction =
+        'CLICKED';
+
+      try {
+        await initialSuggestion.click({
+          timeout:
+            UI_ACTION_TIMEOUT_MS,
+        });
+      } catch (sequentialError: unknown) {
+        sequentialSuggestionAction =
+          sequentialError instanceof Error
+            ? sequentialError.name
+            : 'UNKNOWN_ERROR';
+      }
+
+      if (
+        rateLimitedResponseObserved
+      ) {
+        printInteractionRateLimit();
+        process.exitCode = 4;
+        return;
+      }
+
       const selectorCounts:
         Record<string, number> = {};
 
@@ -673,14 +728,25 @@ const main = async (): Promise<void> => {
             query_index:
               0,
             initial_input_after_fill:
-              classifyQueryInputState(
-                await initialInput.inputValue(),
-                firstQuery,
-              ),
+              initialInputAfterFill,
             suggestion_action:
               error instanceof Error
                 ? error.name
                 : 'UNKNOWN_ERROR',
+            sequential_input_alternative: {
+              input_after_entry:
+                sequentialInputAfterEntry,
+              suggestion_count_before_action:
+                sequentialSuggestionCount,
+              suggestion_action:
+                sequentialSuggestionAction,
+              empty_slot_count_after_action:
+                await page
+                  .locator(
+                    EMPTY_QUERY_SLOT_SELECTOR,
+                  )
+                  .count(),
+            },
             selector_counts:
               selectorCounts,
             suggestion_contracts:
