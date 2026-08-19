@@ -595,6 +595,34 @@ const main = async () => {
   console.log(
     'PASS GT-DOWNLOAD-009: an asynchronously rendered card-local download button uses the existing bounded UI timeout without changing selector scope',
   );
+
+  const defaultReadinessPage =
+    new FakePage({
+      headingCount:
+        0,
+      headingReadyAfterInnerText:
+        true,
+    });
+
+  await downloadGoogleTrendsInterestOverTime({
+    page:
+      defaultReadinessPage,
+  });
+
+  assert.equal(
+    defaultReadinessPage.trace.find(
+      (entry) =>
+        entry.op ===
+          'innerText' &&
+        entry.locator ===
+          'interest-heading',
+    ).options.timeout,
+    30_000,
+  );
+
+  console.log(
+    'PASS GT-DOWNLOAD-010: default card readiness is bounded to the same 30-second window as provider download capture',
+  );
 };
 
 main().catch((error) => {
