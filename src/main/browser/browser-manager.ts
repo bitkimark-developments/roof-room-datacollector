@@ -76,6 +76,13 @@ export interface ManagedBrowserLocator {
     },
   ): Promise<void>;
 
+  pressSequentially(
+    text: string,
+    options?: {
+      timeout?: number;
+    },
+  ): Promise<void>;
+
   locator(
     selector: string,
   ): ManagedBrowserLocator;

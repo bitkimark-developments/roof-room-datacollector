@@ -353,10 +353,13 @@ const fillAndSelectComparisonQuery = async (
     );
 
   try {
-    // The provider creates the next empty comparison slot asynchronously.
-    // The strict nested fill action uses the existing bounded timeout to
-    // wait for exactly one slot/input pair to become actionable.
-    await queryInput.fill(
+    // Live comparison evidence showed that Playwright fill can leave the
+    // dynamic Angular Material model empty even though the DOM action
+    // resolved. Sequential key events persisted the exact value and
+    // produced the expected Search Term autocomplete contract. The strict
+    // nested action still uses the existing bounded timeout and never adds
+    // a sleep, retry, or positional fallback.
+    await queryInput.pressSequentially(
       query,
       {
         timeout,

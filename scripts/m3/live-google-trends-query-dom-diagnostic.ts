@@ -39,6 +39,9 @@ const QUERY_GROUP_ID =
 const INITIAL_QUERY_INPUT_NAME =
   'Add a search term';
 
+const ADD_COMPARISON_NAME =
+  'Add a search term for comparison';
+
 const SEARCH_TERM_SUFFIX =
   'Search term';
 
@@ -796,7 +799,8 @@ const main = async (): Promise<void> => {
             SafeQueryInputState;
           suggestion_count_before_action: number;
           suggestion_action: string;
-          selected_query_count_after_action: number;
+          empty_slot_count_after_action: number;
+          add_comparison_count_after_action: number;
         }
       | {
           attempted: false;
@@ -866,10 +870,20 @@ const main = async (): Promise<void> => {
           sequentialSuggestionCount,
         suggestion_action:
           sequentialSuggestionAction,
-        selected_query_count_after_action:
+        empty_slot_count_after_action:
           await page
             .locator(
-              '.compare-term-container explore-search-term.pill-selected',
+              EMPTY_QUERY_SLOT_SELECTOR,
+            )
+            .count(),
+        add_comparison_count_after_action:
+          await page
+            .getByRole(
+              'button',
+              {
+                name:
+                  ADD_COMPARISON_NAME,
+              },
             )
             .count(),
       };

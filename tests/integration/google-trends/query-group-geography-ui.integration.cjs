@@ -136,6 +136,30 @@ class FakeLocator {
     }
   }
 
+  async pressSequentially(
+    value,
+    options,
+  ) {
+    this.trace.push({
+      op:
+        'pressSequentially',
+      locator:
+        this.name,
+      value,
+      options,
+    });
+
+    if (this.beforeFill) {
+      this.beforeFill();
+    }
+
+    if (this.countValue !== 1) {
+      throw new Error(
+        `strict mode violation for ${this.name}: ${this.countValue} matches`,
+      );
+    }
+  }
+
   async press() {
     throw new Error(
       'press is not used',
@@ -527,6 +551,8 @@ const actionTrace = (
       entry.op ===
         'fill' ||
       entry.op ===
+        'pressSequentially' ||
+      entry.op ===
         'click',
   );
 
@@ -580,7 +606,7 @@ const main = async () => {
         },
       },
       {
-        op: 'fill',
+        op: 'pressSequentially',
         locator:
           'empty-slot-query-input',
         value:
@@ -609,7 +635,7 @@ const main = async () => {
         },
       },
       {
-        op: 'fill',
+        op: 'pressSequentially',
         locator:
           'empty-slot-query-input',
         value:
@@ -638,7 +664,7 @@ const main = async () => {
         },
       },
       {
-        op: 'fill',
+        op: 'pressSequentially',
         locator:
           'empty-slot-query-input',
         value:
@@ -667,7 +693,7 @@ const main = async () => {
         },
       },
       {
-        op: 'fill',
+        op: 'pressSequentially',
         locator:
           'empty-slot-query-input',
         value:
@@ -1004,12 +1030,12 @@ const main = async () => {
             'empty-query-slot',
       );
 
-  const comparisonFill =
+  const comparisonInputAction =
     dynamicProviderSlotPage
       .trace.find(
         (entry) =>
           entry.op ===
-            'fill' &&
+            'pressSequentially' &&
           entry.locator ===
             'empty-slot-query-input',
       );
@@ -1021,7 +1047,7 @@ const main = async () => {
   );
 
   assert.deepEqual(
-    comparisonFill
+    comparisonInputAction
       ?.options,
     {
       timeout:
@@ -1030,7 +1056,7 @@ const main = async () => {
   );
 
   console.log(
-    'PASS GT-QUERY-011: the existing bounded strict nested fill action waits for an asynchronously created comparison slot/input pair',
+    'PASS GT-QUERY-011: the bounded strict nested sequential-input action waits for an asynchronously created comparison slot/input pair',
   );
 
   for (
