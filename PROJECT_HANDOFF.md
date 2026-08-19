@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `3142606 fix: route provider downloads through Core`
+**Latest verified technical checkpoint:** `087a2ba fix: classify query diagnostic rate limits`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -19,6 +19,11 @@ Branch and latest verified checkpoints:
 
 ```text
 main
+087a2ba fix: classify query diagnostic rate limits
+50fd156 feat: diagnose Google Trends query input persistence
+0f217fa fix: wait for Google Trends date dialog
+7a5e4c3 docs: record storage provenance inventory
+f5d380c docs: record Core-owned download storage
 3142606 fix: route provider downloads through Core
 f14440f docs: record validated metadata checkpoint
 e1539dd feat: persist validated source metadata
@@ -181,6 +186,8 @@ main-process runtime composition and shutdown
 safe stage diagnostics
 structured query, geography, and date diagnostics
 explicit safe structural query DOM diagnostic
+safe query-input persistence diagnostics that do not emit configured query text
+same-origin interaction HTTP 429 classification in the structural query diagnostic
 real GT01 live command routed through CollectionOrchestrator / StorageManager / SQLite
 bounded Core persistence and validation summary in live command output
 same-origin HTTP 429 observation across provider UI interaction
@@ -265,6 +272,20 @@ query_index
 
 The default bounded QUERY_GROUP action timeout is now 30 seconds. Explicit `ui_action_timeout_ms` overrides remain supported. No sleep, refresh, automatic provider retry, or navigation change was added.
 
+Later controlled evidence on 2026-08-19 established a different current provider state:
+
+```text
+one full GT01 collection from 0f217fa reached query_index=1
+SEARCH_TERM_SUGGESTION observed_count remained 0 after the bounded action
+the safe structural diagnostic reproduced that second-query timeout
+all three autocomplete containers existed but were hidden and contained no accessible suggestion control
+no rate-limit, CAPTCHA, or manual-action result was reported by that run
+```
+
+The structural diagnostic was extended in `50fd156` to report only safe boolean input-persistence state. The next live diagnostic did not reach the second input because the first Search Term suggestion timed out. That diagnostic predated `087a2ba`, so it did not classify same-origin interaction HTTP 429 separately. `087a2ba` now makes future structural diagnostics stop on such a signal and emits a structured first-suggestion failure instead of a generic timeout.
+
+The same exact Search Term locator succeeded in earlier live structural evidence. The new failures therefore prove intermittent suggestion absence for these attempts; they do not prove selector drift or justify a positional/keyboard fallback.
+
 ---
 
 # 7. Geography and Date-Range State
@@ -299,7 +320,14 @@ observed_count=0
 
 `42ebbe9` removes the premature exact-count requirement for that asynchronously exposed option. It still fails immediately on ambiguity and uses the existing bounded strict click action for zero-or-one initial matches. This correction is deterministically verified by `GT-DATE-RANGE-008`.
 
-The `42ebbe9` custom-date readiness correction has not yet been reached by a later live attempt: the next controlled run stopped earlier at the intermittent QUERY_GROUP suggestion boundary.
+A controlled live run from `7a5e4c3` reached the next custom-date control and reported:
+
+```text
+control=ARCHIVE_DIALOG
+observed_count=0
+```
+
+`0f217fa` replaces that premature dialog count check with a bounded exact-one wait using the existing locator and timeout. Ambiguous counts still fail closed. This is deterministically verified by `GT-DATE-DIALOG-010`. No later live run has reached `ARCHIVE_DIALOG`; the next full collection stopped earlier at the intermittent QUERY_GROUP suggestion boundary.
 
 Current structured date controls:
 
@@ -324,8 +352,38 @@ Most advanced verified live path:
 QUERY_GROUP passed all five queries
 GEOGRAPHY passed after b7c43d1
 DATE_RANGE reached
-CUSTOM_TIME_RANGE_OPTION reported observed_count=0
+CUSTOM_TIME_RANGE_OPTION passed after 42ebbe9
+ARCHIVE_DIALOG reported observed_count=0
 no download or artifact was produced
+```
+
+That Core-integrated run persisted:
+
+```text
+run_id: rr_20260819T031148872Z_033267
+run_status: RUNNING
+job_execution_status: FAILED
+attempt_number: 1
+validation_status: NOT_RUN
+error_code: GOOGLE_TRENDS_UI_CONTRACT_ERROR
+artifact: null
+validation: null
+```
+
+The first controlled full run after `0f217fa` persisted:
+
+```text
+run_id: rr_20260819T031347369Z_ee4183
+run_status: RUNNING
+job_execution_status: FAILED
+attempt_number: 1
+validation_status: NOT_RUN
+error_code: GOOGLE_TRENDS_UI_CONTRACT_ERROR
+control: SEARCH_TERM_SUGGESTION
+observed_count: 0
+query_index: 1
+artifact: null
+validation: null
 ```
 
 Last pre-monitor controlled live result after `42ebbe9`:
@@ -407,7 +465,7 @@ GT-VAL-001..008 PASS
 GT-ADAPTER-001..007 PASS
 BROWSER-DOWNLOAD-001..007 PASS
 GT-DOWNLOAD-001..007 PASS
-GT-DATE-DIALOG-001..009 PASS
+GT-DATE-DIALOG-001..010 PASS
 GT-DATE-RANGE-001..008 PASS
 GT-QUERY-001..015 PASS
 GT-GEO-001..008 PASS
@@ -421,7 +479,7 @@ GT-MANUAL-001..006 PASS
 GT-LIVE-GT01-CMD-001..005 PASS
 GT-CORE-001..011 PASS
 GT-DIAG-001..008 PASS
-GT-LIVE-QUERY-DIAG-CMD-001..003 PASS
+GT-LIVE-QUERY-DIAG-CMD-001..005 PASS
 M2-GATE-001..008 PASS
 PIPELINE-001..004 PASS
 STORAGE-BOUNDARY-001..002 PASS
@@ -438,6 +496,8 @@ git diff --check PASS before each checkpoint
 
 After `97f0afb`, the affected storage/source/runtime/validator/manual-action suites, the sequential orchestrator suite, the integrated M2 gate, lint, TypeScript, and packaging were rerun successfully. After `cf56053`, provider-state/probe, collector, UI-diagnostic, live-command, Core-runner, BrowserManager, lint, TypeScript, and darwin/arm64 packaging checks also passed. After `e1539dd`, the Google Trends CSV validator, CollectionValidator adapter, Core persistence runner, sequential orchestrator, integrated M2 gate, lint, TypeScript, and darwin/arm64 packaging checks passed. After `3142606`, the full deterministic M3 surface, sequential orchestrator, integrated M2 gate, storage-boundary tests, lint, TypeScript, and darwin/arm64 packaging checks passed. The first package attempt was blocked only by sandboxed `github.com` DNS access; the same package command passed with network access.
 
+After `0f217fa`, the custom-date-dialog, custom-date-range, UI-diagnostic, and collecting-source suites, lint, and TypeScript passed. After `50fd156` and `087a2ba`, the live-query-diagnostic command suite passed through `GT-LIVE-QUERY-DIAG-CMD-005`; the collecting-source suite, lint, TypeScript, and `git diff --check` also passed. No later checkpoint claims a full package rerun; the latest full M3/M2/package gate remains the verified `3142606` baseline plus these affected-suite checks.
+
 The Vite CJS Node API deprecation message remains a non-failing warning.
 
 ---
@@ -448,7 +508,7 @@ Current guarantees include:
 
 ```text
 raw source bytes remain unchanged
-public provider download is preserved separately
+user-visible exports remain separate from canonical run-scoped raw evidence
 HTML/login/error content is rejected as data
 requested query identity is checked
 weekly temporal structure is parsed
@@ -503,9 +563,10 @@ Read-only provenance inventory on 2026-08-19 established:
 
 ```text
 app-data SQLite:
-1 run / 1 job / 1 attempt
-run remains RUNNING for explicit resume policy
-job and attempt are FAILED with RATE_LIMITED
+3 runs / 3 jobs / 3 attempts
+all runs remain RUNNING for explicit resume policy
+all jobs and attempts are FAILED
+attempt error codes: RATE_LIMITED, GOOGLE_TRENDS_UI_CONTRACT_ERROR, GOOGLE_TRENDS_UI_CONTRACT_ERROR
 0 artifacts / 0 validations
 PRAGMA quick_check = ok
 
@@ -544,20 +605,23 @@ The `cf56053` live attempt proves that a real provider failure traverses Core in
 Current live blocker:
 
 ```text
-Google Trends returned same-origin HTTP 429 during the controlled cf56053 run
-the collector classified the result as RATE_LIMITED
-the request stopped with no refresh, retry, download, artifact, or validation
+the latest full GT01 collection stopped at QUERY_GROUP
+SEARCH_TERM_SUGGESTION remained absent for query_index=1 after the bounded action
+a later safe structural diagnostic reproduced the absent second-query suggestion
+all autocomplete containers were present but hidden with no accessible suggestion controls
+the next diagnostic stopped even earlier when the first suggestion did not appear
+that last diagnostic predated interaction-429 classification and therefore cannot exclude an interaction HTTP 429
+no selector drift has been proven because the exact locator succeeded in earlier live evidence
 ```
 
-The new evidence establishes rate limiting for this specific live attempt. It does not retrospectively establish the cause of every earlier `SEARCH_TERM_SUGGESTION` count-zero result.
+The earlier `cf56053` run still proves rate limiting for that specific attempt. It does not retrospectively establish the cause of every `SEARCH_TERM_SUGGESTION` count-zero result.
 
 Exact next provider action:
 
 ```text
-stop live provider work
-make no further Google Trends request while the restriction may remain active
-do not refresh, retry, or evade the restriction
-after a deliberate later pause and only when a new controlled run is justified, run at most one GT01 collection from 3142606 or a later deterministically verified checkpoint
+make no immediate repeated Google Trends request
+do not refresh, retry, or evade a provider restriction
+after a deliberate provider pause, run exactly one controlled GT01 collection from 087a2ba or a later deterministically verified checkpoint
 ```
 
 Interpret that run as follows:
@@ -566,11 +630,14 @@ Interpret that run as follows:
 if RATE_LIMITED occurs again
 → stop immediately with no refresh or retry
 
-if DATE_RANGE is reached
-→ verify whether 42ebbe9 advances past CUSTOM_TIME_RANGE_OPTION
+if QUERY_GROUP passes
+→ verify whether 0f217fa advances past ARCHIVE_DIALOG
 
 if another structured control fails
 → make only the smallest evidence-based correction
+
+if SEARCH_TERM_SUGGESTION fails again without RATE_LIMITED
+→ use the 087a2ba structural diagnostic in a separately controlled later run before changing selectors, waits, retry, navigation, or provider behavior
 
 if an artifact is produced
 → run the existing validator and do not infer anything from exact live numeric values
@@ -615,9 +682,9 @@ do not refresh or immediately retry
 # 15. M3 Success Sequence
 
 ```text
-current deterministic 3142606 Core-integrated, interaction-429-aware, source-metadata-aware, Core-owned-storage baseline
+current deterministic 087a2ba Core-integrated, interaction-429-aware, source-metadata-aware, Core-owned-storage baseline
 ↓
-wait for provider restriction to clear without refresh/retry/evasion
+deliberate provider pause without refresh/retry/evasion
 ↓
 one later controlled live GT01
 ↓
@@ -625,7 +692,7 @@ stable five-query group
 ↓
 Türkiye
 ↓
-exact custom date range
+exact custom date range including the 0f217fa dialog-readiness correction
 ↓
 All categories + Web Search verification
 ↓
