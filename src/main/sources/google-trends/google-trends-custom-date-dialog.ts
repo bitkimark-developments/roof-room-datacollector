@@ -238,6 +238,54 @@ const requireExactlyOne = async (
   }
 };
 
+const waitForExactlyOne = async (
+  locator: ManagedBrowserLocator,
+  description: string,
+  timeout: number,
+  control:
+    GoogleTrendsDateDialogDiagnosticControl,
+): Promise<void> => {
+  const initialCount =
+    await locator.count();
+
+  if (initialCount > 1) {
+    throw new GoogleTrendsDateDialogContractError(
+      `Expected at most one ${description} while waiting for it to become available; found ${initialCount}.`,
+      {
+        control,
+        observed_count:
+          initialCount,
+      },
+    );
+  }
+
+  if (initialCount === 0) {
+    try {
+      await locator.innerText({
+        timeout,
+      });
+    } catch {
+      const finalCount =
+        await locator.count();
+
+      throw new GoogleTrendsDateDialogContractError(
+        `Custom-date dialog readiness failed with ${finalCount} matching controls.`,
+        {
+          control,
+          observed_count:
+            finalCount,
+        },
+      );
+    }
+  }
+
+  await requireExactlyOne(
+    locator,
+    description,
+    control,
+  );
+};
+
 const fillDateInput = async (
   locator: ManagedBrowserLocator,
   value: string,
@@ -305,9 +353,10 @@ export const applyGoogleTrendsCustomDateFields =
         },
       );
 
-    await requireExactlyOne(
+    await waitForExactlyOne(
       archiveDialog,
       '"ARCHIVE" custom-date dialog',
+      timeout,
       GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS
         .ARCHIVE_DIALOG,
     );

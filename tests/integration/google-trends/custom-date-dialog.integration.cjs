@@ -33,10 +33,13 @@ class FakeLocator {
     name,
     count = 1,
     trace,
+    beforeInnerText,
   }) {
     this.name = name;
     this.countValue = count;
     this.trace = trace;
+    this.beforeInnerText =
+      beforeInnerText;
     this.children =
       new Map();
   }
@@ -51,7 +54,21 @@ class FakeLocator {
     );
   }
 
-  async innerText() {
+  async innerText(options) {
+    this.trace.push({
+      op: 'innerText',
+      locator: this.name,
+      options,
+    });
+
+    this.beforeInnerText?.();
+
+    if (this.countValue !== 1) {
+      throw new Error(
+        `strict mode violation for ${this.name}: ${this.countValue} matches`,
+      );
+    }
+
     return this.name;
   }
 
@@ -110,6 +127,8 @@ class FakeLocator {
     this.trace.push({
       op: 'count',
       locator: this.name,
+      observedCount:
+        this.countValue,
     });
 
     return this.countValue;
@@ -119,6 +138,7 @@ class FakeLocator {
 class FakePage {
   constructor({
     dialogCount = 1,
+    dialogBecomesAvailableOnRead = false,
     startCount = 1,
     endCount = 1,
   } = {}) {
@@ -129,6 +149,13 @@ class FakePage {
         name: 'archive-dialog',
         count: dialogCount,
         trace: this.trace,
+        beforeInnerText:
+          dialogBecomesAvailableOnRead
+            ? () => {
+                this.dialog.countValue =
+                  1;
+              }
+            : undefined,
       });
 
     this.startInput =
@@ -479,6 +506,65 @@ const main = async () => {
 
   console.log(
     'PASS GT-DATE-DIALOG-009: missing To input reports structured allowlisted control cardinality evidence',
+  );
+
+  const delayedDialog =
+    new FakePage({
+      dialogCount:
+        0,
+      dialogBecomesAvailableOnRead:
+        true,
+    });
+
+  await applyGoogleTrendsCustomDateFields({
+    page:
+      delayedDialog,
+    requested_date_start:
+      '2024-08-18',
+    requested_date_end:
+      '2026-08-17',
+    ui_action_timeout_ms:
+      4_000,
+  });
+
+  const initialDialogCount =
+    delayedDialog.trace.find(
+      (entry) =>
+        entry.op === 'count' &&
+        entry.locator ===
+          'archive-dialog' &&
+        entry.observedCount ===
+          0,
+    );
+
+  const dialogReadiness =
+    delayedDialog.trace.find(
+      (entry) =>
+        entry.op === 'innerText' &&
+        entry.locator ===
+          'archive-dialog',
+    );
+
+  assert.ok(
+    initialDialogCount,
+  );
+  assert.deepEqual(
+    dialogReadiness?.options,
+    {
+      timeout:
+        4_000,
+    },
+  );
+  assert.equal(
+    delayedDialog.trace.filter(
+      (entry) =>
+        entry.op === 'fill',
+    ).length,
+    2,
+  );
+
+  console.log(
+    'PASS GT-DATE-DIALOG-010: the existing bounded locator read waits for the asynchronously exposed ARCHIVE dialog before field inspection',
   );
 };
 
