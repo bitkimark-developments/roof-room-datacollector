@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `310cda6 fix: wait for Google Trends comparison control`
+**Latest verified technical checkpoint:** `93e58a2 feat: add Google Trends query DOM diagnostic`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -24,6 +24,8 @@ main
 Latest verified checkpoint:
 
 ```text
+93e58a2 feat: add Google Trends query DOM diagnostic
+6c74bf2 docs: reconcile M3 comparison readiness checkpoint
 310cda6 fix: wait for Google Trends comparison control
 b49770b docs: prepare repository development handoff
 2fe1f70 feat: add Google Trends query diagnostics
@@ -54,14 +56,18 @@ Verified committed technical baseline before this handoff update:
 
 ```text
 main
-310cda6 fix: wait for Google Trends comparison control
+93e58a2 feat: add Google Trends query DOM diagnostic
 ```
 
 The abandoned/unverified broad QUERY_GROUP `waitFor()` experiment was removed from the worktree before the baseline gate. It must not be treated as implemented or accepted behavior.
 
 One explicitly approved live GT01 request was made after `2fe1f70`. It produced safe structured evidence that `ADD_COMPARISON` had `observed_count=0` at `query_index=1`. No artifact was produced and no automatic retry was made.
 
-`310cda6` applies the resulting narrow readiness fix. It does not add `waitFor()`, sleep/delay, a new timeout, retry, refresh, selector changes, navigation changes, or other provider-behavior changes. It lets the existing bounded strict Playwright click action wait for the temporarily missing `ADD_COMPARISON` control. No live GT01 request has been made after `310cda6`.
+`310cda6` applies the resulting narrow readiness fix. It does not add `waitFor()`, sleep/delay, a new timeout, retry, refresh, selector changes, navigation changes, or other provider-behavior changes. It lets the existing bounded strict Playwright click action wait for the temporarily missing `ADD_COMPARISON` control.
+
+One controlled live GT01 request was made after `310cda6`. It again reported `ADD_COMPARISON`, `observed_count=0`, `query_index=1` after the existing bounded strict click action failed. No artifact was produced and no automatic retry was made. This disproved the hypothesis that the existing locator only needed to use Playwright action waiting.
+
+`93e58a2` adds a separate explicit live structural diagnostic command. It is restricted to one Explore navigation, the first GT01 Search Term selection, one exercise of the existing comparison-add locator, and bounded tag/role/aria-label/class/count evidence. It rejects retry, refresh, download, and broader-group arguments; redacts configured query strings; and does not emit page text, input values, HTML, cookies, headers, or session state. The diagnostic command has not yet made a live request.
 
 Development environment currently verified:
 
@@ -176,7 +182,7 @@ The 2026-08-19 baseline verification reconfirmed all eight integrated M2 gate as
 
 # 5. Implemented M3 Google Trends Surfaces
 
-The following M3 slices are committed and retained by the verified `310cda6` baseline:
+The following M3 slices are committed and retained by the verified `93e58a2` baseline:
 
 ```text
 rate-limit detection
@@ -204,6 +210,7 @@ safe configured-page stage diagnostics
 nested date-dialog UI error classification
 structured QUERY_GROUP control/count diagnostics
 bounded strict-action readiness for the comparison-add control
+explicit query DOM structural diagnostic command
 ```
 
 The provider-facing workflow remains fail-closed. Critical controls do not use positional `.first()` / `.nth()` selection as a fallback.
@@ -255,7 +262,7 @@ Latest verified live result:
 
 No accepted GT01 artifact was produced by that live attempt.
 
-That live attempt used the structured diagnostics committed in `2fe1f70`. It was run exactly once, without automatic retry, and was followed by the narrow deterministic fix in `310cda6`. No live GT01 request has been made after `310cda6`.
+The first structured live attempt used the diagnostics committed in `2fe1f70`. It was followed by the narrow deterministic fix in `310cda6`. A second controlled live attempt using that fix produced the same safe diagnostic. Neither attempt retried automatically or produced an artifact.
 
 This proves only:
 
@@ -275,9 +282,8 @@ It does **not** yet prove:
 ```text
 selector drift
 a permanently missing control
-whether the control becomes available within the existing bounded click timeout
 a provider-language mismatch
-whether the next live attempt advances beyond QUERY_GROUP
+the actual current comparison-container tag/role/aria-label/class contract
 ```
 
 Do not add broader waits, sleeps, selector changes, retries, refreshes, or timeout changes without new live evidence.
@@ -376,7 +382,7 @@ The structured QUERY_GROUP diagnostic boundary was added in:
 
 # 10. Verified Baseline Gate — 2026-08-19
 
-The following deterministic checks passed against the `310cda6` implementation during the 2026-08-19 verification:
+The full deterministic checks below passed against the `310cda6` collector implementation during the 2026-08-19 verification:
 
 ```text
 npm run lint
@@ -438,6 +444,21 @@ M2-GATE-001..008 PASS
 Electron Forge package PASS on darwin arm64
 ```
 
+After the diagnostic-only `93e58a2` addition, these checks were rerun and passed:
+
+```text
+npm run lint
+npx tsc --noEmit
+npm run test:m3:live-query-diagnostic-command
+npm run test:m3:live-gt01-command
+npm run test:m3:live-probe-command
+npm run test:m3:gt-query-geo
+npm run test:m3:provider-probe
+npm run test:m3:gt-manual-action
+
+GT-LIVE-QUERY-DIAG-CMD-001..003 PASS
+```
+
 The first package attempt in the restricted environment reached the production build and then failed only because `github.com` DNS access was unavailable. The same `npm run package` command completed successfully with network access; this was not a Google Trends request.
 
 The Vite CJS Node API deprecation message remains a warning only; it is not currently a failing gate.
@@ -445,7 +466,7 @@ The Vite CJS Node API deprecation message remains a warning only; it is not curr
 Verified committed technical checkpoint:
 
 ```text
-310cda6 fix: wait for Google Trends comparison control
+93e58a2 feat: add Google Trends query DOM diagnostic
 ```
 
 ---
@@ -558,15 +579,15 @@ Current blocking issue:
 ```text
 the latest live GT01 attempt failed during QUERY_GROUP at
 ADD_COMPARISON with observed_count=0 and query_index=1
-310cda6 contains a narrow deterministic readiness fix
-that fix has not yet been exercised against the live provider
+the same result occurred after the 310cda6 bounded strict-action fix
+the current provider structural contract is not yet captured
 ```
 
 Still unknown:
 
 ```text
-whether ADD_COMPARISON becomes uniquely actionable within the existing timeout
-whether the workflow advances to a later QUERY_GROUP control or a later stage
+which current tag/role/aria-label/class contract represents comparison-add
+whether a structurally verified locator advances to the next control/stage
 whether source-level GT01 can produce and validate an artifact
 ```
 
@@ -585,43 +606,39 @@ release browser-binary distribution / fresh-install hardening until M7
 
 # 15. Exact Next Action
 
-Do **not** make another provider-behavior change before new live evidence.
+Do **not** make another provider-behavior change before structural live evidence.
 
-The structured diagnostic and narrow `ADD_COMPARISON` readiness fix are implemented, deterministically verified, committed, and present in `310cda6`.
+The safe structural diagnostic command is implemented, deterministically verified, committed, and present in `93e58a2`.
 
 The exact next technical action is:
 
 ```text
-make exactly one explicitly approved live GT01 collection
-using the existing 310cda6 implementation
+make exactly one explicitly approved live query DOM diagnostic
+using npm run m3:live-query-diagnostic -- --confirm-live-diagnostic
 ```
 
-Before that live evidence, do not make any provider-behavior change:
+This diagnostic is deliberately restricted to:
 
 ```text
-no selector changes
-no waitFor/sleep changes
-no timeout changes
-no retry
-no refresh
-no navigation changes
-no other provider-behavior changes
+one Explore navigation
+first GT01 Search Term selection only
+one existing ADD_COMPARISON locator action
+bounded structural counts and tag/role/aria-label/class evidence
+configured-query redaction
+no retry, refresh, download, or broader query group
 ```
 
 Interpret the resulting evidence:
 
 ```text
-the workflow advances
-→ report the next safe fixed stage/diagnostic without changing provider behavior
+expected accessible name is absent but one distinct structural add control exists
+→ implement only that provider-evidenced contract with strict cardinality
 
-ADD_COMPARISON still reports observed_count=0
-→ inspect the post-timeout provider state before considering any further readiness change
+multiple plausible structural controls exist
+→ tighten scoping; do not choose by DOM position
 
-observed_count>1
-→ inspect scoping/ambiguity; do not choose by DOM position
-
-different control
-→ inspect only that control's provider contract
+container/state is absent
+→ diagnose first-query selection state before changing the add locator
 ```
 
 Do not revive the abandoned broad `waitFor()` experiment unless later live evidence justifies a separately scoped change.
@@ -641,7 +658,17 @@ evidence-based minimal query-group fix in 310cda6
 ↓
 deterministic full regression gate
 ↓
-one explicit live GT01 attempt
+one explicit live GT01 attempt: same ADD_COMPARISON count=0
+↓
+safe structural diagnostic in 93e58a2
+↓
+one explicit live query DOM diagnostic
+↓
+provider-evidenced minimal query-group correction
+↓
+deterministic regression gate
+↓
+controlled live GT01 collection
 ↓
 continue fail-closed through geography/date/filter/download if another stage fails
 ↓
