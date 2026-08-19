@@ -720,6 +720,28 @@ const main = async () => {
   );
 
   assert.equal(
+    queryActions.filter(
+      (entry) =>
+        entry.op ===
+          'pressSequentially',
+    ).length,
+    5,
+  );
+
+  assert.equal(
+    queryActions.some(
+      (entry) =>
+        entry.op ===
+          'fill',
+    ),
+    false,
+  );
+
+  console.log(
+    'PASS GT-QUERY-016: every Angular autocomplete query input uses bounded sequential key events and no single fill mutation',
+  );
+
+  assert.equal(
     queryPage.trace.some(
       (entry) =>
         JSON.stringify(
