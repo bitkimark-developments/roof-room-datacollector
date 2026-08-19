@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `2fe1f70 feat: add Google Trends query diagnostics`
+**Latest verified technical checkpoint:** `310cda6 fix: wait for Google Trends comparison control`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -24,6 +24,8 @@ main
 Latest verified checkpoint:
 
 ```text
+310cda6 fix: wait for Google Trends comparison control
+b49770b docs: prepare repository development handoff
 2fe1f70 feat: add Google Trends query diagnostics
 1d6d0a1 docs: reconcile M3 project handoff
 5024e66 fix: classify Google Trends date dialog errors
@@ -52,12 +54,14 @@ Verified committed technical baseline before this handoff update:
 
 ```text
 main
-2fe1f70 feat: add Google Trends query diagnostics
+310cda6 fix: wait for Google Trends comparison control
 ```
 
-The abandoned/unverified QUERY_GROUP `waitFor()` experiment was removed from the worktree before the baseline gate. It must not be treated as implemented or accepted behavior.
+The abandoned/unverified broad QUERY_GROUP `waitFor()` experiment was removed from the worktree before the baseline gate. It must not be treated as implemented or accepted behavior.
 
-The structured QUERY_GROUP diagnostics were implemented without changing selectors, waits, retries, refresh behavior, navigation, or other provider-facing behavior. No live GT01 request has been made after `2fe1f70`.
+One explicitly approved live GT01 request was made after `2fe1f70`. It produced safe structured evidence that `ADD_COMPARISON` had `observed_count=0` at `query_index=1`. No artifact was produced and no automatic retry was made.
+
+`310cda6` applies the resulting narrow readiness fix. It does not add `waitFor()`, sleep/delay, a new timeout, retry, refresh, selector changes, navigation changes, or other provider-behavior changes. It lets the existing bounded strict Playwright click action wait for the temporarily missing `ADD_COMPARISON` control. No live GT01 request has been made after `310cda6`.
 
 Development environment currently verified:
 
@@ -172,7 +176,7 @@ The 2026-08-19 baseline verification reconfirmed all eight integrated M2 gate as
 
 # 5. Implemented M3 Google Trends Surfaces
 
-The following M3 slices are committed and retained by the verified `2fe1f70` baseline:
+The following M3 slices are committed and retained by the verified `310cda6` baseline:
 
 ```text
 rate-limit detection
@@ -199,6 +203,7 @@ explicit live GT01 collection command
 safe configured-page stage diagnostics
 nested date-dialog UI error classification
 structured QUERY_GROUP control/count diagnostics
+bounded strict-action readiness for the comparison-add control
 ```
 
 The provider-facing workflow remains fail-closed. Critical controls do not use positional `.first()` / `.nth()` selection as a fallback.
@@ -244,13 +249,13 @@ Latest verified live result:
   "requested_date_end": "2026-08-17",
   "result_type": "FAILED",
   "error_code": "GOOGLE_TRENDS_UI_CONTRACT_ERROR",
-  "diagnostic": "Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError)."
+  "diagnostic": "Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError; control=ADD_COMPARISON; observed_count=0; query_index=1)."
 }
 ```
 
 No accepted GT01 artifact was produced by that live attempt.
 
-That live attempt predates `2fe1f70`. No live GT01 request has been made after the structured diagnostics were committed, so the previous failure cannot yet be assigned to an exact control or observed count.
+That live attempt used the structured diagnostics committed in `2fe1f70`. It was run exactly once, without automatic retry, and was followed by the narrow deterministic fix in `310cda6`. No live GT01 request has been made after `310cda6`.
 
 This proves only:
 
@@ -258,7 +263,10 @@ This proves only:
 the provider was reached
 collection entered configured-page export
 the failure occurred during QUERY_GROUP
-the failure was a controlled GoogleTrendsQueryGroupUiContractError
+the exact failing control was ADD_COMPARISON
+the immediate observed count was 0
+the next query index was 1
+the failure was a controlled structured GoogleTrendsQueryGroupUiContractError
 the workflow failed closed
 ```
 
@@ -266,14 +274,13 @@ It does **not** yet prove:
 
 ```text
 selector drift
-late/dynamic rendering
-a missing control
-an ambiguous control
+a permanently missing control
+whether the control becomes available within the existing bounded click timeout
 a provider-language mismatch
-which exact QUERY_GROUP guard failed
+whether the next live attempt advances beyond QUERY_GROUP
 ```
 
-Do not add waits, sleeps, selector changes, retries, or refreshes based only on the stage-level error.
+Do not add broader waits, sleeps, selector changes, retries, refreshes, or timeout changes without new live evidence.
 
 ---
 
@@ -302,7 +309,9 @@ role=searchbox
 name="Add a search term"
 ```
 
-For structural controls, the adapter currently calls `count()` and requires exactly one match.
+For the initial input, empty comparison slot, and nested comparison input, the adapter calls `count()` and requires exactly one match before mutation.
+
+For `ADD_COMPARISON`, the adapter first fails closed immediately when more than one match exists. When the initial count is zero or one, it uses the existing strict Playwright click action and existing bounded UI timeout. If the action fails and the final count is not one, it reports the final structured cardinality evidence. If the action fails while exactly one match exists, the original action failure remains visible to the collector boundary.
 
 At `2fe1f70`, exact-cardinality failures carry structured, allowlisted diagnostic context for:
 
@@ -323,7 +332,7 @@ query_index
 
 Arbitrary provider text, query text, raw exception messages, HTML, cookies, authentication state, session material, and dynamic DOM IDs are not exposed by this diagnostic contract.
 
-The committed baseline does **not** contain the abandoned `locator.waitFor()` experiment.
+The committed baseline does **not** contain the abandoned `locator.waitFor()` experiment, any sleep/delay, or a new timeout.
 
 The Search Term suggestion is selected using Playwright click action with the existing bounded UI timeout; Playwright action waiting is distinct from the explicit cardinality checks above.
 
@@ -367,7 +376,7 @@ The structured QUERY_GROUP diagnostic boundary was added in:
 
 # 10. Verified Baseline Gate — 2026-08-19
 
-The following deterministic checks passed against the `2fe1f70` implementation during the 2026-08-19 repository audit:
+The following deterministic checks passed against the `310cda6` implementation during the 2026-08-19 verification:
 
 ```text
 npm run lint
@@ -375,54 +384,68 @@ npx tsc --noEmit
 
 npm run test:m3:gt-query-geo
 npm run test:m3:gt-ui-diagnostics
+npm run test:m3:provider-state
+npm run test:m3:provider-probe
+npm run test:m3:browser-probe
+npm run test:m3:live-probe-command
+npm run test:m3:downloads
+npm run test:m3:gt-csv
+npm run test:m3:gt-validator-adapter
+npm run test:m3:browser-download
+npm run test:m3:gt-download-selector
+npm run test:m3:gt-date-dialog
+npm run test:m3:gt-date-range
+npm run test:m3:gt-fixed-filters
 npm run test:m3:gt-configured-export
 npm run test:m3:gt-collecting-source
 npm run test:m3:live-gt01-command
 npm run test:m3:gt-runtime
 npm run test:m3:gt-runtime-package-config
-npm run test:m3:gt-csv
-npm run test:m3:gt-validator-adapter
-npm run test:m3:downloads
+npm run test:m3:gt-manual-action
 
 npm run test:m2:gate
+npm run package
 ```
 
 Observed results:
 
 ```text
-GT-QUERY-001..010 PASS
+GT-QUERY-001..011 PASS
 GT-GEO-001..006 PASS
 GT-DIAG-001..006 PASS
+GT-PROVIDER-001..006 PASS
+GT-PROBE-001..007 PASS
+GT-BROWSER-PROBE-001..006 PASS
+GT-LIVE-CMD-001..004 PASS
+DOWNLOAD-001..006 PASS
+GT-PARSE-001..004 PASS
+GT-DATE-001..002 PASS
+GT-VAL-001..007 PASS
+GT-ADAPTER-001..007 PASS
+BROWSER-DOWNLOAD-001..006 PASS
+GT-DOWNLOAD-001..007 PASS
+GT-DATE-DIALOG-001..008 PASS
+GT-DATE-RANGE-001..007 PASS
+GT-FILTER-001..007 PASS
 GT-CONFIGURED-EXPORT-001..007 PASS
 GT-SOURCE-001..003 PASS
 GT-COLLECTOR-001..005 PASS
 GT-LIVE-GT01-CMD-001..004 PASS
 GT-RUNTIME-001..005 PASS
 GT-PACKAGE-001 PASS
-GT-PARSE-001..004 PASS
-GT-DATE-001..002 PASS
-GT-VAL-001..007 PASS
-GT-ADAPTER-001..007 PASS
-DOWNLOAD-001..006 PASS
-M2-GATE-001..008 PASS
-```
-
-The preceding clean `5024e66` baseline also verified these deterministic/runtime gates, and that evidence remains recorded:
-
-```text
 GT-MANUAL-001..006 PASS
-GT-PROVIDER-001..006 PASS
+M2-GATE-001..008 PASS
 Electron Forge package PASS on darwin arm64
 ```
 
-The current generated package artifact was inspected during the repository audit and contains the structured QUERY_GROUP diagnostic implementation. The full `npm run package` command was not rerun during that read-only audit.
+The first package attempt in the restricted environment reached the production build and then failed only because `github.com` DNS access was unavailable. The same `npm run package` command completed successfully with network access; this was not a Google Trends request.
 
 The Vite CJS Node API deprecation message remains a warning only; it is not currently a failing gate.
 
 Verified committed technical checkpoint:
 
 ```text
-2fe1f70 feat: add Google Trends query diagnostics
+310cda6 fix: wait for Google Trends comparison control
 ```
 
 ---
@@ -533,18 +556,18 @@ M3 must not be declared complete before this integration is proven.
 Current blocking issue:
 
 ```text
-the previous live GT01 attempt failed during QUERY_GROUP with
-GoogleTrendsQueryGroupUiContractError
-the attempt predates the structured diagnostics in 2fe1f70
-the exact control and observed count are therefore still unknown
+the latest live GT01 attempt failed during QUERY_GROUP at
+ADD_COMPARISON with observed_count=0 and query_index=1
+310cda6 contains a narrow deterministic readiness fix
+that fix has not yet been exercised against the live provider
 ```
 
-Unknown within that stage:
+Still unknown:
 
 ```text
-which structural query control failed
-whether observed match count was 0, 1-but-action-failed, or >1
-whether the issue is readiness/timing, selector drift, ambiguity, or provider state
+whether ADD_COMPARISON becomes uniquely actionable within the existing timeout
+whether the workflow advances to a later QUERY_GROUP control or a later stage
+whether source-level GT01 can produce and validate an artifact
 ```
 
 Other intentional deferrals:
@@ -562,15 +585,15 @@ release browser-binary distribution / fresh-install hardening until M7
 
 # 15. Exact Next Action
 
-Do **not** change provider behavior yet.
+Do **not** make another provider-behavior change before new live evidence.
 
-The structured QUERY_GROUP diagnostic slice is already implemented, deterministically verified, committed, and present in `2fe1f70`.
+The structured diagnostic and narrow `ADD_COMPARISON` readiness fix are implemented, deterministically verified, committed, and present in `310cda6`.
 
 The exact next technical action is:
 
 ```text
 make exactly one explicitly approved live GT01 collection
-using the existing 2fe1f70 implementation
+using the existing 310cda6 implementation
 ```
 
 Before that live evidence, do not make any provider-behavior change:
@@ -578,6 +601,7 @@ Before that live evidence, do not make any provider-behavior change:
 ```text
 no selector changes
 no waitFor/sleep changes
+no timeout changes
 no retry
 no refresh
 no navigation changes
@@ -587,8 +611,11 @@ no other provider-behavior changes
 Interpret the resulting evidence:
 
 ```text
-observed_count=0
-→ inspect provider DOM/state and readiness evidence before considering a bounded wait
+the workflow advances
+→ report the next safe fixed stage/diagnostic without changing provider behavior
+
+ADD_COMPARISON still reports observed_count=0
+→ inspect the post-timeout provider state before considering any further readiness change
 
 observed_count>1
 → inspect scoping/ambiguity; do not choose by DOM position
@@ -597,7 +624,7 @@ different control
 → inspect only that control's provider contract
 ```
 
-Do not revive the abandoned `waitFor()` experiment unless live evidence later justifies it.
+Do not revive the abandoned broad `waitFor()` experiment unless later live evidence justifies a separately scoped change.
 
 ---
 
@@ -608,9 +635,11 @@ verified 2fe1f70 diagnostic baseline
 ↓
 one explicit live GT01 attempt
 ↓
-evidence-based minimal query-group fix
+ADD_COMPARISON observed_count=0 at query_index=1
 ↓
-deterministic regression gate
+evidence-based minimal query-group fix in 310cda6
+↓
+deterministic full regression gate
 ↓
 one explicit live GT01 attempt
 ↓
