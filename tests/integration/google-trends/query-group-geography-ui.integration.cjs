@@ -1039,6 +1039,39 @@ const main = async () => {
     'PASS GT-QUERY-012: missing or ambiguous Search Term suggestions report structured control/count/index evidence for initial and comparison queries',
   );
 
+  const defaultTimeoutPage =
+    new FakeQueryPage();
+
+  await applyGoogleTrendsSearchTermQueryGroup({
+    page:
+      defaultTimeoutPage,
+    queries: [
+      'canlı bitki',
+    ],
+  });
+
+  const defaultSuggestionClick =
+    defaultTimeoutPage.trace.find(
+      (entry) =>
+        entry.op ===
+          'click' &&
+        entry.locator ===
+          'suggestion:canlı bitki Search term',
+    );
+
+  assert.deepEqual(
+    defaultSuggestionClick
+      ?.options,
+    {
+      timeout:
+        30_000,
+    },
+  );
+
+  console.log(
+    'PASS GT-QUERY-013: query-group actions use the evidence-based bounded 30-second default while explicit timeout overrides remain supported',
+  );
+
   const alreadyTurkeyPage =
     new FakeGeographyPage({
       initialLabel:
