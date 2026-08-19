@@ -789,6 +789,92 @@ const main = async (): Promise<void> => {
               element.isConnected,
           );
 
+    let sequentialInputAlternative:
+      | {
+          attempted: true;
+          input_after_entry:
+            SafeQueryInputState;
+          suggestion_count_before_action: number;
+          suggestion_action: string;
+          selected_query_count_after_action: number;
+        }
+      | {
+          attempted: false;
+          reason:
+            'FILL_PERSISTED';
+        };
+
+    if (
+      comparisonInputAfterFill
+        .matches_expected_query
+    ) {
+      sequentialInputAlternative = {
+        attempted:
+          false,
+        reason:
+          'FILL_PERSISTED',
+      };
+    } else {
+      await comparisonInput
+        .pressSequentially(
+          secondQuery,
+          {
+            timeout:
+              UI_ACTION_TIMEOUT_MS,
+          },
+        );
+
+      const sequentialInputAfterEntry =
+        classifyQueryInputState(
+          await comparisonInput
+            .inputValue(),
+          secondQuery,
+        );
+
+      const sequentialSuggestionCount =
+        await expectedSuggestion.count();
+
+      let sequentialSuggestionAction =
+        'CLICKED';
+
+      try {
+        await expectedSuggestion.click({
+          timeout:
+            UI_ACTION_TIMEOUT_MS,
+        });
+      } catch (error: unknown) {
+        sequentialSuggestionAction =
+          error instanceof Error
+            ? error.name
+            : 'UNKNOWN_ERROR';
+      }
+
+      if (
+        rateLimitedResponseObserved
+      ) {
+        printInteractionRateLimit();
+        process.exitCode = 4;
+        return;
+      }
+
+      sequentialInputAlternative = {
+        attempted:
+          true,
+        input_after_entry:
+          sequentialInputAfterEntry,
+        suggestion_count_before_action:
+          sequentialSuggestionCount,
+        suggestion_action:
+          sequentialSuggestionAction,
+        selected_query_count_after_action:
+          await page
+            .locator(
+              '.compare-term-container explore-search-term.pill-selected',
+            )
+            .count(),
+      };
+    }
+
     const selectorCounts:
       Record<string, number> = {};
 
@@ -862,6 +948,8 @@ const main = async (): Promise<void> => {
             comparisonInputAfterSuggestionAction,
           filled_comparison_input_remained_connected:
             filledComparisonInputRemainedConnected,
+          sequential_input_alternative:
+            sequentialInputAlternative,
           selector_counts:
             selectorCounts,
           compare_contracts:
