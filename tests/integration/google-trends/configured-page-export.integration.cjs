@@ -20,6 +20,7 @@ if (!buildRoot) {
 }
 
 const {
+  applyGoogleTrendsConfiguredPageThroughStage,
   exportConfiguredGoogleTrendsPage,
   GoogleTrendsConfiguredPageExportError,
 } = require(
@@ -367,6 +368,134 @@ const main = async () => {
   );
   console.log(
     'PASS GT-CONFIGURED-EXPORT-007: optional UI/download settings remain absent so lower-level verified defaults stay authoritative',
+  );
+
+  const staged =
+    makeDependencies();
+
+  const stagedEvents = [];
+
+  const stagedResult =
+    await applyGoogleTrendsConfiguredPageThroughStage(
+      {
+        ...makeInput(),
+        through_stage:
+          'DATE_RANGE',
+        on_stage(stage) {
+          stagedEvents.push(
+            `started:${stage}`,
+          );
+        },
+        on_stage_completed(stage) {
+          stagedEvents.push(
+            `completed:${stage}`,
+          );
+        },
+      },
+      staged.dependencies,
+    );
+
+  assert.deepEqual(
+    staged.trace.map(
+      (entry) =>
+        entry.step,
+    ),
+    [
+      'query-group',
+      'geography',
+      'date-range',
+    ],
+  );
+
+  assert.deepEqual(
+    stagedResult.completed_stages,
+    [
+      'QUERY_GROUP',
+      'GEOGRAPHY',
+      'DATE_RANGE',
+    ],
+  );
+
+  assert.deepEqual(
+    stagedEvents,
+    [
+      'started:QUERY_GROUP',
+      'completed:QUERY_GROUP',
+      'started:GEOGRAPHY',
+      'completed:GEOGRAPHY',
+      'started:DATE_RANGE',
+      'completed:DATE_RANGE',
+    ],
+  );
+
+  console.log(
+    'PASS GT-CONFIGURED-EXPORT-008: staged execution stops exactly after the requested module and reports only successfully completed acceptance gates',
+  );
+
+  const failedStage =
+    makeDependencies({
+      verifyError:
+        new Error(
+          'fixed-filter gate failed',
+        ),
+    });
+
+  const failedStageCompletions = [];
+
+  await assert.rejects(
+    () =>
+      applyGoogleTrendsConfiguredPageThroughStage(
+        {
+          ...makeInput(),
+          through_stage:
+            'FIXED_FILTERS',
+          on_stage_completed(stage) {
+            failedStageCompletions.push(
+              stage,
+            );
+          },
+        },
+        failedStage.dependencies,
+      ),
+    /fixed-filter gate failed/u,
+  );
+
+  assert.deepEqual(
+    failedStageCompletions,
+    [
+      'QUERY_GROUP',
+      'GEOGRAPHY',
+      'DATE_RANGE',
+    ],
+  );
+
+  console.log(
+    'PASS GT-CONFIGURED-EXPORT-009: a failed module is never marked complete and later modules are never executed',
+  );
+
+  const invalidStage =
+    makeDependencies();
+
+  await assert.rejects(
+    () =>
+      applyGoogleTrendsConfiguredPageThroughStage(
+        {
+          ...makeInput(),
+          through_stage:
+            'DOWNLOAD',
+        },
+        invalidStage.dependencies,
+      ),
+    /Unsupported Google Trends pre-download stage/u,
+  );
+
+  assert.deepEqual(
+    invalidStage.trace,
+    [],
+  );
+
+  console.log(
+    'PASS GT-CONFIGURED-EXPORT-010: staged diagnostics cannot trigger download or provider interaction through an invalid target gate',
   );
 };
 

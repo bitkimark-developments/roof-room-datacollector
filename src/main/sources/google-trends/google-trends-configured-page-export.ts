@@ -39,6 +39,16 @@ export const GOOGLE_TRENDS_CONFIGURED_PAGE_STAGES = [
 export type GoogleTrendsConfiguredPageStage =
   (typeof GOOGLE_TRENDS_CONFIGURED_PAGE_STAGES)[number];
 
+export const GOOGLE_TRENDS_PRE_DOWNLOAD_STAGES = [
+  'QUERY_GROUP',
+  'GEOGRAPHY',
+  'DATE_RANGE',
+  'FIXED_FILTERS',
+] as const satisfies readonly GoogleTrendsConfiguredPageStage[];
+
+export type GoogleTrendsPreDownloadStage =
+  (typeof GOOGLE_TRENDS_PRE_DOWNLOAD_STAGES)[number];
+
 export class GoogleTrendsConfiguredPageExportError
   extends Error
 {
@@ -49,13 +59,12 @@ export class GoogleTrendsConfiguredPageExportError
   }
 }
 
-export interface ExportConfiguredGoogleTrendsPageInput {
+export interface GoogleTrendsConfiguredPageStageInput {
   page: ManagedBrowserPage;
   queries: readonly string[];
   requested_date_start: string;
   requested_date_end: string;
   ui_action_timeout_ms?: number;
-  download_timeout_ms?: number;
 
   /**
    * Optional bounded diagnostic hook.
@@ -67,6 +76,32 @@ export interface ExportConfiguredGoogleTrendsPageInput {
   on_stage?: (
     stage: GoogleTrendsConfiguredPageStage,
   ) => void;
+}
+
+export interface ApplyGoogleTrendsConfiguredPageThroughStageInput
+  extends GoogleTrendsConfiguredPageStageInput
+{
+  through_stage:
+    GoogleTrendsPreDownloadStage;
+
+  /**
+   * Emits only after the named module resolves successfully.
+   * A failed module is never reported as completed.
+   */
+  on_stage_completed?: (
+    stage: GoogleTrendsPreDownloadStage,
+  ) => void;
+}
+
+export interface ApplyGoogleTrendsConfiguredPageThroughStageResult {
+  completed_stages:
+    readonly GoogleTrendsPreDownloadStage[];
+}
+
+export interface ExportConfiguredGoogleTrendsPageInput
+  extends GoogleTrendsConfiguredPageStageInput
+{
+  download_timeout_ms?: number;
 }
 
 export interface GoogleTrendsConfiguredPageExportResult {
@@ -141,6 +176,128 @@ const assertCapturedDownloadIntegrity = (
   }
 };
 
+const assertPreDownloadStage = (
+  stage: GoogleTrendsPreDownloadStage,
+): void => {
+  if (
+    !GOOGLE_TRENDS_PRE_DOWNLOAD_STAGES.includes(
+      stage,
+    )
+  ) {
+    throw new GoogleTrendsConfiguredPageExportError(
+      `Unsupported Google Trends pre-download stage: ${String(stage)}.`,
+    );
+  }
+};
+
+/**
+ * Executes the configured Google Trends modules only through the
+ * requested pre-download acceptance gate.
+ *
+ * This is the common production path for both staged live evidence and
+ * the complete export chain. Earlier successful modules are prerequisites
+ * for later modules, but only the target module and its prerequisites run;
+ * download is never triggered by this function.
+ */
+export const applyGoogleTrendsConfiguredPageThroughStage =
+  async (
+    input:
+      ApplyGoogleTrendsConfiguredPageThroughStageInput,
+    dependencies:
+      GoogleTrendsConfiguredPageExportDependencies =
+        DEFAULT_DEPENDENCIES,
+  ): Promise<ApplyGoogleTrendsConfiguredPageThroughStageResult> => {
+    assertPreDownloadStage(
+      input.through_stage,
+    );
+
+    const uiTimeout =
+      input.ui_action_timeout_ms;
+
+    const completedStages:
+      GoogleTrendsPreDownloadStage[] = [];
+
+    for (const stage of
+      GOOGLE_TRENDS_PRE_DOWNLOAD_STAGES) {
+      input.on_stage?.(
+        stage,
+      );
+
+      if (stage === 'QUERY_GROUP') {
+        await dependencies.apply_query_group({
+          page:
+            input.page,
+          queries:
+            input.queries,
+          ...(uiTimeout === undefined
+            ? {}
+            : {
+                ui_action_timeout_ms:
+                  uiTimeout,
+              }),
+        });
+      } else if (stage === 'GEOGRAPHY') {
+        await dependencies.apply_turkey_geography({
+          page:
+            input.page,
+          ...(uiTimeout === undefined
+            ? {}
+            : {
+                ui_action_timeout_ms:
+                  uiTimeout,
+              }),
+        });
+      } else if (stage === 'DATE_RANGE') {
+        await dependencies.apply_custom_date_range({
+          page:
+            input.page,
+          requested_date_start:
+            input.requested_date_start,
+          requested_date_end:
+            input.requested_date_end,
+          ...(uiTimeout === undefined
+            ? {}
+            : {
+                ui_action_timeout_ms:
+                  uiTimeout,
+              }),
+        });
+      } else {
+        await dependencies.verify_fixed_filters({
+          page:
+            input.page,
+          ...(uiTimeout === undefined
+            ? {}
+            : {
+                ui_read_timeout_ms:
+                  uiTimeout,
+              }),
+        });
+      }
+
+      completedStages.push(
+        stage,
+      );
+
+      input.on_stage_completed?.(
+        stage,
+      );
+
+      if (
+        stage === input.through_stage
+      ) {
+        return {
+          completed_stages:
+            completedStages,
+        };
+      }
+    }
+
+    throw new GoogleTrendsConfiguredPageExportError(
+      `Google Trends pre-download stage was not reached: ${input.through_stage}.`,
+    );
+  };
+
 /**
  * Executes the already-discovered classic Google Trends UI workflow on
  * an already-open Explore page:
@@ -170,71 +327,30 @@ export const exportConfiguredGoogleTrendsPage =
     const uiTimeout =
       input.ui_action_timeout_ms;
 
-    input.on_stage?.(
-      'QUERY_GROUP',
-    );
-
-    await dependencies.apply_query_group({
+    await applyGoogleTrendsConfiguredPageThroughStage({
       page:
         input.page,
       queries:
         input.queries,
-      ...(uiTimeout === undefined
-        ? {}
-        : {
-            ui_action_timeout_ms:
-              uiTimeout,
-          }),
-    });
-
-    input.on_stage?.(
-      'GEOGRAPHY',
-    );
-
-    await dependencies.apply_turkey_geography({
-      page:
-        input.page,
-      ...(uiTimeout === undefined
-        ? {}
-        : {
-            ui_action_timeout_ms:
-              uiTimeout,
-          }),
-    });
-
-    input.on_stage?.(
-      'DATE_RANGE',
-    );
-
-    await dependencies.apply_custom_date_range({
-      page:
-        input.page,
       requested_date_start:
         input.requested_date_start,
       requested_date_end:
         input.requested_date_end,
+      through_stage:
+        'FIXED_FILTERS',
+      ...(input.on_stage === undefined
+        ? {}
+        : {
+            on_stage:
+              input.on_stage,
+          }),
       ...(uiTimeout === undefined
         ? {}
         : {
             ui_action_timeout_ms:
               uiTimeout,
           }),
-    });
-
-    input.on_stage?.(
-      'FIXED_FILTERS',
-    );
-
-    await dependencies.verify_fixed_filters({
-      page:
-        input.page,
-      ...(uiTimeout === undefined
-        ? {}
-        : {
-            ui_read_timeout_ms:
-              uiTimeout,
-          }),
-    });
+    }, dependencies);
 
     input.on_stage?.(
       'DOWNLOAD',
