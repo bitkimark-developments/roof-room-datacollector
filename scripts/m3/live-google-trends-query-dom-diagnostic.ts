@@ -40,8 +40,8 @@ const INITIAL_QUERY_INPUT_NAME =
 const SEARCH_TERM_SUFFIX =
   'Search term';
 
-const EXPECTED_ADD_COMPARISON_NAME =
-  'Add a search term for comparison';
+const EMPTY_QUERY_SLOT_SELECTOR =
+  '.compare-term-container .search-term-wrapper.term-not-selected';
 
 const UI_ACTION_TIMEOUT_MS =
   10_000;
@@ -86,8 +86,8 @@ const usage = (): string =>
     '',
     'Scope:',
     '  - makes one controlled Google Trends Explore navigation',
-    '  - uses GT01 only through the first Search Term selection',
-    '  - exercises the existing comparison-add locator once',
+    '  - uses GT01 only through the second query input',
+    '  - exercises the existing comparison Search Term suggestion locator once',
     '  - reports only bounded structural tag/role/aria-label/class evidence',
     '',
     'Safety:',
@@ -486,6 +486,15 @@ const main = async (): Promise<void> => {
     const firstQuery =
       queryGroup.queries[0];
 
+    const secondQuery =
+      queryGroup.queries[1];
+
+    if (secondQuery === undefined) {
+      throw new Error(
+        'External query configuration does not contain a second GT01 query.',
+      );
+    }
+
     const initialInput =
       page.getByRole(
         'searchbox',
@@ -536,35 +545,57 @@ const main = async (): Promise<void> => {
           UI_ACTION_TIMEOUT_MS,
       });
 
-    const expectedAdd =
+    const emptySlot =
+      page.locator(
+        EMPTY_QUERY_SLOT_SELECTOR,
+      );
+
+    const comparisonInput =
+      emptySlot.getByRole(
+        'searchbox',
+        {
+          name:
+            INITIAL_QUERY_INPUT_NAME,
+        },
+      );
+
+    await comparisonInput.fill(
+      secondQuery,
+      {
+        timeout:
+          UI_ACTION_TIMEOUT_MS,
+      },
+    );
+
+    const expectedSuggestion =
       page.getByRole(
         'button',
         {
           name:
-            EXPECTED_ADD_COMPARISON_NAME,
+            `${secondQuery} ${SEARCH_TERM_SUFFIX}`,
         },
       );
 
-    const initialExpectedAddCount =
-      await expectedAdd.count();
+    const initialExpectedSuggestionCount =
+      await expectedSuggestion.count();
 
-    let addAction =
+    let suggestionAction =
       'CLICKED';
 
     try {
-      await expectedAdd.click({
+      await expectedSuggestion.click({
         timeout:
           UI_ACTION_TIMEOUT_MS,
       });
     } catch (error: unknown) {
-      addAction =
+      suggestionAction =
         error instanceof Error
           ? error.name
           : 'UNKNOWN_ERROR';
     }
 
-    const finalExpectedAddCount =
-      await expectedAdd.count();
+    const finalExpectedSuggestionCount =
+      await expectedSuggestion.count();
 
     const selectorCounts:
       Record<string, number> = {};
@@ -577,7 +608,12 @@ const main = async (): Promise<void> => {
         '.compare-term-container button',
         '.compare-term-container [role="button"]',
         '.compare-term-container [aria-label]',
-        '[aria-label="Add a search term for comparison"]',
+        '.md-autocomplete-suggestions-container',
+        '.md-autocomplete-suggestions-container [role]',
+        '.md-autocomplete-suggestions-container button',
+        '.md-autocomplete-suggestions-container [role="button"]',
+        '.md-autocomplete-suggestions-container [role="option"]',
+        '[role="option"]',
       ]
     ) {
       selectorCounts[selector] =
@@ -592,6 +628,13 @@ const main = async (): Promise<void> => {
       await rawContractRows(
         page.locator(
           '.compare-term-container, .compare-term-container *',
+        ),
+      );
+
+    const suggestionRows =
+      await rawContractRows(
+        page.locator(
+          '.md-autocomplete-suggestions-container, .md-autocomplete-suggestions-container *',
         ),
       );
 
@@ -615,17 +658,22 @@ const main = async (): Promise<void> => {
         {
           result_type:
             'QUERY_DOM_DIAGNOSTIC',
-          initial_expected_add_count:
-            initialExpectedAddCount,
-          add_action:
-            addAction,
-          final_expected_add_count:
-            finalExpectedAddCount,
+          initial_expected_suggestion_count:
+            initialExpectedSuggestionCount,
+          suggestion_action:
+            suggestionAction,
+          final_expected_suggestion_count:
+            finalExpectedSuggestionCount,
           selector_counts:
             selectorCounts,
           compare_contracts:
             sanitizeQueryDomDiagnosticRows(
               compareRows,
+              queryGroup.queries,
+            ),
+          suggestion_contracts:
+            sanitizeQueryDomDiagnosticRows(
+              suggestionRows,
               queryGroup.queries,
             ),
           relevant_aria_contracts:
