@@ -20,6 +20,7 @@ if (!buildRoot) {
 }
 
 const {
+  GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS,
   downloadGoogleTrendsInterestOverTime,
   GoogleTrendsUiContractError,
 } = require(
@@ -396,6 +397,12 @@ const main = async () => {
     (error) =>
       error instanceof
         GoogleTrendsUiContractError &&
+      error.diagnostic_context
+        .control ===
+        GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
+          .INTEREST_OVER_TIME_HEADING &&
+      error.diagnostic_context
+        .observed_count === 0 &&
       /heading/u.test(
         error.message,
       ),
@@ -435,6 +442,12 @@ const main = async () => {
     (error) =>
       error instanceof
         GoogleTrendsUiContractError &&
+      error.diagnostic_context
+        .control ===
+        GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
+          .DOWNLOAD_BUTTON &&
+      error.diagnostic_context
+        .observed_count === 2 &&
       /download button/u.test(
         error.message,
       ),

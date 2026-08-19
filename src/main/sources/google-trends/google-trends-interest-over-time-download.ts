@@ -16,13 +16,41 @@ const DOWNLOAD_ACCESSIBLE_NAME =
 const DEFAULT_UI_ACTION_TIMEOUT_MS =
   10_000;
 
+export const GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS = {
+  INTEREST_OVER_TIME_HEADING:
+    'INTEREST_OVER_TIME_HEADING',
+  DOWNLOAD_BUTTON:
+    'DOWNLOAD_BUTTON',
+} as const;
+
+export type GoogleTrendsDownloadDiagnosticControl =
+  (typeof GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS)[
+    keyof typeof GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
+  ];
+
+export interface GoogleTrendsDownloadDiagnosticContext {
+  control:
+    GoogleTrendsDownloadDiagnosticControl;
+  observed_count: number;
+}
+
 export class GoogleTrendsUiContractError
   extends Error
 {
-  constructor(message: string) {
+  readonly diagnostic_context:
+    GoogleTrendsDownloadDiagnosticContext | null;
+
+  constructor(
+    message: string,
+    diagnosticContext:
+      GoogleTrendsDownloadDiagnosticContext | null =
+      null,
+  ) {
     super(message);
     this.name =
       'GoogleTrendsUiContractError';
+    this.diagnostic_context =
+      diagnosticContext;
   }
 }
 
@@ -56,6 +84,8 @@ const requirePositiveTimeout = (
 const requireExactlyOne = async (
   locator: ManagedBrowserLocator,
   description: string,
+  control:
+    GoogleTrendsDownloadDiagnosticControl,
 ): Promise<void> => {
   const count =
     await locator.count();
@@ -63,6 +93,11 @@ const requireExactlyOne = async (
   if (count !== 1) {
     throw new GoogleTrendsUiContractError(
       `Expected exactly one ${description}; found ${count}.`,
+      {
+        control,
+        observed_count:
+          count,
+      },
     );
   }
 };
@@ -106,6 +141,8 @@ export const downloadGoogleTrendsInterestOverTime =
     await requireExactlyOne(
       heading,
       '"Interest over time" heading',
+      GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
+        .INTEREST_OVER_TIME_HEADING,
     );
 
     const cardHeader =
@@ -123,6 +160,8 @@ export const downloadGoogleTrendsInterestOverTime =
     await requireExactlyOne(
       downloadButton,
       '"Interest over time" download button',
+      GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
+        .DOWNLOAD_BUTTON,
     );
 
     return captureBrowserDownload({

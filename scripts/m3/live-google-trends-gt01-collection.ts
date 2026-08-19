@@ -322,6 +322,9 @@ const DATE_RANGE_UI_DIAGNOSTIC_PATTERN =
 const DATE_DIALOG_UI_DIAGNOSTIC_PATTERN =
   /^Google Trends UI contract failed during DATE_RANGE \(GoogleTrendsDateDialogContractError; control=(ARCHIVE_DIALOG|START_DATE_INPUT|END_DATE_INPUT); observed_count=[0-9]+\)\.$/u;
 
+const DOWNLOAD_UI_DIAGNOSTIC_PATTERN =
+  /^Google Trends UI contract failed during DOWNLOAD \(GoogleTrendsUiContractError; control=(INTEREST_OVER_TIME_HEADING|DOWNLOAD_BUTTON); observed_count=[0-9]+\)\.$/u;
+
 export const safeResultSummary = (
   result:
     SourceCollectionResult,
@@ -371,6 +374,9 @@ export const safeResultSummary = (
         result.message,
       ) ||
       DATE_DIALOG_UI_DIAGNOSTIC_PATTERN.test(
+        result.message,
+      ) ||
+      DOWNLOAD_UI_DIAGNOSTIC_PATTERN.test(
         result.message,
       )
     )

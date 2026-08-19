@@ -35,6 +35,7 @@ import {
   GoogleTrendsGeographyUiContractError,
 } from './google-trends-geography-ui';
 import {
+  GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS,
   GoogleTrendsUiContractError,
 } from './google-trends-interest-over-time-download';
 import {
@@ -287,6 +288,13 @@ const DATE_DIALOG_DIAGNOSTIC_CONTROL_VALUES =
     ),
   );
 
+const DOWNLOAD_DIAGNOSTIC_CONTROL_VALUES =
+  new Set<string>(
+    Object.values(
+      GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS,
+    ),
+  );
+
 const formatQueryGroupDiagnostic = (
   stage:
     GoogleTrendsConfiguredPageStage | null,
@@ -408,6 +416,38 @@ const formatDateRangeDiagnostic = (
       : 'GoogleTrendsDateDialogContractError';
 
   return `Google Trends UI contract failed during DATE_RANGE (${errorName}; control=${diagnostic.control}; observed_count=${diagnostic.observed_count}).`;
+};
+
+const formatDownloadDiagnostic = (
+  stage:
+    GoogleTrendsConfiguredPageStage | null,
+  error: unknown,
+): string | null => {
+  if (
+    stage !== 'DOWNLOAD' ||
+    !(error instanceof
+      GoogleTrendsUiContractError)
+  ) {
+    return null;
+  }
+
+  const diagnostic =
+    error.diagnostic_context;
+
+  if (
+    diagnostic === null ||
+    !DOWNLOAD_DIAGNOSTIC_CONTROL_VALUES.has(
+      diagnostic.control,
+    ) ||
+    !Number.isSafeInteger(
+      diagnostic.observed_count,
+    ) ||
+    diagnostic.observed_count < 0
+  ) {
+    return null;
+  }
+
+  return `Google Trends UI contract failed during DOWNLOAD (GoogleTrendsUiContractError; control=${diagnostic.control}; observed_count=${diagnostic.observed_count}).`;
 };
 
 export class GoogleTrendsCollector {
@@ -677,12 +717,19 @@ export class GoogleTrendsCollector {
             error,
           );
 
+        const downloadDiagnostic =
+          formatDownloadDiagnostic(
+            exportStage,
+            error,
+          );
+
         return failed(
           GOOGLE_TRENDS_COLLECTION_ERROR_CODES
             .UI_CONTRACT_ERROR,
           queryGroupDiagnostic ??
             geographyDiagnostic ??
             dateRangeDiagnostic ??
+            downloadDiagnostic ??
             `Google Trends UI contract failed during ${safeStage} (${safeErrorName}).`,
         );
       }

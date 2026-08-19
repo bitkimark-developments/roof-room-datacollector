@@ -42,6 +42,7 @@ const {
 );
 
 const {
+  GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS,
   GoogleTrendsUiContractError,
 } = require(
   path.join(
@@ -751,6 +752,81 @@ const main = async () => {
 
   console.log(
     'PASS GT-DIAG-008: date-range and nested dialog failures expose only allowlisted control cardinality through collector and live output boundaries',
+  );
+
+  const downloadCollector =
+    new GoogleTrendsCollector({
+      browser_manager:
+        browserManager,
+      probe_provider:
+        async () => ({
+          provider_state:
+            'NO_RATE_LIMIT_SIGNAL',
+          error_code:
+            null,
+          retry_after:
+            null,
+          signals: [],
+          requested_url:
+            'https://trends.google.com/trends/explore',
+          final_url:
+            'https://trends.google.com/trends/explore',
+          response_status:
+            200,
+        }),
+      export_configured_page:
+        async (input) => {
+          input.on_stage?.(
+            'DOWNLOAD',
+          );
+
+          throw new GoogleTrendsUiContractError(
+            'SENSITIVE_DOWNLOAD_DETAIL_MUST_NOT_ESCAPE',
+            {
+              control:
+                GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
+                  .INTEREST_OVER_TIME_HEADING,
+              observed_count:
+                0,
+            },
+          );
+        },
+    });
+
+  const downloadResult =
+    await downloadCollector.collect(
+      context,
+    );
+
+  const expectedDownloadDiagnostic =
+    'Google Trends UI contract failed during DOWNLOAD (GoogleTrendsUiContractError; control=INTEREST_OVER_TIME_HEADING; observed_count=0).';
+
+  assert.equal(
+    downloadResult.message,
+    expectedDownloadDiagnostic,
+  );
+
+  assert.doesNotMatch(
+    downloadResult.message,
+    /SENSITIVE_DOWNLOAD_DETAIL_MUST_NOT_ESCAPE/u,
+  );
+
+  assert.deepEqual(
+    safeResultSummary(
+      downloadResult,
+    ),
+    {
+      result_type:
+        'FAILED',
+      error_code:
+        'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+      diagnostic:
+        expectedDownloadDiagnostic,
+    },
+  );
+
+  console.log(
+    'PASS GT-DIAG-009: download failures expose only allowlisted heading/button cardinality through collector and live output boundaries',
   );
 
   const safeQueryGroupSummary =
