@@ -319,6 +319,23 @@ const main = () => {
     '2026-08-16',
   );
 
+  assert.deepEqual(
+    validDecision
+      .validated_metadata,
+    {
+      actual_date_start:
+        '2024-08-18',
+      actual_date_end:
+        '2026-08-16',
+      country_name:
+        null,
+    },
+  );
+
+  console.log(
+    'PASS GT-VAL-008: parsed weekly bucket boundaries become validated actual-date metadata without extending the provider evidence',
+  );
+
   console.log(
     'PASS GT-PARSE-001: exact real GT01 provider fixture parses without mutating raw bytes',
   );
@@ -464,6 +481,18 @@ const main = () => {
   assert.equal(
     wrongDate.validation_status,
     'DATE_MISMATCH',
+  );
+
+  assert.deepEqual(
+    wrongDate.validated_metadata,
+    {
+      actual_date_start:
+        '2024-08-18',
+      actual_date_end:
+        '2026-08-16',
+      country_name:
+        null,
+    },
   );
 
   console.log(
@@ -612,6 +641,13 @@ const main = () => {
     false,
   );
 
+  assert.equal(
+    wrongGeographyDecision
+      .validated_metadata
+      .country_name,
+    null,
+  );
+
   console.log(
     'PASS GT-VAL-005: observed provider geography-label mismatch is rejected without inventing a country-code mapping',
   );
@@ -671,4 +707,3 @@ const main = () => {
 };
 
 main();
-

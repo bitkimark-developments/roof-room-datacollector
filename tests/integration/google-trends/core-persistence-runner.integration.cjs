@@ -61,6 +61,18 @@ const {
   ),
 );
 
+const {
+  MetadataManager,
+} = require(
+  path.join(
+    buildRoot,
+    'src',
+    'main',
+    'core',
+    'metadata-manager.js',
+  ),
+);
+
 const appDataRoot =
   path.join(
     tempRoot,
@@ -418,6 +430,118 @@ const main = async () => {
       ),
     ),
     true,
+  );
+
+  const metadataDocument =
+    JSON.parse(
+      fs.readFileSync(
+        path.join(
+          runRoot,
+          'google-trends',
+          'metadata',
+          'GT01.metadata.json',
+        ),
+        'utf8',
+      ),
+    );
+
+  assert.equal(
+    metadataDocument
+      .actual_date_start,
+    '2024-08-18',
+  );
+
+  assert.equal(
+    metadataDocument
+      .actual_date_end,
+    '2026-08-16',
+  );
+
+  assert.equal(
+    metadataDocument
+      .country_name,
+    'Turkey',
+  );
+
+  console.log(
+    'PASS GT-CORE-010: source-validated actual coverage and canonical country name persist in run-scoped metadata',
+  );
+
+  const metadataManager =
+    new MetadataManager();
+
+  const makeMetadataInput = (
+    overrides,
+  ) => ({
+    run:
+      result.run,
+    job:
+      result.job,
+    attempt:
+      result.attempt,
+    raw_artifact:
+      result.artifact,
+    source: {
+      source_id:
+        'google-trends',
+      source_name:
+        'Google Trends',
+      source_mode:
+        'GOOGLE_TRENDS_UI',
+    },
+    query_group:
+      gt01,
+    validation_status:
+      'VALID',
+    actual_date_start:
+      '2024-08-18',
+    actual_date_end:
+      '2026-08-16',
+    country_name:
+      'Turkey',
+    ...overrides,
+  });
+
+  assert.throws(
+    () =>
+      metadataManager
+        .createDatasetMetadata(
+          makeMetadataInput({
+            actual_date_start:
+              '2024-02-30',
+          }),
+        ),
+    /actual_date_start must be an ISO calendar date/u,
+  );
+
+  assert.throws(
+    () =>
+      metadataManager
+        .createDatasetMetadata(
+          makeMetadataInput({
+            actual_date_start:
+              '2026-08-16',
+            actual_date_end:
+              '2024-08-18',
+          }),
+        ),
+    /actual_date_start must not be after actual_date_end/u,
+  );
+
+  assert.throws(
+    () =>
+      metadataManager
+        .createDatasetMetadata(
+          makeMetadataInput({
+            country_name:
+              '   ',
+          }),
+        ),
+    /country_name must be non-empty or null/u,
+  );
+
+  console.log(
+    'PASS GT-CORE-011: invalid validated date/country metadata fails closed before a provenance document can be created',
   );
 
   assert.equal(

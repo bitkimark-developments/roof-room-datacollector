@@ -51,32 +51,50 @@ const decision = (
     FinalValidationStatus,
   findings:
     readonly ValidationFinding[],
-): CollectionValidationDecision => ({
-  validation_status:
-    validationStatus,
-  checks_total:
-    findings.length,
-  checks_passed:
-    findings.filter(
-      (item) => item.passed,
-    ).length,
-  checks_warning:
-    findings.filter(
-      (item) =>
-        item.severity === 'WARNING',
-    ).length,
-  checks_failed:
-    findings.filter(
-      (item) =>
-        !item.passed &&
-        item.severity === 'ERROR',
-    ).length,
-  findings: findings.map(
-    (item) => ({
-      ...item,
-    }),
-  ),
-});
+  validatedMetadata?:
+    CollectionValidationDecision['validated_metadata'],
+): CollectionValidationDecision => {
+  const base = {
+    validation_status:
+      validationStatus,
+    checks_total:
+      findings.length,
+    checks_passed:
+      findings.filter(
+        (item) => item.passed,
+      ).length,
+    checks_warning:
+      findings.filter(
+        (item) =>
+          item.severity === 'WARNING',
+      ).length,
+    checks_failed:
+      findings.filter(
+        (item) =>
+          !item.passed &&
+          item.severity === 'ERROR',
+      ).length,
+    findings: findings.map(
+      (item) => ({
+        ...item,
+      }),
+    ),
+  };
+
+  if (
+    validatedMetadata ===
+    undefined
+  ) {
+    return base;
+  }
+
+  return {
+    ...base,
+    validated_metadata: {
+      ...validatedMetadata,
+    },
+  };
+};
 
 const decodeForSignature = (
   bytes: Uint8Array,
@@ -446,6 +464,21 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
     throw error;
   }
 
+  const validatedMetadata:
+    NonNullable<
+      CollectionValidationDecision['validated_metadata']
+    > = {
+      actual_date_start:
+        parsed.rows[0]
+          .period_start,
+      actual_date_end:
+        parsed.rows[
+          parsed.rows.length - 1
+        ].period_start,
+      country_name:
+        null,
+    };
+
   findings.push(
     finding(
       'GEN_PARSEABLE',
@@ -667,6 +700,7 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
     return decision(
       'INVALID_SCHEMA',
       findings,
+      validatedMetadata,
     );
   }
 
@@ -674,6 +708,7 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
     return decision(
       'QUERY_MISMATCH',
       findings,
+      validatedMetadata,
     );
   }
 
@@ -681,12 +716,13 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
     return decision(
       'DATE_MISMATCH',
       findings,
+      validatedMetadata,
     );
   }
 
   return decision(
     'VALID',
     findings,
+    validatedMetadata,
   );
 };
-

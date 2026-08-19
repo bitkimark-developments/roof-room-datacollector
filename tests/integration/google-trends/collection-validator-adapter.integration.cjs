@@ -241,6 +241,18 @@ const main = async () => {
     true,
   );
 
+  assert.deepEqual(
+    valid.validated_metadata,
+    {
+      actual_date_start:
+        '2024-08-18',
+      actual_date_end:
+        '2026-08-16',
+      country_name:
+        'Turkey',
+    },
+  );
+
   assert.equal(
     valid.findings.some(
       (finding) =>
@@ -305,6 +317,18 @@ const main = async () => {
   assert.equal(
     wrongDate.validation_status,
     'DATE_MISMATCH',
+  );
+
+  assert.deepEqual(
+    wrongDate.validated_metadata,
+    {
+      actual_date_start:
+        '2024-08-18',
+      actual_date_end:
+        '2026-08-16',
+      country_name:
+        'Turkey',
+    },
   );
 
   console.log(

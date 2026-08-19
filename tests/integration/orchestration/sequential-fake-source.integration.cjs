@@ -869,6 +869,114 @@ assert.equal(
   'COMPLETED',
 );
 
+const invalidMetadataValidator = {
+  async validate() {
+    return {
+      validation_status:
+        'VALID',
+      checks_total:
+        1,
+      checks_passed:
+        1,
+      checks_warning:
+        0,
+      checks_failed:
+        0,
+      findings: [
+        {
+          check_id:
+            'FAKE_VALIDATED_METADATA',
+          severity:
+            'INFO',
+          passed:
+            true,
+          message:
+            'Fake validator returned metadata for fail-closed ordering coverage.',
+          expected:
+            true,
+          actual:
+            true,
+        },
+      ],
+      validated_metadata: {
+        actual_date_start:
+          '2026-02-30',
+        actual_date_end:
+          '2026-08-16',
+        country_name:
+          'Turkey',
+      },
+    };
+  },
+};
+
+const invalidMetadataRun =
+  repositoryB.createRunFromQueryConfig({
+    query_config:
+      makeQueryConfig(1),
+    application_version:
+      '1.0.0-invalid-metadata-test',
+    requested_configuration:
+      requestedConfiguration,
+  });
+
+const invalidMetadataOrchestrator =
+  new CollectionOrchestrator(
+    repositoryB,
+    storage,
+    registry,
+    invalidMetadataValidator,
+    runManagerB,
+  );
+
+await assert.rejects(
+  () =>
+    invalidMetadataOrchestrator
+      .runUntilBlocked(
+        invalidMetadataRun
+          .run.run_id,
+      ),
+  /actual_date_start must be an ISO calendar date/u,
+);
+
+const invalidMetadataJob =
+  repositoryB.listJobs(
+    invalidMetadataRun
+      .run.run_id,
+  )[0];
+
+const invalidMetadataArtifacts =
+  repositoryB.listArtifacts(
+    invalidMetadataJob.job_id,
+  );
+
+assert.equal(
+  invalidMetadataJob
+    .execution_status,
+  'VALIDATING',
+);
+assert.equal(
+  invalidMetadataJob
+    .accepted_artifact_id,
+  null,
+);
+assert.equal(
+  invalidMetadataArtifacts.length,
+  1,
+);
+assert.equal(
+  invalidMetadataArtifacts[0]
+    .artifact_state,
+  'CANDIDATE',
+);
+assert.equal(
+  repositoryB
+    .listValidationSummaries(
+      invalidMetadataJob.job_id,
+    ).length,
+  0,
+);
+
 repositoryB.close();
 
 console.log(
@@ -900,6 +1008,9 @@ console.log(
 );
 console.log(
   'PASS PIPELINE-003: detailed validation JSON persists and SQLite stores its run-relative path',
+);
+console.log(
+  'PASS PIPELINE-004: invalid validator metadata fails before candidate-to-accepted state promotion',
 );
 };
 

@@ -24,6 +24,9 @@ const GOOGLE_TRENDS_DATASET_TYPE =
 const GOOGLE_TRENDS_MVP_COUNTRY_CODE =
   'TR';
 
+const GOOGLE_TRENDS_MVP_COUNTRY_NAME =
+  'Turkey';
+
 const GOOGLE_TRENDS_MVP_CATEGORY_NAME =
   'All Categories';
 
@@ -183,22 +186,49 @@ export class GoogleTrendsCollectionValidator
         context.absolute_path,
       );
 
-    return validateGoogleTrendsInterestOverTimeCsv({
-      bytes,
-      expected_queries:
-        context.query_group.queries,
-      requested_date_start:
-        context.run
-          .requested_configuration
-          .requested_date_start,
-      requested_date_end:
-        context.run
-          .requested_configuration
-          .requested_date_end,
-      expected_category_label:
-        OBSERVED_PROVIDER_CATEGORY_LABEL,
-      expected_geography_label:
-        OBSERVED_PROVIDER_GEOGRAPHY_LABEL,
-    });
+    const validation =
+      validateGoogleTrendsInterestOverTimeCsv({
+        bytes,
+        expected_queries:
+          context.query_group.queries,
+        requested_date_start:
+          context.run
+            .requested_configuration
+            .requested_date_start,
+        requested_date_end:
+          context.run
+            .requested_configuration
+            .requested_date_end,
+        expected_category_label:
+          OBSERVED_PROVIDER_CATEGORY_LABEL,
+        expected_geography_label:
+          OBSERVED_PROVIDER_GEOGRAPHY_LABEL,
+      });
+
+    if (
+      validation.validated_metadata ===
+      undefined
+    ) {
+      return validation;
+    }
+
+    const geographyVerified =
+      validation.findings.some(
+        (finding) =>
+          finding.check_id ===
+            'GT_GEOGRAPHY' &&
+          finding.passed,
+      );
+
+    return {
+      ...validation,
+      validated_metadata: {
+        ...validation.validated_metadata,
+        country_name:
+          geographyVerified
+            ? GOOGLE_TRENDS_MVP_COUNTRY_NAME
+            : null,
+      },
+    };
   }
 }

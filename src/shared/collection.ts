@@ -72,6 +72,15 @@ export interface CollectionValidationContext {
   absolute_path: string;
 }
 
+export interface ValidatedDatasetMetadata {
+  actual_date_start:
+    string | null;
+  actual_date_end:
+    string | null;
+  country_name:
+    string | null;
+}
+
 export interface CollectionValidationDecision {
   validation_status: Exclude<
     ValidationStatus,
@@ -82,6 +91,8 @@ export interface CollectionValidationDecision {
   checks_warning: number;
   checks_failed: number;
   findings: ValidationFinding[];
+  validated_metadata?:
+    ValidatedDatasetMetadata;
 }
 
 export interface CollectionValidator {

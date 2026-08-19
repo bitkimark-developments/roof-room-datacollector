@@ -699,6 +699,41 @@ export class CollectionOrchestrator {
           persisted.absolute_path,
       });
 
+    // Validate and materialize provenance before validation state can
+    // promote the candidate artifact to an accepted state.
+    const metadataDocument =
+      this.metadataManager
+        .createDatasetMetadata({
+          run,
+          job: validatingJob,
+          attempt,
+          raw_artifact: artifact,
+          source: {
+            source_id: source.id,
+            source_name: source.name,
+            source_mode:
+              source.sourceMode,
+          },
+          query_group: queryGroup,
+          validation_status:
+            validation.validation_status,
+          actual_date_start:
+            validation
+              .validated_metadata
+              ?.actual_date_start ??
+            null,
+          actual_date_end:
+            validation
+              .validated_metadata
+              ?.actual_date_end ??
+            null,
+          country_name:
+            validation
+              .validated_metadata
+              ?.country_name ??
+            null,
+        });
+
     const validationSummary =
       this.store.recordValidationSummary({
         attempt_id: attempt.attempt_id,
@@ -738,27 +773,6 @@ export class CollectionOrchestrator {
         validationSummary.validation_id,
         persistedValidation.relative_path,
       );
-
-    const metadataDocument =
-      this.metadataManager
-        .createDatasetMetadata({
-          run,
-          job: validatingJob,
-          attempt,
-          raw_artifact: artifact,
-          source: {
-            source_id: source.id,
-            source_name: source.name,
-            source_mode:
-              source.sourceMode,
-          },
-          query_group: queryGroup,
-          validation_status:
-            validation.validation_status,
-          actual_date_start: null,
-          actual_date_end: null,
-          country_name: null,
-        });
 
     const persistedMetadata =
       await this.storage

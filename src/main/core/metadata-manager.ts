@@ -83,6 +83,34 @@ export class MetadataManager {
       );
     }
 
+    const actualDateStart =
+      this.requireNullableDate(
+        input.actual_date_start,
+        'actual_date_start',
+      );
+
+    const actualDateEnd =
+      this.requireNullableDate(
+        input.actual_date_end,
+        'actual_date_end',
+      );
+
+    if (
+      actualDateStart !== null &&
+      actualDateEnd !== null &&
+      actualDateStart > actualDateEnd
+    ) {
+      throw new Error(
+        'Dataset metadata actual_date_start must not be after actual_date_end.',
+      );
+    }
+
+    const countryName =
+      this.requireNullableName(
+        input.country_name,
+        'country_name',
+      );
+
     return {
       schema_version: 1,
       run_id: run.run_id,
@@ -108,7 +136,7 @@ export class MetadataManager {
         run.requested_configuration
           .country_code,
       country_name:
-        input.country_name ?? null,
+        countryName,
       language_code:
         run.requested_configuration
           .language_code,
@@ -133,9 +161,9 @@ export class MetadataManager {
         run.requested_configuration
           .requested_date_end,
       actual_date_start:
-        input.actual_date_start ?? null,
+        actualDateStart,
       actual_date_end:
-        input.actual_date_end ?? null,
+        actualDateEnd,
 
       retrieved_at: rawArtifact.created_at,
       application_version:
@@ -149,5 +177,74 @@ export class MetadataManager {
       validation_status:
         input.validation_status,
     };
+  }
+
+  private requireNullableDate(
+    value:
+      string | null | undefined,
+    fieldName: string,
+  ): string | null {
+    if (
+      value === undefined ||
+      value === null
+    ) {
+      return null;
+    }
+
+    const match =
+      /^(\d{4})-(\d{2})-(\d{2})$/u.exec(
+        value,
+      );
+
+    if (match === null) {
+      throw new Error(
+        `Dataset metadata ${fieldName} must be an ISO calendar date or null.`,
+      );
+    }
+
+    const candidate =
+      new Date(
+        Date.UTC(
+          Number(match[1]),
+          Number(match[2]) - 1,
+          Number(match[3]),
+        ),
+      );
+
+    if (
+      candidate
+        .toISOString()
+        .slice(0, 10) !== value
+    ) {
+      throw new Error(
+        `Dataset metadata ${fieldName} must be an ISO calendar date or null.`,
+      );
+    }
+
+    return value;
+  }
+
+  private requireNullableName(
+    value:
+      string | null | undefined,
+    fieldName: string,
+  ): string | null {
+    if (
+      value === undefined ||
+      value === null
+    ) {
+      return null;
+    }
+
+    const trimmed =
+      value.trim();
+
+    if (trimmed.length === 0) {
+      throw new Error(
+        `Dataset metadata ${fieldName} must be non-empty or null.`,
+      );
+    }
+
+    return trimmed;
   }
 }
