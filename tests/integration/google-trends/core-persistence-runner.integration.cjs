@@ -609,11 +609,11 @@ const main = async () => {
         source:
           new FixtureGoogleTrendsSource(),
       }),
-    /restricted to exactly one GT01/u,
+    /Single Google Trends Core runner requires exactly one GT01/u,
   );
 
   console.log(
-    'PASS GT-CORE-006: the current live Core runner fails before persistence when scope expands beyond exactly one GT01 group',
+    'PASS GT-CORE-006: the backward-compatible single-run API remains locked to exactly GT01 while batch scope uses its dedicated API',
   );
 
   const failedSource =

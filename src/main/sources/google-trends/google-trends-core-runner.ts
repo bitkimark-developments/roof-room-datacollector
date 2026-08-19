@@ -97,12 +97,34 @@ export interface GoogleTrendsCoreRunResult {
     SourceCollectionResult | null;
 }
 
+export interface GoogleTrendsCoreJobResult {
+  job: JobRecord;
+  attempt:
+    AttemptRecord | null;
+  artifact:
+    ArtifactRecord | null;
+  validation:
+    ValidationSummaryRecord | null;
+  source_result:
+    SourceCollectionResult | null;
+}
+
+export interface GoogleTrendsCoreBatchRunResult {
+  run: RunRecord;
+  jobs:
+    GoogleTrendsCoreJobResult[];
+  orchestration:
+    OrchestrationRunResult;
+}
+
 class ObservedCollectingSource
   implements CollectingDataSourceModule
 {
-  latest_result:
-    SourceCollectionResult | null =
-    null;
+  private readonly resultsByJobId =
+    new Map<
+      string,
+      SourceCollectionResult
+    >();
 
   constructor(
     private readonly source:
@@ -145,14 +167,26 @@ class ObservedCollectingSource
         context,
       );
 
-    this.latest_result =
-      result;
+    this.resultsByJobId.set(
+      context.job_id,
+      result,
+    );
 
     return result;
   }
+
+  resultForJob(
+    jobId: string,
+  ): SourceCollectionResult | null {
+    return (
+      this.resultsByJobId.get(
+        jobId,
+      ) ?? null
+    );
+  }
 }
 
-const requireSingleGt01Config = (
+const requireGoogleTrendsIdentity = (
   queryConfig: QueryConfig,
   source:
     CollectingDataSourceModule,
@@ -168,13 +202,30 @@ const requireSingleGt01Config = (
     );
   }
 
+  if (queryConfig.groups.length < 1) {
+    throw new Error(
+      'Google Trends Core runner requires at least one query group.',
+    );
+  }
+};
+
+const requireSingleGt01Config = (
+  queryConfig: QueryConfig,
+  source:
+    CollectingDataSourceModule,
+): void => {
+  requireGoogleTrendsIdentity(
+    queryConfig,
+    source,
+  );
+
   if (
     queryConfig.groups.length !== 1 ||
     queryConfig.groups[0]
       .query_group_id !== 'GT01'
   ) {
     throw new Error(
-      'Google Trends Core runner is currently restricted to exactly one GT01 group.',
+      'Single Google Trends Core runner requires exactly one GT01 group.',
     );
   }
 };
@@ -191,12 +242,12 @@ const requireApplicationVersion = (
   return value;
 };
 
-export const runGoogleTrendsThroughCore =
+export const runGoogleTrendsBatchThroughCore =
   async (
     input:
       RunGoogleTrendsThroughCoreInput,
-  ): Promise<GoogleTrendsCoreRunResult> => {
-    requireSingleGt01Config(
+  ): Promise<GoogleTrendsCoreBatchRunResult> => {
+    requireGoogleTrendsIdentity(
       input.query_config,
       input.source,
     );
@@ -250,9 +301,12 @@ export const runGoogleTrendsThroughCore =
             input.requested_configuration,
         });
 
-      if (created.jobs.length !== 1) {
+      if (
+        created.jobs.length !==
+        input.query_config.groups.length
+      ) {
         throw new Error(
-          `Google Trends Core run created ${created.jobs.length} jobs; expected exactly one.`,
+          `Google Trends Core run created ${created.jobs.length} jobs; expected ${input.query_config.groups.length}.`,
         );
       }
 
@@ -296,48 +350,101 @@ export const runGoogleTrendsThroughCore =
 
       if (
         run === null ||
-        jobs.length !== 1
+        jobs.length !==
+          input.query_config.groups.length
       ) {
         throw new Error(
           'Google Trends Core run state disappeared after orchestration.',
         );
       }
 
-      const job =
-        jobs[0];
-
-      const attempts =
-        repository.listAttempts(
-          job.job_id,
-        );
-
-      const artifacts =
-        repository.listArtifacts(
-          job.job_id,
-        );
-
-      const validations =
-        repository.listValidationSummaries(
-          job.job_id,
-        );
-
       return {
         run,
-        job,
-        attempt:
-          attempts.at(-1) ??
-          null,
-        artifact:
-          artifacts.at(-1) ??
-          null,
-        validation:
-          validations.at(-1) ??
-          null,
+        jobs:
+          jobs.map(
+            (job) => {
+              const attempts =
+                repository.listAttempts(
+                  job.job_id,
+                );
+
+              const artifacts =
+                repository.listArtifacts(
+                  job.job_id,
+                );
+
+              const validations =
+                repository.listValidationSummaries(
+                  job.job_id,
+                );
+
+              return {
+                job,
+                attempt:
+                  attempts.at(-1) ??
+                  null,
+                artifact:
+                  artifacts.at(-1) ??
+                  null,
+                validation:
+                  validations.at(-1) ??
+                  null,
+                source_result:
+                  observedSource
+                    .resultForJob(
+                      job.job_id,
+                    ),
+              };
+            },
+          ),
         orchestration,
-        source_result:
-          observedSource.latest_result,
       };
     } finally {
       repository.close();
     }
+  };
+
+export const runGoogleTrendsThroughCore =
+  async (
+    input:
+      RunGoogleTrendsThroughCoreInput,
+  ): Promise<GoogleTrendsCoreRunResult> => {
+    requireSingleGt01Config(
+      input.query_config,
+      input.source,
+    );
+
+    const batch =
+      await runGoogleTrendsBatchThroughCore(
+        input,
+      );
+
+    const onlyJob =
+      batch.jobs[0];
+
+    if (
+      onlyJob === undefined ||
+      batch.jobs.length !== 1
+    ) {
+      throw new Error(
+        'Single Google Trends Core run did not return exactly one job result.',
+      );
+    }
+
+    return {
+      run:
+        batch.run,
+      job:
+        onlyJob.job,
+      attempt:
+        onlyJob.attempt,
+      artifact:
+        onlyJob.artifact,
+      validation:
+        onlyJob.validation,
+      orchestration:
+        batch.orchestration,
+      source_result:
+        onlyJob.source_result,
+    };
   };
