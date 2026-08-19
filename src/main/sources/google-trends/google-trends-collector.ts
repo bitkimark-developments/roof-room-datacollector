@@ -31,6 +31,7 @@ import {
   GoogleTrendsFixedFilterContractError,
 } from './google-trends-fixed-filter-verifier';
 import {
+  GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS,
   GoogleTrendsGeographyUiContractError,
 } from './google-trends-geography-ui';
 import {
@@ -236,6 +237,13 @@ const QUERY_GROUP_DIAGNOSTIC_CONTROL_VALUES =
     ),
   );
 
+const GEOGRAPHY_DIAGNOSTIC_CONTROL_VALUES =
+  new Set<string>(
+    Object.values(
+      GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS,
+    ),
+  );
+
 const formatQueryGroupDiagnostic = (
   stage:
     GoogleTrendsConfiguredPageStage | null,
@@ -271,6 +279,39 @@ const formatQueryGroupDiagnostic = (
   }
 
   return `Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError; control=${diagnostic.control}; observed_count=${diagnostic.observed_count}; query_index=${diagnostic.query_index}).`;
+};
+
+const formatGeographyDiagnostic = (
+  stage:
+    GoogleTrendsConfiguredPageStage | null,
+  error: unknown,
+): string | null => {
+  if (
+    stage !==
+      'GEOGRAPHY' ||
+    !(error instanceof
+      GoogleTrendsGeographyUiContractError)
+  ) {
+    return null;
+  }
+
+  const diagnostic =
+    error.diagnostic_context;
+
+  if (
+    diagnostic === null ||
+    !GEOGRAPHY_DIAGNOSTIC_CONTROL_VALUES.has(
+      diagnostic.control,
+    ) ||
+    !Number.isSafeInteger(
+      diagnostic.observed_count,
+    ) ||
+    diagnostic.observed_count < 0
+  ) {
+    return null;
+  }
+
+  return `Google Trends UI contract failed during GEOGRAPHY (GoogleTrendsGeographyUiContractError; control=${diagnostic.control}; observed_count=${diagnostic.observed_count}).`;
 };
 
 export class GoogleTrendsCollector {
@@ -491,10 +532,17 @@ export class GoogleTrendsCollector {
             error,
           );
 
+        const geographyDiagnostic =
+          formatGeographyDiagnostic(
+            exportStage,
+            error,
+          );
+
         return failed(
           GOOGLE_TRENDS_COLLECTION_ERROR_CODES
             .UI_CONTRACT_ERROR,
           queryGroupDiagnostic ??
+            geographyDiagnostic ??
             `Google Trends UI contract failed during ${safeStage} (${safeErrorName}).`,
         );
       }

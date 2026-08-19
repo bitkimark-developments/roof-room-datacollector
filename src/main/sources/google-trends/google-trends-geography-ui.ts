@@ -12,13 +12,47 @@ const TURKEY_PROVIDER_LABEL =
 const DEFAULT_UI_ACTION_TIMEOUT_MS =
   10_000;
 
+export const GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS = {
+  GEOGRAPHY_PICKER:
+    'GEOGRAPHY_PICKER',
+  GEOGRAPHY_PICKER_BUTTON:
+    'GEOGRAPHY_PICKER_BUTTON',
+  GEOGRAPHY_SEARCH_INPUT:
+    'GEOGRAPHY_SEARCH_INPUT',
+  TURKEY_RESULT:
+    'TURKEY_RESULT',
+  APPLIED_GEOGRAPHY_LABEL:
+    'APPLIED_GEOGRAPHY_LABEL',
+} as const;
+
+export type GoogleTrendsGeographyDiagnosticControl =
+  (typeof GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS)[
+    keyof typeof GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+  ];
+
+export interface GoogleTrendsGeographyDiagnosticContext {
+  control:
+    GoogleTrendsGeographyDiagnosticControl;
+  observed_count: number;
+}
+
 export class GoogleTrendsGeographyUiContractError
   extends Error
 {
-  constructor(message: string) {
+  readonly diagnostic_context:
+    GoogleTrendsGeographyDiagnosticContext | null;
+
+  constructor(
+    message: string,
+    diagnosticContext:
+      GoogleTrendsGeographyDiagnosticContext | null =
+      null,
+  ) {
     super(message);
     this.name =
       'GoogleTrendsGeographyUiContractError';
+    this.diagnostic_context =
+      diagnosticContext;
   }
 }
 
@@ -49,6 +83,8 @@ const requirePositiveTimeout = (
 const requireExactlyOne = async (
   locator: ManagedBrowserLocator,
   description: string,
+  control:
+    GoogleTrendsGeographyDiagnosticControl,
 ): Promise<void> => {
   const count =
     await locator.count();
@@ -56,6 +92,11 @@ const requireExactlyOne = async (
   if (count !== 1) {
     throw new GoogleTrendsGeographyUiContractError(
       `Expected exactly one ${description}; found ${count}.`,
+      {
+        control,
+        observed_count:
+          count,
+      },
     );
   }
 };
@@ -63,12 +104,52 @@ const requireExactlyOne = async (
 const readTrimmedText = async (
   locator: ManagedBrowserLocator,
   timeout: number,
-): Promise<string> =>
-  (
-    await locator.innerText({
-      timeout,
-    })
-  ).trim();
+  control:
+    GoogleTrendsGeographyDiagnosticControl,
+): Promise<string> => {
+  try {
+    return (
+      await locator.innerText({
+        timeout,
+      })
+    ).trim();
+  } catch {
+    const finalCount =
+      await locator.count();
+
+    throw new GoogleTrendsGeographyUiContractError(
+      `Geography label read failed with ${finalCount} matching controls.`,
+      {
+        control,
+        observed_count:
+          finalCount,
+      },
+    );
+  }
+};
+
+const runLocatorAction = async (
+  locator: ManagedBrowserLocator,
+  control:
+    GoogleTrendsGeographyDiagnosticControl,
+  action: () => Promise<void>,
+): Promise<void> => {
+  try {
+    await action();
+  } catch {
+    const finalCount =
+      await locator.count();
+
+    throw new GoogleTrendsGeographyUiContractError(
+      `Geography action failed with ${finalCount} matching controls.`,
+      {
+        control,
+        observed_count:
+          finalCount,
+      },
+    );
+  }
+};
 
 /**
  * Applies the fixed Google Trends MVP geography: Türkiye.
@@ -99,6 +180,8 @@ export const applyGoogleTrendsTurkeyGeography =
     await requireExactlyOne(
       geographyPicker,
       'Google Trends geography picker',
+      GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+        .GEOGRAPHY_PICKER,
     );
 
     const opener =
@@ -109,12 +192,16 @@ export const applyGoogleTrendsTurkeyGeography =
     await requireExactlyOne(
       opener,
       'geography picker button',
+      GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+        .GEOGRAPHY_PICKER_BUTTON,
     );
 
     const currentLabel =
       await readTrimmedText(
         opener,
         timeout,
+        GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+          .GEOGRAPHY_PICKER_BUTTON,
       );
 
     if (
@@ -124,9 +211,15 @@ export const applyGoogleTrendsTurkeyGeography =
       return;
     }
 
-    await opener.click({
-      timeout,
-    });
+    await runLocatorAction(
+      opener,
+      GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+        .GEOGRAPHY_PICKER_BUTTON,
+      () =>
+        opener.click({
+          timeout,
+        }),
+    );
 
     const geographySearch =
       geographyPicker.getByRole(
@@ -136,13 +229,21 @@ export const applyGoogleTrendsTurkeyGeography =
     await requireExactlyOne(
       geographySearch,
       'geography searchbox',
+      GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+        .GEOGRAPHY_SEARCH_INPUT,
     );
 
-    await geographySearch.fill(
-      TURKEY_PROVIDER_LABEL,
-      {
-        timeout,
-      },
+    await runLocatorAction(
+      geographySearch,
+      GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+        .GEOGRAPHY_SEARCH_INPUT,
+      () =>
+        geographySearch.fill(
+          TURKEY_PROVIDER_LABEL,
+          {
+            timeout,
+          },
+        ),
     );
 
     const turkeyResult =
@@ -154,14 +255,22 @@ export const applyGoogleTrendsTurkeyGeography =
         },
       );
 
-    await turkeyResult.click({
-      timeout,
-    });
+    await runLocatorAction(
+      turkeyResult,
+      GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+        .TURKEY_RESULT,
+      () =>
+        turkeyResult.click({
+          timeout,
+        }),
+    );
 
     const appliedLabel =
       await readTrimmedText(
         opener,
         timeout,
+        GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+          .APPLIED_GEOGRAPHY_LABEL,
       );
 
     if (
@@ -170,6 +279,13 @@ export const applyGoogleTrendsTurkeyGeography =
     ) {
       throw new GoogleTrendsGeographyUiContractError(
         `Google Trends geography did not resolve to "${TURKEY_PROVIDER_LABEL}" after selection; found "${appliedLabel}".`,
+        {
+          control:
+            GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+              .APPLIED_GEOGRAPHY_LABEL,
+          observed_count:
+            0,
+        },
       );
     }
   };

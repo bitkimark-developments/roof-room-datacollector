@@ -368,6 +368,9 @@ const GENERIC_UI_DIAGNOSTIC_PATTERN =
 const QUERY_GROUP_UI_DIAGNOSTIC_PATTERN =
   /^Google Trends UI contract failed during QUERY_GROUP \(GoogleTrendsQueryGroupUiContractError; control=(INITIAL_QUERY_INPUT|SEARCH_TERM_SUGGESTION|ADD_COMPARISON|EMPTY_COMPARISON_SLOT|COMPARISON_QUERY_INPUT); observed_count=[0-9]+; query_index=[0-9]+\)\.$/u;
 
+const GEOGRAPHY_UI_DIAGNOSTIC_PATTERN =
+  /^Google Trends UI contract failed during GEOGRAPHY \(GoogleTrendsGeographyUiContractError; control=(GEOGRAPHY_PICKER|GEOGRAPHY_PICKER_BUTTON|GEOGRAPHY_SEARCH_INPUT|TURKEY_RESULT|APPLIED_GEOGRAPHY_LABEL); observed_count=[0-9]+\)\.$/u;
+
 export const safeResultSummary = (
   result:
     SourceCollectionResult,
@@ -408,6 +411,9 @@ export const safeResultSummary = (
         result.message,
       ) ||
       QUERY_GROUP_UI_DIAGNOSTIC_PATTERN.test(
+        result.message,
+      ) ||
+      GEOGRAPHY_UI_DIAGNOSTIC_PATTERN.test(
         result.message,
       )
     )

@@ -69,6 +69,20 @@ const {
 );
 
 const {
+  GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS,
+  GoogleTrendsGeographyUiContractError,
+} = require(
+  path.join(
+    buildRoot,
+    'src',
+    'main',
+    'sources',
+    'google-trends',
+    'google-trends-geography-ui.js',
+  ),
+);
+
+const {
   GoogleTrendsDateDialogContractError,
 } = require(
   path.join(
@@ -563,6 +577,79 @@ const main = async () => {
 
   console.log(
     'PASS GT-DIAG-005: structured QUERY_GROUP evidence is emitted only for the actual QUERY_GROUP stage and an allowlisted control value',
+  );
+
+  const geographyCollector =
+    new GoogleTrendsCollector({
+      browser_manager:
+        browserManager,
+      download_store: {},
+      probe_provider:
+        async () => ({
+          provider_state:
+            'NO_RATE_LIMIT_SIGNAL',
+          error_code:
+            null,
+          retry_after:
+            null,
+          signals: [],
+          requested_url:
+            'https://trends.google.com/trends/explore',
+          final_url:
+            'https://trends.google.com/trends/explore',
+          response_status:
+            200,
+        }),
+      export_configured_page:
+        async (input) => {
+          input.on_stage?.(
+            'GEOGRAPHY',
+          );
+
+          throw new GoogleTrendsGeographyUiContractError(
+            'SENSITIVE_GEOGRAPHY_DETAIL_MUST_NOT_ESCAPE',
+            {
+              control:
+                GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+                  .GEOGRAPHY_PICKER,
+              observed_count:
+                0,
+            },
+          );
+        },
+    });
+
+  const geographyResult =
+    await geographyCollector.collect(
+      context,
+    );
+
+  assert.equal(
+    geographyResult.message,
+    'Google Trends UI contract failed during GEOGRAPHY (GoogleTrendsGeographyUiContractError; control=GEOGRAPHY_PICKER; observed_count=0).',
+  );
+
+  assert.doesNotMatch(
+    geographyResult.message,
+    /SENSITIVE_GEOGRAPHY_DETAIL_MUST_NOT_ESCAPE/u,
+  );
+
+  assert.deepEqual(
+    safeResultSummary(
+      geographyResult,
+    ),
+    {
+      result_type:
+        'FAILED',
+      error_code:
+        'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+      diagnostic:
+        'Google Trends UI contract failed during GEOGRAPHY (GoogleTrendsGeographyUiContractError; control=GEOGRAPHY_PICKER; observed_count=0).',
+    },
+  );
+
+  console.log(
+    'PASS GT-DIAG-007: geography failures expose only allowlisted control cardinality evidence through collector and live output boundaries',
   );
 
   const safeQueryGroupSummary =

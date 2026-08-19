@@ -30,6 +30,7 @@ const {
 
 const {
   applyGoogleTrendsTurkeyGeography,
+  GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS,
   GoogleTrendsGeographyUiContractError,
 } = require(
   path.join(
@@ -1350,9 +1351,13 @@ const main = async () => {
     (error) =>
       error instanceof
         GoogleTrendsGeographyUiContractError &&
-      /geography picker/u.test(
-        error.message,
-      ),
+      error.diagnostic_context
+        ?.control ===
+        GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+          .GEOGRAPHY_PICKER &&
+      error.diagnostic_context
+        ?.observed_count ===
+        0,
   );
 
   assert.equal(
@@ -1378,11 +1383,76 @@ const main = async () => {
         page:
           driftPage,
       }),
-    /did not resolve/u,
+    (error) =>
+      error instanceof
+        GoogleTrendsGeographyUiContractError &&
+      error.diagnostic_context
+        ?.control ===
+        GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+          .APPLIED_GEOGRAPHY_LABEL &&
+      error.diagnostic_context
+        ?.observed_count ===
+        0,
   );
 
   console.log(
     'PASS GT-GEO-006: post-selection provider state is verified and visible UI drift fails closed',
+  );
+
+  for (
+    const testCase of
+      [
+        {
+          options: {
+            openerCount:
+              0,
+          },
+          control:
+            GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+              .GEOGRAPHY_PICKER_BUTTON,
+        },
+        {
+          options: {
+            searchCount:
+              0,
+          },
+          control:
+            GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+              .GEOGRAPHY_SEARCH_INPUT,
+        },
+        {
+          options: {
+            resultCount:
+              0,
+          },
+          control:
+            GOOGLE_TRENDS_GEOGRAPHY_DIAGNOSTIC_CONTROLS
+              .TURKEY_RESULT,
+        },
+      ]
+  ) {
+    await assert.rejects(
+      () =>
+        applyGoogleTrendsTurkeyGeography({
+          page:
+            new FakeGeographyPage(
+              testCase.options,
+            ),
+        }),
+      (error) =>
+        error instanceof
+          GoogleTrendsGeographyUiContractError &&
+        error.diagnostic_context
+          ?.control ===
+          testCase.control &&
+        error.diagnostic_context
+          ?.observed_count ===
+          0,
+    );
+  }
+
+  console.log(
+    'PASS GT-GEO-007: geography opener, search input, and Türkiye result failures expose structured allowlisted cardinality evidence',
   );
 };
 
