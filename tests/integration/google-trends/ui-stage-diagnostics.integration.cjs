@@ -83,6 +83,7 @@ const {
 );
 
 const {
+  GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS,
   GoogleTrendsDateDialogContractError,
 } = require(
   path.join(
@@ -92,6 +93,20 @@ const {
     'sources',
     'google-trends',
     'google-trends-custom-date-dialog.js',
+  ),
+);
+
+const {
+  GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS,
+  GoogleTrendsDateRangeUiContractError,
+} = require(
+  path.join(
+    buildRoot,
+    'src',
+    'main',
+    'sources',
+    'google-trends',
+    'google-trends-custom-date-range.js',
   ),
 );
 
@@ -650,6 +665,105 @@ const main = async () => {
 
   console.log(
     'PASS GT-DIAG-007: geography failures expose only allowlisted control cardinality evidence through collector and live output boundaries',
+  );
+
+  for (
+    const testCase of
+      [
+        {
+          ErrorClass:
+            GoogleTrendsDateRangeUiContractError,
+          control:
+            GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+              .CUSTOM_TIME_RANGE_OPTION,
+          expectedName:
+            'GoogleTrendsDateRangeUiContractError',
+        },
+        {
+          ErrorClass:
+            GoogleTrendsDateDialogContractError,
+          control:
+            GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS
+              .ARCHIVE_DIALOG,
+          expectedName:
+            'GoogleTrendsDateDialogContractError',
+        },
+      ]
+  ) {
+    const dateRangeCollector =
+      new GoogleTrendsCollector({
+        browser_manager:
+          browserManager,
+        download_store: {},
+        probe_provider:
+          async () => ({
+            provider_state:
+              'NO_RATE_LIMIT_SIGNAL',
+            error_code:
+              null,
+            retry_after:
+              null,
+            signals: [],
+            requested_url:
+              'https://trends.google.com/trends/explore',
+            final_url:
+              'https://trends.google.com/trends/explore',
+            response_status:
+              200,
+          }),
+        export_configured_page:
+          async (input) => {
+            input.on_stage?.(
+              'DATE_RANGE',
+            );
+
+            throw new testCase.ErrorClass(
+              'SENSITIVE_DATE_DETAIL_MUST_NOT_ESCAPE',
+              {
+                control:
+                  testCase.control,
+                observed_count:
+                  0,
+              },
+            );
+          },
+      });
+
+    const dateRangeResult =
+      await dateRangeCollector.collect(
+        context,
+      );
+
+    const expectedDiagnostic =
+      `Google Trends UI contract failed during DATE_RANGE (${testCase.expectedName}; control=${testCase.control}; observed_count=0).`;
+
+    assert.equal(
+      dateRangeResult.message,
+      expectedDiagnostic,
+    );
+
+    assert.doesNotMatch(
+      dateRangeResult.message,
+      /SENSITIVE_DATE_DETAIL_MUST_NOT_ESCAPE/u,
+    );
+
+    assert.deepEqual(
+      safeResultSummary(
+        dateRangeResult,
+      ),
+      {
+        result_type:
+          'FAILED',
+        error_code:
+          'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+        diagnostic:
+          expectedDiagnostic,
+      },
+    );
+  }
+
+  console.log(
+    'PASS GT-DIAG-008: date-range and nested dialog failures expose only allowlisted control cardinality through collector and live output boundaries',
   );
 
   const safeQueryGroupSummary =

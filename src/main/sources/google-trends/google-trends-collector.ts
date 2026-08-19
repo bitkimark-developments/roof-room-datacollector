@@ -22,9 +22,11 @@ import {
   type GoogleTrendsConfiguredPageStage,
 } from './google-trends-configured-page-export';
 import {
+  GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS,
   GoogleTrendsDateDialogContractError,
 } from './google-trends-custom-date-dialog';
 import {
+  GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS,
   GoogleTrendsDateRangeUiContractError,
 } from './google-trends-custom-date-range';
 import {
@@ -244,6 +246,20 @@ const GEOGRAPHY_DIAGNOSTIC_CONTROL_VALUES =
     ),
   );
 
+const DATE_RANGE_DIAGNOSTIC_CONTROL_VALUES =
+  new Set<string>(
+    Object.values(
+      GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS,
+    ),
+  );
+
+const DATE_DIALOG_DIAGNOSTIC_CONTROL_VALUES =
+  new Set<string>(
+    Object.values(
+      GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS,
+    ),
+  );
+
 const formatQueryGroupDiagnostic = (
   stage:
     GoogleTrendsConfiguredPageStage | null,
@@ -312,6 +328,59 @@ const formatGeographyDiagnostic = (
   }
 
   return `Google Trends UI contract failed during GEOGRAPHY (GoogleTrendsGeographyUiContractError; control=${diagnostic.control}; observed_count=${diagnostic.observed_count}).`;
+};
+
+const formatDateRangeDiagnostic = (
+  stage:
+    GoogleTrendsConfiguredPageStage | null,
+  error: unknown,
+): string | null => {
+  if (
+    stage !==
+      'DATE_RANGE'
+  ) {
+    return null;
+  }
+
+  const diagnostic =
+    error instanceof
+      GoogleTrendsDateRangeUiContractError
+      ? error.diagnostic_context
+      : error instanceof
+          GoogleTrendsDateDialogContractError
+        ? error.diagnostic_context
+        : null;
+
+  const controlValues =
+    error instanceof
+      GoogleTrendsDateRangeUiContractError
+      ? DATE_RANGE_DIAGNOSTIC_CONTROL_VALUES
+      : error instanceof
+          GoogleTrendsDateDialogContractError
+        ? DATE_DIALOG_DIAGNOSTIC_CONTROL_VALUES
+        : null;
+
+  if (
+    diagnostic === null ||
+    controlValues === null ||
+    !controlValues.has(
+      diagnostic.control,
+    ) ||
+    !Number.isSafeInteger(
+      diagnostic.observed_count,
+    ) ||
+    diagnostic.observed_count < 0
+  ) {
+    return null;
+  }
+
+  const errorName =
+    error instanceof
+      GoogleTrendsDateRangeUiContractError
+      ? 'GoogleTrendsDateRangeUiContractError'
+      : 'GoogleTrendsDateDialogContractError';
+
+  return `Google Trends UI contract failed during DATE_RANGE (${errorName}; control=${diagnostic.control}; observed_count=${diagnostic.observed_count}).`;
 };
 
 export class GoogleTrendsCollector {
@@ -538,11 +607,18 @@ export class GoogleTrendsCollector {
             error,
           );
 
+        const dateRangeDiagnostic =
+          formatDateRangeDiagnostic(
+            exportStage,
+            error,
+          );
+
         return failed(
           GOOGLE_TRENDS_COLLECTION_ERROR_CODES
             .UI_CONTRACT_ERROR,
           queryGroupDiagnostic ??
             geographyDiagnostic ??
+            dateRangeDiagnostic ??
             `Google Trends UI contract failed during ${safeStage} (${safeErrorName}).`,
         );
       }

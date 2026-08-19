@@ -20,13 +20,43 @@ const OK_BUTTON_NAME =
 const DEFAULT_UI_ACTION_TIMEOUT_MS =
   10_000;
 
+export const GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS = {
+  DATE_FILTER:
+    'DATE_FILTER',
+  CUSTOM_TIME_RANGE_OPTION:
+    'CUSTOM_TIME_RANGE_OPTION',
+  OK_BUTTON:
+    'OK_BUTTON',
+} as const;
+
+export type GoogleTrendsDateRangeDiagnosticControl =
+  (typeof GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS)[
+    keyof typeof GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+  ];
+
+export interface GoogleTrendsDateRangeDiagnosticContext {
+  control:
+    GoogleTrendsDateRangeDiagnosticControl;
+  observed_count: number;
+}
+
 export class GoogleTrendsDateRangeUiContractError
   extends Error
 {
-  constructor(message: string) {
+  readonly diagnostic_context:
+    GoogleTrendsDateRangeDiagnosticContext | null;
+
+  constructor(
+    message: string,
+    diagnosticContext:
+      GoogleTrendsDateRangeDiagnosticContext | null =
+      null,
+  ) {
     super(message);
     this.name =
       'GoogleTrendsDateRangeUiContractError';
+    this.diagnostic_context =
+      diagnosticContext;
   }
 }
 
@@ -59,6 +89,8 @@ const requirePositiveTimeout = (
 const requireExactlyOne = async (
   locator: ManagedBrowserLocator,
   description: string,
+  control:
+    GoogleTrendsDateRangeDiagnosticControl,
 ): Promise<void> => {
   const count =
     await locator.count();
@@ -66,6 +98,34 @@ const requireExactlyOne = async (
   if (count !== 1) {
     throw new GoogleTrendsDateRangeUiContractError(
       `Expected exactly one ${description}; found ${count}.`,
+      {
+        control,
+        observed_count:
+          count,
+      },
+    );
+  }
+};
+
+const runLocatorAction = async (
+  locator: ManagedBrowserLocator,
+  control:
+    GoogleTrendsDateRangeDiagnosticControl,
+  action: () => Promise<void>,
+): Promise<void> => {
+  try {
+    await action();
+  } catch {
+    const finalCount =
+      await locator.count();
+
+    throw new GoogleTrendsDateRangeUiContractError(
+      `Date-range action failed with ${finalCount} matching controls.`,
+      {
+        control,
+        observed_count:
+          finalCount,
+      },
     );
   }
 };
@@ -92,11 +152,19 @@ export const applyGoogleTrendsCustomDateRange =
     await requireExactlyOne(
       dateFilter,
       'Google Trends date filter',
+      GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+        .DATE_FILTER,
     );
 
-    await dateFilter.click({
-      timeout,
-    });
+    await runLocatorAction(
+      dateFilter,
+      GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+        .DATE_FILTER,
+      () =>
+        dateFilter.click({
+          timeout,
+        }),
+    );
 
     const customRangeOption =
       input.page.getByRole(
@@ -110,11 +178,19 @@ export const applyGoogleTrendsCustomDateRange =
     await requireExactlyOne(
       customRangeOption,
       '"Custom time range..." option',
+      GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+        .CUSTOM_TIME_RANGE_OPTION,
     );
 
-    await customRangeOption.click({
-      timeout,
-    });
+    await runLocatorAction(
+      customRangeOption,
+      GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+        .CUSTOM_TIME_RANGE_OPTION,
+      () =>
+        customRangeOption.click({
+          timeout,
+        }),
+    );
 
     await applyGoogleTrendsCustomDateFields({
       page:
@@ -139,9 +215,17 @@ export const applyGoogleTrendsCustomDateRange =
     await requireExactlyOne(
       okButton,
       'custom-date OK button',
+      GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+        .OK_BUTTON,
     );
 
-    await okButton.click({
-      timeout,
-    });
+    await runLocatorAction(
+      okButton,
+      GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+        .OK_BUTTON,
+      () =>
+        okButton.click({
+          timeout,
+        }),
+    );
   };

@@ -16,6 +16,7 @@ if (!buildRoot) {
 
 const {
   applyGoogleTrendsCustomDateRange,
+  GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS,
   GoogleTrendsDateRangeUiContractError,
 } = require(
   path.join(
@@ -437,9 +438,13 @@ const main = async () => {
     (error) =>
       error instanceof
         GoogleTrendsDateRangeUiContractError &&
-      /date filter/u.test(
-        error.message,
-      ),
+      error.diagnostic_context
+        ?.control ===
+        GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+          .DATE_FILTER &&
+      error.diagnostic_context
+        ?.observed_count ===
+        0,
   );
 
   assert.equal(
@@ -471,7 +476,16 @@ const main = async () => {
         requested_date_end:
           '2026-08-17',
       }),
-    /Custom time range/u,
+    (error) =>
+      error instanceof
+        GoogleTrendsDateRangeUiContractError &&
+      error.diagnostic_context
+        ?.control ===
+        GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+          .CUSTOM_TIME_RANGE_OPTION &&
+      error.diagnostic_context
+        ?.observed_count ===
+        2,
   );
 
   assert.deepEqual(
@@ -512,7 +526,16 @@ const main = async () => {
         requested_date_end:
           '2026-08-17',
       }),
-    /OK button/u,
+    (error) =>
+      error instanceof
+        GoogleTrendsDateRangeUiContractError &&
+      error.diagnostic_context
+        ?.control ===
+        GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+          .OK_BUTTON &&
+      error.diagnostic_context
+        ?.observed_count ===
+        2,
   );
 
   assert.equal(

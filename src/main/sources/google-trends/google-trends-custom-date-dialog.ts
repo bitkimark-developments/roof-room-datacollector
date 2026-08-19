@@ -15,13 +15,43 @@ const END_DATE_SELECTOR =
 const DEFAULT_UI_ACTION_TIMEOUT_MS =
   10_000;
 
+export const GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS = {
+  ARCHIVE_DIALOG:
+    'ARCHIVE_DIALOG',
+  START_DATE_INPUT:
+    'START_DATE_INPUT',
+  END_DATE_INPUT:
+    'END_DATE_INPUT',
+} as const;
+
+export type GoogleTrendsDateDialogDiagnosticControl =
+  (typeof GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS)[
+    keyof typeof GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS
+  ];
+
+export interface GoogleTrendsDateDialogDiagnosticContext {
+  control:
+    GoogleTrendsDateDialogDiagnosticControl;
+  observed_count: number;
+}
+
 export class GoogleTrendsDateDialogContractError
   extends Error
 {
-  constructor(message: string) {
+  readonly diagnostic_context:
+    GoogleTrendsDateDialogDiagnosticContext | null;
+
+  constructor(
+    message: string,
+    diagnosticContext:
+      GoogleTrendsDateDialogDiagnosticContext | null =
+      null,
+  ) {
     super(message);
     this.name =
       'GoogleTrendsDateDialogContractError';
+    this.diagnostic_context =
+      diagnosticContext;
   }
 }
 
@@ -190,6 +220,8 @@ export const validateGoogleTrendsRequestedDateRange = (
 const requireExactlyOne = async (
   locator: ManagedBrowserLocator,
   description: string,
+  control:
+    GoogleTrendsDateDialogDiagnosticControl,
 ): Promise<void> => {
   const count =
     await locator.count();
@@ -197,6 +229,40 @@ const requireExactlyOne = async (
   if (count !== 1) {
     throw new GoogleTrendsDateDialogContractError(
       `Expected exactly one ${description}; found ${count}.`,
+      {
+        control,
+        observed_count:
+          count,
+      },
+    );
+  }
+};
+
+const fillDateInput = async (
+  locator: ManagedBrowserLocator,
+  value: string,
+  timeout: number,
+  control:
+    GoogleTrendsDateDialogDiagnosticControl,
+): Promise<void> => {
+  try {
+    await locator.fill(
+      value,
+      {
+        timeout,
+      },
+    );
+  } catch {
+    const finalCount =
+      await locator.count();
+
+    throw new GoogleTrendsDateDialogContractError(
+      `Custom-date input action failed with ${finalCount} matching controls.`,
+      {
+        control,
+        observed_count:
+          finalCount,
+      },
     );
   }
 };
@@ -242,6 +308,8 @@ export const applyGoogleTrendsCustomDateFields =
     await requireExactlyOne(
       archiveDialog,
       '"ARCHIVE" custom-date dialog',
+      GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS
+        .ARCHIVE_DIALOG,
     );
 
     const startInput =
@@ -257,26 +325,32 @@ export const applyGoogleTrendsCustomDateFields =
     await requireExactlyOne(
       startInput,
       'custom-date From input',
+      GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS
+        .START_DATE_INPUT,
     );
 
     await requireExactlyOne(
       endInput,
       'custom-date To input',
+      GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS
+        .END_DATE_INPUT,
     );
 
-    await startInput.fill(
+    await fillDateInput(
+      startInput,
       validatedRange
         .start_input_value,
-      {
-        timeout,
-      },
+      timeout,
+      GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS
+        .START_DATE_INPUT,
     );
 
-    await endInput.fill(
+    await fillDateInput(
+      endInput,
       validatedRange
         .end_input_value,
-      {
-        timeout,
-      },
+      timeout,
+      GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS
+        .END_DATE_INPUT,
     );
   };

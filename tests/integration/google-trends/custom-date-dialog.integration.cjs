@@ -16,6 +16,7 @@ if (!buildRoot) {
 
 const {
   applyGoogleTrendsCustomDateFields,
+  GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS,
   GoogleTrendsDateDialogContractError,
 } = require(
   path.join(
@@ -306,9 +307,13 @@ const main = async () => {
     (error) =>
       error instanceof
         GoogleTrendsDateDialogContractError &&
-      /ARCHIVE/u.test(
-        error.message,
-      ),
+      error.diagnostic_context
+        ?.control ===
+        GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS
+          .ARCHIVE_DIALOG &&
+      error.diagnostic_context
+        ?.observed_count ===
+        0,
   );
 
   assert.equal(
@@ -338,7 +343,16 @@ const main = async () => {
         requested_date_end:
           '2026-08-17',
       }),
-    /From input/u,
+    (error) =>
+      error instanceof
+        GoogleTrendsDateDialogContractError &&
+      error.diagnostic_context
+        ?.control ===
+        GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS
+          .START_DATE_INPUT &&
+      error.diagnostic_context
+        ?.observed_count ===
+        2,
   );
 
   assert.equal(
@@ -433,6 +447,38 @@ const main = async () => {
 
   console.log(
     'PASS GT-DATE-DIALOG-008: this slice fills fields only and does not guess or click an unverified dialog submit control',
+  );
+
+  const missingEnd =
+    new FakePage({
+      endCount:
+        0,
+    });
+
+  await assert.rejects(
+    () =>
+      applyGoogleTrendsCustomDateFields({
+        page:
+          missingEnd,
+        requested_date_start:
+          '2024-08-18',
+        requested_date_end:
+          '2026-08-17',
+      }),
+    (error) =>
+      error instanceof
+        GoogleTrendsDateDialogContractError &&
+      error.diagnostic_context
+        ?.control ===
+        GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS
+          .END_DATE_INPUT &&
+      error.diagnostic_context
+        ?.observed_count ===
+        0,
+  );
+
+  console.log(
+    'PASS GT-DATE-DIALOG-009: missing To input reports structured allowlisted control cardinality evidence',
   );
 };
 
