@@ -57,6 +57,15 @@ const MAX_ATTRIBUTE_LENGTH =
 const RELEVANT_ARIA_LABEL =
   /search|term|comparison|compare|add|ekle|arama|karşılaştır/iu;
 
+const INITIAL_SUGGESTION_DIAGNOSTIC_SELECTORS = [
+  '.md-autocomplete-suggestions-container',
+  '.md-autocomplete-suggestions-container [role]',
+  '.md-autocomplete-suggestions-container button',
+  '.md-autocomplete-suggestions-container [role="button"]',
+  '.md-autocomplete-suggestions-container [role="option"]',
+  '[role="option"]',
+] as const;
+
 const GOOGLE_TRENDS_ORIGIN =
   new URL(
     GOOGLE_TRENDS_EXPLORE_URL,
@@ -631,19 +640,51 @@ const main = async (): Promise<void> => {
         return;
       }
 
+      const selectorCounts:
+        Record<string, number> = {};
+
+      for (const selector of
+        INITIAL_SUGGESTION_DIAGNOSTIC_SELECTORS) {
+        selectorCounts[selector] =
+          await page
+            .locator(
+              selector,
+            )
+            .count();
+      }
+
+      const suggestionRows =
+        await rawContractRows(
+          page.locator(
+            '.md-autocomplete-suggestions-container, .md-autocomplete-suggestions-container *',
+          ),
+        );
+
       console.log(
         JSON.stringify(
           {
             result_type:
-              'INITIAL_SEARCH_TERM_SUGGESTION_CONTRACT',
-            observed_count:
+              'INITIAL_QUERY_DOM_DIAGNOSTIC',
+            expected_suggestion_count:
               await initialSuggestion.count(),
             query_index:
               0,
+            initial_input_after_fill:
+              classifyQueryInputState(
+                await initialInput.inputValue(),
+                firstQuery,
+              ),
             suggestion_action:
               error instanceof Error
                 ? error.name
                 : 'UNKNOWN_ERROR',
+            selector_counts:
+              selectorCounts,
+            suggestion_contracts:
+              sanitizeQueryDomDiagnosticRows(
+                suggestionRows,
+                queryGroup.queries,
+              ),
           },
           null,
           2,
