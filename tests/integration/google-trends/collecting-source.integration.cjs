@@ -61,6 +61,18 @@ const {
   ),
 );
 
+const {
+  GoogleTrendsConfiguredExploreUrlError,
+} = require(
+  path.join(
+    buildRoot,
+    'main',
+    'sources',
+    'google-trends',
+    'google-trends-configured-explore-url.js',
+  ),
+);
+
 const makeContext = (
   overrides = {},
 ) => ({
@@ -338,6 +350,7 @@ const main = async () => {
       probe_provider:
         async (
           receivedPage,
+          configuredRequest,
         ) => {
           assert.equal(
             receivedPage,
@@ -345,6 +358,41 @@ const main = async () => {
           );
           trace.push(
             'provider.probe',
+          );
+
+          const requestedUrl =
+            new URL(
+              configuredRequest
+                .requested_url,
+            );
+
+          assert.equal(
+            requestedUrl.origin,
+            'https://trends.google.com',
+          );
+          assert.equal(
+            requestedUrl.pathname,
+            '/trends/explore',
+          );
+          assert.equal(
+            requestedUrl.searchParams.get(
+              'date',
+            ),
+            '2024-08-18 2026-08-17',
+          );
+          assert.equal(
+            requestedUrl.searchParams.get(
+              'geo',
+            ),
+            'TR',
+          );
+          assert.deepEqual(
+            requestedUrl.searchParams
+              .get('q')
+              .split(','),
+            makeContext()
+              .query_group
+              .queries,
           );
 
           return {
@@ -357,9 +405,11 @@ const main = async () => {
             signals:
               [],
             requested_url:
-              'https://trends.google.com/trends/explore',
+              configuredRequest
+                .requested_url,
             final_url:
-              'https://trends.google.com/trends/explore',
+              configuredRequest
+                .requested_url,
             response_status:
               200,
           };
@@ -510,7 +560,7 @@ const main = async () => {
   );
 
   console.log(
-    'PASS GT-COLLECTOR-001: configured source opens the app-owned google profile, probes once, exports GT01, returns canonical raw bytes, and closes only its page',
+    'PASS GT-COLLECTOR-001: configured source builds the exact GT01 Explore request, opens the app-owned profile, probes once, returns canonical raw bytes, and closes only its page',
   );
 
   const rateTrace = [];
@@ -1132,6 +1182,67 @@ const main = async () => {
 
   console.log(
     'PASS GT-COLLECTOR-008: an export cannot become an artifact when a same-origin HTTP 429 was observed before source completion',
+  );
+
+  const configuredContractPage =
+    new FakePage([]);
+  let configuredContractExportCalls =
+    0;
+
+  const configuredContractCollector =
+    new GoogleTrendsCollector({
+      browser_manager:
+        new FakeBrowserManager(
+          configuredContractPage,
+          configuredContractPage
+            .trace,
+        ),
+      probe_provider:
+        async () => {
+          throw new GoogleTrendsConfiguredExploreUrlError(
+            'SENSITIVE_URL_QUERY_MUST_NOT_ESCAPE',
+          );
+        },
+      export_configured_page:
+        async () => {
+          configuredContractExportCalls +=
+            1;
+          throw new Error(
+            'must not export',
+          );
+        },
+    });
+
+  const configuredContractResult =
+    await configuredContractCollector
+      .collect(
+        makeContext(),
+      );
+
+  assert.equal(
+    configuredContractResult
+      .result_type,
+    'FAILED',
+  );
+  assert.equal(
+    configuredContractResult
+      .error_code,
+    'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+  );
+  assert.equal(
+    configuredContractExportCalls,
+    0,
+  );
+  assert.equal(
+    configuredContractResult
+      .message.includes(
+        'SENSITIVE',
+      ),
+    false,
+  );
+
+  console.log(
+    'PASS GT-COLLECTOR-010: configured final-URL drift becomes a redacted UI-contract failure before export',
   );
 };
 

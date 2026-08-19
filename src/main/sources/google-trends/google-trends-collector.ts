@@ -13,12 +13,20 @@ import type {
 } from '../../../shared/collection';
 
 import {
-  exportConfiguredGoogleTrendsPage,
+  exportPreconfiguredGoogleTrendsPage,
   GoogleTrendsConfiguredPageExportError,
   type ExportConfiguredGoogleTrendsPageInput,
   type GoogleTrendsConfiguredPageExportResult,
   type GoogleTrendsConfiguredPageStage,
 } from './google-trends-configured-page-export';
+import {
+  buildGoogleTrendsConfiguredExploreUrl,
+  GoogleTrendsConfiguredExploreUrlError,
+  type GoogleTrendsConfiguredExploreUrlInput,
+} from './google-trends-configured-explore-url';
+import {
+  probeConfiguredGoogleTrendsExplore,
+} from './google-trends-configured-provider-probe';
 import {
   GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS,
   GoogleTrendsDateDialogContractError,
@@ -40,7 +48,6 @@ import {
 } from './google-trends-interest-over-time-download';
 import {
   GOOGLE_TRENDS_EXPLORE_URL,
-  probeGoogleTrendsExplore,
   type GoogleTrendsProviderProbeResult,
 } from './google-trends-provider-probe';
 import {
@@ -118,6 +125,11 @@ export interface GoogleTrendsCollectorDependencies {
   browser_manager: BrowserManager;
   probe_provider?: (
     page: ManagedBrowserPage,
+    configured_request: {
+      requested_url: string;
+      expected:
+        GoogleTrendsConfiguredExploreUrlInput;
+    },
   ) => Promise<GoogleTrendsProviderProbeResult>;
   export_configured_page?: (
     input: ExportConfiguredGoogleTrendsPageInput,
@@ -454,6 +466,9 @@ export class GoogleTrendsCollector {
   private readonly probeProvider:
     (
       page: ManagedBrowserPage,
+      requestedUrl: string,
+      expected:
+        GoogleTrendsConfiguredExploreUrlInput,
     ) =>
       Promise<GoogleTrendsProviderProbeResult>;
 
@@ -468,25 +483,100 @@ export class GoogleTrendsCollector {
     private readonly dependencies:
       GoogleTrendsCollectorDependencies,
   ) {
+    const injectedProbe =
+      dependencies.probe_provider;
+
     this.probeProvider =
-      dependencies.probe_provider ??
-      ((page) =>
-        probeGoogleTrendsExplore(
-          page,
-        ));
+      injectedProbe ===
+      undefined
+        ? (
+            page,
+            requestedUrl,
+            expected,
+          ) =>
+            probeConfiguredGoogleTrendsExplore({
+              page,
+              requested_url:
+                requestedUrl,
+              expected,
+            })
+        : (
+            page,
+            requestedUrl,
+            expected,
+          ) =>
+            injectedProbe(
+              page,
+              {
+                requested_url:
+                  requestedUrl,
+                expected,
+              },
+            );
 
     this.exportConfiguredPage =
       dependencies.export_configured_page ??
-      exportConfiguredGoogleTrendsPage;
+      ((input) =>
+        exportPreconfiguredGoogleTrendsPage({
+          page:
+            input.page,
+          ...(input.ui_action_timeout_ms ===
+          undefined
+            ? {}
+            : {
+                ui_action_timeout_ms:
+                  input.ui_action_timeout_ms,
+              }),
+          ...(input.download_timeout_ms ===
+          undefined
+            ? {}
+            : {
+                download_timeout_ms:
+                  input.download_timeout_ms,
+              }),
+          ...(input.on_stage === undefined
+            ? {}
+            : {
+                on_stage:
+                  input.on_stage,
+              }),
+        }));
   }
 
   async collect(
     context: SourceCollectionContext,
   ): Promise<SourceCollectionResult> {
+    let configuredExploreInput:
+      GoogleTrendsConfiguredExploreUrlInput;
+    let configuredExploreUrl: string;
+
     try {
       assertSupportedContext(
         context,
       );
+
+      configuredExploreInput = {
+        queries:
+          context.query_group
+            .queries,
+        requested_date_start:
+          context
+            .requested_configuration
+            .requested_date_start,
+        requested_date_end:
+          context
+            .requested_configuration
+            .requested_date_end,
+        country_code:
+          context
+            .requested_configuration
+            .country_code,
+      };
+
+      configuredExploreUrl =
+        buildGoogleTrendsConfiguredExploreUrl(
+          configuredExploreInput,
+        );
     } catch (error: unknown) {
       return failed(
         GOOGLE_TRENDS_COLLECTION_ERROR_CODES
@@ -556,6 +646,8 @@ export class GoogleTrendsCollector {
       const provider =
         await this.probeProvider(
           page,
+          configuredExploreUrl,
+          configuredExploreInput,
         );
 
       if (
@@ -658,6 +750,17 @@ export class GoogleTrendsCollector {
             : GOOGLE_TRENDS_COLLECTION_ERROR_CODES
                 .BROWSER_SESSION_FAILED,
           error.message,
+        );
+      }
+
+      if (
+        error instanceof
+          GoogleTrendsConfiguredExploreUrlError
+      ) {
+        return failed(
+          GOOGLE_TRENDS_COLLECTION_ERROR_CODES
+            .UI_CONTRACT_ERROR,
+          'Google Trends configured Explore URL contract failed before export.',
         );
       }
 

@@ -104,6 +104,17 @@ export interface ExportConfiguredGoogleTrendsPageInput
   download_timeout_ms?: number;
 }
 
+export interface ExportPreconfiguredGoogleTrendsPageInput {
+  page: ManagedBrowserPage;
+  ui_action_timeout_ms?: number;
+  download_timeout_ms?: number;
+  on_stage?: (
+    stage:
+      | 'FIXED_FILTERS'
+      | 'DOWNLOAD',
+  ) => void;
+}
+
 export interface GoogleTrendsConfiguredPageExportResult {
   media_type: typeof CSV_MEDIA_TYPE;
   bytes: Uint8Array;
@@ -351,6 +362,90 @@ export const exportConfiguredGoogleTrendsPage =
               uiTimeout,
           }),
     }, dependencies);
+
+    input.on_stage?.(
+      'DOWNLOAD',
+    );
+
+    const capturedDownload =
+      await dependencies
+        .download_interest_over_time({
+          page:
+            input.page,
+          ...(input.download_timeout_ms ===
+          undefined
+            ? {}
+            : {
+                download_timeout_ms:
+                  input.download_timeout_ms,
+              }),
+          ...(uiTimeout === undefined
+            ? {}
+            : {
+                ui_action_timeout_ms:
+                  uiTimeout,
+              }),
+        });
+
+    assertCapturedDownloadIntegrity(
+      capturedDownload,
+    );
+
+    return {
+      media_type:
+        CSV_MEDIA_TYPE,
+      bytes:
+        new Uint8Array(
+          capturedDownload.bytes,
+        ),
+      provider_filename:
+        capturedDownload.suggested_filename,
+      byte_size:
+        capturedDownload.byte_size,
+      sha256:
+        capturedDownload.sha256,
+    };
+  };
+
+/**
+ * Exports an Explore page whose ordered queries, geography, and exact date
+ * range were already configured and verified by the single navigation URL.
+ *
+ * The remaining production waterfall is deliberately small:
+ *
+ * verify All categories + Web Search
+ * → select the strongest ready Interest over time download strategy
+ * → capture and integrity-check exact provider bytes
+ *
+ * It never retypes queries, mutates geography/date, navigates, refreshes, or
+ * retries. The older UI-mutation composition remains available for bounded
+ * diagnostics and compatibility evidence, but is not the runtime default.
+ */
+export const exportPreconfiguredGoogleTrendsPage =
+  async (
+    input:
+      ExportPreconfiguredGoogleTrendsPageInput,
+    dependencies:
+      GoogleTrendsConfiguredPageExportDependencies =
+        DEFAULT_DEPENDENCIES,
+  ): Promise<GoogleTrendsConfiguredPageExportResult> => {
+    const uiTimeout =
+      input.ui_action_timeout_ms;
+
+    input.on_stage?.(
+      'FIXED_FILTERS',
+    );
+
+    await dependencies.verify_fixed_filters({
+      page:
+        input.page,
+      ...(uiTimeout === undefined
+        ? {}
+        : {
+            ui_read_timeout_ms:
+              uiTimeout,
+          }),
+    });
 
     input.on_stage?.(
       'DOWNLOAD',

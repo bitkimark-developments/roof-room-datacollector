@@ -22,6 +22,7 @@ if (!buildRoot) {
 const {
   applyGoogleTrendsConfiguredPageThroughStage,
   exportConfiguredGoogleTrendsPage,
+  exportPreconfiguredGoogleTrendsPage,
   GoogleTrendsConfiguredPageExportError,
 } = require(
   path.join(
@@ -496,6 +497,92 @@ const main = async () => {
 
   console.log(
     'PASS GT-CONFIGURED-EXPORT-010: staged diagnostics cannot trigger download or provider interaction through an invalid target gate',
+  );
+
+  const preconfigured =
+    makeDependencies();
+  const preconfiguredStages =
+    [];
+
+  const preconfiguredResult =
+    await exportPreconfiguredGoogleTrendsPage(
+      {
+        page:
+          input.page,
+        ui_action_timeout_ms:
+          input.ui_action_timeout_ms,
+        download_timeout_ms:
+          input.download_timeout_ms,
+        on_stage(stage) {
+          preconfiguredStages.push(
+            stage,
+          );
+        },
+      },
+      preconfigured.dependencies,
+    );
+
+  assert.deepEqual(
+    preconfigured.trace.map(
+      (entry) =>
+        entry.step,
+    ),
+    [
+      'fixed-filters',
+      'download',
+    ],
+  );
+  assert.deepEqual(
+    preconfiguredStages,
+    [
+      'FIXED_FILTERS',
+      'DOWNLOAD',
+    ],
+  );
+  assert.deepEqual(
+    Array.from(
+      preconfiguredResult.bytes,
+    ),
+    Array.from(
+      preconfigured.artifactBytes,
+    ),
+  );
+
+  console.log(
+    'PASS GT-CONFIGURED-EXPORT-011: preconfigured production export performs only fixed-filter verification and download before returning exact bytes',
+  );
+
+  const preconfiguredBlocked =
+    makeDependencies({
+      verifyError:
+        new Error(
+          'preconfigured fixed-filter failure',
+        ),
+    });
+
+  await assert.rejects(
+    () =>
+      exportPreconfiguredGoogleTrendsPage(
+        {
+          page:
+            input.page,
+        },
+        preconfiguredBlocked.dependencies,
+      ),
+    /preconfigured fixed-filter failure/u,
+  );
+  assert.deepEqual(
+    preconfiguredBlocked.trace.map(
+      (entry) =>
+        entry.step,
+    ),
+    [
+      'fixed-filters',
+    ],
+  );
+
+  console.log(
+    'PASS GT-CONFIGURED-EXPORT-012: preconfigured production export fails closed before download when fixed filters are not accepted',
   );
 };
 
