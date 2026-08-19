@@ -1,7 +1,7 @@
 # RoofRoom Data Collector — Project Handoff
 
 **Current milestone:** Release 1.0 — Google Trends local MVP acceptance candidate
-**Latest verified technical checkpoint:** `200fdfb feat: complete Google Trends desktop workflow`
+**Latest verified technical checkpoint:** `f2a9308 fix: improve output and keyword file access`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -23,6 +23,7 @@ main
 Latest technical checkpoints:
 
 ```text
+f2a9308 fix: improve output and keyword file access
 200fdfb feat: complete Google Trends desktop workflow
 da84c09 feat: add representative Google Trends live batch
 21d59d6 feat: add Google Trends batch Core runner
@@ -255,6 +256,25 @@ open canonical data folder
 open configuration folder
 ```
 
+Human-facing file access does not require navigating opaque run IDs:
+
+```text
+Son Veri Paketini Aç
+→ finds the latest valid run-scoped workbook
+→ skips newer failed/incomplete runs without an export
+→ selects the XLSX directly in Finder
+
+Teknik Çalışma Arşivini Aç
+→ opens data/runs only for provenance and diagnostics
+
+Keyword Dosyasını Düzenle
+→ opens the single authoritative query-groups configuration file
+```
+
+The group selector displays every configured keyword, and the summary keyword count reflects selected groups rather than the entire configuration. Configuration edits take effect after application restart.
+
+Canonical `rr_<timestamp>_<opaque>` directory names remain immutable machine IDs linked to SQLite run/job/attempt provenance. They are deliberately not renamed for presentation.
+
 The main process validates every selected group ID against the loaded configuration. Unknown, empty, or duplicate selections fail before provider work. Overlapping collection actions are rejected.
 
 Application shutdown safely cancels an active run, waits for the operation boundary, and closes the application-owned browser.
@@ -397,6 +417,7 @@ GT-DIAG-001..009
 
 CFG-008..012
 DESKTOP-CTRL-001..004
+DESKTOP-FILES-001..003
 EXPORT-001..006
 DESKTOP-UI-001
 RELEASE-GATE-001
