@@ -38,6 +38,10 @@ grep -q \
   'npm run m3:live-stage -- --stage=DATE_RANGE --confirm-live-stage' \
   <<<"$HELP_OUTPUT"
 
+grep -q \
+  'optional --inspect-download-readiness is valid only with FIXED_FILTERS' \
+  <<<"$HELP_OUTPUT"
+
 set +e
 REFUSAL_OUTPUT="$(
   node \

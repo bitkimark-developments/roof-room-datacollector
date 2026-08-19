@@ -59,6 +59,9 @@ const HELP_FLAG =
 const STAGE_ARGUMENT_PREFIX =
   '--stage=';
 
+const INSPECT_DOWNLOAD_READINESS_FLAG =
+  '--inspect-download-readiness';
+
 const QUERY_GROUP_ID =
   'GT01';
 
@@ -75,6 +78,15 @@ const GOOGLE_TRENDS_ORIGIN =
 
 const SAFE_COMMAND_ERROR =
   /^(Refusing live Google Trends stage gate|Live Google Trends stage gate requires|Unsupported argument\(s\)|External query configuration|ROOFROOM_APP_DATA_ROOT)/u;
+
+const MAX_DIAGNOSTIC_ROWS =
+  40;
+
+const MAX_DIAGNOSTIC_ATTRIBUTE_LENGTH =
+  200;
+
+const RELEVANT_DOWNLOAD_CONTROL =
+  /download|file_download|interest|time|indir|ilgi|zaman/iu;
 
 const QUERY_CONTROLS =
   new Set<string>(
@@ -107,8 +119,30 @@ const DATE_DIALOG_CONTROLS =
 export interface LiveStageGateArguments {
   help: boolean;
   confirmed: boolean;
+  inspect_download_readiness: boolean;
   target_stage:
     GoogleTrendsPreDownloadStage | null;
+}
+
+interface RawDownloadReadinessRow {
+  tag: string;
+  role: string | null;
+  aria_label: string | null;
+  title: string | null;
+  class_name: string | null;
+  text: string | null;
+}
+
+export type SafeDownloadReadinessRow =
+  RawDownloadReadinessRow;
+
+export interface SafeDownloadReadinessDiagnostic {
+  selector_counts:
+    Record<string, number>;
+  heading_contracts:
+    readonly SafeDownloadReadinessRow[];
+  relevant_control_contracts:
+    readonly SafeDownloadReadinessRow[];
 }
 
 export interface SafeStageGateFailure {
@@ -138,6 +172,7 @@ const usage = (): string =>
     '  - loads GT01 from the external app-data query-groups.yaml',
     '  - executes the production modules only through the requested gate',
     '  - reports only fixed stage identifiers and structured cardinality evidence',
+    '  - optional --inspect-download-readiness is valid only with FIXED_FILTERS',
     '',
     'Safety:',
     '  - makes one controlled Google Trends Explore navigation',
@@ -170,6 +205,7 @@ export const parseLiveStageGateArguments = (
     new Set([
       HELP_FLAG,
       LIVE_STAGE_GATE_CONFIRMATION_FLAG,
+      INSPECT_DOWNLOAD_READINESS_FLAG,
       ...stageArguments,
     ]);
 
@@ -230,6 +266,10 @@ export const parseLiveStageGateArguments = (
       args.includes(
         LIVE_STAGE_GATE_CONFIRMATION_FLAG,
       ),
+    inspect_download_readiness:
+      args.includes(
+        INSPECT_DOWNLOAD_READINESS_FLAG,
+      ),
     target_stage:
       targetStage,
   };
@@ -259,7 +299,230 @@ export const requireLiveStageGateConfirmation = (
     );
   }
 
+  if (
+    parsed.inspect_download_readiness &&
+    parsed.target_stage !==
+      'FIXED_FILTERS'
+  ) {
+    throw new Error(
+      'Live Google Trends stage gate requires --stage=FIXED_FILTERS when --inspect-download-readiness is used.',
+    );
+  }
+
   return parsed;
+};
+
+const truncateDiagnosticValue = (
+  value: string,
+): string =>
+  value.slice(
+    0,
+    MAX_DIAGNOSTIC_ATTRIBUTE_LENGTH,
+  );
+
+const redactConfiguredQueries = (
+  value: string | null,
+  queries: readonly string[],
+): string | null => {
+  if (value === null) {
+    return null;
+  }
+
+  let redacted =
+    value;
+
+  for (const query of queries) {
+    const normalizedQuery =
+      query.toLocaleLowerCase(
+        'tr-TR',
+      );
+
+    let matchIndex =
+      redacted
+        .toLocaleLowerCase(
+          'tr-TR',
+        )
+        .indexOf(
+          normalizedQuery,
+        );
+
+    while (matchIndex >= 0) {
+      redacted =
+        `${redacted.slice(0, matchIndex)}<QUERY>${redacted.slice(matchIndex + query.length)}`;
+
+      matchIndex =
+        redacted
+          .toLocaleLowerCase(
+            'tr-TR',
+          )
+          .indexOf(
+            normalizedQuery,
+          );
+    }
+  }
+
+  return truncateDiagnosticValue(
+    redacted
+      .replace(
+        /\s+/gu,
+        ' ',
+      )
+      .trim(),
+  );
+};
+
+export const sanitizeDownloadReadinessRows = (
+  rows: readonly RawDownloadReadinessRow[],
+  queries: readonly string[],
+): SafeDownloadReadinessRow[] =>
+  rows
+    .slice(
+      0,
+      MAX_DIAGNOSTIC_ROWS,
+    )
+    .map(
+      (row) => ({
+        tag:
+          truncateDiagnosticValue(
+            row.tag,
+          ),
+        role:
+          redactConfiguredQueries(
+            row.role,
+            queries,
+          ),
+        aria_label:
+          redactConfiguredQueries(
+            row.aria_label,
+            queries,
+          ),
+        title:
+          redactConfiguredQueries(
+            row.title,
+            queries,
+          ),
+        class_name:
+          redactConfiguredQueries(
+            row.class_name,
+            queries,
+          ),
+        text:
+          redactConfiguredQueries(
+            row.text,
+            queries,
+          ),
+      }),
+    );
+
+const rawDownloadReadinessRows = async (
+  page: Page,
+  selector: string,
+): Promise<RawDownloadReadinessRow[]> =>
+  page
+    .locator(
+      selector,
+    )
+    .evaluateAll(
+      (elements) =>
+        elements.map(
+          (element) => ({
+            tag:
+              element.tagName.toLowerCase(),
+            role:
+              element.getAttribute(
+                'role',
+              ),
+            aria_label:
+              element.getAttribute(
+                'aria-label',
+              ),
+            title:
+              element.getAttribute(
+                'title',
+              ),
+            class_name:
+              element.getAttribute(
+                'class',
+              ),
+            text:
+              element.textContent,
+          }),
+        ),
+    );
+
+const inspectDownloadReadiness = async (
+  page: Page,
+  queries: readonly string[],
+): Promise<SafeDownloadReadinessDiagnostic> => {
+  const selectors = [
+    'trends-widget',
+    'widget',
+    '[widget-name]',
+    '.widget',
+    '.fe-atoms-generic-header',
+    '.fe-atoms-generic-header-title',
+    '[aria-label="file_download"]',
+    'button[aria-label="file_download"]',
+    '[aria-label="Download"]',
+    'button[aria-label="Download"]',
+  ];
+
+  const selectorCounts:
+    Record<string, number> = {};
+
+  for (const selector of selectors) {
+    selectorCounts[selector] =
+      await page
+        .locator(
+          selector,
+        )
+        .count();
+  }
+
+  const headingRows =
+    await rawDownloadReadinessRows(
+      page,
+      'h1, h2, h3, h4, h5, h6, [role="heading"], .fe-atoms-generic-header-title',
+    );
+
+  const controlRows =
+    (
+      await rawDownloadReadinessRows(
+        page,
+        'button, [role="button"], [aria-label], [title]',
+      )
+    ).filter(
+      (row) =>
+        RELEVANT_DOWNLOAD_CONTROL.test(
+          [
+            row.role,
+            row.aria_label,
+            row.title,
+            row.class_name,
+            row.text,
+          ]
+            .filter(
+              (value): value is string =>
+                value !== null,
+            )
+            .join(' '),
+        ),
+    );
+
+  return {
+    selector_counts:
+      selectorCounts,
+    heading_contracts:
+      sanitizeDownloadReadinessRows(
+        headingRows,
+        queries,
+      ),
+    relevant_control_contracts:
+      sanitizeDownloadReadinessRows(
+        controlRows,
+        queries,
+      ),
+  };
 };
 
 const validObservedCount = (
@@ -760,6 +1023,16 @@ const main = async (): Promise<void> => {
               targetStage,
             completed_stages:
               completedStages,
+            ...(parsed
+              .inspect_download_readiness
+              ? {
+                  download_readiness:
+                    await inspectDownloadReadiness(
+                      page,
+                      queryGroup.queries,
+                    ),
+                }
+              : {}),
           },
           null,
           2,

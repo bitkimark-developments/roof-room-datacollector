@@ -20,6 +20,7 @@ const {
   parseLiveStageGateArguments,
   requireLiveStageGateConfirmation,
   safeStageGateFailure,
+  sanitizeDownloadReadinessRows,
 } = require(
   path.join(
     buildRoot,
@@ -53,6 +54,8 @@ assert.deepEqual(
       false,
     confirmed:
       true,
+    inspect_download_readiness:
+      false,
     target_stage:
       'DATE_RANGE',
   },
@@ -68,6 +71,8 @@ assert.deepEqual(
       false,
     confirmed:
       true,
+    inspect_download_readiness:
+      false,
     target_stage:
       'FIXED_FILTERS',
   },
@@ -94,6 +99,34 @@ assert.throws(
       LIVE_STAGE_GATE_CONFIRMATION_FLAG,
     ]),
   /requires exactly one explicit/u,
+);
+
+assert.deepEqual(
+  requireLiveStageGateConfirmation([
+    '--stage=FIXED_FILTERS',
+    '--inspect-download-readiness',
+    LIVE_STAGE_GATE_CONFIRMATION_FLAG,
+  ]),
+  {
+    help:
+      false,
+    confirmed:
+      true,
+    inspect_download_readiness:
+      true,
+    target_stage:
+      'FIXED_FILTERS',
+  },
+);
+
+assert.throws(
+  () =>
+    requireLiveStageGateConfirmation([
+      '--stage=DATE_RANGE',
+      '--inspect-download-readiness',
+      LIVE_STAGE_GATE_CONFIRMATION_FLAG,
+    ]),
+  /requires --stage=FIXED_FILTERS/u,
 );
 
 for (const forbidden of [
@@ -202,4 +235,47 @@ assert.equal(
 
 console.log(
   'PASS GT-LIVE-STAGE-CMD-003: stage gates stop on same-origin interaction HTTP 429 without treating unrelated responses as provider limits',
+);
+
+const safeRows =
+  sanitizeDownloadReadinessRows(
+    [
+      {
+        tag:
+          'h2',
+        role:
+          'heading',
+        aria_label:
+          'Interest for CANLI BİTKİ',
+        title:
+          null,
+        class_name:
+          'chart canlı bitki',
+        text:
+          'CANLI BİTKİ interest over time',
+      },
+    ],
+    [
+      'canlı bitki',
+    ],
+  );
+
+assert.equal(
+  JSON.stringify(
+    safeRows,
+  ).toLocaleLowerCase(
+    'tr-TR',
+  ).includes(
+    'canlı bitki',
+  ),
+  false,
+);
+
+assert.equal(
+  safeRows[0].text,
+  '<QUERY> interest over time',
+);
+
+console.log(
+  'PASS GT-LIVE-STAGE-CMD-005: bounded download-readiness structure redacts configured queries without emitting HTML, URLs, or session state',
 );
