@@ -6,9 +6,6 @@ import type {
 const QUERY_SEARCHBOX_NAME =
   'Add a search term';
 
-const ADD_COMPARISON_NAME =
-  'Add a search term for comparison';
-
 const EMPTY_QUERY_SLOT_SELECTOR =
   '.compare-term-container .search-term-wrapper.term-not-selected';
 
@@ -24,8 +21,6 @@ const DEFAULT_UI_ACTION_TIMEOUT_MS =
 export const GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS = {
   INITIAL_QUERY_INPUT:
     'INITIAL_QUERY_INPUT',
-  ADD_COMPARISON:
-    'ADD_COMPARISON',
   EMPTY_COMPARISON_SLOT:
     'EMPTY_COMPARISON_SLOT',
   COMPARISON_QUERY_INPUT:
@@ -148,62 +143,6 @@ const requireExactlyOne = async (
   }
 };
 
-const clickWhenExactlyOneAvailable = async (
-  locator: ManagedBrowserLocator,
-  description: string,
-  timeout: number,
-  diagnostic: {
-    control:
-      GoogleTrendsQueryGroupDiagnosticControl;
-    query_index: number;
-  },
-): Promise<void> => {
-  const initialCount =
-    await locator.count();
-
-  if (initialCount > 1) {
-    throw new GoogleTrendsQueryGroupUiContractError(
-      `Expected at most one ${description} while waiting for it to become available; found ${initialCount}.`,
-      {
-        control:
-          diagnostic.control,
-        observed_count:
-          initialCount,
-        query_index:
-          diagnostic.query_index,
-      },
-    );
-  }
-
-  try {
-    // Playwright's strict locator action uses the existing bounded timeout
-    // to wait for a temporarily missing provider control to become uniquely
-    // available and actionable.
-    await locator.click({
-      timeout,
-    });
-  } catch (error: unknown) {
-    const finalCount =
-      await locator.count();
-
-    if (finalCount !== 1) {
-      throw new GoogleTrendsQueryGroupUiContractError(
-        `Expected exactly one ${description} after its bounded click action failed; found ${finalCount}.`,
-        {
-          control:
-            diagnostic.control,
-          observed_count:
-            finalCount,
-          query_index:
-            diagnostic.query_index,
-        },
-      );
-    }
-
-    throw error;
-  }
-};
-
 const selectSearchTermSuggestion = async (
   page: ManagedBrowserPage,
   query: string,
@@ -260,15 +199,106 @@ const fillAndSelectQuery = async (
   );
 };
 
+const fillAndSelectComparisonQuery = async (
+  page: ManagedBrowserPage,
+  emptySlot: ManagedBrowserLocator,
+  query: string,
+  timeout: number,
+  queryIndex: number,
+): Promise<void> => {
+  const initialSlotCount =
+    await emptySlot.count();
+
+  if (initialSlotCount > 1) {
+    throw new GoogleTrendsQueryGroupUiContractError(
+      `Expected at most one unselected comparison slot while waiting for the next query input; found ${initialSlotCount}.`,
+      {
+        control:
+          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+            .EMPTY_COMPARISON_SLOT,
+        observed_count:
+          initialSlotCount,
+        query_index:
+          queryIndex,
+      },
+    );
+  }
+
+  const queryInput =
+    emptySlot.getByRole(
+      'searchbox',
+      {
+        name:
+          QUERY_SEARCHBOX_NAME,
+      },
+    );
+
+  try {
+    // The provider creates the next empty comparison slot asynchronously.
+    // The strict nested fill action uses the existing bounded timeout to
+    // wait for exactly one slot/input pair to become actionable.
+    await queryInput.fill(
+      query,
+      {
+        timeout,
+      },
+    );
+  } catch (error: unknown) {
+    const finalSlotCount =
+      await emptySlot.count();
+
+    if (finalSlotCount !== 1) {
+      throw new GoogleTrendsQueryGroupUiContractError(
+        `Expected exactly one unselected comparison slot after its bounded input action failed; found ${finalSlotCount}.`,
+        {
+          control:
+            GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+              .EMPTY_COMPARISON_SLOT,
+          observed_count:
+            finalSlotCount,
+          query_index:
+            queryIndex,
+        },
+      );
+    }
+
+    const finalInputCount =
+      await queryInput.count();
+
+    if (finalInputCount !== 1) {
+      throw new GoogleTrendsQueryGroupUiContractError(
+        `Expected exactly one nested comparison query input after its bounded action failed; found ${finalInputCount}.`,
+        {
+          control:
+            GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+              .COMPARISON_QUERY_INPUT,
+          observed_count:
+            finalInputCount,
+          query_index:
+            queryIndex,
+        },
+      );
+    }
+
+    throw error;
+  }
+
+  await selectSearchTermSuggestion(
+    page,
+    query,
+    timeout,
+  );
+};
+
 /**
  * Applies one ordered Google Trends comparison group in Search Term mode.
  *
  * Provider DOM evidence captured from the classic Explore UI:
  *
  * - query input: role=searchbox, aria-label="Add a search term"
- * - comparison add button:
- *   aria-label="Add a search term for comparison"
- * - unselected/new slot receives the provider class "term-not-selected"
+ * - after the first accepted query, live evidence showed one unselected/new
+ *   slot with class "term-not-selected"; the same strict slot contract is
+ *   required for every later comparison and fails closed if it is absent
  * - autocomplete suggestions are role=button rows whose accessible text
  *   combines query title and the "Search term" descriptor
  *
@@ -313,61 +343,16 @@ export const applyGoogleTrendsSearchTermQueryGroup =
       index < input.queries.length;
       index += 1
     ) {
-      const addComparison =
-        input.page.getByRole(
-          'button',
-          {
-            name:
-              ADD_COMPARISON_NAME,
-          },
-        );
-
-      await clickWhenExactlyOneAvailable(
-        addComparison,
-        `"${ADD_COMPARISON_NAME}" button`,
-        timeout,
-        {
-          control:
-            GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
-              .ADD_COMPARISON,
-          query_index:
-            index,
-        },
-      );
-
       const emptySlot =
         input.page.locator(
           EMPTY_QUERY_SLOT_SELECTOR,
         );
 
-      await requireExactlyOne(
-        emptySlot,
-        'unselected comparison slot',
-        {
-          control:
-            GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
-              .EMPTY_COMPARISON_SLOT,
-          query_index:
-            index,
-        },
-      );
-
-      const queryInput =
-        emptySlot.getByRole(
-          'searchbox',
-          {
-            name:
-              QUERY_SEARCHBOX_NAME,
-          },
-        );
-
-      await fillAndSelectQuery(
+      await fillAndSelectComparisonQuery(
         input.page,
-        queryInput,
+        emptySlot,
         input.queries[index],
         timeout,
-        GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
-          .COMPARISON_QUERY_INPUT,
         index,
       );
     }

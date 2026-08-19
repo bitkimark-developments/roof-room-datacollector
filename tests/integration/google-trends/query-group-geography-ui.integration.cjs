@@ -47,15 +47,15 @@ class FakeLocator {
     count = 1,
     trace,
     text = '',
-    beforeClick,
+    beforeFill,
     onClick,
   }) {
     this.name = name;
     this.countValue = count;
     this.trace = trace;
     this.text = text;
-    this.beforeClick =
-      beforeClick;
+    this.beforeFill =
+      beforeFill;
     this.onClick = onClick;
     this.roleChildren =
       new Map();
@@ -94,10 +94,6 @@ class FakeLocator {
       options,
     });
 
-    if (this.beforeClick) {
-      this.beforeClick();
-    }
-
     if (this.countValue !== 1) {
       throw new Error(
         `strict mode violation for ${this.name}: ${this.countValue} matches`,
@@ -120,6 +116,10 @@ class FakeLocator {
       value,
       options,
     });
+
+    if (this.beforeFill) {
+      this.beforeFill();
+    }
 
     if (this.countValue !== 1) {
       throw new Error(
@@ -187,9 +187,8 @@ class FakeQueryPage {
   constructor({
     resultCounts = {},
     firstInputCount = 1,
-    addCount = 1,
-    addBecomesAvailableOnClick = false,
     emptySlotCount = 1,
+    emptySlotBecomesAvailableOnFill = false,
     emptyInputCount = 1,
   } = {}) {
     this.trace = [];
@@ -209,9 +208,20 @@ class FakeQueryPage {
         name:
           'empty-slot-query-input',
         count:
-          emptyInputCount,
+          emptySlotCount === 1
+            ? emptyInputCount
+            : emptySlotCount,
         trace:
           this.trace,
+        beforeFill:
+          emptySlotBecomesAvailableOnFill
+            ? () => {
+                this.emptySlot.countValue =
+                  1;
+                this.emptyInput.countValue =
+                  1;
+              }
+            : undefined,
       });
 
     this.emptySlot =
@@ -229,23 +239,6 @@ class FakeQueryPage {
       'Add a search term',
       this.emptyInput,
     );
-
-    this.addButton =
-      new FakeLocator({
-        name:
-          'add-comparison',
-        count:
-          addCount,
-        trace:
-          this.trace,
-        beforeClick:
-          addBecomesAvailableOnClick
-            ? () => {
-                this.addButton.countValue =
-                  1;
-              }
-            : undefined,
-      });
 
     this.resultCounts =
       resultCounts;
@@ -291,14 +284,6 @@ class FakeQueryPage {
         'Add a search term'
     ) {
       return this.firstInput;
-    }
-
-    if (
-      role === 'button' &&
-      options?.name ===
-        'Add a search term for comparison'
-    ) {
-      return this.addButton;
     }
 
     if (
@@ -554,15 +539,6 @@ const main = async () => {
         },
       },
       {
-        op: 'click',
-        locator:
-          'add-comparison',
-        options: {
-          timeout:
-            4_000,
-        },
-      },
-      {
         op: 'fill',
         locator:
           'empty-slot-query-input',
@@ -577,15 +553,6 @@ const main = async () => {
         op: 'click',
         locator:
           'suggestion:online bitki Search term',
-        options: {
-          timeout:
-            4_000,
-        },
-      },
-      {
-        op: 'click',
-        locator:
-          'add-comparison',
         options: {
           timeout:
             4_000,
@@ -612,15 +579,6 @@ const main = async () => {
         },
       },
       {
-        op: 'click',
-        locator:
-          'add-comparison',
-        options: {
-          timeout:
-            4_000,
-        },
-      },
-      {
         op: 'fill',
         locator:
           'empty-slot-query-input',
@@ -635,15 +593,6 @@ const main = async () => {
         op: 'click',
         locator:
           'suggestion:bitki siparişi Search term',
-        options: {
-          timeout:
-            4_000,
-        },
-      },
-      {
-        op: 'click',
-        locator:
-          'add-comparison',
         options: {
           timeout:
             4_000,
@@ -848,44 +797,34 @@ const main = async () => {
     'PASS GT-QUERY-007: missing initial query input reports structured INITIAL_QUERY_INPUT cardinality evidence',
   );
 
-  for (
-    const observedCount of
-      [0, 2]
-  ) {
-    const addComparisonPage =
-      new FakeQueryPage({
-        addCount:
-          observedCount,
-      });
+  const providerCreatedSlotPage =
+    new FakeQueryPage();
 
-    await assert.rejects(
-      () =>
-        applyGoogleTrendsSearchTermQueryGroup({
-          page:
-            addComparisonPage,
-          queries: [
-            'canlı bitki',
-            'online bitki',
-          ],
-        }),
-      (error) =>
-        error instanceof
-          GoogleTrendsQueryGroupUiContractError &&
-        error.diagnostic_context
-          ?.control ===
-          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
-            .ADD_COMPARISON &&
-        error.diagnostic_context
-          ?.observed_count ===
-          observedCount &&
-        error.diagnostic_context
-          ?.query_index ===
-          1,
-    );
-  }
+  await applyGoogleTrendsSearchTermQueryGroup({
+    page:
+      providerCreatedSlotPage,
+    queries: [
+      'canlı bitki',
+      'online bitki',
+    ],
+  });
+
+  assert.equal(
+    providerCreatedSlotPage
+      .trace.some(
+        (entry) =>
+          entry.op ===
+            'page.getByRole' &&
+          entry.role ===
+            'button' &&
+          entry.options?.name ===
+            'Add a search term for comparison',
+      ),
+    false,
+  );
 
   console.log(
-    'PASS GT-QUERY-008: missing or ambiguous comparison-add control reports structured ADD_COMPARISON cardinality evidence',
+    'PASS GT-QUERY-008: query comparison uses the provider-created unselected slot without requesting the absent comparison-add control',
   );
 
   for (
@@ -968,17 +907,17 @@ const main = async () => {
     'PASS GT-QUERY-010: missing or ambiguous nested comparison input reports structured COMPARISON_QUERY_INPUT cardinality evidence',
   );
 
-  const delayedAddComparisonPage =
+  const dynamicProviderSlotPage =
     new FakeQueryPage({
-      addCount:
+      emptySlotCount:
         0,
-      addBecomesAvailableOnClick:
+      emptySlotBecomesAvailableOnFill:
         true,
     });
 
   await applyGoogleTrendsSearchTermQueryGroup({
     page:
-      delayedAddComparisonPage,
+      dynamicProviderSlotPage,
     queries: [
       'canlı bitki',
       'online bitki',
@@ -987,51 +926,35 @@ const main = async () => {
       4_000,
   });
 
-  const delayedAddComparisonTrace =
-    delayedAddComparisonPage
-      .trace;
+  const initialSlotCount =
+    dynamicProviderSlotPage
+      .trace.find(
+        (entry) =>
+          entry.op ===
+            'count' &&
+          entry.locator ===
+            'empty-query-slot',
+      );
 
-  const delayedAddComparisonInitialCountIndex =
-    delayedAddComparisonTrace.findIndex(
-      (entry) =>
-        entry.op ===
-          'count' &&
-        entry.locator ===
-          'add-comparison',
-    );
-
-  const delayedAddComparisonClickIndex =
-    delayedAddComparisonTrace.findIndex(
-      (entry) =>
-        entry.op ===
-          'click' &&
-        entry.locator ===
-          'add-comparison',
-    );
+  const comparisonFill =
+    dynamicProviderSlotPage
+      .trace.find(
+        (entry) =>
+          entry.op ===
+            'fill' &&
+          entry.locator ===
+            'empty-slot-query-input',
+      );
 
   assert.equal(
-    delayedAddComparisonInitialCountIndex >=
-      0,
-    true,
-  );
-
-  assert.equal(
-    delayedAddComparisonTrace[
-      delayedAddComparisonInitialCountIndex
-    ].observedCount,
+    initialSlotCount
+      ?.observedCount,
     0,
   );
 
-  assert.equal(
-    delayedAddComparisonClickIndex >
-      delayedAddComparisonInitialCountIndex,
-    true,
-  );
-
   assert.deepEqual(
-    delayedAddComparisonTrace[
-      delayedAddComparisonClickIndex
-    ].options,
+    comparisonFill
+      ?.options,
     {
       timeout:
         4_000,
@@ -1039,7 +962,7 @@ const main = async () => {
   );
 
   console.log(
-    'PASS GT-QUERY-011: a temporarily missing comparison-add control uses the existing bounded strict click action to become available',
+    'PASS GT-QUERY-011: the existing bounded strict nested fill action waits for an asynchronously created comparison slot/input pair',
   );
 
   const alreadyTurkeyPage =
