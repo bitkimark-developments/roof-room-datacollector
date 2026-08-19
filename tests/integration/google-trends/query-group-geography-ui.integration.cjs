@@ -47,6 +47,7 @@ class FakeLocator {
     count = 1,
     trace,
     text = '',
+    beforeClick,
     beforeFill,
     onClick,
   }) {
@@ -54,6 +55,8 @@ class FakeLocator {
     this.countValue = count;
     this.trace = trace;
     this.text = text;
+    this.beforeClick =
+      beforeClick;
     this.beforeFill =
       beforeFill;
     this.onClick = onClick;
@@ -93,6 +96,10 @@ class FakeLocator {
         this.name,
       options,
     });
+
+    if (this.beforeClick) {
+      this.beforeClick();
+    }
 
     if (this.countValue !== 1) {
       throw new Error(
@@ -187,6 +194,8 @@ class FakeQueryPage {
   constructor({
     resultCounts = {},
     firstInputCount = 1,
+    addCount = 1,
+    addBecomesAvailableOnClick = false,
     emptySlotCount = 1,
     emptySlotBecomesAvailableOnFill = false,
     emptyInputCount = 1,
@@ -240,6 +249,23 @@ class FakeQueryPage {
       this.emptyInput,
     );
 
+    this.addButton =
+      new FakeLocator({
+        name:
+          'add-comparison',
+        count:
+          addCount,
+        trace:
+          this.trace,
+        beforeClick:
+          addBecomesAvailableOnClick
+            ? () => {
+                this.addButton.countValue =
+                  1;
+              }
+            : undefined,
+      });
+
     this.resultCounts =
       resultCounts;
   }
@@ -284,6 +310,14 @@ class FakeQueryPage {
         'Add a search term'
     ) {
       return this.firstInput;
+    }
+
+    if (
+      role === 'button' &&
+      options?.name ===
+        'Add a search term for comparison'
+    ) {
+      return this.addButton;
     }
 
     if (
@@ -559,6 +593,15 @@ const main = async () => {
         },
       },
       {
+        op: 'click',
+        locator:
+          'add-comparison',
+        options: {
+          timeout:
+            4_000,
+        },
+      },
+      {
         op: 'fill',
         locator:
           'empty-slot-query-input',
@@ -579,6 +622,15 @@ const main = async () => {
         },
       },
       {
+        op: 'click',
+        locator:
+          'add-comparison',
+        options: {
+          timeout:
+            4_000,
+        },
+      },
+      {
         op: 'fill',
         locator:
           'empty-slot-query-input',
@@ -593,6 +645,15 @@ const main = async () => {
         op: 'click',
         locator:
           'suggestion:bitki siparişi Search term',
+        options: {
+          timeout:
+            4_000,
+        },
+      },
+      {
+        op: 'click',
+        locator:
+          'add-comparison',
         options: {
           timeout:
             4_000,
@@ -1070,6 +1131,96 @@ const main = async () => {
 
   console.log(
     'PASS GT-QUERY-013: query-group actions use the evidence-based bounded 30-second default while explicit timeout overrides remain supported',
+  );
+
+  const delayedAddComparisonPage =
+    new FakeQueryPage({
+      addCount:
+        0,
+      addBecomesAvailableOnClick:
+        true,
+    });
+
+  await applyGoogleTrendsSearchTermQueryGroup({
+    page:
+      delayedAddComparisonPage,
+    queries: [
+      'canlı bitki',
+      'online bitki',
+      'bitki satın al',
+    ],
+    ui_action_timeout_ms:
+      4_000,
+  });
+
+  const delayedAddActions =
+    actionTrace(
+      delayedAddComparisonPage
+        .trace,
+    ).filter(
+      (entry) =>
+        entry.locator ===
+          'add-comparison',
+    );
+
+  assert.deepEqual(
+    delayedAddActions,
+    [
+      {
+        op: 'click',
+        locator:
+          'add-comparison',
+        options: {
+          timeout:
+            4_000,
+        },
+      },
+    ],
+  );
+
+  console.log(
+    'PASS GT-QUERY-014: the first comparison uses the provider-created slot and later comparisons use the asynchronously exposed add control',
+  );
+
+  for (
+    const observedCount of
+      [0, 2]
+  ) {
+    const addComparisonPage =
+      new FakeQueryPage({
+        addCount:
+          observedCount,
+      });
+
+    await assert.rejects(
+      () =>
+        applyGoogleTrendsSearchTermQueryGroup({
+          page:
+            addComparisonPage,
+          queries: [
+            'canlı bitki',
+            'online bitki',
+            'bitki satın al',
+          ],
+        }),
+      (error) =>
+        error instanceof
+          GoogleTrendsQueryGroupUiContractError &&
+        error.diagnostic_context
+          ?.control ===
+          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+            .ADD_COMPARISON &&
+        error.diagnostic_context
+          ?.observed_count ===
+          observedCount &&
+        error.diagnostic_context
+          ?.query_index ===
+          2,
+    );
+  }
+
+  console.log(
+    'PASS GT-QUERY-015: missing or ambiguous later comparison-add controls report structured control/count/index evidence',
   );
 
   const alreadyTurkeyPage =

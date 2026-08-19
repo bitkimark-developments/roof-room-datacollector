@@ -604,6 +604,28 @@ const main = async () => {
     },
   );
 
+  const safeAddComparisonSummary =
+    safeResultSummary({
+      result_type:
+        'FAILED',
+      error_code:
+        'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+      message:
+        'Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError; control=ADD_COMPARISON; observed_count=0; query_index=2).',
+    });
+
+  assert.deepEqual(
+    safeAddComparisonSummary,
+    {
+      result_type:
+        'FAILED',
+      error_code:
+        'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+      diagnostic:
+        'Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError; control=ADD_COMPARISON; observed_count=0; query_index=2).',
+    },
+  );
+
   const forgedQueryGroupSummary =
     safeResultSummary({
       result_type:

@@ -366,7 +366,7 @@ const GENERIC_UI_DIAGNOSTIC_PATTERN =
   /^Google Trends UI contract failed during (QUERY_GROUP|GEOGRAPHY|DATE_RANGE|FIXED_FILTERS|DOWNLOAD|UNKNOWN_EXPORT_STAGE) \(GoogleTrends[A-Za-z]+Error\)\.$/u;
 
 const QUERY_GROUP_UI_DIAGNOSTIC_PATTERN =
-  /^Google Trends UI contract failed during QUERY_GROUP \(GoogleTrendsQueryGroupUiContractError; control=(INITIAL_QUERY_INPUT|SEARCH_TERM_SUGGESTION|EMPTY_COMPARISON_SLOT|COMPARISON_QUERY_INPUT); observed_count=[0-9]+; query_index=[0-9]+\)\.$/u;
+  /^Google Trends UI contract failed during QUERY_GROUP \(GoogleTrendsQueryGroupUiContractError; control=(INITIAL_QUERY_INPUT|SEARCH_TERM_SUGGESTION|ADD_COMPARISON|EMPTY_COMPARISON_SLOT|COMPARISON_QUERY_INPUT); observed_count=[0-9]+; query_index=[0-9]+\)\.$/u;
 
 export const safeResultSummary = (
   result:

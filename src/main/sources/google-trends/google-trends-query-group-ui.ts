@@ -6,6 +6,9 @@ import type {
 const QUERY_SEARCHBOX_NAME =
   'Add a search term';
 
+const ADD_COMPARISON_NAME =
+  'Add a search term for comparison';
+
 const EMPTY_QUERY_SLOT_SELECTOR =
   '.compare-term-container .search-term-wrapper.term-not-selected';
 
@@ -23,6 +26,8 @@ export const GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS = {
     'INITIAL_QUERY_INPUT',
   SEARCH_TERM_SUGGESTION:
     'SEARCH_TERM_SUGGESTION',
+  ADD_COMPARISON:
+    'ADD_COMPARISON',
   EMPTY_COMPARISON_SLOT:
     'EMPTY_COMPARISON_SLOT',
   COMPARISON_QUERY_INPUT:
@@ -204,6 +209,63 @@ const selectSearchTermSuggestion = async (
   }
 };
 
+const openAdditionalComparisonSlot = async (
+  page: ManagedBrowserPage,
+  timeout: number,
+  queryIndex: number,
+): Promise<void> => {
+  const addComparison =
+    page.getByRole(
+      'button',
+      {
+        name:
+          ADD_COMPARISON_NAME,
+      },
+    );
+
+  const initialCount =
+    await addComparison.count();
+
+  if (initialCount > 1) {
+    throw new GoogleTrendsQueryGroupUiContractError(
+      `Expected at most one comparison-add control while waiting for the next query slot; found ${initialCount}.`,
+      {
+        control:
+          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+            .ADD_COMPARISON,
+        observed_count:
+          initialCount,
+        query_index:
+          queryIndex,
+      },
+    );
+  }
+
+  try {
+    // After the first comparison, the provider exposes this control
+    // asynchronously. The strict action waits for one actionable match.
+    await addComparison.click({
+      timeout,
+    });
+  } catch {
+    const finalCount =
+      await addComparison.count();
+
+    throw new GoogleTrendsQueryGroupUiContractError(
+      `Comparison-add action failed with ${finalCount} matching controls.`,
+      {
+        control:
+          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+            .ADD_COMPARISON,
+        observed_count:
+          finalCount,
+        query_index:
+          queryIndex,
+      },
+    );
+  }
+};
+
 const fillAndSelectQuery = async (
   page: ManagedBrowserPage,
   input: ManagedBrowserLocator,
@@ -366,8 +428,10 @@ const fillAndSelectComparisonQuery = async (
  *
  * - query input: role=searchbox, aria-label="Add a search term"
  * - after the first accepted query, live evidence showed one unselected/new
- *   slot with class "term-not-selected"; the same strict slot contract is
- *   required for every later comparison and fails closed if it is absent
+ *   slot with class "term-not-selected", without an add control
+ * - after the second accepted query, live evidence showed the comparison-add
+ *   control; it must be activated before each later comparison slot
+ * - every empty comparison slot must satisfy the same strict nested contract
  * - autocomplete suggestions are role=button rows whose accessible text
  *   combines query title and the "Search term" descriptor
  *
@@ -412,6 +476,14 @@ export const applyGoogleTrendsSearchTermQueryGroup =
       index < input.queries.length;
       index += 1
     ) {
+      if (index >= 2) {
+        await openAdditionalComparisonSlot(
+          input.page,
+          timeout,
+          index,
+        );
+      }
+
       const emptySlot =
         input.page.locator(
           EMPTY_QUERY_SLOT_SELECTOR,
