@@ -112,20 +112,85 @@ const requireExactlyOne = async (
   }
 };
 
+const waitForExactlyOne = async (
+  locator: ManagedBrowserLocator,
+  description: string,
+  timeout: number,
+  control:
+    GoogleTrendsFixedFilterDiagnosticControl,
+): Promise<void> => {
+  const initialCount =
+    await locator.count();
+
+  if (initialCount > 1) {
+    throw new GoogleTrendsFixedFilterContractError(
+      `Expected at most one ${description} while waiting for it to become available; found ${initialCount}.`,
+      {
+        control,
+        observed_count:
+          initialCount,
+      },
+    );
+  }
+
+  if (initialCount === 0) {
+    try {
+      await locator.innerText({
+        timeout,
+      });
+    } catch {
+      const finalCount =
+        await locator.count();
+
+      throw new GoogleTrendsFixedFilterContractError(
+        `Fixed-filter readiness failed with ${finalCount} matching controls.`,
+        {
+          control,
+          observed_count:
+            finalCount,
+        },
+      );
+    }
+  }
+
+  await requireExactlyOne(
+    locator,
+    description,
+    control,
+  );
+};
+
 const readNormalizedText = async (
   locator: ManagedBrowserLocator,
   timeout: number,
-): Promise<string> =>
-  (
-    await locator.innerText({
-      timeout,
-    })
-  )
-    .replace(
-      /\s+/gu,
-      ' ',
+  control:
+    GoogleTrendsFixedFilterDiagnosticControl,
+): Promise<string> => {
+  try {
+    return (
+      await locator.innerText({
+        timeout,
+      })
     )
-    .trim();
+      .replace(
+        /\s+/gu,
+        ' ',
+      )
+      .trim();
+  } catch {
+    const finalCount =
+      await locator.count();
+
+    throw new GoogleTrendsFixedFilterContractError(
+      `Fixed-filter label read failed with ${finalCount} matching controls.`,
+      {
+        control,
+        observed_count:
+          finalCount,
+      },
+    );
+  }
+};
 
 /**
  * Verifies the two fixed Google Trends MVP filters before export:
@@ -158,9 +223,10 @@ export const verifyGoogleTrendsFixedFilters =
         CATEGORY_PICKER_SELECTOR,
       );
 
-    await requireExactlyOne(
+    await waitForExactlyOne(
       categoryPicker,
       'Google Trends category picker',
+      timeout,
       GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
         .CATEGORY_PICKER,
     );
@@ -170,9 +236,10 @@ export const verifyGoogleTrendsFixedFilters =
         'button',
       );
 
-    await requireExactlyOne(
+    await waitForExactlyOne(
       categoryButton,
       'category picker button',
+      timeout,
       GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
         .CATEGORY_PICKER_BUTTON,
     );
@@ -181,6 +248,8 @@ export const verifyGoogleTrendsFixedFilters =
       await readNormalizedText(
         categoryButton,
         timeout,
+        GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+          .CATEGORY_LABEL,
       );
 
     if (
@@ -204,9 +273,10 @@ export const verifyGoogleTrendsFixedFilters =
         SEARCH_PROPERTY_PICKER_SELECTOR,
       );
 
-    await requireExactlyOne(
+    await waitForExactlyOne(
       searchPropertyPicker,
       'Google Trends search-property picker',
+      timeout,
       GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
         .SEARCH_PROPERTY_PICKER,
     );
@@ -216,9 +286,10 @@ export const verifyGoogleTrendsFixedFilters =
         SELECT_VALUE_SELECTOR,
       );
 
-    await requireExactlyOne(
+    await waitForExactlyOne(
       selectedValue,
       'search-property selected value',
+      timeout,
       GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
         .SEARCH_PROPERTY_SELECTED_VALUE,
     );
@@ -227,6 +298,8 @@ export const verifyGoogleTrendsFixedFilters =
       await readNormalizedText(
         selectedValue,
         timeout,
+        GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+          .SEARCH_PROPERTY_LABEL,
       );
 
     if (

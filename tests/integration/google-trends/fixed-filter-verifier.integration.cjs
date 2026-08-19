@@ -34,11 +34,15 @@ class FakeLocator {
     count = 1,
     text = '',
     trace,
+    becomesAvailableOnInnerText =
+      false,
   }) {
     this.name = name;
     this.countValue = count;
     this.text = text;
     this.trace = trace;
+    this.becomesAvailableOnInnerText =
+      becomesAvailableOnInnerText;
     this.children =
       new Map();
     this.roleChildren =
@@ -73,6 +77,13 @@ class FakeLocator {
         this.name,
       options,
     });
+
+    if (
+      this.becomesAvailableOnInnerText
+    ) {
+      this.countValue =
+        1;
+    }
 
     return this.text;
   }
@@ -163,6 +174,14 @@ class FakePage {
     searchPickerCount = 1,
     selectedValueCount = 1,
     searchPropertyText = 'Web Search',
+    categoryPickerBecomesAvailable =
+      false,
+    categoryButtonBecomesAvailable =
+      false,
+    searchPickerBecomesAvailable =
+      false,
+    selectedValueBecomesAvailable =
+      false,
   } = {}) {
     this.trace = [];
 
@@ -176,6 +195,8 @@ class FakePage {
           categoryText,
         trace:
           this.trace,
+        becomesAvailableOnInnerText:
+          categoryButtonBecomesAvailable,
       });
 
     this.categoryPicker =
@@ -186,6 +207,8 @@ class FakePage {
           categoryPickerCount,
         trace:
           this.trace,
+        becomesAvailableOnInnerText:
+          categoryPickerBecomesAvailable,
       });
 
     this.categoryPicker.setRoleChild(
@@ -204,6 +227,8 @@ class FakePage {
           searchPropertyText,
         trace:
           this.trace,
+        becomesAvailableOnInnerText:
+          selectedValueBecomesAvailable,
       });
 
     this.searchPicker =
@@ -214,6 +239,8 @@ class FakePage {
           searchPickerCount,
         trace:
           this.trace,
+        becomesAvailableOnInnerText:
+          searchPickerBecomesAvailable,
       });
 
     this.searchPicker.setLocatorChild(
@@ -424,7 +451,7 @@ const main = async () => {
         page:
           ambiguousCategory,
       }),
-    /exactly one/u,
+    /(?:at most|exactly) one/u,
   );
 
   assert.equal(
@@ -573,6 +600,71 @@ const main = async () => {
 
   console.log(
     'PASS GT-FILTER-008: every fixed-filter failure exposes only an allowlisted control and safe cardinality without provider labels',
+  );
+
+  const asynchronousPage =
+    new FakePage({
+      categoryPickerCount:
+        0,
+      categoryButtonCount:
+        0,
+      searchPickerCount:
+        0,
+      selectedValueCount:
+        0,
+      categoryPickerBecomesAvailable:
+        true,
+      categoryButtonBecomesAvailable:
+        true,
+      searchPickerBecomesAvailable:
+        true,
+      selectedValueBecomesAvailable:
+        true,
+    });
+
+  await verifyGoogleTrendsFixedFilters({
+    page:
+      asynchronousPage,
+    ui_read_timeout_ms:
+      8_000,
+  });
+
+  const readinessReads =
+    asynchronousPage.trace.filter(
+      (entry) =>
+        entry.op ===
+          'innerText' &&
+        [
+          'category-picker',
+          'category-button',
+          'search-property-picker',
+          'search-property-value',
+        ].includes(
+          entry.locator,
+        ),
+    );
+
+  assert.equal(
+    readinessReads.length >= 4,
+    true,
+  );
+  assert.equal(
+    readinessReads.every(
+      (entry) =>
+        entry.options.timeout ===
+        8_000,
+    ),
+    true,
+  );
+  assert.equal(
+    hasMutation(
+      asynchronousPage.trace,
+    ),
+    false,
+  );
+
+  console.log(
+    'PASS GT-FILTER-009: every exact fixed-filter control may become available through the existing bounded read timeout without sleep or UI mutation',
   );
 };
 
