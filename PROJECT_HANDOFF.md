@@ -499,6 +499,29 @@ Downloads is not the authoritative application datastore. Only an accepted artif
 
 Do not delete, move, or rewrite existing provider evidence. First inventory provenance and determine whether another canonical copy exists. Developer helper files in Downloads are not application state.
 
+Read-only provenance inventory on 2026-08-19 established:
+
+```text
+app-data SQLite:
+1 run / 1 job / 1 attempt
+run remains RUNNING for explicit resume policy
+job and attempt are FAILED with RATE_LIMITED
+0 artifacts / 0 validations
+PRAGMA quick_check = ok
+
+Downloads/RoofRoom Data Collector/google-trends/discovery:
+relatedQueries.csv        592 bytes   SHA-256 643c4ceab99069e4740052dc3c5a0df12378fe5678475116cc295f262870c80f
+multiTimeline.csv        2467 bytes   SHA-256 87d81838abebe941f64460bfbab7dc3fea46a6188f07681786f5911617f49d53
+multiTimeline__2.csv     2467 bytes   SHA-256 5dbb9079c11e91a34e2937265b873ecb7c81da61b5f7d97101bd01bf99608286
+
+repository GT01 fixture:
+gt01-valid-5-queries.csv  2467 bytes   SHA-256 9bd0f03d00dd803932f8207e2c74326619874af05b5509cf6aeefc2369aad883
+```
+
+Both `multiTimeline` files contain 108 lines, six columns, and weekly periods from 2024-08-18 through 2026-08-16, but their hashes differ from each other and from the repository fixture. No app-owned run-scoped raw copy currently exists. Therefore the three discovery CSV files are unique existing provider evidence and must be preserved in place until a deliberate provenance-preserving migration is designed.
+
+The Downloads root separately contains 88 development helper shell scripts, one patch, six RoofRoom audit/diagnostic text files, and 12 copied project-state Markdown documents. These are developer working files, not application runtime state or canonical repository content. They were inventoried but not deleted, moved, or rewritten.
+
 The remaining live proof must establish that a real provider artifact traverses the complete chain:
 
 ```text
