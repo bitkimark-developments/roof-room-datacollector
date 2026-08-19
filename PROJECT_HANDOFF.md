@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `93e58a2 feat: add Google Trends query DOM diagnostic`
+**Latest verified technical checkpoint:** `42ebbe9 fix: wait for Google Trends custom date option`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -15,59 +15,28 @@ Repository:
 ~/Projects/roofroom-data-collector
 ```
 
-Branch:
+Branch and latest verified checkpoints:
 
 ```text
 main
-```
-
-Latest verified checkpoint:
-
-```text
+42ebbe9 fix: wait for Google Trends custom date option
+5e2d014 feat: add Google Trends date diagnostics
+b7c43d1 fix: wait for Google Trends geography state
+c21ba7f feat: add Google Trends geography diagnostics
+4ad8abf fix: add later Google Trends comparisons
+8101d6a fix: extend Google Trends query action readiness
+a9f076c feat: inspect Google Trends comparison suggestion
+667b36b fix: classify Google Trends query action failures
+81d848e fix: use Google Trends provider-created comparison slot
+03335d2 docs: record repeated Google Trends query failure
 93e58a2 feat: add Google Trends query DOM diagnostic
 6c74bf2 docs: reconcile M3 comparison readiness checkpoint
 310cda6 fix: wait for Google Trends comparison control
 b49770b docs: prepare repository development handoff
 2fe1f70 feat: add Google Trends query diagnostics
-1d6d0a1 docs: reconcile M3 project handoff
-5024e66 fix: classify Google Trends date dialog errors
-9979d70 feat: add Google Trends UI stage diagnostics
-4ab8600 feat: add explicit live GT01 collection
-6fe72a0 feat: detect Google Trends manual action
-aac9d3b feat: compose Google Trends runtime
-439b851 feat: add Google Trends collecting source
-cfeab0d feat: compose Google Trends configured page export
-b562f3c feat: verify Google Trends fixed filters
-f1409e0 feat: apply Google Trends query group and geography
-6f28744 feat: apply Google Trends custom date range
-351f0ed feat: add Google Trends custom date dialog adapter
-d47ff2a feat: scope Google Trends interest over time download
-acc7d4d feat: add managed browser download capture
-6d5b407 feat: wire Google Trends collection validator
-2b65577 feat: parse and validate Google Trends CSV
-7aa3900 feat: add persistent public download storage
-7f62df5 feat: add explicit Google Trends live probe command
-e06c2e7 feat: connect Google Trends probe to browser manager
-7030b42 feat: add Google Trends provider probe
-86d4c51 feat: detect Google Trends rate limiting
 ```
 
-Verified committed technical baseline before this handoff update:
-
-```text
-main
-93e58a2 feat: add Google Trends query DOM diagnostic
-```
-
-The abandoned/unverified broad QUERY_GROUP `waitFor()` experiment was removed from the worktree before the baseline gate. It must not be treated as implemented or accepted behavior.
-
-One explicitly approved live GT01 request was made after `2fe1f70`. It produced safe structured evidence that `ADD_COMPARISON` had `observed_count=0` at `query_index=1`. No artifact was produced and no automatic retry was made.
-
-`310cda6` applies the resulting narrow readiness fix. It does not add `waitFor()`, sleep/delay, a new timeout, retry, refresh, selector changes, navigation changes, or other provider-behavior changes. It lets the existing bounded strict Playwright click action wait for the temporarily missing `ADD_COMPARISON` control.
-
-One controlled live GT01 request was made after `310cda6`. It again reported `ADD_COMPARISON`, `observed_count=0`, `query_index=1` after the existing bounded strict click action failed. No artifact was produced and no automatic retry was made. This disproved the hypothesis that the existing locator only needed to use Playwright action waiting.
-
-`93e58a2` adds a separate explicit live structural diagnostic command. It is restricted to one Explore navigation, the first GT01 Search Term selection, one exercise of the existing comparison-add locator, and bounded tag/role/aria-label/class/count evidence. It rejects retry, refresh, download, and broader-group arguments; redacts configured query strings; and does not emit page text, input values, HTML, cookies, headers, or session state. The diagnostic command has not yet made a live request.
+The verified technical baseline is committed. The application packages successfully for `darwin/arm64`. The first restricted package attempt failed only because `github.com` DNS access was unavailable; the same command passed with network access.
 
 Development environment currently verified:
 
@@ -79,26 +48,36 @@ npm v11.17.0
 system Bash 3.2.57
 Electron + React + Vite + TypeScript
 SQLite via node:sqlite
-Playwright + Chromium installed for M3 development
+Playwright + Chromium
 ```
 
-Development helper scripts must remain compatible with the target macOS environment. Do not assume newer GNU/Bash-only commands such as `mapfile`.
+Helper scripts must remain compatible with macOS system Bash 3.2 unless another runtime is explicitly selected and documented.
 
 ---
 
 # 2. Product Boundary
 
-RoofRoom Data Collector remains a local-first modular desktop data collection application.
-
-Core philosophy:
+RoofRoom Data Collector is a local-first modular desktop data collection application.
 
 ```text
 Collect → Preserve → Validate → Document → Export
 ```
 
-The collector does not make SEO, marketing, advertising, merchandising, or commercial decisions.
+The application collects source data. It does not make SEO, marketing, advertising, merchandising, or commercial decisions.
 
-Release 1.0 remains intentionally limited to the Google Trends MVP. Do not begin later source modules until the base Google Trends collector is stable.
+Google Trends is the first source module and the Release 1.0 proving ground for the shared Core. Later source modules remain intentionally deferred until the Google Trends base is reliable:
+
+```text
+Google Ads — Keyword Planner
+Google Search Console
+Semrush
+Google Merchant Center
+Google Analytics 4
+Google Ads account/performance data
+future source modules added through the same Core
+```
+
+Do not build those modules in parallel with the current M3 stabilization work.
 
 ---
 
@@ -115,9 +94,9 @@ M6 — Data Package & Workbook          NOT STARTED
 M7 — Hardening & Release 1.0          NOT STARTED
 ```
 
-M3 must first prove one trustworthy real query-group vertical slice before expansion.
+M3 must prove one trustworthy real query-group vertical slice before progressive expansion.
 
-Current first group:
+Locked first group:
 
 ```text
 GT01
@@ -130,7 +109,7 @@ bitki siparişi
 saksılı bitki
 ```
 
-Current locked live test request:
+Locked live request:
 
 ```text
 country: TR
@@ -144,155 +123,66 @@ requested_date_end: 2026-08-17
 
 ---
 
-# 4. M2 Core Baseline
+# 4. Verified Shared-Core Architecture
 
-M2 is complete and must not be reopened without evidence of a core regression.
+M2 remains complete. Its integrated deterministic gate was reconfirmed on 2026-08-19.
 
-Verified shared-core capabilities include:
+Verified shared-Core capabilities include:
 
 ```text
-run persistence
-job persistence
+run/job persistence
 attempt history
-execution-state transitions
-run-state aggregation
-artifact persistence
-validation-summary persistence
+execution-state transitions and run aggregation
+artifact and validation-summary persistence
 accepted-artifact references
-immutable raw filesystem storage
-SHA-256 + byte-size evidence
-metadata JSON persistence
-detailed validation JSON persistence
-resume planning
-accepted-job skip
-candidate preservation
-reconciliation
+immutable run-scoped raw storage
+SHA-256 and byte-size evidence
+metadata JSON and detailed validation JSON
+resume planning and accepted-job skip
+candidate preservation and reconciliation
 explicit retry policy
-retry-attempt history preservation
 sequential source orchestration
-structured JSONL logging
-sensitive-value redaction
-application-specific persistent browser-profile boundary
-integrated deterministic M2 acceptance gate
+structured JSONL logging and redaction
+application-owned persistent browser profiles
+SQLite foreign-key and quick-check integrity
 ```
 
-The 2026-08-19 baseline verification reconfirmed all eight integrated M2 gate assertions.
+The architecture remains one application with independent source modules and one shared Core. Source modules own source-specific collection, parsing, validation, and error mapping; Core owns run/job/attempt, persistence, retry/resume, logging, export coordination, and desktop integration.
 
 ---
 
 # 5. Implemented M3 Google Trends Surfaces
 
-The following M3 slices are committed and retained by the verified `93e58a2` baseline:
+Committed M3 surfaces include:
 
 ```text
-rate-limit detection
-provider probe
-BrowserManager → provider probe integration
-explicit live provider-probe command
-persistent public download storage
-real Google Trends Interest Over Time CSV parser
-minimum M3 source-specific CSV validator
-CollectionValidator adapter
+rate-limit and manual-action detection
+provider probe and app-owned BrowserManager integration
+explicit guarded live commands
+public provider-download preservation
 managed browser download capture
-Interest Over Time scoped download selection
-custom-date dialog field adapter
-full custom-date workflow
-ordered Search Term query-group UI adapter
+real Interest Over Time CSV parser and validator
+CollectionValidator adapter
+Interest Over Time card-scoped download selection
+custom-date dialog and full date workflow
+ordered Search Term query-group adapter
 Türkiye geography adapter
 All categories / Web Search verification
 configured-page export composition
-GoogleTrendsCollector
-GoogleTrendsSource collecting integration
-main-process Google Trends runtime composition
-manual-action detection
-explicit live GT01 collection command
-safe configured-page stage diagnostics
-nested date-dialog UI error classification
-structured QUERY_GROUP control/count diagnostics
-bounded strict-action readiness for the comparison-add control
-explicit query DOM structural diagnostic command
+GoogleTrendsCollector and GoogleTrendsSource
+main-process runtime composition and shutdown
+safe stage diagnostics
+structured query, geography, and date diagnostics
+explicit safe structural query DOM diagnostic
 ```
 
-The provider-facing workflow remains fail-closed. Critical controls do not use positional `.first()` / `.nth()` selection as a fallback.
+Provider-facing behavior remains fail-closed. Critical controls do not fall back to positional `.first()` / `.nth()` selection.
 
 ---
 
-# 6. Real Provider Evidence Established During M3
+# 6. Current QUERY_GROUP Contract and Live Evidence
 
-Real Google Trends behavior has been exercised. Earlier handoff statements saying otherwise are obsolete.
-
-Verified real-source evidence includes:
-
-```text
-Google Trends Explore provider can be reached through the app-owned profile
-provider probe has returned HTTP 200 with no rate-limit signal
-one manual discovery session observed HTTP 429 and was stopped without refresh/evasion
-classic Explore UI controls were manually inspected
-a real GT01 Interest Over Time CSV was exported and preserved
-a second real GT01 export confirmed the same structural schema while live numeric values varied
-real CSV uses weekly rows for the locked 24-month request
-real export contains the five canonical GT01 query series
-missing CSV values remain missing/null rather than becoming zero
-```
-
-Live numeric values must never be asserted as exact stable values.
-
-Google Trends 0–100 values remain relative interest only and must never be converted into estimated search counts.
-
----
-
-# 7. Current Live GT01 Status
-
-The source-level GT01 live vertical slice has **not** succeeded yet.
-
-Latest verified live result:
-
-```json
-{
-  "live_scope": "GT01",
-  "query_group_name": "generic_commercial",
-  "query_count": 5,
-  "requested_date_start": "2024-08-18",
-  "requested_date_end": "2026-08-17",
-  "result_type": "FAILED",
-  "error_code": "GOOGLE_TRENDS_UI_CONTRACT_ERROR",
-  "diagnostic": "Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError; control=ADD_COMPARISON; observed_count=0; query_index=1)."
-}
-```
-
-No accepted GT01 artifact was produced by that live attempt.
-
-The first structured live attempt used the diagnostics committed in `2fe1f70`. It was followed by the narrow deterministic fix in `310cda6`. A second controlled live attempt using that fix produced the same safe diagnostic. Neither attempt retried automatically or produced an artifact.
-
-This proves only:
-
-```text
-the provider was reached
-collection entered configured-page export
-the failure occurred during QUERY_GROUP
-the exact failing control was ADD_COMPARISON
-the immediate observed count was 0
-the next query index was 1
-the failure was a controlled structured GoogleTrendsQueryGroupUiContractError
-the workflow failed closed
-```
-
-It does **not** yet prove:
-
-```text
-selector drift
-a permanently missing control
-a provider-language mismatch
-the actual current comparison-container tag/role/aria-label/class contract
-```
-
-Do not add broader waits, sleeps, selector changes, retries, refreshes, or timeout changes without new live evidence.
-
----
-
-# 8. QUERY_GROUP Contract at the Verified Baseline
-
-The committed query-group adapter currently relies on these provider contracts:
+Current provider contract:
 
 ```text
 initial query input:
@@ -303,32 +193,55 @@ Search Term suggestion:
 role=button
 name="<query> Search term"
 
-comparison add control:
+first comparison slot:
+.compare-term-container .search-term-wrapper.term-not-selected
+nested role=searchbox
+name="Add a search term"
+
+later comparison add control:
 role=button
 name="Add a search term for comparison"
-
-new/unselected comparison slot:
-.compare-term-container .search-term-wrapper.term-not-selected
-
-nested new-slot input:
-role=searchbox
-name="Add a search term"
 ```
 
-For the initial input, empty comparison slot, and nested comparison input, the adapter calls `count()` and requires exactly one match before mutation.
+The first comparison and later comparisons have different provider behavior:
 
-For `ADD_COMPARISON`, the adapter first fails closed immediately when more than one match exists. When the initial count is zero or one, it uses the existing strict Playwright click action and existing bounded UI timeout. If the action fails and the final count is not one, it reports the final structured cardinality evidence. If the action fails while exactly one match exists, the original action failure remains visible to the collector boundary.
+```text
+after the first query:
+the provider creates the first empty comparison slot directly
+the add-comparison control is absent
 
-At `2fe1f70`, exact-cardinality failures carry structured, allowlisted diagnostic context for:
+after the second and later selected queries:
+the provider exposes the add-comparison control
+the control must be activated before filling each next comparison slot
+```
+
+This hybrid behavior is implemented in `4ad8abf` and deterministically verified by `GT-QUERY-014..015`.
+
+The live structural diagnostic executed after `a9f076c` established:
+
+```text
+initial_expected_suggestion_count: 0
+suggestion_action: CLICKED
+final_expected_suggestion_count: 1
+
+autocomplete rows use li[role="button"]
+the first comparison uses the provider-created term-not-selected slot
+after the second query selection the add-comparison button exists
+```
+
+Configured query strings were redacted. The diagnostic did not emit page text, input values, HTML, cookies, headers, or session state.
+
+Current structured QUERY_GROUP controls:
 
 ```text
 INITIAL_QUERY_INPUT
+SEARCH_TERM_SUGGESTION
 ADD_COMPARISON
 EMPTY_COMPARISON_SLOT
 COMPARISON_QUERY_INPUT
 ```
 
-The controlled diagnostic fields are:
+Safe fields:
 
 ```text
 control
@@ -336,89 +249,121 @@ observed_count
 query_index
 ```
 
-Arbitrary provider text, query text, raw exception messages, HTML, cookies, authentication state, session material, and dynamic DOM IDs are not exposed by this diagnostic contract.
-
-The committed baseline does **not** contain the abandoned `locator.waitFor()` experiment, any sleep/delay, or a new timeout.
-
-The Search Term suggestion is selected using Playwright click action with the existing bounded UI timeout; Playwright action waiting is distinct from the explicit cardinality checks above.
+The default bounded QUERY_GROUP action timeout is now 30 seconds. Explicit `ui_action_timeout_ms` overrides remain supported. No sleep, refresh, automatic provider retry, or navigation change was added.
 
 ---
 
-# 9. Current Diagnostic Boundary
+# 7. Geography and Date-Range State
 
-Configured-page export reports only fixed stages:
+The hybrid query-group flow first advanced the live GT01 attempt into `GEOGRAPHY` after `4ad8abf`.
+
+Structured geography evidence then reported:
 
 ```text
-QUERY_GROUP
-GEOGRAPHY
-DATE_RANGE
-FIXED_FILTERS
-DOWNLOAD
+control=APPLIED_GEOGRAPHY_LABEL
+observed_count=0
 ```
 
-Collector UI-contract failures are converted into bounded diagnostics that expose:
+The cause was an immediate read through the generic opener locator while the provider was still transitioning. `b7c43d1` verifies post-selection state through the expected Türkiye-labelled picker button using the existing bounded Playwright read. A controlled live run after that commit advanced past `GEOGRAPHY` into `DATE_RANGE`.
+
+Current structured geography controls:
 
 ```text
-fixed stage
-known internal error class
-allowlisted QUERY_GROUP control/count/index context when available
+GEOGRAPHY_PICKER
+GEOGRAPHY_PICKER_BUTTON
+GEOGRAPHY_SEARCH_INPUT
+TURKEY_RESULT
+APPLIED_GEOGRAPHY_LABEL
 ```
 
-Raw provider text, arbitrary exception messages, HTML, cookies, authentication state, or session data must not be surfaced by the live CLI.
-
-The date-dialog classifier gap found during M3 was fixed in:
+Structured date evidence subsequently reported:
 
 ```text
-5024e66 fix: classify Google Trends date dialog errors
+control=CUSTOM_TIME_RANGE_OPTION
+observed_count=0
 ```
 
-The structured QUERY_GROUP diagnostic boundary was added in:
+`42ebbe9` removes the premature exact-count requirement for that asynchronously exposed option. It still fails immediately on ambiguity and uses the existing bounded strict click action for zero-or-one initial matches. This correction is deterministically verified by `GT-DATE-RANGE-008`.
+
+The `42ebbe9` custom-date readiness correction has not yet been reached by a later live attempt: the next controlled run stopped earlier at the intermittent QUERY_GROUP suggestion boundary.
+
+Current structured date controls:
 
 ```text
-2fe1f70 feat: add Google Trends query diagnostics
+DATE_FILTER
+CUSTOM_TIME_RANGE_OPTION
+OK_BUTTON
+ARCHIVE_DIALOG
+START_DATE_INPUT
+END_DATE_INPUT
 ```
 
 ---
 
-# 10. Verified Baseline Gate — 2026-08-19
+# 8. Current Live GT01 Status
 
-The full deterministic checks below passed against the `310cda6` collector implementation during the 2026-08-19 verification:
+The source-level GT01 vertical slice has not produced an accepted artifact through the current automation.
+
+Most advanced verified live path:
 
 ```text
-npm run lint
-npx tsc --noEmit
-
-npm run test:m3:gt-query-geo
-npm run test:m3:gt-ui-diagnostics
-npm run test:m3:provider-state
-npm run test:m3:provider-probe
-npm run test:m3:browser-probe
-npm run test:m3:live-probe-command
-npm run test:m3:downloads
-npm run test:m3:gt-csv
-npm run test:m3:gt-validator-adapter
-npm run test:m3:browser-download
-npm run test:m3:gt-download-selector
-npm run test:m3:gt-date-dialog
-npm run test:m3:gt-date-range
-npm run test:m3:gt-fixed-filters
-npm run test:m3:gt-configured-export
-npm run test:m3:gt-collecting-source
-npm run test:m3:live-gt01-command
-npm run test:m3:gt-runtime
-npm run test:m3:gt-runtime-package-config
-npm run test:m3:gt-manual-action
-
-npm run test:m2:gate
-npm run package
+QUERY_GROUP passed all five queries
+GEOGRAPHY passed after b7c43d1
+DATE_RANGE reached
+CUSTOM_TIME_RANGE_OPTION reported observed_count=0
+no download or artifact was produced
 ```
 
-Observed results:
+Latest controlled live result after `42ebbe9`:
+
+```json
+{
+  "live_scope": "GT01",
+  "query_group_name": "generic_commercial",
+  "query_count": 5,
+  "requested_date_start": "2024-08-18",
+  "requested_date_end": "2026-08-17",
+  "result_type": "FAILED",
+  "error_code": "GOOGLE_TRENDS_UI_CONTRACT_ERROR",
+  "diagnostic": "Google Trends UI contract failed during QUERY_GROUP (GoogleTrendsQueryGroupUiContractError; control=SEARCH_TERM_SUGGESTION; observed_count=0; query_index=0)."
+}
+```
+
+Controlled runs have observed `SEARCH_TERM_SUGGESTION` count zero at query indices 0, 1, and 2. The same exact suggestion locator succeeded inside the safe structural diagnostic when the provider result became available. This establishes intermittent provider autocomplete readiness; it does not establish selector drift or a safe retry strategy.
+
+No `RATE_LIMITED` or `MANUAL_ACTION_REQUIRED` result occurred in these controlled runs. No automatic retry or refresh was performed. Repeated immediate provider calls were stopped after the latest intermittent failure.
+
+No new live artifact was produced by these runs, and live numeric values were not used as assertions.
+
+---
+
+# 9. Real Provider and Data Evidence
+
+Established real-source evidence includes:
 
 ```text
-GT-QUERY-001..011 PASS
-GT-GEO-001..006 PASS
-GT-DIAG-001..006 PASS
+Google Trends Explore is reachable through the app-owned profile
+provider probe has returned HTTP 200 without a navigation-level rate-limit signal
+an earlier manual discovery session observed HTTP 429 and stopped without evasion
+classic Explore UI controls were inspected
+two real GT01 Interest Over Time CSV exports were preserved
+the real CSV uses weekly rows for the locked 24-month request
+the real exports contain the five canonical GT01 query series
+live numeric values vary between exports
+missing CSV values remain missing/null rather than becoming zero
+```
+
+Google Trends 0–100 values are relative interest only. They must never be converted into estimated search volume. Different comparison groups remain independently normalized and must retain query-group context.
+
+---
+
+# 10. Verified Deterministic Gate — 2026-08-19
+
+The complete deterministic M3 surface, integrated M2 gate, lint, TypeScript, and package were rerun after `42ebbe9`.
+
+Current verified ranges:
+
+```text
 GT-PROVIDER-001..006 PASS
 GT-PROBE-001..007 PASS
 GT-BROWSER-PROBE-001..006 PASS
@@ -430,131 +375,82 @@ GT-VAL-001..007 PASS
 GT-ADAPTER-001..007 PASS
 BROWSER-DOWNLOAD-001..006 PASS
 GT-DOWNLOAD-001..007 PASS
-GT-DATE-DIALOG-001..008 PASS
-GT-DATE-RANGE-001..007 PASS
+GT-DATE-DIALOG-001..009 PASS
+GT-DATE-RANGE-001..008 PASS
+GT-QUERY-001..015 PASS
+GT-GEO-001..008 PASS
 GT-FILTER-001..007 PASS
 GT-CONFIGURED-EXPORT-001..007 PASS
 GT-SOURCE-001..003 PASS
 GT-COLLECTOR-001..005 PASS
-GT-LIVE-GT01-CMD-001..004 PASS
 GT-RUNTIME-001..005 PASS
 GT-PACKAGE-001 PASS
 GT-MANUAL-001..006 PASS
-M2-GATE-001..008 PASS
-Electron Forge package PASS on darwin arm64
-```
-
-After the diagnostic-only `93e58a2` addition, these checks were rerun and passed:
-
-```text
-npm run lint
-npx tsc --noEmit
-npm run test:m3:live-query-diagnostic-command
-npm run test:m3:live-gt01-command
-npm run test:m3:live-probe-command
-npm run test:m3:gt-query-geo
-npm run test:m3:provider-probe
-npm run test:m3:gt-manual-action
-
+GT-LIVE-GT01-CMD-001..004 PASS
+GT-DIAG-001..008 PASS
 GT-LIVE-QUERY-DIAG-CMD-001..003 PASS
+M2-GATE-001..008 PASS
 ```
 
-The first package attempt in the restricted environment reached the production build and then failed only because `github.com` DNS access was unavailable. The same `npm run package` command completed successfully with network access; this was not a Google Trends request.
-
-The Vite CJS Node API deprecation message remains a warning only; it is not currently a failing gate.
-
-Verified committed technical checkpoint:
+Also verified:
 
 ```text
-93e58a2 feat: add Google Trends query DOM diagnostic
+npm run lint PASS
+npx tsc --noEmit PASS
+npm run package PASS on darwin/arm64
+git diff --check PASS before each checkpoint
 ```
+
+The Vite CJS Node API deprecation message remains a non-failing warning.
 
 ---
 
-# 11. Current Safety / Compliance Rules
+# 11. Data Integrity and Validation Boundary
 
-Do not:
-
-```text
-store passwords
-copy the user's normal browser profile
-copy cookies/sessions without explicit consent
-automate CAPTCHA or 2FA
-bypass anti-bot protections
-bypass rate limits
-use CAPTCHA solvers
-use proxy rotation for evasion
-auto-refresh after provider blocking
-blindly auto-retry live provider failures
-use undocumented/private endpoints when the supported UI/export path is sufficient
-```
-
-When authentication/security intervention is required:
+Current guarantees include:
 
 ```text
-MANUAL_ACTION_REQUIRED
-```
-
-When rate limited:
-
-```text
-stop
-preserve the controlled state/evidence
-do not refresh/retry immediately
-```
-
----
-
-# 12. Current M3 Data / Validation Boundary
-
-A real GT01 CSV structure has already been used to establish the minimum M3 parser/validator behavior.
-
-Current important guarantees include:
-
-```text
-raw source bytes preserved
-public provider download preserved separately
-HTML/login/error content rejected as data
-expected GT01 query identity checked
-weekly temporal structure parsed
-requested-vs-actual coverage checked
-relative-interest numeric fields parsed
-0..100 range checked
+raw source bytes remain unchanged
+public provider download is preserved separately
+HTML/login/error content is rejected as data
+requested query identity is checked
+weekly temporal structure is parsed
+requested-versus-observed date coverage is checked
+relative-interest values must be valid 0..100 values
 empty source values remain null
-duplicate periods rejected
-geography/category evidence checked where represented/observed
+duplicate periods are rejected
+geography/category evidence is checked where represented
 ```
 
-`LOW_DATA`, `NO_DATA`, and all-zero calibration remain intentionally deferred until enough real provider behavior exists. The reusable/hardened validation framework remains M4 work.
+`LOW_DATA`, `NO_DATA`, and all-zero calibration remain deferred until enough real provider behavior exists. A browser action, download, or parseable CSV is not automatically accepted collection success.
 
 ---
 
-# 13. Current Storage Boundary
+# 12. Storage Boundary and Open Integration Issue
 
-There are two intentional persistence concerns:
+Two persistence concerns currently exist:
 
 ```text
 PersistentDownloadStore
-→ preserves the provider download in the user-visible Downloads tree
+→ preserves provider downloads under the user-visible Downloads tree
 
 StorageManager / CollectionOrchestrator
-→ owns canonical run-scoped raw artifact persistence and audit evidence
+→ owns intended canonical run-scoped raw artifacts and audit evidence
 ```
 
-The source-level live GT01 command currently proves the provider-facing collection boundary. It does not by itself prove the full run/job/attempt/orchestrator persistence vertical slice.
-
-Current open M3 storage integration issue:
+Current open M3 storage issue:
 
 ```text
-provider downloads are persisted first to the user-visible Downloads area
-the verified bytes are then returned for later canonical run-scoped persistence
+provider downloads are persisted to the user-visible Downloads area before canonical run-scoped storage
 the live GT01 CLI calls the real source directly
-the live GT01 CLI does not yet use CollectionOrchestrator / StorageManager / SQLite
+the live GT01 CLI does not yet pass the real source through CollectionOrchestrator / StorageManager / SQLite
 ```
 
-Therefore a source-level live artifact may currently have its only durable copy in Downloads. Downloads is an intentional user-visible preservation area, but it must not be treated as the intended authoritative application datastore. Canonical application state and raw run evidence belong under the application-owned run/storage boundary. Existing provider evidence must not be deleted, moved, or rewritten until its provenance and canonical relationship are inspected.
+Therefore Downloads must not be treated as the intended authoritative application datastore. Canonical application state and raw run evidence belong under the application-owned run/storage boundary.
 
-After a source-level GT01 artifact becomes trustworthy, the next architectural M3 slice must run the real Google Trends source through the existing CollectionOrchestrator so real evidence includes:
+Do not delete, move, or rewrite existing provider evidence. First inventory provenance and determine whether another canonical copy exists. Developer helper files in Downloads are not application state.
+
+After a trustworthy source-level GT01 artifact exists, the real source must run through Core so the evidence chain includes:
 
 ```text
 run
@@ -565,150 +461,125 @@ metadata JSON
 validation JSON
 validation status
 SQLite state
-public preserved provider copy
+public provider copy
 ```
 
-M3 must not be declared complete before this integration is proven.
+M3 is not complete until that integration is proven.
 
 ---
 
-# 14. Known Issues / Open Decisions
+# 13. Current Blocker and Exact Next Action
 
-Current blocking issue:
+Current live blocker:
 
 ```text
-the latest live GT01 attempt failed during QUERY_GROUP at
-ADD_COMPARISON with observed_count=0 and query_index=1
-the same result occurred after the 310cda6 bounded strict-action fix
-the current provider structural contract is not yet captured
+Google Trends Search Term autocomplete readiness is intermittent
+the expected exact suggestion locator sometimes remains at count zero for the full 30-second bounded action
+the same locator succeeds in other controlled runs and in the structural diagnostic
+the latest run stopped at query_index=0 before reaching the new date correction
 ```
 
-Still unknown:
+Proven facts do not yet identify whether the intermittent absence is caused by provider request failure, a provider-side throttle not visible in the initial navigation probe, or another transient provider condition.
+
+Exact next provider action:
 
 ```text
-which current tag/role/aria-label/class contract represents comparison-add
-whether a structurally verified locator advances to the next control/stage
-whether source-level GT01 can produce and validate an artifact
+do not make another immediate live request
+after a deliberate provider pause, run exactly one controlled live GT01 collection using 42ebbe9
+stop on RATE_LIMITED or MANUAL_ACTION_REQUIRED
+do not refresh or automatically retry
 ```
 
-Other intentional deferrals:
+Interpret that run as follows:
 
 ```text
-LOW_DATA calibration
-NO_DATA calibration
-all-zero policy calibration
-GT02–GT20 expansion
-real Google Trends source → CollectionOrchestrator vertical slice until source-level GT01 succeeds
-release browser-binary distribution / fresh-install hardening until M7
+if QUERY_GROUP fails again at SEARCH_TERM_SUGGESTION
+→ capture safe provider-response/rate-limit evidence before another UI behavior change
+
+if DATE_RANGE is reached
+→ verify whether 42ebbe9 advances past CUSTOM_TIME_RANGE_OPTION
+
+if another structured control fails
+→ make only the smallest evidence-based correction
+
+if an artifact is produced
+→ run the existing validator and do not infer anything from exact live numeric values
+```
+
+Do not expand to GT02–GT20 until GT01 produces an accepted artifact and canonical Core persistence is proven.
+
+---
+
+# 14. Safety / Compliance Rules
+
+Never:
+
+```text
+store passwords
+use the user's normal browser profile
+copy unauthorized cookies or sessions
+automate CAPTCHA or 2FA
+bypass anti-bot protections or rate limits
+use CAPTCHA solvers or proxy rotation
+refresh after provider blocking
+blindly repeat provider requests
+```
+
+Authentication/security intervention maps to:
+
+```text
+MANUAL_ACTION_REQUIRED
+```
+
+Rate limiting maps to:
+
+```text
+RATE_LIMITED
+stop provider requests
+preserve evidence
+do not refresh or immediately retry
 ```
 
 ---
 
-# 15. Exact Next Action
-
-Do **not** make another provider-behavior change before structural live evidence.
-
-The safe structural diagnostic command is implemented, deterministically verified, committed, and present in `93e58a2`.
-
-The exact next technical action is:
+# 15. M3 Success Sequence
 
 ```text
-make exactly one explicitly approved live query DOM diagnostic
-using npm run m3:live-query-diagnostic -- --confirm-live-diagnostic
-```
-
-This diagnostic is deliberately restricted to:
-
-```text
-one Explore navigation
-first GT01 Search Term selection only
-one existing ADD_COMPARISON locator action
-bounded structural counts and tag/role/aria-label/class evidence
-configured-query redaction
-no retry, refresh, download, or broader query group
-```
-
-Interpret the resulting evidence:
-
-```text
-expected accessible name is absent but one distinct structural add control exists
-→ implement only that provider-evidenced contract with strict cardinality
-
-multiple plausible structural controls exist
-→ tighten scoping; do not choose by DOM position
-
-container/state is absent
-→ diagnose first-query selection state before changing the add locator
-```
-
-Do not revive the abandoned broad `waitFor()` experiment unless later live evidence justifies a separately scoped change.
-
----
-
-# 16. M3 Success Sequence From Here
-
-```text
-verified 2fe1f70 diagnostic baseline
+current deterministic 42ebbe9 baseline
 ↓
-one explicit live GT01 attempt
+controlled live GT01 after provider pause
 ↓
-ADD_COMPARISON observed_count=0 at query_index=1
+stable five-query group
 ↓
-evidence-based minimal query-group fix in 310cda6
+Türkiye
 ↓
-deterministic full regression gate
+exact custom date range
 ↓
-one explicit live GT01 attempt: same ADD_COMPARISON count=0
+All categories + Web Search verification
 ↓
-safe structural diagnostic in 93e58a2
-↓
-one explicit live query DOM diagnostic
-↓
-provider-evidenced minimal query-group correction
-↓
-deterministic regression gate
-↓
-controlled live GT01 collection
-↓
-continue fail-closed through geography/date/filter/download if another stage fails
+Interest Over Time provider export
 ↓
 ARTIFACT_PRODUCED
 ↓
 minimum M3 validation
 ↓
-VALID / acceptable real GT01 artifact
+accepted real GT01 artifact
 ↓
-real Google Trends source through CollectionOrchestrator
+real source through CollectionOrchestrator
 ↓
-run/job/attempt/raw/metadata/validation persistence proof
+canonical run/job/attempt/raw/metadata/validation proof
 ↓
-small multi-group proof
+small representative multi-group proof
 ↓
-progressively expand toward GT01–GT20
+progressive GT01–GT20 expansion
 ```
-
-Do not skip directly from the current QUERY_GROUP failure to broad GT01–GT20 automation.
 
 ---
 
-# 17. Handoff Discipline
+# 16. Handoff Discipline
 
-`PROJECT_HANDOFF.md` is not a Git save mechanism.
+`PROJECT_HANDOFF.md` is the living technical-state document, not a substitute for Git checkpoints.
 
-Update it when project state meaningfully changes, including:
+Update it after meaningful state changes, major blockers, milestone boundaries, or long pauses. Do not record unverified implementation work as complete.
 
-```text
-session end / long pause
-several meaningful implementation slices
-milestone boundary
-important known issue
-material change to the exact next action
-```
-
-Use Git commits for technical checkpoints.
-
-Do not update this handoff after every small commit.
-
-`PROJECT_SPEC.md` should change even less frequently: only for scope, architecture, data-contract, acceptance-criteria, or locked technical-decision changes.
-
-Never record an unverified implementation state as completed.
+`PROJECT_SPEC.md` changes only when product scope, architecture, data contracts, acceptance criteria, or locked technical decisions materially change.
