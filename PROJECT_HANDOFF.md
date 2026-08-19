@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `cf56053 fix: detect Google Trends interaction rate limits`
+**Latest verified technical checkpoint:** `e1539dd feat: persist validated source metadata`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -19,6 +19,8 @@ Branch and latest verified checkpoints:
 
 ```text
 main
+e1539dd feat: persist validated source metadata
+339d287 docs: record live GT01 rate limit
 cf56053 fix: detect Google Trends interaction rate limits
 2bcb6ac docs: record GT01 Core persistence checkpoint
 97f0afb feat: persist live GT01 through Core
@@ -181,6 +183,8 @@ explicit safe structural query DOM diagnostic
 real GT01 live command routed through CollectionOrchestrator / StorageManager / SQLite
 bounded Core persistence and validation summary in live command output
 same-origin HTTP 429 observation across provider UI interaction
+source-validated actual date coverage and canonical country-name provenance
+fail-closed metadata validation before candidate-artifact promotion
 ```
 
 Provider-facing behavior remains fail-closed. Critical controls do not fall back to positional `.first()` / `.nth()` selection.
@@ -397,7 +401,7 @@ GT-LIVE-CMD-001..004 PASS
 DOWNLOAD-001..006 PASS
 GT-PARSE-001..004 PASS
 GT-DATE-001..002 PASS
-GT-VAL-001..007 PASS
+GT-VAL-001..008 PASS
 GT-ADAPTER-001..007 PASS
 BROWSER-DOWNLOAD-001..006 PASS
 GT-DOWNLOAD-001..007 PASS
@@ -413,10 +417,11 @@ GT-RUNTIME-001..005 PASS
 GT-PACKAGE-001 PASS
 GT-MANUAL-001..006 PASS
 GT-LIVE-GT01-CMD-001..005 PASS
-GT-CORE-001..009 PASS
+GT-CORE-001..011 PASS
 GT-DIAG-001..008 PASS
 GT-LIVE-QUERY-DIAG-CMD-001..003 PASS
 M2-GATE-001..008 PASS
+PIPELINE-001..004 PASS
 ```
 
 Also verified:
@@ -428,7 +433,7 @@ npm run package PASS on darwin/arm64
 git diff --check PASS before each checkpoint
 ```
 
-After `97f0afb`, the affected storage/source/runtime/validator/manual-action suites, the sequential orchestrator suite, the integrated M2 gate, lint, TypeScript, and packaging were rerun successfully. After `cf56053`, provider-state/probe, collector, UI-diagnostic, live-command, Core-runner, BrowserManager, lint, TypeScript, and darwin/arm64 packaging checks also passed. The first package attempt was blocked only by sandboxed `github.com` DNS access; the same package command passed with network access.
+After `97f0afb`, the affected storage/source/runtime/validator/manual-action suites, the sequential orchestrator suite, the integrated M2 gate, lint, TypeScript, and packaging were rerun successfully. After `cf56053`, provider-state/probe, collector, UI-diagnostic, live-command, Core-runner, BrowserManager, lint, TypeScript, and darwin/arm64 packaging checks also passed. After `e1539dd`, the Google Trends CSV validator, CollectionValidator adapter, Core persistence runner, sequential orchestrator, integrated M2 gate, lint, TypeScript, and darwin/arm64 packaging checks passed. The first package attempt was blocked only by sandboxed `github.com` DNS access; the same package command passed with network access.
 
 The Vite CJS Node API deprecation message remains a non-failing warning.
 
@@ -449,6 +454,9 @@ relative-interest values must be valid 0..100 values
 empty source values remain null
 duplicate periods are rejected
 geography/category evidence is checked where represented
+actual date coverage is derived from validated provider weekly buckets
+canonical country name is emitted only when geography evidence passes
+invalid source metadata fails before a candidate artifact can be accepted
 ```
 
 `LOW_DATA`, `NO_DATA`, and all-zero calibration remain deferred until enough real provider behavior exists. A browser action, download, or parseable CSV is not automatically accepted collection success.
@@ -479,7 +487,7 @@ real GoogleTrendsSource
 → metadata JSON + validation JSON + structured run log
 ```
 
-This path is deterministically verified by `GT-CORE-001..009` for accepted data, source failure, manual action, and rejected non-data content. It is restricted to exactly one GT01 group and does not add provider retry, refresh, navigation, selector, or timing behavior.
+This path is deterministically verified by `GT-CORE-001..011` for accepted data, source failure, manual action, rejected non-data content, validated actual-date/country metadata, and fail-closed metadata checks. It is restricted to exactly one GT01 group and does not add provider retry, refresh, navigation, selector, or timing behavior.
 
 One storage-order issue remains open:
 
@@ -530,7 +538,7 @@ Exact next provider action:
 stop live provider work
 make no further Google Trends request while the restriction may remain active
 do not refresh, retry, or evade the restriction
-after a deliberate later pause and only when a new controlled run is justified, run at most one GT01 collection from cf56053 or a later deterministically verified checkpoint
+after a deliberate later pause and only when a new controlled run is justified, run at most one GT01 collection from e1539dd or a later deterministically verified checkpoint
 ```
 
 Interpret that run as follows:
@@ -588,7 +596,7 @@ do not refresh or immediately retry
 # 15. M3 Success Sequence
 
 ```text
-current deterministic cf56053 Core-integrated and interaction-429-aware baseline
+current deterministic e1539dd Core-integrated, interaction-429-aware, source-metadata-aware baseline
 ↓
 wait for provider restriction to clear without refresh/retry/evasion
 ↓
