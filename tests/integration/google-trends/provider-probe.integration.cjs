@@ -96,6 +96,7 @@ class FakePage {
     response,
     title,
     bodyText,
+    currentUrl,
     titleThrows = false,
     bodyThrows = false,
   }) {
@@ -108,6 +109,8 @@ class FakePage {
         bodyText,
         bodyThrows,
       );
+    this.currentUrl =
+      currentUrl;
     this.gotoCalls = [];
     this.locatorCalls = [];
   }
@@ -129,6 +132,12 @@ class FakePage {
     }
 
     return this.titleValue;
+  }
+
+  url() {
+    return this.currentUrl ??
+      this.gotoCalls.at(-1)?.url ??
+      '';
   }
 
   locator(selector) {
@@ -355,6 +364,82 @@ const main = async () => {
     );
   }
 
+  const configuredUrl =
+    `${GOOGLE_TRENDS_EXPLORE_URL}?date=2024-08-18+2026-08-17&geo=TR&q=redacted-one%2Credacted-two`;
+
+  const configuredPage =
+    new FakePage({
+      response:
+        new FakeResponse(
+          200,
+        ),
+      title:
+        'Google Trends',
+      bodyText:
+        'Explore Interest over time',
+      currentUrl:
+        configuredUrl,
+    });
+
+  const configured =
+    await probeGoogleTrendsExplore(
+      configuredPage,
+      {
+        requested_url:
+          configuredUrl,
+      },
+    );
+
+  assert.equal(
+    configured.requested_url,
+    configuredUrl,
+  );
+  assert.equal(
+    configured.final_url,
+    configuredUrl,
+  );
+  assert.equal(
+    configuredPage.gotoCalls[0].url,
+    configuredUrl,
+  );
+
+  for (const requestedUrl of [
+    'not-an-absolute-url',
+    'https://example.test/trends/explore',
+    'https://trends.google.com/trends/other',
+    'https://user:password@trends.google.com/trends/explore',
+    `${GOOGLE_TRENDS_EXPLORE_URL}#fragment`,
+  ]) {
+    const rejectedPage =
+      new FakePage({
+        response:
+          new FakeResponse(
+            200,
+          ),
+        title:
+          'Google Trends',
+        bodyText:
+          'Explore',
+      });
+
+    await assert.rejects(
+      () =>
+        probeGoogleTrendsExplore(
+          rejectedPage,
+          {
+            requested_url:
+              requestedUrl,
+          },
+        ),
+      /must (?:be a valid Explore URL|stay inside the canonical Explore page)/u,
+    );
+
+    assert.equal(
+      rejectedPage.gotoCalls.length,
+      0,
+    );
+  }
+
   assert.equal(
     Object.prototype.hasOwnProperty.call(
       detected,
@@ -391,6 +476,12 @@ const main = async () => {
   );
   console.log(
     'PASS GT-PROBE-007: raw page text and response headers are not exposed by the probe result',
+  );
+  console.log(
+    'PASS GT-PROBE-008: an exact same-origin configured Explore URL is navigated once and preserved as probe evidence',
+  );
+  console.log(
+    'PASS GT-PROBE-009: invalid, foreign, credentialed, fragmented, or non-Explore URLs fail before navigation',
   );
 };
 

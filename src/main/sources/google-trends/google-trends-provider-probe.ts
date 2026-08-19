@@ -64,6 +64,7 @@ export interface GoogleTrendsProbePage {
 export interface GoogleTrendsProviderProbeOptions {
   navigation_timeout_ms?: number;
   page_signal_timeout_ms?: number;
+  requested_url?: string;
 }
 
 export interface GoogleTrendsProviderProbeResult
@@ -138,6 +139,7 @@ const readPageTextSafely = async (
 
 const readPageUrlSafely = (
   page: GoogleTrendsProbePage,
+  fallbackUrl: string,
 ): string => {
   try {
     const currentUrl =
@@ -155,7 +157,48 @@ const readPageUrlSafely = (
     // Fall through to the requested Explore URL.
   }
 
-  return GOOGLE_TRENDS_EXPLORE_URL;
+  return fallbackUrl;
+};
+
+const requireExploreRequestUrl = (
+  value: string | undefined,
+): string => {
+  if (value === undefined) {
+    return GOOGLE_TRENDS_EXPLORE_URL;
+  }
+
+  let requested: URL;
+  const canonical =
+    new URL(
+      GOOGLE_TRENDS_EXPLORE_URL,
+    );
+
+  try {
+    requested =
+      new URL(
+        value,
+      );
+  } catch {
+    throw new Error(
+      'Google Trends provider probe requested_url must be a valid Explore URL.',
+    );
+  }
+
+  if (
+    requested.origin !==
+      canonical.origin ||
+    requested.pathname !==
+      canonical.pathname ||
+    requested.username.length > 0 ||
+    requested.password.length > 0 ||
+    requested.hash.length > 0
+  ) {
+    throw new Error(
+      'Google Trends provider probe requested_url must stay inside the canonical Explore page.',
+    );
+  }
+
+  return requested.toString();
 };
 
 const readRetryAfterSafely = async (
@@ -205,9 +248,14 @@ export const probeGoogleTrendsExplore = async (
       'page_signal_timeout_ms',
     );
 
+  const requestedUrl =
+    requireExploreRequestUrl(
+      options.requested_url,
+    );
+
   const response =
     await page.goto(
-      GOOGLE_TRENDS_EXPLORE_URL,
+      requestedUrl,
       {
         waitUntil:
           'domcontentloaded',
@@ -239,6 +287,7 @@ export const probeGoogleTrendsExplore = async (
   const finalUrl =
     readPageUrlSafely(
       page,
+      requestedUrl,
     );
 
   const decision =
@@ -263,7 +312,7 @@ export const probeGoogleTrendsExplore = async (
   return {
     ...decision,
     requested_url:
-      GOOGLE_TRENDS_EXPLORE_URL,
+      requestedUrl,
     final_url:
       finalUrl,
     response_status:
