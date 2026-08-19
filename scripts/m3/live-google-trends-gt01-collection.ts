@@ -8,33 +8,24 @@ import {
 } from 'node:readline/promises';
 
 import {
-  BrowserManager,
-} from '../../src/main/browser/browser-manager';
-import {
-  PersistentDownloadStore,
-} from '../../src/main/browser/persistent-download-store';
-import {
-  PlaywrightChromiumLauncher,
-} from '../../src/main/browser/playwright-browser-launcher';
-import {
   loadQueryConfig,
 } from '../../src/main/config/query-config-loader';
 import {
-  GoogleTrendsCollector,
-} from '../../src/main/sources/google-trends/google-trends-collector';
+  runGoogleTrendsThroughCore,
+  type GoogleTrendsCoreRunResult,
+} from '../../src/main/sources/google-trends/google-trends-core-runner';
 import {
-  validateGoogleTrendsInterestOverTimeCsv,
-} from '../../src/main/sources/google-trends/google-trends-interest-over-time-validator';
-import {
-  GoogleTrendsSource,
-} from '../../src/main/sources/google-trends/google-trends-source';
+  createGoogleTrendsRuntime,
+} from '../../src/main/sources/google-trends/google-trends-runtime';
 import type {
   ApplicationDirectories,
 } from '../../src/shared/bootstrap-status';
 import type {
-  SourceCollectionContext,
   SourceCollectionResult,
 } from '../../src/shared/collection';
+import type {
+  RequestedCollectionConfiguration,
+} from '../../src/shared/run-job';
 
 export const LIVE_GT01_CONFIRMATION_FLAG =
   '--confirm-live-collection';
@@ -51,13 +42,6 @@ export const LIVE_GT01_REQUESTED_DATE_START =
 export const LIVE_GT01_REQUESTED_DATE_END =
   '2026-08-17';
 
-const ACCEPTED_VALIDATION_STATUSES =
-  new Set([
-    'VALID',
-    'LOW_DATA',
-    'NO_DATA',
-  ] as const);
-
 const usage = (): string =>
   [
     'Usage:',
@@ -68,7 +52,8 @@ const usage = (): string =>
     `  - requests ${LIVE_GT01_REQUESTED_DATE_START} through ${LIVE_GT01_REQUESTED_DATE_END}`,
     '  - Türkiye / All Categories / Web Search / Search Term',
     '  - exports only Interest over time CSV',
-    '  - validates the returned bytes before reporting success',
+    '  - persists and validates through CollectionOrchestrator before reporting success',
+    '  - keeps canonical raw/metadata/validation/log evidence under app-data/data/runs',
     '',
     'Safety:',
     '  - uses the app-owned persistent google browser profile',
@@ -262,69 +247,29 @@ const requireReadableFile = async (
   }
 };
 
-const makeCollectionContext = (
-  queryGroup: {
-    query_group_id: string;
-    query_group_name: string;
-    queries: string[];
-  },
-): SourceCollectionContext => {
-  const timestamp =
-    new Date()
-      .toISOString()
-      .replace(
-        /[-:.]/gu,
-        '',
-      );
-
-  const runId =
-    `live_gt01_${timestamp}`;
-
-  return {
-    run_id:
-      runId,
-    job_id:
-      `${runId}__google-trends__GT01`,
-    attempt_id:
-      `${runId}__attempt_1`,
-    attempt_number:
-      1,
-    source_id:
-      'google-trends',
-    job_key:
-      LIVE_GT01_QUERY_GROUP_ID,
-    requested_configuration: {
-      source_mode:
-        'GOOGLE_TRENDS_UI',
-      country_code:
-        'TR',
-      language_code:
-        null,
-      requested_date_start:
-        LIVE_GT01_REQUESTED_DATE_START,
-      requested_date_end:
-        LIVE_GT01_REQUESTED_DATE_END,
-      category_id:
-        null,
-      category_name:
-        'All Categories',
-      search_type:
-        'Web Search',
-      selection_type:
-        'Search Term',
-      dataset_type:
-        'INTEREST_OVER_TIME',
-    },
-    query_group: {
-      query_group_id:
-        queryGroup.query_group_id,
-      query_group_name:
-        queryGroup.query_group_name,
-      queries:
-        [...queryGroup.queries],
-    },
-  };
-};
+const makeRequestedConfiguration =
+  (): RequestedCollectionConfiguration => ({
+    source_mode:
+      'GOOGLE_TRENDS_UI',
+    country_code:
+      'TR',
+    language_code:
+      null,
+    requested_date_start:
+      LIVE_GT01_REQUESTED_DATE_START,
+    requested_date_end:
+      LIVE_GT01_REQUESTED_DATE_END,
+    category_id:
+      null,
+    category_name:
+      'All Categories',
+    search_type:
+      'Web Search',
+    selection_type:
+      'Search Term',
+    dataset_type:
+      'INTEREST_OVER_TIME',
+  });
 
 const waitForManualActionExit =
   async (): Promise<void> => {
@@ -448,6 +393,66 @@ export const safeResultSummary = (
   };
 };
 
+export const safeCoreStateSummary = (
+  result:
+    GoogleTrendsCoreRunResult,
+): Record<string, unknown> => ({
+  run_id:
+    result.run.run_id,
+  run_status:
+    result.run.run_status,
+  job_execution_status:
+    result.job.execution_status,
+  attempt_number:
+    result.attempt
+      ?.attempt_number ??
+      null,
+  validation_status:
+    result.validation
+      ?.validation_status ??
+      'NOT_RUN',
+  run_scoped_artifact:
+    result.artifact === null
+      ? null
+      : {
+          artifact_state:
+            result.artifact
+              .artifact_state,
+          relative_path:
+            result.artifact
+              .relative_path,
+          media_type:
+            result.artifact
+              .media_type,
+          byte_size:
+            result.artifact
+              .byte_size,
+          sha256:
+            result.artifact
+              .sha256,
+        },
+  validation:
+    result.validation === null
+      ? null
+      : {
+          checks_total:
+            result.validation
+              .checks_total,
+          checks_passed:
+            result.validation
+              .checks_passed,
+          checks_warning:
+            result.validation
+              .checks_warning,
+          checks_failed:
+            result.validation
+              .checks_failed,
+          validation_json_path:
+            result.validation
+              .validation_json_path,
+        },
+});
+
 const main = async (): Promise<void> => {
   const parsed =
     requireLiveGt01Confirmation(
@@ -499,40 +504,55 @@ const main = async (): Promise<void> => {
     );
   }
 
-  const context =
-    makeCollectionContext(
-      queryGroup,
-    );
+  const gt01QueryConfig = {
+    config_version:
+      queryConfig.config_version,
+    source_id:
+      queryConfig.source_id,
+    groups: [
+      {
+        query_group_id:
+          queryGroup.query_group_id,
+        query_group_name:
+          queryGroup.query_group_name,
+        queries:
+          [...queryGroup.queries],
+      },
+    ],
+  };
 
-  const browserManager =
-    new BrowserManager(
+  const runtime =
+    createGoogleTrendsRuntime(
       directories,
-      new PlaywrightChromiumLauncher(),
-    );
-
-  const collector =
-    new GoogleTrendsCollector({
-      browser_manager:
-        browserManager,
-      download_store:
-        new PersistentDownloadStore(
-          directories,
-        ),
-    });
-
-  const source =
-    new GoogleTrendsSource(
-      collector,
     );
 
   let manualAction =
     false;
 
   try {
+    const coreResult =
+      await runGoogleTrendsThroughCore({
+        directories,
+        query_config:
+          gt01QueryConfig,
+        requested_configuration:
+          makeRequestedConfiguration(),
+        application_version:
+          process.env
+            .npm_package_version ??
+          '1.0.0',
+        source:
+          runtime.source,
+      });
+
     const result =
-      await source.collect(
-        context,
+      coreResult.source_result;
+
+    if (result === null) {
+      throw new Error(
+        'Google Trends Core run completed without invoking the source collector.',
       );
+    }
 
     console.log(
       JSON.stringify(
@@ -550,6 +570,10 @@ const main = async (): Promise<void> => {
           ...safeResultSummary(
             result,
           ),
+          core:
+            safeCoreStateSummary(
+              coreResult,
+            ),
         },
         null,
         2,
@@ -579,58 +603,17 @@ const main = async (): Promise<void> => {
       return;
     }
 
-    const validation =
-      validateGoogleTrendsInterestOverTimeCsv({
-        bytes:
-          result.bytes,
-        expected_queries:
-          queryGroup.queries,
-        requested_date_start:
-          LIVE_GT01_REQUESTED_DATE_START,
-        requested_date_end:
-          LIVE_GT01_REQUESTED_DATE_END,
-        expected_category_label:
-          'All categories',
-        expected_geography_label:
-          'Türkiye',
-      });
-
-    console.log(
-      JSON.stringify(
-        {
-          validation_status:
-            validation.validation_status,
-          checks_total:
-            validation.checks_total,
-          checks_passed:
-            validation.checks_passed,
-          checks_warning:
-            validation.checks_warning,
-          checks_failed:
-            validation.checks_failed,
-          accepted:
-            ACCEPTED_VALIDATION_STATUSES.has(
-              validation.validation_status as
-                | 'VALID'
-                | 'LOW_DATA'
-                | 'NO_DATA',
-            ),
-        },
-        null,
-        2,
-      ),
-    );
-
     if (
-      !ACCEPTED_VALIDATION_STATUSES.has(
-        validation.validation_status as
-          | 'VALID'
-          | 'LOW_DATA'
-          | 'NO_DATA',
-      )
+      coreResult.job
+        .execution_status !==
+        'COMPLETED' ||
+      coreResult.artifact ===
+        null ||
+      coreResult.validation ===
+        null
     ) {
       console.error(
-        'Live GT01 download was preserved but validation did not accept it. Treat the artifact as suspicious and do not silently use it.',
+        'Live GT01 provider bytes were preserved as a Core candidate, but validation did not accept them. Treat the artifact as suspicious and do not silently use it.',
       );
       process.exitCode =
         2;
@@ -643,7 +626,8 @@ const main = async (): Promise<void> => {
   } finally {
     // MANUAL_ACTION_REQUIRED intentionally keeps the provider page alive
     // only until the user acknowledges the terminal prompt above.
-    await browserManager.close();
+    await runtime.browser_manager
+      .close();
 
     if (
       manualAction

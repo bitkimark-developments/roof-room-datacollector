@@ -21,6 +21,7 @@ const {
   LIVE_GT01_REQUESTED_DATE_END,
   parseLiveGt01Arguments,
   requireLiveGt01Confirmation,
+  safeCoreStateSummary,
 } = require(
   path.join(
     buildRoot,
@@ -114,4 +115,89 @@ for (
 
 console.log(
   'PASS GT-LIVE-GT01-CMD-003: retry/refresh/broader-group arguments are rejected rather than silently expanding live scope',
+);
+
+assert.deepEqual(
+  safeCoreStateSummary({
+    run: {
+      run_id:
+        'rr_20260819T000000000Z_abcdef',
+      run_status:
+        'COMPLETED',
+    },
+    job: {
+      execution_status:
+        'COMPLETED',
+    },
+    attempt: {
+      attempt_number:
+        1,
+    },
+    artifact: {
+      artifact_state:
+        'ACCEPTED',
+      relative_path:
+        'google-trends/raw/GT01.csv',
+      media_type:
+        'text/csv',
+      byte_size:
+        123,
+      sha256:
+        'a'.repeat(64),
+    },
+    validation: {
+      validation_status:
+        'VALID',
+      checks_total:
+        3,
+      checks_passed:
+        3,
+      checks_warning:
+        0,
+      checks_failed:
+        0,
+      validation_json_path:
+        'google-trends/validation/GT01.validation.json',
+    },
+  }),
+  {
+    run_id:
+      'rr_20260819T000000000Z_abcdef',
+    run_status:
+      'COMPLETED',
+    job_execution_status:
+      'COMPLETED',
+    attempt_number:
+      1,
+    validation_status:
+      'VALID',
+    run_scoped_artifact: {
+      artifact_state:
+        'ACCEPTED',
+      relative_path:
+        'google-trends/raw/GT01.csv',
+      media_type:
+        'text/csv',
+      byte_size:
+        123,
+      sha256:
+        'a'.repeat(64),
+    },
+    validation: {
+      checks_total:
+        3,
+      checks_passed:
+        3,
+      checks_warning:
+        0,
+      checks_failed:
+        0,
+      validation_json_path:
+        'google-trends/validation/GT01.validation.json',
+    },
+  },
+);
+
+console.log(
+  'PASS GT-LIVE-GT01-CMD-005: live output exposes only bounded Core persistence and validation evidence',
 );
