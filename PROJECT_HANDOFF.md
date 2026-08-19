@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `97f0afb feat: persist live GT01 through Core`
+**Latest verified technical checkpoint:** `cf56053 fix: detect Google Trends interaction rate limits`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -19,6 +19,8 @@ Branch and latest verified checkpoints:
 
 ```text
 main
+cf56053 fix: detect Google Trends interaction rate limits
+2bcb6ac docs: record GT01 Core persistence checkpoint
 97f0afb feat: persist live GT01 through Core
 dcc1915 docs: reconcile Google Trends live progress
 42ebbe9 fix: wait for Google Trends custom date option
@@ -178,6 +180,7 @@ structured query, geography, and date diagnostics
 explicit safe structural query DOM diagnostic
 real GT01 live command routed through CollectionOrchestrator / StorageManager / SQLite
 bounded Core persistence and validation summary in live command output
+same-origin HTTP 429 observation across provider UI interaction
 ```
 
 Provider-facing behavior remains fail-closed. Critical controls do not fall back to positional `.first()` / `.nth()` selection.
@@ -318,7 +321,7 @@ CUSTOM_TIME_RANGE_OPTION reported observed_count=0
 no download or artifact was produced
 ```
 
-Latest controlled live result after `42ebbe9`:
+Last pre-monitor controlled live result after `42ebbe9`:
 
 ```json
 {
@@ -335,11 +338,28 @@ Latest controlled live result after `42ebbe9`:
 
 Controlled runs have observed `SEARCH_TERM_SUGGESTION` count zero at query indices 0, 1, and 2. The same exact suggestion locator succeeded inside the safe structural diagnostic when the provider result became available. This establishes intermittent provider autocomplete readiness; it does not establish selector drift or a safe retry strategy.
 
-No `RATE_LIMITED` or `MANUAL_ACTION_REQUIRED` result occurred in these controlled runs. No automatic retry or refresh was performed. Repeated immediate provider calls were stopped after the latest intermittent failure.
+No `RATE_LIMITED` or `MANUAL_ACTION_REQUIRED` result occurred in those pre-`cf56053` controlled runs. No automatic retry or refresh was performed. Repeated immediate provider calls were stopped after the latest intermittent failure.
 
 No new live artifact was produced by these runs, and live numeric values were not used as assertions.
 
-No live provider request has been made after `97f0afb`. The new real-source-through-Core path is therefore deterministically verified but not yet proven by a live GT01 artifact.
+A single controlled live request from `cf56053` detected a same-origin HTTP 429 during provider UI interaction and stopped as `RATE_LIMITED`. This proves the interaction-response monitor can distinguish a provider rate-limit signal that is not present in the initial navigation response. It does not prove that every earlier intermittent suggestion failure had the same cause.
+
+The live Core result was:
+
+```json
+{
+  "run_id": "rr_20260819T022005971Z_012389",
+  "run_status": "RUNNING",
+  "job_execution_status": "FAILED",
+  "attempt_number": 1,
+  "validation_status": "NOT_RUN",
+  "run_scoped_artifact": null,
+  "validation": null,
+  "error_code": "RATE_LIMITED"
+}
+```
+
+The run-scoped structured log records `collection_attempt_started` followed by one `collection_attempt_failed` event with `RATE_LIMITED`. SQLite records the same run/job/attempt chain, zero artifacts, zero validations, and `PRAGMA quick_check = ok`. The user-visible Google Trends download tree contains no file created by this attempt. No refresh or automatic retry occurred.
 
 ---
 
@@ -388,7 +408,7 @@ GT-GEO-001..008 PASS
 GT-FILTER-001..007 PASS
 GT-CONFIGURED-EXPORT-001..007 PASS
 GT-SOURCE-001..003 PASS
-GT-COLLECTOR-001..005 PASS
+GT-COLLECTOR-001..008 PASS
 GT-RUNTIME-001..005 PASS
 GT-PACKAGE-001 PASS
 GT-MANUAL-001..006 PASS
@@ -408,7 +428,7 @@ npm run package PASS on darwin/arm64
 git diff --check PASS before each checkpoint
 ```
 
-After `97f0afb`, the affected storage/source/runtime/validator/manual-action suites, the sequential orchestrator suite, the integrated M2 gate, lint, TypeScript, and packaging were rerun successfully. The first package attempt was blocked only by sandboxed `github.com` DNS access; the same package command passed with network access.
+After `97f0afb`, the affected storage/source/runtime/validator/manual-action suites, the sequential orchestrator suite, the integrated M2 gate, lint, TypeScript, and packaging were rerun successfully. After `cf56053`, provider-state/probe, collector, UI-diagnostic, live-command, Core-runner, BrowserManager, lint, TypeScript, and darwin/arm64 packaging checks also passed. The first package attempt was blocked only by sandboxed `github.com` DNS access; the same package command passed with network access.
 
 The Vite CJS Node API deprecation message remains a non-failing warning.
 
@@ -488,7 +508,7 @@ SQLite state
 public provider copy
 ```
 
-No real artifact has traversed this integrated Core path after `97f0afb`, so M3 is not complete.
+The `cf56053` live attempt proves that a real provider failure traverses Core into durable run/job/attempt/log evidence. No real artifact has yet traversed the integrated persistence/validation path, so M3 is not complete.
 
 ---
 
@@ -497,28 +517,27 @@ No real artifact has traversed this integrated Core path after `97f0afb`, so M3 
 Current live blocker:
 
 ```text
-Google Trends Search Term autocomplete readiness is intermittent
-the expected exact suggestion locator sometimes remains at count zero for the full 30-second bounded action
-the same locator succeeds in other controlled runs and in the structural diagnostic
-the latest run stopped at query_index=0 before reaching the new date correction
+Google Trends returned same-origin HTTP 429 during the controlled cf56053 run
+the collector classified the result as RATE_LIMITED
+the request stopped with no refresh, retry, download, artifact, or validation
 ```
 
-Proven facts do not yet identify whether the intermittent absence is caused by provider request failure, a provider-side throttle not visible in the initial navigation probe, or another transient provider condition.
+The new evidence establishes rate limiting for this specific live attempt. It does not retrospectively establish the cause of every earlier `SEARCH_TERM_SUGGESTION` count-zero result.
 
 Exact next provider action:
 
 ```text
-do not make another immediate live request
-after a deliberate provider pause, run exactly one controlled live GT01 collection using 97f0afb
-stop on RATE_LIMITED or MANUAL_ACTION_REQUIRED
-do not refresh or automatically retry
+stop live provider work
+make no further Google Trends request while the restriction may remain active
+do not refresh, retry, or evade the restriction
+after a deliberate later pause and only when a new controlled run is justified, run at most one GT01 collection from cf56053 or a later deterministically verified checkpoint
 ```
 
 Interpret that run as follows:
 
 ```text
-if QUERY_GROUP fails again at SEARCH_TERM_SUGGESTION
-→ capture safe provider-response/rate-limit evidence before another UI behavior change
+if RATE_LIMITED occurs again
+→ stop immediately with no refresh or retry
 
 if DATE_RANGE is reached
 → verify whether 42ebbe9 advances past CUSTOM_TIME_RANGE_OPTION
@@ -569,9 +588,11 @@ do not refresh or immediately retry
 # 15. M3 Success Sequence
 
 ```text
-current deterministic 97f0afb Core-integrated baseline
+current deterministic cf56053 Core-integrated and interaction-429-aware baseline
 ↓
-controlled live GT01 after provider pause
+wait for provider restriction to clear without refresh/retry/evasion
+↓
+one later controlled live GT01
 ↓
 stable five-query group
 ↓
