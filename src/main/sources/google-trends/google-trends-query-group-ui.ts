@@ -266,7 +266,7 @@ const openAdditionalComparisonSlot = async (
   }
 };
 
-const fillAndSelectQuery = async (
+const enterAndSelectQuery = async (
   page: ManagedBrowserPage,
   input: ManagedBrowserLocator,
   query: string,
@@ -287,7 +287,14 @@ const fillAndSelectQuery = async (
   );
 
   try {
-    await input.fill(
+    // Both initial and comparison controls are Angular Material
+    // autocomplete inputs. Live comparison evidence proved that a single
+    // fill mutation can resolve while the provider model stays empty,
+    // whereas sequential key events persist the exact query and produce
+    // the Search Term options. Use the same bounded event-faithful entry
+    // contract for the initial control; live stage acceptance remains the
+    // authority for this initial-input extension.
+    await input.pressSequentially(
       query,
       {
         timeout,
@@ -464,7 +471,7 @@ export const applyGoogleTrendsSearchTermQueryGroup =
         },
       );
 
-    await fillAndSelectQuery(
+    await enterAndSelectQuery(
       input.page,
       firstInput,
       input.queries[0],

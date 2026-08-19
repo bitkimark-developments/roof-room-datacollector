@@ -586,7 +586,7 @@ const main = async () => {
     queryActions,
     [
       {
-        op: 'fill',
+        op: 'pressSequentially',
         locator:
           'initial-query-input',
         value:
