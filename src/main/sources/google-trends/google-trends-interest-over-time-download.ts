@@ -102,6 +102,54 @@ const requireExactlyOne = async (
   }
 };
 
+const waitForExactlyOne = async (
+  locator: ManagedBrowserLocator,
+  description: string,
+  timeout: number,
+  control:
+    GoogleTrendsDownloadDiagnosticControl,
+): Promise<void> => {
+  const initialCount =
+    await locator.count();
+
+  if (initialCount > 1) {
+    throw new GoogleTrendsUiContractError(
+      `Expected at most one ${description} while waiting for it to become available; found ${initialCount}.`,
+      {
+        control,
+        observed_count:
+          initialCount,
+      },
+    );
+  }
+
+  if (initialCount === 0) {
+    try {
+      await locator.innerText({
+        timeout,
+      });
+    } catch {
+      const finalCount =
+        await locator.count();
+
+      throw new GoogleTrendsUiContractError(
+        `Download control readiness failed with ${finalCount} matching controls.`,
+        {
+          control,
+          observed_count:
+            finalCount,
+        },
+      );
+    }
+  }
+
+  await requireExactlyOne(
+    locator,
+    description,
+    control,
+  );
+};
+
 /**
  * Downloads only the CSV export belonging to the Google Trends
  * "Interest over time" card.
@@ -138,9 +186,10 @@ export const downloadGoogleTrendsInterestOverTime =
         },
       );
 
-    await requireExactlyOne(
+    await waitForExactlyOne(
       heading,
       '"Interest over time" heading',
+      uiActionTimeout,
       GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
         .INTEREST_OVER_TIME_HEADING,
     );
@@ -157,9 +206,10 @@ export const downloadGoogleTrendsInterestOverTime =
         },
       );
 
-    await requireExactlyOne(
+    await waitForExactlyOne(
       downloadButton,
       '"Interest over time" download button',
+      uiActionTimeout,
       GOOGLE_TRENDS_DOWNLOAD_DIAGNOSTIC_CONTROLS
         .DOWNLOAD_BUTTON,
     );

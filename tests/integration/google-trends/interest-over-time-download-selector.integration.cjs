@@ -70,10 +70,13 @@ class FakeLocator {
   constructor({
     name,
     count = 1,
+    readyAfterInnerText = false,
     trace,
   }) {
     this.name = name;
     this.countValue = count;
+    this.readyAfterInnerText =
+      readyAfterInnerText;
     this.trace = trace;
     this.children =
       new Map();
@@ -89,7 +92,19 @@ class FakeLocator {
     );
   }
 
-  async innerText() {
+  async innerText(options) {
+    this.trace.push({
+      op:
+        'innerText',
+      locator:
+        this.name,
+      options,
+    });
+
+    if (this.readyAfterInnerText) {
+      this.countValue = 1;
+    }
+
     return this.name;
   }
 
@@ -180,6 +195,8 @@ class FakePage {
   constructor({
     headingCount = 1,
     downloadButtonCount = 1,
+    headingReadyAfterInnerText = false,
+    downloadButtonReadyAfterInnerText = false,
   } = {}) {
     this.trace = [];
     this.download =
@@ -191,6 +208,8 @@ class FakePage {
           'interest-heading',
         count:
           headingCount,
+        readyAfterInnerText:
+          headingReadyAfterInnerText,
         trace:
           this.trace,
       });
@@ -209,6 +228,8 @@ class FakePage {
           'interest-download-button',
         count:
           downloadButtonCount,
+        readyAfterInnerText:
+          downloadButtonReadyAfterInnerText,
         trace:
           this.trace,
       });
@@ -495,6 +516,84 @@ const main = async () => {
 
   console.log(
     'PASS GT-DOWNLOAD-007: invalid UI timeout configuration fails before inspecting or interacting with provider UI',
+  );
+
+  const asyncHeadingPage =
+    new FakePage({
+      headingCount:
+        0,
+      headingReadyAfterInnerText:
+        true,
+    });
+
+  await downloadGoogleTrendsInterestOverTime({
+    page:
+      asyncHeadingPage,
+    ui_action_timeout_ms:
+      7_000,
+  });
+
+  assert.deepEqual(
+    asyncHeadingPage.trace.find(
+      (entry) =>
+        entry.op ===
+          'innerText' &&
+        entry.locator ===
+          'interest-heading',
+    ),
+    {
+      op:
+        'innerText',
+      locator:
+        'interest-heading',
+      options: {
+        timeout:
+          7_000,
+      },
+    },
+  );
+
+  console.log(
+    'PASS GT-DOWNLOAD-008: an asynchronously rendered Interest over time heading uses the existing bounded UI timeout instead of failing on an immediate zero count',
+  );
+
+  const asyncButtonPage =
+    new FakePage({
+      downloadButtonCount:
+        0,
+      downloadButtonReadyAfterInnerText:
+        true,
+    });
+
+  await downloadGoogleTrendsInterestOverTime({
+    page:
+      asyncButtonPage,
+    ui_action_timeout_ms:
+      8_000,
+  });
+
+  assert.deepEqual(
+    asyncButtonPage.trace.find(
+      (entry) =>
+        entry.op ===
+          'innerText' &&
+        entry.locator ===
+          'interest-download-button',
+    ),
+    {
+      op:
+        'innerText',
+      locator:
+        'interest-download-button',
+      options: {
+        timeout:
+          8_000,
+      },
+    },
+  );
+
+  console.log(
+    'PASS GT-DOWNLOAD-009: an asynchronously rendered card-local download button uses the existing bounded UI timeout without changing selector scope',
   );
 };
 
