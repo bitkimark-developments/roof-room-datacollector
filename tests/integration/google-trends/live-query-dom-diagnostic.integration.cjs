@@ -17,6 +17,7 @@ if (!buildRoot) {
 const {
   LIVE_QUERY_DOM_DIAGNOSTIC_CONFIRMATION_FLAG,
   classifyQueryInputState,
+  isGoogleTrendsRateLimitedDiagnosticResponse,
   parseLiveQueryDomDiagnosticArguments,
   requireLiveQueryDomDiagnosticConfirmation,
   sanitizeQueryDomDiagnosticRows,
@@ -184,4 +185,48 @@ assert.deepEqual(
 
 console.log(
   'PASS GT-LIVE-QUERY-DIAG-CMD-004: query input persistence is reported only as safe boolean state without exposing configured query text',
+);
+
+const diagnosticResponse = (
+  status,
+  url,
+) => ({
+  status: () =>
+    status,
+  url: () =>
+    url,
+});
+
+assert.equal(
+  isGoogleTrendsRateLimitedDiagnosticResponse(
+    diagnosticResponse(
+      429,
+      'https://trends.google.com/trends/api/widgetdata/multiline',
+    ),
+  ),
+  true,
+);
+
+assert.equal(
+  isGoogleTrendsRateLimitedDiagnosticResponse(
+    diagnosticResponse(
+      429,
+      'https://example.test/trends/api/widgetdata/multiline',
+    ),
+  ),
+  false,
+);
+
+assert.equal(
+  isGoogleTrendsRateLimitedDiagnosticResponse(
+    diagnosticResponse(
+      200,
+      'https://trends.google.com/trends/api/widgetdata/multiline',
+    ),
+  ),
+  false,
+);
+
+console.log(
+  'PASS GT-LIVE-QUERY-DIAG-CMD-005: live query diagnostics stop on same-origin interaction HTTP 429 without misclassifying cross-origin responses',
 );

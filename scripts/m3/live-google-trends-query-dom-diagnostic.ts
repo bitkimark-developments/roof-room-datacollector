@@ -7,6 +7,7 @@ import * as path from 'node:path';
 import type {
   Locator,
   Page,
+  Response,
 } from 'playwright';
 
 import {
@@ -19,6 +20,7 @@ import {
   loadQueryConfig,
 } from '../../src/main/config/query-config-loader';
 import {
+  GOOGLE_TRENDS_EXPLORE_URL,
   probeGoogleTrendsExplore,
 } from '../../src/main/sources/google-trends/google-trends-provider-probe';
 import type {
@@ -54,6 +56,11 @@ const MAX_ATTRIBUTE_LENGTH =
 
 const RELEVANT_ARIA_LABEL =
   /search|term|comparison|compare|add|ekle|arama|karşılaştır/iu;
+
+const GOOGLE_TRENDS_ORIGIN =
+  new URL(
+    GOOGLE_TRENDS_EXPLORE_URL,
+  ).origin;
 
 const SAFE_COMMAND_ERROR =
   /^(Refusing live Google Trends query DOM diagnostic|Unsupported argument\(s\)|External query configuration|ROOFROOM_APP_DATA_ROOT|External query configuration does not contain)/u;
@@ -260,6 +267,42 @@ export const classifyQueryInputState = (
   matches_expected_query:
     value === expectedQuery,
 });
+
+export const isGoogleTrendsRateLimitedDiagnosticResponse = (
+  response: Pick<
+    Response,
+    'status' | 'url'
+  >,
+): boolean => {
+  try {
+    return (
+      response.status() === 429 &&
+      new URL(
+        response.url(),
+      ).origin ===
+        GOOGLE_TRENDS_ORIGIN
+    );
+  } catch {
+    return false;
+  }
+};
+
+const printInteractionRateLimit =
+  (): void => {
+    console.log(
+      JSON.stringify(
+        {
+          result_type:
+            'RATE_LIMITED',
+          signals: [
+            'HTTP_STATUS_429',
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+  };
 
 const resolveAppDataRoot = (): string => {
   const override =
@@ -468,6 +511,23 @@ const main = async (): Promise<void> => {
     const page =
       managedPage as Page;
 
+    let rateLimitedResponseObserved =
+      false;
+
+    page.on(
+      'response',
+      (response): void => {
+        if (
+          isGoogleTrendsRateLimitedDiagnosticResponse(
+            response,
+          )
+        ) {
+          rateLimitedResponseObserved =
+            true;
+        }
+      },
+    );
+
     const provider =
       await probeGoogleTrendsExplore(
         page,
@@ -547,18 +607,59 @@ const main = async (): Promise<void> => {
       },
     );
 
-    await page
-      .getByRole(
+    const initialSuggestion =
+      page.getByRole(
         'button',
         {
           name:
             `${firstQuery} ${SEARCH_TERM_SUFFIX}`,
         },
-      )
-      .click({
-        timeout:
-          UI_ACTION_TIMEOUT_MS,
-      });
+      );
+
+    try {
+      await initialSuggestion
+        .click({
+          timeout:
+            UI_ACTION_TIMEOUT_MS,
+        });
+    } catch (error: unknown) {
+      if (
+        rateLimitedResponseObserved
+      ) {
+        printInteractionRateLimit();
+        process.exitCode = 4;
+        return;
+      }
+
+      console.log(
+        JSON.stringify(
+          {
+            result_type:
+              'INITIAL_SEARCH_TERM_SUGGESTION_CONTRACT',
+            observed_count:
+              await initialSuggestion.count(),
+            query_index:
+              0,
+            suggestion_action:
+              error instanceof Error
+                ? error.name
+                : 'UNKNOWN_ERROR',
+          },
+          null,
+          2,
+        ),
+      );
+      process.exitCode = 2;
+      return;
+    }
+
+    if (
+      rateLimitedResponseObserved
+    ) {
+      printInteractionRateLimit();
+      process.exitCode = 4;
+      return;
+    }
 
     const emptySlot =
       page.locator(
@@ -622,6 +723,14 @@ const main = async (): Promise<void> => {
 
     const finalExpectedSuggestionCount =
       await expectedSuggestion.count();
+
+    if (
+      rateLimitedResponseObserved
+    ) {
+      printInteractionRateLimit();
+      process.exitCode = 4;
+      return;
+    }
 
     const comparisonInputAfterSuggestionAction =
       classifyQueryInputState(
