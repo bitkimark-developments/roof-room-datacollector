@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `42ebbe9 fix: wait for Google Trends custom date option`
+**Latest verified technical checkpoint:** `97f0afb feat: persist live GT01 through Core`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -19,6 +19,8 @@ Branch and latest verified checkpoints:
 
 ```text
 main
+97f0afb feat: persist live GT01 through Core
+dcc1915 docs: reconcile Google Trends live progress
 42ebbe9 fix: wait for Google Trends custom date option
 5e2d014 feat: add Google Trends date diagnostics
 b7c43d1 fix: wait for Google Trends geography state
@@ -174,6 +176,8 @@ main-process runtime composition and shutdown
 safe stage diagnostics
 structured query, geography, and date diagnostics
 explicit safe structural query DOM diagnostic
+real GT01 live command routed through CollectionOrchestrator / StorageManager / SQLite
+bounded Core persistence and validation summary in live command output
 ```
 
 Provider-facing behavior remains fail-closed. Critical controls do not fall back to positional `.first()` / `.nth()` selection.
@@ -335,6 +339,8 @@ No `RATE_LIMITED` or `MANUAL_ACTION_REQUIRED` result occurred in these controlle
 
 No new live artifact was produced by these runs, and live numeric values were not used as assertions.
 
+No live provider request has been made after `97f0afb`. The new real-source-through-Core path is therefore deterministically verified but not yet proven by a live GT01 artifact.
+
 ---
 
 # 9. Real Provider and Data Evidence
@@ -386,7 +392,8 @@ GT-COLLECTOR-001..005 PASS
 GT-RUNTIME-001..005 PASS
 GT-PACKAGE-001 PASS
 GT-MANUAL-001..006 PASS
-GT-LIVE-GT01-CMD-001..004 PASS
+GT-LIVE-GT01-CMD-001..005 PASS
+GT-CORE-001..009 PASS
 GT-DIAG-001..008 PASS
 GT-LIVE-QUERY-DIAG-CMD-001..003 PASS
 M2-GATE-001..008 PASS
@@ -400,6 +407,8 @@ npx tsc --noEmit PASS
 npm run package PASS on darwin/arm64
 git diff --check PASS before each checkpoint
 ```
+
+After `97f0afb`, the affected storage/source/runtime/validator/manual-action suites, the sequential orchestrator suite, the integrated M2 gate, lint, TypeScript, and packaging were rerun successfully. The first package attempt was blocked only by sandboxed `github.com` DNS access; the same package command passed with network access.
 
 The Vite CJS Node API deprecation message remains a non-failing warning.
 
@@ -426,7 +435,7 @@ geography/category evidence is checked where represented
 
 ---
 
-# 12. Storage Boundary and Open Integration Issue
+# 12. Storage Boundary and Remaining Live Proof
 
 Two persistence concerns currently exist:
 
@@ -438,19 +447,34 @@ StorageManager / CollectionOrchestrator
 → owns intended canonical run-scoped raw artifacts and audit evidence
 ```
 
-Current open M3 storage issue:
+The implemented GT01 live command now follows this evidence path:
 
 ```text
-provider downloads are persisted to the user-visible Downloads area before canonical run-scoped storage
-the live GT01 CLI calls the real source directly
-the live GT01 CLI does not yet pass the real source through CollectionOrchestrator / StorageManager / SQLite
+real GoogleTrendsSource
+→ CollectionOrchestrator
+→ application-owned run/job/attempt state in SQLite
+→ exact source bytes persisted as a run-scoped candidate artifact
+→ Google Trends CollectionValidator
+→ accepted/rejected artifact state
+→ metadata JSON + validation JSON + structured run log
 ```
 
-Therefore Downloads must not be treated as the intended authoritative application datastore. Canonical application state and raw run evidence belong under the application-owned run/storage boundary.
+This path is deterministically verified by `GT-CORE-001..009` for accepted data, source failure, manual action, and rejected non-data content. It is restricted to exactly one GT01 group and does not add provider retry, refresh, navigation, selector, or timing behavior.
+
+One storage-order issue remains open:
+
+```text
+the browser download is first preserved as an intentional user-visible copy under Downloads
+the verified bytes are then returned to Core for run-scoped persistence and validation
+```
+
+Downloads is not the authoritative application datastore. Only an accepted artifact linked through the application-owned run/job/attempt/validation chain is canonical. A rejected run-scoped artifact remains immutable audit evidence but is not canonical data.
+
+The Core boundary itself does not depend on Downloads; `GT-CORE-005` proves that supplied source bytes can be persisted and accepted while the public-download directory remains empty. The current Google Trends UI source still creates its intentional public copy before returning those bytes.
 
 Do not delete, move, or rewrite existing provider evidence. First inventory provenance and determine whether another canonical copy exists. Developer helper files in Downloads are not application state.
 
-After a trustworthy source-level GT01 artifact exists, the real source must run through Core so the evidence chain includes:
+The remaining live proof must establish that a real provider artifact traverses the complete chain:
 
 ```text
 run
@@ -464,7 +488,7 @@ SQLite state
 public provider copy
 ```
 
-M3 is not complete until that integration is proven.
+No real artifact has traversed this integrated Core path after `97f0afb`, so M3 is not complete.
 
 ---
 
@@ -485,7 +509,7 @@ Exact next provider action:
 
 ```text
 do not make another immediate live request
-after a deliberate provider pause, run exactly one controlled live GT01 collection using 42ebbe9
+after a deliberate provider pause, run exactly one controlled live GT01 collection using 97f0afb
 stop on RATE_LIMITED or MANUAL_ACTION_REQUIRED
 do not refresh or automatically retry
 ```
@@ -545,7 +569,7 @@ do not refresh or immediately retry
 # 15. M3 Success Sequence
 
 ```text
-current deterministic 42ebbe9 baseline
+current deterministic 97f0afb Core-integrated baseline
 ↓
 controlled live GT01 after provider pause
 ↓
@@ -564,8 +588,6 @@ ARTIFACT_PRODUCED
 minimum M3 validation
 ↓
 accepted real GT01 artifact
-↓
-real source through CollectionOrchestrator
 ↓
 canonical run/job/attempt/raw/metadata/validation proof
 ↓
