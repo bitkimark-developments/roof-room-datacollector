@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `ffa8534 feat: inspect Google Trends download readiness`
+**Latest verified technical checkpoint:** `3f67f92 feat: compare initial Google Trends input methods`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -19,6 +19,12 @@ Branch and latest verified checkpoints:
 
 ```text
 main
+3f67f92 feat: compare initial Google Trends input methods
+7676080 fix: enter Google Trends comparison queries sequentially
+ff60b93 feat: compare Google Trends query input methods
+d8b7ac7 feat: inspect initial Google Trends query state
+f4fa7cd fix: add Google Trends download strategies
+57e597b docs: record Google Trends waterfall gates
 ffa8534 feat: inspect Google Trends download readiness
 3799be1 fix: extend Google Trends card readiness
 c47be4b fix: wait for Google Trends download controls
@@ -192,6 +198,10 @@ download-free live stage command for QUERY_GROUP / GEOGRAPHY / DATE_RANGE / FIXE
 structured DOWNLOAD heading/button diagnostics
 bounded download-card heading/button readiness
 redacted download-readiness DOM diagnostic that cannot trigger download
+five-strategy card-scoped DOWNLOAD readiness matrix
+semantic TIMESERIES download selection with bounded compatibility contracts
+safe initial/comparison query-input method diagnostics
+sequential keyboard-event entry for dynamic comparison inputs
 GoogleTrendsCollector and GoogleTrendsSource
 main-process runtime composition and shutdown
 safe stage diagnostics
@@ -295,7 +305,28 @@ no rate-limit, CAPTCHA, or manual-action result was reported by that run
 
 The structural diagnostic was extended in `50fd156` to report only safe boolean input-persistence state. The next live diagnostic did not reach the second input because the first Search Term suggestion timed out. That diagnostic predated `087a2ba`, so it did not classify same-origin interaction HTTP 429 separately. `087a2ba` now makes future structural diagnostics stop on such a signal and emits a structured first-suggestion failure instead of a generic timeout.
 
-The same exact Search Term locator succeeded in earlier live structural evidence. The new failures therefore prove intermittent suggestion absence for these attempts; they do not prove selector drift or justify a positional/keyboard fallback.
+The same exact Search Term locator succeeded in earlier live structural evidence. The failures therefore did not prove selector drift or justify positional selection.
+
+Later A/B evidence isolated an input-method difference for the provider-created comparison input:
+
+```text
+Playwright fill:
+input_after_fill.is_empty=true
+input_after_fill.matches_expected_query=false
+expected Search Term suggestion remained absent
+
+Playwright pressSequentially:
+input_after_entry.is_empty=false
+input_after_entry.matches_expected_query=true
+six autocomplete role=button rows became available
+the expected Search Term suggestion action completed
+the term-not-selected slot disappeared
+the add-comparison control appeared
+```
+
+`7676080` therefore keeps the earlier live-successful `fill` method for the initial input and uses bounded `pressSequentially` only for provider-created dynamic comparison inputs. It adds no delay, sleep, refresh, retry, or positional fallback. This is deterministically verified through `GT-QUERY-001..015`.
+
+A production QUERY_GROUP gate after `7676080` stopped at the still-`fill`-based initial query with `SEARCH_TERM_SUGGESTION observed_count=0 query_index=0`. `3f67f92` can now compare initial `fill` and `pressSequentially` safely, but its first live use encountered same-origin HTTP 429 before producing that comparison. Initial-input `pressSequentially` therefore remains an untested live hypothesis and is not yet wired into production.
 
 The staged waterfall runner introduced in `70ad27e` and `27a43f8` later completed QUERY_GROUP in two consecutive targeted live acceptance runs. QUERY_GROUP is therefore a functionally completed prerequisite module. Intermittent autocomplete absence remains a provider-reliability/hardening concern; it no longer reopens the completed module unless deterministic or repeatable evidence proves a regression.
 
@@ -427,6 +458,20 @@ validation: null
 
 This proves the current DOWNLOAD blocker is not a ten-second readiness race. Either the live card/heading contract has changed or the result card is not rendering. `ffa8534` adds a no-download structural diagnostic to distinguish those states. Its first controlled use stopped as `RATE_LIMITED` on same-origin HTTP 429, so no structural result was collected and provider work stopped without refresh/retry.
 
+`f4fa7cd` implements and evaluates the complete bounded DOWNLOAD alternative matrix before choosing a strategy:
+
+```text
+TIMESERIES_FILE_DOWNLOAD      deterministic PASS — preferred semantic contract
+TIMESERIES_DOWNLOAD           deterministic PASS — accessible-name alternative
+TIMESERIES_CSV                deterministic PASS — accessible-name alternative
+TIMESERIES_EXPORT_CONTROL     deterministic PASS — card-scoped class alternative
+HEADING_PARENT_FILE_DOWNLOAD  deterministic PASS — previously live-proven compatibility contract
+```
+
+All five alternatives remain scoped to the Interest over time card. None uses a page-global download button, DOM position, refresh, retry, or navigation fallback. `GT-DOWNLOAD-011..013` prove that all candidates are assessed, every semantic alternative independently captures exact provider bytes, and the most specific available semantic strategy is selected only after assessment.
+
+The first no-download readiness run from `f4fa7cd` did not reach DOWNLOAD because QUERY_GROUP reported `SEARCH_TERM_SUGGESTION observed_count=0 query_index=0`. This is not DOWNLOAD evidence. The live provider has therefore not yet reported which of the five DOWNLOAD strategies are present.
+
 Last pre-monitor controlled live result after `42ebbe9`:
 
 ```json
@@ -491,7 +536,7 @@ Google Trends 0–100 values are relative interest only. They must never be conv
 
 # 10. Verified Deterministic Gate — 2026-08-19
 
-The complete deterministic M3 surface, integrated M2 gate, sequential orchestrator regression, lint, TypeScript, and package were rerun from the current `ffa8534` technical baseline.
+The affected deterministic M3 surface, integrated M2 gate, lint, TypeScript, and package were rerun from the current `3f67f92` / `7676080` diagnostic and production baselines.
 
 Current verified ranges:
 
@@ -505,7 +550,7 @@ GT-DATE-001..002 PASS
 GT-VAL-001..008 PASS
 GT-ADAPTER-001..007 PASS
 BROWSER-DOWNLOAD-001..007 PASS
-GT-DOWNLOAD-001..010 PASS
+GT-DOWNLOAD-001..013 PASS
 GT-DATE-DIALOG-001..010 PASS
 GT-DATE-RANGE-001..008 PASS
 GT-QUERY-001..015 PASS
@@ -539,6 +584,8 @@ git diff --check PASS before each checkpoint
 After `97f0afb`, the affected storage/source/runtime/validator/manual-action suites, the sequential orchestrator suite, the integrated M2 gate, lint, TypeScript, and packaging were rerun successfully. After `cf56053`, provider-state/probe, collector, UI-diagnostic, live-command, Core-runner, BrowserManager, lint, TypeScript, and darwin/arm64 packaging checks also passed. After `e1539dd`, the Google Trends CSV validator, CollectionValidator adapter, Core persistence runner, sequential orchestrator, integrated M2 gate, lint, TypeScript, and darwin/arm64 packaging checks passed. After `3142606`, the full deterministic M3 surface, sequential orchestrator, integrated M2 gate, storage-boundary tests, lint, TypeScript, and darwin/arm64 packaging checks passed. The first package attempt was blocked only by sandboxed `github.com` DNS access; the same package command passed with network access.
 
 After `0f217fa`, the custom-date-dialog, custom-date-range, UI-diagnostic, and collecting-source suites, lint, and TypeScript passed. After `50fd156` and `087a2ba`, the live-query-diagnostic command suite passed through `GT-LIVE-QUERY-DIAG-CMD-005`; the collecting-source suite, lint, TypeScript, and `git diff --check` also passed. After `ffa8534`, every current deterministic `test:m3:*` command, the integrated M2 gate, sequential orchestrator regression, lint, `npx tsc --noEmit`, and `npm run package` for `darwin/arm64` passed.
+
+After `f4fa7cd`, DOWNLOAD strategies passed through `GT-DOWNLOAD-013`; live-stage command, configured export, collecting source, UI diagnostics, live command, Core runner, M2 integrated gate, lint, TypeScript, and darwin/arm64 packaging also passed. After `7676080` and `3f67f92`, QUERY_GROUP remained green through `GT-QUERY-015`; the live-query diagnostic command, BrowserManager, configured export, collecting source, live-stage command, DOWNLOAD strategies, UI diagnostics, Core runner, integrated M2 gate, lint, TypeScript, `git diff --check`, and darwin/arm64 packaging passed.
 
 The Vite CJS Node API deprecation message remains a non-failing warning.
 
@@ -595,7 +642,7 @@ real GoogleTrendsSource
 → metadata JSON + validation JSON + structured run log
 ```
 
-This path is deterministically verified by `GT-CORE-001..011` for accepted data, source failure, manual action, rejected non-data content, validated actual-date/country metadata, and fail-closed metadata checks. `BROWSER-DOWNLOAD-001..007`, `GT-DOWNLOAD-001..010`, and `STORAGE-BOUNDARY-001..002` verify direct byte capture, typed download failure, bounded card readiness, no pre-Core Downloads write, and no eager public-directory creation. The path is restricted to exactly one GT01 group and does not add provider retry, refresh, or navigation behavior.
+This path is deterministically verified by `GT-CORE-001..011` for accepted data, source failure, manual action, rejected non-data content, validated actual-date/country metadata, and fail-closed metadata checks. `BROWSER-DOWNLOAD-001..007`, `GT-DOWNLOAD-001..013`, and `STORAGE-BOUNDARY-001..002` verify direct byte capture, typed download failure, bounded multi-strategy card readiness, no pre-Core Downloads write, and no eager public-directory creation. The path is restricted to exactly one GT01 group and does not add provider retry, refresh, or navigation behavior.
 
 Downloads is not the authoritative application datastore. Only an accepted artifact linked through the application-owned run/job/attempt/validation chain is canonical. A rejected run-scoped artifact remains immutable audit evidence but is not canonical data. User-visible CSV/XLSX packages remain a downstream ExportManager responsibility and may consume only validated accepted artifacts.
 
@@ -650,20 +697,24 @@ Current live blocker:
 QUERY_GROUP, GEOGRAPHY, DATE_RANGE, and FIXED_FILTERS are live-complete modules
 the latest advanced full GT01 run stopped only at DOWNLOAD
 INTEREST_OVER_TIME_HEADING remained absent after the bounded 30-second readiness window
-the exact live card/heading DOM contract is still unknown
-the first no-download structural readiness diagnostic encountered same-origin HTTP 429
+the DOWNLOAD module now has five deterministically successful card-scoped strategies
+the exact live DOWNLOAD strategy/card state is still unknown
+the first f4fa7cd no-download run stopped earlier at initial-query suggestion absence
+comparison-input fill was then proven unreliable; pressSequentially succeeded and entered production
+the updated production QUERY_GROUP gate again stopped at the still-fill-based initial input
+the first initial-input A/B diagnostic encountered same-origin HTTP 429
 provider work stopped immediately with no refresh, retry, download, artifact, or validation
 ```
 
-The HTTP 429 applies to the latest diagnostic attempt only. It does not establish why the Interest over time heading was absent in the preceding full runs.
+The latest HTTP 429 applies only to the initial-input A/B diagnostic. It does not establish why the Interest over time heading was absent in earlier full runs or why every initial suggestion was absent.
 
 Exact next provider action:
 
 ```text
 make no immediate repeated Google Trends request
 do not refresh, retry, or evade the provider restriction
-after a deliberate provider pause, run exactly one no-download readiness diagnostic from ffa8534 or a later deterministically verified checkpoint:
-npm run m3:live-stage -- --stage=FIXED_FILTERS --inspect-download-readiness --confirm-live-stage
+after a deliberate provider pause, run exactly one initial-input A/B diagnostic from 3f67f92 or a later deterministically verified checkpoint:
+npm run m3:live-query-diagnostic -- --confirm-live-diagnostic
 ```
 
 Interpret that run as follows:
@@ -672,13 +723,19 @@ Interpret that run as follows:
 if RATE_LIMITED occurs again
 → stop immediately with no refresh or retry
 
-if the result cards exist under a changed bounded semantic contract
-→ change only the DOWNLOAD module and its deterministic tests
+if initial pressSequentially persists the configured query, exposes the expected Search Term suggestion, and produces exactly one provider-created empty comparison slot
+→ change only the initial query input method to pressSequentially
+→ keep the exact Search Term suggestion and every other QUERY_GROUP contract unchanged
+→ rerun the deterministic QUERY_GROUP gate and exactly one targeted live QUERY_GROUP gate
 
-if no result card is rendered
-→ diagnose the provider result state without touching completed modules
+if initial pressSequentially does not satisfy all three postconditions
+→ do not wire it into production; use the safe DOM/count evidence to evaluate the next input-method hypothesis
 
-after DOWNLOAD readiness is corrected
+after the updated QUERY_GROUP gate completes
+→ run exactly one no-download FIXED_FILTERS/DOWNLOAD-readiness diagnostic
+→ compare all five strategy results instead of stopping at the first match
+
+after one live DOWNLOAD strategy is selected and verified
 → run exactly one Core-routed GT01 collection
 → preserve and validate the artifact without asserting exact live numeric values
 ```
@@ -722,11 +779,17 @@ do not refresh or immediately retry
 # 15. M3 Success Sequence
 
 ```text
-current deterministic ffa8534 stage-gated, Core-integrated, interaction-429-aware, Core-owned-storage baseline
+current deterministic f4fa7cd DOWNLOAD-strategy and 7676080 comparison-input baseline
 ↓
 deliberate provider pause without refresh/retry/evasion
 ↓
-one no-download DOWNLOAD-readiness structural diagnostic
+one initial-input fill/pressSequentially A/B diagnostic
+↓
+evidence-based initial-input method correction if all postconditions pass
+↓
+one targeted QUERY_GROUP gate
+↓
+one no-download five-strategy DOWNLOAD-readiness diagnostic
 ↓
 evidence-based DOWNLOAD-only correction if required
 ↓
