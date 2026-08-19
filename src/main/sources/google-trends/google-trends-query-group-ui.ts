@@ -148,6 +148,62 @@ const requireExactlyOne = async (
   }
 };
 
+const clickWhenExactlyOneAvailable = async (
+  locator: ManagedBrowserLocator,
+  description: string,
+  timeout: number,
+  diagnostic: {
+    control:
+      GoogleTrendsQueryGroupDiagnosticControl;
+    query_index: number;
+  },
+): Promise<void> => {
+  const initialCount =
+    await locator.count();
+
+  if (initialCount > 1) {
+    throw new GoogleTrendsQueryGroupUiContractError(
+      `Expected at most one ${description} while waiting for it to become available; found ${initialCount}.`,
+      {
+        control:
+          diagnostic.control,
+        observed_count:
+          initialCount,
+        query_index:
+          diagnostic.query_index,
+      },
+    );
+  }
+
+  try {
+    // Playwright's strict locator action uses the existing bounded timeout
+    // to wait for a temporarily missing provider control to become uniquely
+    // available and actionable.
+    await locator.click({
+      timeout,
+    });
+  } catch (error: unknown) {
+    const finalCount =
+      await locator.count();
+
+    if (finalCount !== 1) {
+      throw new GoogleTrendsQueryGroupUiContractError(
+        `Expected exactly one ${description} after its bounded click action failed; found ${finalCount}.`,
+        {
+          control:
+            diagnostic.control,
+          observed_count:
+            finalCount,
+          query_index:
+            diagnostic.query_index,
+        },
+      );
+    }
+
+    throw error;
+  }
+};
+
 const selectSearchTermSuggestion = async (
   page: ManagedBrowserPage,
   query: string,
@@ -266,9 +322,10 @@ export const applyGoogleTrendsSearchTermQueryGroup =
           },
         );
 
-      await requireExactlyOne(
+      await clickWhenExactlyOneAvailable(
         addComparison,
         `"${ADD_COMPARISON_NAME}" button`,
+        timeout,
         {
           control:
             GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
@@ -277,10 +334,6 @@ export const applyGoogleTrendsSearchTermQueryGroup =
             index,
         },
       );
-
-      await addComparison.click({
-        timeout,
-      });
 
       const emptySlot =
         input.page.locator(

@@ -47,12 +47,15 @@ class FakeLocator {
     count = 1,
     trace,
     text = '',
+    beforeClick,
     onClick,
   }) {
     this.name = name;
     this.countValue = count;
     this.trace = trace;
     this.text = text;
+    this.beforeClick =
+      beforeClick;
     this.onClick = onClick;
     this.roleChildren =
       new Map();
@@ -90,6 +93,10 @@ class FakeLocator {
         this.name,
       options,
     });
+
+    if (this.beforeClick) {
+      this.beforeClick();
+    }
 
     if (this.countValue !== 1) {
       throw new Error(
@@ -168,6 +175,8 @@ class FakeLocator {
       op: 'count',
       locator:
         this.name,
+      observedCount:
+        this.countValue,
     });
 
     return this.countValue;
@@ -179,6 +188,7 @@ class FakeQueryPage {
     resultCounts = {},
     firstInputCount = 1,
     addCount = 1,
+    addBecomesAvailableOnClick = false,
     emptySlotCount = 1,
     emptyInputCount = 1,
   } = {}) {
@@ -228,6 +238,13 @@ class FakeQueryPage {
           addCount,
         trace:
           this.trace,
+        beforeClick:
+          addBecomesAvailableOnClick
+            ? () => {
+                this.addButton.countValue =
+                  1;
+              }
+            : undefined,
       });
 
     this.resultCounts =
@@ -949,6 +966,80 @@ const main = async () => {
 
   console.log(
     'PASS GT-QUERY-010: missing or ambiguous nested comparison input reports structured COMPARISON_QUERY_INPUT cardinality evidence',
+  );
+
+  const delayedAddComparisonPage =
+    new FakeQueryPage({
+      addCount:
+        0,
+      addBecomesAvailableOnClick:
+        true,
+    });
+
+  await applyGoogleTrendsSearchTermQueryGroup({
+    page:
+      delayedAddComparisonPage,
+    queries: [
+      'canlı bitki',
+      'online bitki',
+    ],
+    ui_action_timeout_ms:
+      4_000,
+  });
+
+  const delayedAddComparisonTrace =
+    delayedAddComparisonPage
+      .trace;
+
+  const delayedAddComparisonInitialCountIndex =
+    delayedAddComparisonTrace.findIndex(
+      (entry) =>
+        entry.op ===
+          'count' &&
+        entry.locator ===
+          'add-comparison',
+    );
+
+  const delayedAddComparisonClickIndex =
+    delayedAddComparisonTrace.findIndex(
+      (entry) =>
+        entry.op ===
+          'click' &&
+        entry.locator ===
+          'add-comparison',
+    );
+
+  assert.equal(
+    delayedAddComparisonInitialCountIndex >=
+      0,
+    true,
+  );
+
+  assert.equal(
+    delayedAddComparisonTrace[
+      delayedAddComparisonInitialCountIndex
+    ].observedCount,
+    0,
+  );
+
+  assert.equal(
+    delayedAddComparisonClickIndex >
+      delayedAddComparisonInitialCountIndex,
+    true,
+  );
+
+  assert.deepEqual(
+    delayedAddComparisonTrace[
+      delayedAddComparisonClickIndex
+    ].options,
+    {
+      timeout:
+        4_000,
+    },
+  );
+
+  console.log(
+    'PASS GT-QUERY-011: a temporarily missing comparison-add control uses the existing bounded strict click action to become available',
   );
 
   const alreadyTurkeyPage =
