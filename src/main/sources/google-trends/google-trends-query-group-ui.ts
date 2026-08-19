@@ -21,6 +21,8 @@ const DEFAULT_UI_ACTION_TIMEOUT_MS =
 export const GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS = {
   INITIAL_QUERY_INPUT:
     'INITIAL_QUERY_INPUT',
+  SEARCH_TERM_SUGGESTION:
+    'SEARCH_TERM_SUGGESTION',
   EMPTY_COMPARISON_SLOT:
     'EMPTY_COMPARISON_SLOT',
   COMPARISON_QUERY_INPUT:
@@ -147,6 +149,7 @@ const selectSearchTermSuggestion = async (
   page: ManagedBrowserPage,
   query: string,
   timeout: number,
+  queryIndex: number,
 ): Promise<void> => {
   const suggestion =
     page.getByRole(
@@ -157,12 +160,48 @@ const selectSearchTermSuggestion = async (
       },
     );
 
-  // Playwright locator actions wait for the async Angular Material
-  // autocomplete result and remain strict if multiple matching
-  // Search Term suggestions unexpectedly appear.
-  await suggestion.click({
-    timeout,
-  });
+  const initialCount =
+    await suggestion.count();
+
+  if (initialCount > 1) {
+    throw new GoogleTrendsQueryGroupUiContractError(
+      `Expected at most one Search Term suggestion while waiting for query selection; found ${initialCount}.`,
+      {
+        control:
+          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+            .SEARCH_TERM_SUGGESTION,
+        observed_count:
+          initialCount,
+        query_index:
+          queryIndex,
+      },
+    );
+  }
+
+  try {
+    // Playwright locator actions wait for the async Angular Material
+    // autocomplete result and remain strict if multiple matching
+    // Search Term suggestions unexpectedly appear.
+    await suggestion.click({
+      timeout,
+    });
+  } catch {
+    const finalCount =
+      await suggestion.count();
+
+    throw new GoogleTrendsQueryGroupUiContractError(
+      `Search Term suggestion action failed with ${finalCount} matching controls.`,
+      {
+        control:
+          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+            .SEARCH_TERM_SUGGESTION,
+        observed_count:
+          finalCount,
+        query_index:
+          queryIndex,
+      },
+    );
+  }
 };
 
 const fillAndSelectQuery = async (
@@ -185,17 +224,35 @@ const fillAndSelectQuery = async (
     },
   );
 
-  await input.fill(
-    query,
-    {
-      timeout,
-    },
-  );
+  try {
+    await input.fill(
+      query,
+      {
+        timeout,
+      },
+    );
+  } catch {
+    const finalCount =
+      await input.count();
+
+    throw new GoogleTrendsQueryGroupUiContractError(
+      `Query input action failed with ${finalCount} matching controls.`,
+      {
+        control:
+          diagnosticControl,
+        observed_count:
+          finalCount,
+        query_index:
+          queryIndex,
+      },
+    );
+  }
 
   await selectSearchTermSuggestion(
     page,
     query,
     timeout,
+    queryIndex,
   );
 };
 
@@ -243,7 +300,7 @@ const fillAndSelectComparisonQuery = async (
         timeout,
       },
     );
-  } catch (error: unknown) {
+  } catch {
     const finalSlotCount =
       await emptySlot.count();
 
@@ -280,13 +337,25 @@ const fillAndSelectComparisonQuery = async (
       );
     }
 
-    throw error;
+    throw new GoogleTrendsQueryGroupUiContractError(
+      `Nested comparison query input action failed with ${finalInputCount} matching controls.`,
+      {
+        control:
+          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+            .COMPARISON_QUERY_INPUT,
+        observed_count:
+          finalInputCount,
+        query_index:
+          queryIndex,
+      },
+    );
   }
 
   await selectSearchTermSuggestion(
     page,
     query,
     timeout,
+    queryIndex,
   );
 };
 

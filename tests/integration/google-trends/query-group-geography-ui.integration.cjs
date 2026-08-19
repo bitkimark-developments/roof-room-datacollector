@@ -965,6 +965,80 @@ const main = async () => {
     'PASS GT-QUERY-011: the existing bounded strict nested fill action waits for an asynchronously created comparison slot/input pair',
   );
 
+  for (
+    const observedCount of
+      [0, 2]
+  ) {
+    const suggestionPage =
+      new FakeQueryPage({
+        resultCounts: {
+          'canlı bitki Search term':
+            observedCount,
+        },
+      });
+
+    await assert.rejects(
+      () =>
+        applyGoogleTrendsSearchTermQueryGroup({
+          page:
+            suggestionPage,
+          queries: [
+            'canlı bitki',
+          ],
+        }),
+      (error) =>
+        error instanceof
+          GoogleTrendsQueryGroupUiContractError &&
+        error.diagnostic_context
+          ?.control ===
+          GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+            .SEARCH_TERM_SUGGESTION &&
+        error.diagnostic_context
+          ?.observed_count ===
+          observedCount &&
+        error.diagnostic_context
+          ?.query_index ===
+          0,
+    );
+  }
+
+  const comparisonSuggestionPage =
+    new FakeQueryPage({
+      resultCounts: {
+        'online bitki Search term':
+          0,
+      },
+    });
+
+  await assert.rejects(
+    () =>
+      applyGoogleTrendsSearchTermQueryGroup({
+        page:
+          comparisonSuggestionPage,
+        queries: [
+          'canlı bitki',
+          'online bitki',
+        ],
+      }),
+    (error) =>
+      error instanceof
+        GoogleTrendsQueryGroupUiContractError &&
+      error.diagnostic_context
+        ?.control ===
+        GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS
+          .SEARCH_TERM_SUGGESTION &&
+      error.diagnostic_context
+        ?.observed_count ===
+        0 &&
+      error.diagnostic_context
+        ?.query_index ===
+        1,
+  );
+
+  console.log(
+    'PASS GT-QUERY-012: missing or ambiguous Search Term suggestions report structured control/count/index evidence for initial and comparison queries',
+  );
+
   const alreadyTurkeyPage =
     new FakeGeographyPage({
       initialLabel:
