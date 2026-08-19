@@ -40,6 +40,15 @@ import {
   CollectionOrchestrator,
 } from '../../core/collection-orchestrator';
 import {
+  ReconciliationCoordinator,
+} from '../../core/reconciliation-coordinator';
+import {
+  ResumePlanner,
+} from '../../core/resume-planner';
+import {
+  RetryPolicy,
+} from '../../core/retry-policy';
+import {
   RunManager,
 } from '../../core/run-manager';
 import {
@@ -80,6 +89,40 @@ export interface RunGoogleTrendsThroughCoreInput {
     CollectionValidator;
   logger?:
     StructuredLogSink | null;
+  hooks?:
+    GoogleTrendsCoreRunHooks;
+}
+
+export interface GoogleTrendsCoreRunHooks {
+  on_run_available?: (
+    run: RunRecord,
+  ) => void;
+  on_collection_started?: (
+    context:
+      SourceCollectionContext,
+  ) => void;
+  on_collection_result?: (
+    context:
+      SourceCollectionContext,
+    result:
+      SourceCollectionResult,
+  ) => void;
+}
+
+export interface ResumeGoogleTrendsThroughCoreInput {
+  directories:
+    ApplicationDirectories;
+  run_id: string;
+  source:
+    CollectingDataSourceModule;
+  retry_failed: boolean;
+  max_attempts?: number;
+  validator?:
+    CollectionValidator;
+  logger?:
+    StructuredLogSink | null;
+  hooks?:
+    GoogleTrendsCoreRunHooks;
 }
 
 export interface GoogleTrendsCoreRunResult {
@@ -129,6 +172,8 @@ class ObservedCollectingSource
   constructor(
     private readonly source:
       CollectingDataSourceModule,
+    private readonly hooks:
+      GoogleTrendsCoreRunHooks = {},
   ) {}
 
   get id(): string {
@@ -162,6 +207,14 @@ class ObservedCollectingSource
   async collect(
     context: SourceCollectionContext,
   ): Promise<SourceCollectionResult> {
+    this.notify(
+      () =>
+        this.hooks
+          .on_collection_started?.(
+            context,
+          ),
+    );
+
     const result =
       await this.source.collect(
         context,
@@ -170,6 +223,15 @@ class ObservedCollectingSource
     this.resultsByJobId.set(
       context.job_id,
       result,
+    );
+
+    this.notify(
+      () =>
+        this.hooks
+          .on_collection_result?.(
+            context,
+            result,
+          ),
     );
 
     return result;
@@ -183,6 +245,16 @@ class ObservedCollectingSource
         jobId,
       ) ?? null
     );
+  }
+
+  private notify(
+    callback: () => void,
+  ): void {
+    try {
+      callback();
+    } catch {
+      // Desktop progress observers must never alter collection state.
+    }
   }
 }
 
@@ -242,6 +314,65 @@ const requireApplicationVersion = (
   return value;
 };
 
+const notifyRunAvailable = (
+  hooks:
+    GoogleTrendsCoreRunHooks | undefined,
+  run: RunRecord,
+): void => {
+  try {
+    hooks?.on_run_available?.(
+      run,
+    );
+  } catch {
+    // Desktop progress observers must never alter persisted run state.
+  }
+};
+
+const snapshotJobs = (
+  repository:
+    StateRepository,
+  jobs:
+    readonly JobRecord[],
+  observedSource:
+    ObservedCollectingSource,
+): GoogleTrendsCoreJobResult[] =>
+  jobs.map(
+    (job) => {
+      const attempts =
+        repository.listAttempts(
+          job.job_id,
+        );
+
+      const artifacts =
+        repository.listArtifacts(
+          job.job_id,
+        );
+
+      const validations =
+        repository.listValidationSummaries(
+          job.job_id,
+        );
+
+      return {
+        job,
+        attempt:
+          attempts.at(-1) ??
+          null,
+        artifact:
+          artifacts.at(-1) ??
+          null,
+        validation:
+          validations.at(-1) ??
+          null,
+        source_result:
+          observedSource
+            .resultForJob(
+              job.job_id,
+            ),
+      };
+    },
+  );
+
 export const runGoogleTrendsBatchThroughCore =
   async (
     input:
@@ -282,6 +413,7 @@ export const runGoogleTrendsBatchThroughCore =
       const observedSource =
         new ObservedCollectingSource(
           input.source,
+          input.hooks,
         );
 
       const registry =
@@ -300,6 +432,11 @@ export const runGoogleTrendsBatchThroughCore =
           requested_configuration:
             input.requested_configuration,
         });
+
+      notifyRunAvailable(
+        input.hooks,
+        created.run,
+      );
 
       if (
         created.jobs.length !==
@@ -361,43 +498,264 @@ export const runGoogleTrendsBatchThroughCore =
       return {
         run,
         jobs:
-          jobs.map(
-            (job) => {
-              const attempts =
-                repository.listAttempts(
-                  job.job_id,
-                );
-
-              const artifacts =
-                repository.listArtifacts(
-                  job.job_id,
-                );
-
-              const validations =
-                repository.listValidationSummaries(
-                  job.job_id,
-                );
-
-              return {
-                job,
-                attempt:
-                  attempts.at(-1) ??
-                  null,
-                artifact:
-                  artifacts.at(-1) ??
-                  null,
-                validation:
-                  validations.at(-1) ??
-                  null,
-                source_result:
-                  observedSource
-                    .resultForJob(
-                      job.job_id,
-                    ),
-              };
-            },
+          snapshotJobs(
+            repository,
+            jobs,
+            observedSource,
           ),
         orchestration,
+      };
+    } finally {
+      repository.close();
+    }
+  };
+
+export const resumeGoogleTrendsThroughCore =
+  async (
+    input:
+      ResumeGoogleTrendsThroughCoreInput,
+  ): Promise<GoogleTrendsCoreBatchRunResult> => {
+    if (
+      input.source.id !==
+      GOOGLE_TRENDS_SOURCE_ID
+    ) {
+      throw new Error(
+        'Google Trends resume runner requires google-trends source identity.',
+      );
+    }
+
+    const bootstrap =
+      initializeDatabase(
+        input.directories,
+      );
+
+    if (
+      bootstrap.status !==
+      'READY'
+    ) {
+      throw new Error(
+        `Google Trends Core database initialization failed: ${bootstrap.error}`,
+      );
+    }
+
+    const repository =
+      new StateRepository(
+        getDatabasePath(
+          input.directories,
+        ),
+      );
+
+    try {
+      const planner =
+        new ResumePlanner(
+          repository,
+        );
+
+      const plan =
+        planner.planRun(
+          input.run_id,
+        );
+
+      if (plan === null) {
+        throw new Error(
+          `Google Trends run is not available for resume: ${input.run_id}`,
+        );
+      }
+
+      notifyRunAvailable(
+        input.hooks,
+        plan.run,
+      );
+
+      const observedSource =
+        new ObservedCollectingSource(
+          input.source,
+          input.hooks,
+        );
+
+      const registry =
+        new SourceRegistry();
+
+      registry.register(
+        observedSource,
+      );
+
+      const runManager =
+        new RunManager(
+          repository,
+        );
+
+      const orchestrator =
+        new CollectionOrchestrator(
+          repository,
+          new StorageManager(
+            input.directories,
+          ),
+          registry,
+          input.validator ??
+            new GoogleTrendsCollectionValidator(),
+          runManager,
+          undefined,
+          input.logger === undefined
+            ? new StructuredLogger(
+                input.directories,
+              )
+            : input.logger,
+        );
+
+      const reconciliation =
+        new ReconciliationCoordinator(
+          repository,
+          new RetryPolicy({
+            max_attempts:
+              input.max_attempts ??
+              2,
+          }),
+        );
+
+      const prefixSteps:
+        OrchestrationRunResult['steps'] =
+        [];
+
+      if (input.retry_failed) {
+        const retryCandidate =
+          plan.jobs.find(
+            (jobPlan) =>
+              jobPlan.action ===
+              'RETRY_CANDIDATE',
+          );
+
+        if (retryCandidate === undefined) {
+          throw new Error(
+            `Google Trends run has no retry candidate: ${input.run_id}`,
+          );
+        }
+
+        const retry =
+          reconciliation.apply(
+            retryCandidate,
+          );
+
+        if (
+          retry.outcome !==
+            'RETRY_STARTED' ||
+          retry.attempt === null
+        ) {
+          throw new Error(
+            `Google Trends retry could not start: ${retry.outcome}`,
+          );
+        }
+
+        prefixSteps.push(
+          await orchestrator
+            .executeStartedAttempt(
+              input.run_id,
+              retryCandidate
+                .job.job_id,
+              retry.attempt,
+            ),
+        );
+      } else {
+        for (const jobPlan of
+          plan.jobs) {
+          if (
+            jobPlan.action ===
+            'RECONCILE_REQUIRED'
+          ) {
+            reconciliation.apply(
+              jobPlan,
+            );
+          }
+        }
+
+        const manualJob =
+          plan.jobs.find(
+            (jobPlan) =>
+              jobPlan.action ===
+              'BLOCKED_MANUAL_ACTION',
+          );
+
+        if (manualJob !== undefined) {
+          repository.transitionJobExecution(
+            manualJob.job.job_id,
+            'RUNNING',
+          );
+
+          runManager.refreshRunStatus(
+            input.run_id,
+          );
+
+          const continuedAttempt =
+            repository
+              .listAttempts(
+                manualJob.job.job_id,
+              )
+              .at(-1);
+
+          if (
+            continuedAttempt ===
+              undefined ||
+            continuedAttempt
+              .execution_status !==
+              'RUNNING'
+          ) {
+            throw new Error(
+              `Google Trends manual-action continuation has no active attempt: ${manualJob.job.job_id}`,
+            );
+          }
+
+          prefixSteps.push(
+            await orchestrator
+              .executeStartedAttempt(
+                input.run_id,
+                manualJob.job
+                  .job_id,
+                continuedAttempt,
+              ),
+          );
+        }
+      }
+
+      const resumed =
+        await orchestrator
+          .runUntilBlocked(
+            input.run_id,
+          );
+
+      const run =
+        repository.getRun(
+          input.run_id,
+        );
+      const jobs =
+        repository.listJobs(
+          input.run_id,
+        );
+
+      if (
+        run === null ||
+        jobs.length === 0
+      ) {
+        throw new Error(
+          'Google Trends resumed Core state disappeared after orchestration.',
+        );
+      }
+
+      return {
+        run,
+        jobs:
+          snapshotJobs(
+            repository,
+            jobs,
+            observedSource,
+          ),
+        orchestration: {
+          steps: [
+            ...prefixSteps,
+            ...resumed.steps,
+          ],
+          stopped_because:
+            resumed.stopped_because,
+        },
       };
     } finally {
       repository.close();

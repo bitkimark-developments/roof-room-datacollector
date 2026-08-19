@@ -23,6 +23,7 @@ if (
 }
 
 const {
+  resumeGoogleTrendsThroughCore,
   runGoogleTrendsBatchThroughCore,
 } = require(
   path.join(
@@ -244,6 +245,21 @@ class BatchFixtureSource {
   }
 }
 
+class ManualFixtureSource extends BatchFixtureSource {
+  async collect(context) {
+    this.collectCalls.push(
+      context,
+    );
+
+    return {
+      result_type:
+        'MANUAL_ACTION_REQUIRED',
+      message:
+        'Safe deterministic manual action fixture.',
+    };
+  }
+}
+
 const validator = {
   async validate() {
     return {
@@ -442,6 +458,153 @@ const main = async () => {
 
   console.log(
     'PASS GT-BATCH-CORE-003: a later group failure preserves the earlier accepted group and exposes explicit retry-required state',
+  );
+
+  const retrySource =
+    new BatchFixtureSource();
+
+  const retried =
+    await resumeGoogleTrendsThroughCore({
+      directories:
+        failureDirectories,
+      run_id:
+        partial.run.run_id,
+      source:
+        retrySource,
+      retry_failed:
+        true,
+      max_attempts:
+        2,
+      validator,
+      logger:
+        null,
+    });
+
+  assert.deepEqual(
+    retrySource.collectCalls.map(
+      (context) =>
+        context.query_group
+          .query_group_id,
+    ),
+    [
+      'GT02',
+    ],
+  );
+  assert.equal(
+    retried.run.run_status,
+    'COMPLETED',
+  );
+  assert.equal(
+    retried.jobs[0]
+      .attempt.attempt_number,
+    1,
+  );
+  assert.equal(
+    retried.jobs[0]
+      .source_result,
+    null,
+  );
+  assert.equal(
+    retried.jobs[1]
+      .attempt.attempt_number,
+    2,
+  );
+  assert.equal(
+    retried.jobs.every(
+      (entry) =>
+        entry.job
+          .execution_status ===
+          'COMPLETED' &&
+        entry.artifact
+          ?.artifact_state ===
+          'ACCEPTED',
+    ),
+    true,
+  );
+
+  console.log(
+    'PASS GT-BATCH-CORE-004: explicit retry recollects only the failed group as attempt 2 and preserves the earlier accepted group without a new source call',
+  );
+
+  const manualDirectories =
+    makeDirectories(
+      'manual',
+    );
+  const manualSource =
+    new ManualFixtureSource();
+
+  const blocked =
+    await runBatch(
+      manualDirectories,
+      manualSource,
+    );
+
+  assert.equal(
+    blocked.run.run_status,
+    'MANUAL_ACTION_REQUIRED',
+  );
+  assert.equal(
+    blocked.jobs[0]
+      .job.execution_status,
+    'MANUAL_ACTION_REQUIRED',
+  );
+  assert.equal(
+    blocked.jobs[0]
+      .attempt.attempt_number,
+    1,
+  );
+  assert.equal(
+    blocked.jobs[1]
+      .job.execution_status,
+    'PENDING',
+  );
+
+  const continuedSource =
+    new BatchFixtureSource();
+
+  const continued =
+    await resumeGoogleTrendsThroughCore({
+      directories:
+        manualDirectories,
+      run_id:
+        blocked.run.run_id,
+      source:
+        continuedSource,
+      retry_failed:
+        false,
+      validator,
+      logger:
+        null,
+    });
+
+  assert.deepEqual(
+    continuedSource.collectCalls.map(
+      (context) =>
+        context.query_group
+          .query_group_id,
+    ),
+    [
+      'GT01',
+      'GT02',
+    ],
+  );
+  assert.equal(
+    continued.run.run_status,
+    'COMPLETED',
+  );
+  assert.equal(
+    continued.jobs[0]
+      .attempt.attempt_number,
+    1,
+  );
+  assert.equal(
+    continued.jobs[1]
+      .attempt.attempt_number,
+    1,
+  );
+
+  console.log(
+    'PASS GT-BATCH-CORE-005: explicit continuation after manual action reuses the interrupted attempt and then advances to pending groups without automatic retry',
   );
 };
 

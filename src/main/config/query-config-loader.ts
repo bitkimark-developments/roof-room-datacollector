@@ -1,6 +1,7 @@
 import {
   access,
   copyFile,
+  readdir,
   readFile,
 } from 'node:fs/promises';
 import path from 'node:path';
@@ -15,6 +16,20 @@ import type {
 const GOOGLE_TRENDS_SOURCE_ID = 'google-trends';
 const GOOGLE_TRENDS_GROUP_ID_PATTERN = /^GT[0-9]{2}$/;
 const SUPPORTED_CONFIG_VERSION = 1;
+const SUPPORTED_CONFIG_FILENAMES = [
+  'query-groups.yaml',
+  'query-groups.yml',
+  'query-groups.json',
+  'query-groups.csv',
+] as const;
+const CSV_COLUMNS = [
+  'version',
+  'source',
+  'group_id',
+  'group_name',
+  'query_order',
+  'query',
+] as const;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -206,17 +221,353 @@ export const normalizeQueryConfig = (
   };
 };
 
-export const loadQueryConfig = async (
-  configPath: string,
-): Promise<QueryConfig> => {
-  const source = await readFile(configPath, 'utf8');
+const parseCsvRows = (
+  source: string,
+): string[][] => {
+  const text =
+    source
+      .replace(/^\uFEFF/u, '')
+      .replace(/\r\n/gu, '\n')
+      .replace(/\r/gu, '\n');
 
-  const document = parseDocument(source, {
-    prettyErrors: true,
-    strict: true,
-    uniqueKeys: true,
-    version: '1.2',
-  });
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let quoted =
+    false;
+  let quoteClosed =
+    false;
+
+  const pushField = (): void => {
+    row.push(field);
+    field = '';
+    quoteClosed =
+      false;
+  };
+
+  const pushRow = (): void => {
+    pushField();
+    rows.push(row);
+    row = [];
+  };
+
+  for (
+    let index = 0;
+    index < text.length;
+    index += 1
+  ) {
+    const character =
+      text[index];
+
+    if (quoted) {
+      if (character === '"') {
+        if (
+          text[index + 1] ===
+          '"'
+        ) {
+          field += '"';
+          index += 1;
+        } else {
+          quoted =
+            false;
+          quoteClosed =
+            true;
+        }
+      } else {
+        field += character;
+      }
+
+      continue;
+    }
+
+    if (quoteClosed) {
+      if (character === ',') {
+        pushField();
+      } else if (
+        character === '\n'
+      ) {
+        pushRow();
+      } else {
+        throw new QueryConfigError(
+          `CSV parse error at character ${index}: expected comma or row terminator after a quoted field.`,
+        );
+      }
+
+      continue;
+    }
+
+    if (character === '"') {
+      if (field.length > 0) {
+        throw new QueryConfigError(
+          `CSV parse error at character ${index}: quote inside an unquoted field.`,
+        );
+      }
+
+      quoted =
+        true;
+    } else if (
+      character === ','
+    ) {
+      pushField();
+    } else if (
+      character === '\n'
+    ) {
+      pushRow();
+    } else {
+      field += character;
+    }
+  }
+
+  if (quoted) {
+    throw new QueryConfigError(
+      'CSV parse error: file ended inside a quoted field.',
+    );
+  }
+
+  if (
+    field.length > 0 ||
+    row.length > 0 ||
+    quoteClosed
+  ) {
+    pushRow();
+  }
+
+  return rows.filter(
+    (candidate) =>
+      candidate.some(
+        (cell) =>
+          cell.length > 0,
+      ),
+  );
+};
+
+const parseCsvConfig = (
+  source: string,
+): unknown => {
+  const rows =
+    parseCsvRows(
+      source,
+    );
+
+  if (rows.length < 2) {
+    throw new QueryConfigError(
+      'CSV configuration must contain a header and at least one query row.',
+    );
+  }
+
+  const header =
+    rows[0];
+
+  if (
+    header.length !==
+      CSV_COLUMNS.length ||
+    !header.every(
+      (column, index) =>
+        column ===
+        CSV_COLUMNS[index],
+    )
+  ) {
+    throw new QueryConfigError(
+      `CSV header must equal: ${CSV_COLUMNS.join(',')}`,
+    );
+  }
+
+  interface CsvGroup {
+    id: string;
+    name: string;
+    queries: Map<number, string>;
+  }
+
+  const groups =
+    new Map<string, CsvGroup>();
+  let version:
+    number | null = null;
+  let sourceId:
+    string | null = null;
+
+  for (
+    let rowIndex = 1;
+    rowIndex < rows.length;
+    rowIndex += 1
+  ) {
+    const cells =
+      rows[rowIndex];
+    const context =
+      `CSV row ${rowIndex + 1}`;
+
+    if (
+      cells.length !==
+      CSV_COLUMNS.length
+    ) {
+      throw new QueryConfigError(
+        `${context} must contain exactly ${CSV_COLUMNS.length} columns.`,
+      );
+    }
+
+    const rowVersion =
+      Number(cells[0]);
+
+    if (
+      !Number.isSafeInteger(
+        rowVersion,
+      )
+    ) {
+      throw new QueryConfigError(
+        `${context}.version must be an integer.`,
+      );
+    }
+
+    const rowSource =
+      requireNonEmptyString(
+        cells[1],
+        `${context}.source`,
+      );
+    const groupId =
+      requireNonEmptyString(
+        cells[2],
+        `${context}.group_id`,
+      );
+    const groupName =
+      requireNonEmptyString(
+        cells[3],
+        `${context}.group_name`,
+      );
+    const queryOrder =
+      Number(cells[4]);
+    const query =
+      requireNonEmptyString(
+        cells[5],
+        `${context}.query`,
+      );
+
+    if (
+      !Number.isSafeInteger(
+        queryOrder,
+      ) ||
+      queryOrder < 1
+    ) {
+      throw new QueryConfigError(
+        `${context}.query_order must be a positive integer.`,
+      );
+    }
+
+    if (
+      version !== null &&
+      version !== rowVersion
+    ) {
+      throw new QueryConfigError(
+        `${context}.version does not match earlier rows.`,
+      );
+    }
+
+    if (
+      sourceId !== null &&
+      sourceId !== rowSource
+    ) {
+      throw new QueryConfigError(
+        `${context}.source does not match earlier rows.`,
+      );
+    }
+
+    version =
+      rowVersion;
+    sourceId =
+      rowSource;
+
+    const existing =
+      groups.get(
+        groupId,
+      );
+
+    if (
+      existing !== undefined &&
+      existing.name !== groupName
+    ) {
+      throw new QueryConfigError(
+        `${context}.group_name conflicts with earlier rows for ${groupId}.`,
+      );
+    }
+
+    const group =
+      existing ?? {
+        id: groupId,
+        name: groupName,
+        queries:
+          new Map<number, string>(),
+      };
+
+    if (
+      group.queries.has(
+        queryOrder,
+      )
+    ) {
+      throw new QueryConfigError(
+        `${context}.query_order duplicates ${queryOrder} for ${groupId}.`,
+      );
+    }
+
+    group.queries.set(
+      queryOrder,
+      query,
+    );
+    groups.set(
+      groupId,
+      group,
+    );
+  }
+
+  return {
+    version,
+    source:
+      sourceId,
+    groups:
+      [...groups.values()].map(
+        (group) => {
+          const ordered =
+            [...group.queries.entries()]
+              .sort(
+                (left, right) =>
+                  left[0] -
+                  right[0],
+              );
+
+          ordered.forEach(
+            ([order], index) => {
+              if (
+                order !==
+                index + 1
+              ) {
+                throw new QueryConfigError(
+                  `CSV query_order for ${group.id} must be contiguous from 1.`,
+                );
+              }
+            },
+          );
+
+          return {
+            id: group.id,
+            name: group.name,
+            queries:
+              ordered.map(
+                ([, query]) =>
+                  query,
+              ),
+          };
+        },
+      ),
+  };
+};
+
+const parseYamlConfig = (
+  source: string,
+): unknown => {
+  const document =
+    parseDocument(source, {
+      prettyErrors: true,
+      strict: true,
+      uniqueKeys: true,
+      version: '1.2',
+    });
 
   if (document.errors.length > 0) {
     throw new QueryConfigError(
@@ -230,9 +581,59 @@ export const loadQueryConfig = async (
     );
   }
 
-  const rawConfig = document.toJS({
+  return document.toJS({
     maxAliasCount: 0,
   }) as unknown;
+};
+
+export const loadQueryConfig = async (
+  configPath: string,
+): Promise<QueryConfig> => {
+  const source = await readFile(configPath, 'utf8');
+  const extension =
+    path.extname(
+      configPath,
+    ).toLowerCase();
+  let rawConfig:
+    unknown;
+
+  if (
+    extension === '.yaml' ||
+    extension === '.yml'
+  ) {
+    rawConfig =
+      parseYamlConfig(
+        source,
+      );
+  } else if (
+    extension === '.json'
+  ) {
+    try {
+      rawConfig =
+        JSON.parse(
+          source,
+        ) as unknown;
+    } catch (error: unknown) {
+      throw new QueryConfigError(
+        `JSON parse error: ${
+          error instanceof Error
+            ? error.message
+            : 'invalid JSON'
+        }`,
+      );
+    }
+  } else if (
+    extension === '.csv'
+  ) {
+    rawConfig =
+      parseCsvConfig(
+        source,
+      );
+  } else {
+    throw new QueryConfigError(
+      `Unsupported query configuration extension: ${extension || '(none)'}`,
+    );
+  }
 
   return normalizeQueryConfig(rawConfig);
 };
@@ -250,19 +651,52 @@ export const ensureExternalQueryConfig = async (
   directories: ApplicationDirectories,
   packagedConfigRoot: string,
 ): Promise<string> => {
-  const externalConfigPath = path.join(
-    directories.config,
-    'query-groups.yaml',
-  );
+  const configuredFiles =
+    (await readdir(
+      directories.config,
+    )).filter(
+      (filename) =>
+        (
+          SUPPORTED_CONFIG_FILENAMES as readonly string[]
+        ).includes(
+          filename,
+        ),
+    );
 
-  if (!(await fileExists(externalConfigPath))) {
-    const defaultConfigPath = path.join(
+  if (configuredFiles.length > 1) {
+    throw new QueryConfigError(
+      `Multiple query configuration files found: ${configuredFiles.join(', ')}`,
+    );
+  }
+
+  if (configuredFiles.length === 1) {
+    return path.join(
+      directories.config,
+      configuredFiles[0],
+    );
+  }
+
+  const externalConfigPath =
+    path.join(
+      directories.config,
+      'query-groups.yaml',
+    );
+  const defaultConfigPath =
+    path.join(
       packagedConfigRoot,
       'config',
       'query-groups.yaml',
     );
 
-    await copyFile(defaultConfigPath, externalConfigPath);
+  if (
+    !(await fileExists(
+      externalConfigPath,
+    ))
+  ) {
+    await copyFile(
+      defaultConfigPath,
+      externalConfigPath,
+    );
   }
 
   return externalConfigPath;

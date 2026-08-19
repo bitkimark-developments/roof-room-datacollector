@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_DIR="$(
+  cd "$(dirname "${BASH_SOURCE[0]}")/../../.." &&
+    pwd
+)"
+
+cd "$PROJECT_DIR"
+
+npx tsc --noEmit
+npm run lint
+
+bash \
+  tests/integration/m2-gate/run-integrated-m2-gate.sh
+
+bash \
+  tests/integration/config/run-query-config-adapters-test.sh
+
+bash \
+  tests/integration/app/run-google-trends-desktop-controller-test.sh
+
+for TEST_SCRIPT in \
+  "$PROJECT_DIR"/tests/integration/google-trends/run-*-test.sh
+do
+  bash "$TEST_SCRIPT"
+done
+
+bash \
+  tests/integration/export/run-google-trends-export-manager-test.sh
+
+bash \
+  tests/integration/app/run-desktop-ui-smoke-test.sh
+
+echo 'PASS RELEASE-GATE-001: deterministic Core, Google Trends, desktop, configuration, validation, and export gates completed'

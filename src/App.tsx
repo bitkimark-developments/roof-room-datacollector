@@ -1,333 +1,909 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
-import type { ApplicationInfo } from './shared/application-info';
-import type { BootstrapStatus } from './shared/bootstrap-status';
+import type {
+  ApplicationInfo,
+} from './shared/application-info';
+import type {
+  BootstrapStatus,
+} from './shared/bootstrap-status';
+import type {
+  DesktopCollectionJobSummary,
+  DesktopCollectionState,
+} from './shared/collection-control';
 
 interface AppState {
-  applicationInfo: ApplicationInfo;
-  bootstrapStatus: BootstrapStatus;
+  applicationInfo:
+    ApplicationInfo;
+  bootstrapStatus:
+    BootstrapStatus;
 }
 
+type PendingAction =
+  | 'START'
+  | 'RESUME'
+  | 'RETRY'
+  | 'CANCEL'
+  | 'OPEN_FOLDER'
+  | 'OPEN_CONFIG'
+  | null;
+
+const ACTIVE_PHASES =
+  new Set([
+    'RUNNING',
+    'EXPORTING',
+    'CANCELLING',
+  ]);
+
+const phaseLabel = (
+  phase:
+    DesktopCollectionState['phase'],
+): string => {
+  switch (phase) {
+    case 'IDLE':
+      return 'Hazır';
+    case 'RUNNING':
+      return 'Toplanıyor';
+    case 'EXPORTING':
+      return 'Çıktı hazırlanıyor';
+    case 'CANCELLING':
+      return 'İptal ediliyor';
+    case 'COMPLETED':
+      return 'Tamamlandı';
+    case 'COMPLETED_WITH_WARNINGS':
+      return 'Uyarıyla tamamlandı';
+    case 'FAILED':
+      return 'Durduruldu';
+    case 'EXPORT_FAILED':
+      return 'Çıktı hatası';
+    case 'MANUAL_ACTION_REQUIRED':
+      return 'Manuel işlem gerekli';
+    case 'CANCELLED':
+      return 'İptal edildi';
+  }
+};
+
+const jobTone = (
+  job:
+    DesktopCollectionJobSummary,
+): string => {
+  if (
+    job.validation_status ===
+      'LOW_DATA' ||
+    job.validation_status ===
+      'NO_DATA'
+  ) {
+    return 'warning';
+  }
+
+  if (
+    job.execution_status ===
+      'MANUAL_ACTION_REQUIRED'
+  ) {
+    return 'manual';
+  }
+
+  if (
+    job.execution_status ===
+      'COMPLETED' &&
+    job.validation_status ===
+      'VALID'
+  ) {
+    return 'success';
+  }
+
+  if (
+    job.execution_status ===
+      'FAILED' ||
+    job.artifact_state ===
+      'REJECTED'
+  ) {
+    return 'danger';
+  }
+
+  return 'neutral';
+};
+
+const compactRunId = (
+  value: string | null,
+): string => {
+  if (value === null) {
+    return 'Henüz yok';
+  }
+
+  if (value.length <= 28) {
+    return value;
+  }
+
+  return `${value.slice(0, 20)}…${value.slice(-6)}`;
+};
+
 export function App() {
-  const [appState, setAppState] = useState<AppState | null>(null);
-  const [ipcError, setIpcError] = useState<string | null>(null);
+  const [appState, setAppState] =
+    useState<AppState | null>(
+      null,
+    );
+  const [collection, setCollection] =
+    useState<DesktopCollectionState | null>(
+      null,
+    );
+  const [pendingAction, setPendingAction] =
+    useState<PendingAction>(
+      null,
+    );
+  const [errorMessage, setErrorMessage] =
+    useState<string | null>(
+      null,
+    );
+  const [selectedGroupIds, setSelectedGroupIds] =
+    useState<string[]>(
+      [],
+    );
+
+  const refreshCollection =
+    useCallback(async (): Promise<void> => {
+      const next =
+        await window.roofroom
+          .getCollectionState();
+      setCollection(next);
+    }, []);
 
   useEffect(() => {
-    let active = true;
+    let active =
+      true;
 
     Promise.all([
-      window.roofroom.getApplicationInfo(),
-      window.roofroom.getBootstrapStatus(),
+      window.roofroom
+        .getApplicationInfo(),
+      window.roofroom
+        .getBootstrapStatus(),
+      window.roofroom
+        .getCollectionState(),
     ])
-      .then(([applicationInfo, bootstrapStatus]) => {
-        if (active) {
-          setAppState({
-            applicationInfo,
-            bootstrapStatus,
-          });
-        }
-      })
-      .catch((error: unknown) => {
+      .then(([
+        applicationInfo,
+        bootstrapStatus,
+        collectionState,
+      ]) => {
         if (!active) {
           return;
         }
 
-        setIpcError(
-          error instanceof Error ? error.message : 'Unknown IPC error',
+        setAppState({
+          applicationInfo,
+          bootstrapStatus,
+        });
+        setCollection(
+          collectionState,
         );
+
+        if (
+          bootstrapStatus
+            .query_config.status ===
+          'READY'
+        ) {
+          setSelectedGroupIds(
+            bootstrapStatus
+              .query_config.config
+              .groups.map(
+                (group) =>
+                  group.query_group_id,
+              ),
+          );
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : 'Uygulama başlatma durumu okunamadı.',
+          );
+        }
       });
 
     return () => {
-      active = false;
+      active =
+        false;
     };
   }, []);
 
-  const queryCount = useMemo(() => {
-    if (
-      !appState ||
-      appState.bootstrapStatus.query_config.status !== 'READY'
-    ) {
-      return 0;
+  useEffect(() => {
+    if (collection === null) {
+      return;
     }
 
-    return appState.bootstrapStatus.query_config.config.groups.reduce(
-      (total, group) => total + group.queries.length,
-      0,
-    );
-  }, [appState]);
+    let active =
+      true;
+    let timeoutId:
+      ReturnType<typeof setTimeout>;
 
-  const ipcStatus = ipcError
-    ? 'ERROR'
-    : appState
-      ? 'READY'
-      : 'LOADING';
+    const poll =
+      async (): Promise<void> => {
+        try {
+          await refreshCollection();
+        } catch (error: unknown) {
+          if (active) {
+            setErrorMessage(
+              error instanceof Error
+                ? error.message
+                : 'Toplama durumu yenilenemedi.',
+            );
+          }
+        } finally {
+          if (active) {
+            timeoutId =
+              setTimeout(
+                poll,
+                1000,
+              );
+          }
+        }
+      };
 
-  const queryConfigStatus =
-    appState?.bootstrapStatus.query_config.status ?? 'LOADING';
+    timeoutId =
+      setTimeout(
+        poll,
+        1000,
+      );
 
-  const sourceRegistryStatus =
-    appState?.bootstrapStatus.source_registry.status ?? 'LOADING';
+    return () => {
+      active =
+        false;
+      clearTimeout(
+        timeoutId,
+      );
+    };
+  }, [
+    collection !== null,
+    refreshCollection,
+  ]);
 
-  const databaseStatus =
-    appState?.bootstrapStatus.database.status ?? 'LOADING';
+  const runAction =
+    async (
+      action: Exclude<
+        PendingAction,
+        null
+      >,
+      operation: () =>
+        Promise<DesktopCollectionState | void>,
+    ): Promise<void> => {
+      setPendingAction(
+        action,
+      );
+      setErrorMessage(
+        null,
+      );
 
-  const firstGroup =
-    appState?.bootstrapStatus.query_config.status === 'READY'
-      ? appState.bootstrapStatus.query_config.config.groups[0]
+      try {
+        const next =
+          await operation();
+
+        if (next) {
+          setCollection(next);
+        }
+      } catch (error: unknown) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : 'İşlem tamamlanamadı.',
+        );
+      } finally {
+        setPendingAction(
+          null,
+        );
+      }
+    };
+
+  const config =
+    appState?.bootstrapStatus
+      .query_config.status === 'READY'
+      ? appState.bootstrapStatus
+          .query_config.config
       : null;
 
-  const googleTrendsSource =
-    appState?.bootstrapStatus.source_registry.sources.find(
-      (source) => source.source_id === 'google-trends',
-    ) ?? null;
+  const queryCount =
+    useMemo(
+      () =>
+        config?.groups.reduce(
+          (total, group) =>
+            total +
+            group.queries.length,
+          0,
+        ) ?? 0,
+      [config],
+    );
+
+  const isActive =
+    collection !== null &&
+    ACTIVE_PHASES.has(
+      collection.phase,
+    );
+  const completedGroups =
+    collection === null
+      ? 0
+      : Math.max(
+          collection.groups_collected,
+          collection.jobs.filter(
+            (job) =>
+              job.execution_status ===
+              'COMPLETED',
+          ).length,
+        );
+  const progress =
+    collection === null ||
+    collection.total_groups === 0
+      ? 0
+      : Math.round(
+          (completedGroups /
+            collection.total_groups) *
+            100,
+        );
+  const bootstrapReady =
+    appState?.bootstrapStatus
+        .query_config.status ===
+      'READY' &&
+    appState.bootstrapStatus
+        .database.status ===
+      'READY';
+
+  const toggleGroup = (
+    groupId: string,
+  ): void => {
+    setSelectedGroupIds(
+      (current) =>
+        current.includes(
+          groupId,
+        )
+          ? current.filter(
+              (candidate) =>
+                candidate !==
+                groupId,
+            )
+          : [
+              ...current,
+              groupId,
+            ],
+    );
+  };
+
+  if (
+    appState === null ||
+    collection === null
+  ) {
+    return (
+      <main className="loading-shell">
+        <div className="loader" />
+        <p>
+          RoofRoom hazırlanıyor…
+        </p>
+        {errorMessage && (
+          <p
+            className="inline-alert danger"
+            role="alert"
+          >
+            {errorMessage}
+          </p>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">
-      <section className="status-card">
-        <p className="eyebrow">M1 · Application Skeleton</p>
+      <header className="topbar">
+        <div className="brand-mark">
+          RR
+        </div>
+        <div className="brand-copy">
+          <strong>
+            RoofRoom Data Collector
+          </strong>
+          <span>
+            Google Trends · Interest Over Time
+          </span>
+        </div>
+        <div
+          className={`phase-pill phase-${collection.phase.toLowerCase()}`}
+          aria-live="polite"
+        >
+          <span />
+          {phaseLabel(
+            collection.phase,
+          )}
+        </div>
+      </header>
 
-        <h1>RoofRoom Data Collector</h1>
-
-        <p className="description">
-          Local-first data collection, validation, provenance, and export.
-        </p>
-
-        <div className="status-row">
-          <span>React renderer</span>
-          <strong>READY</strong>
+      <section className="hero-grid">
+        <div className="hero-copy">
+          <p className="eyebrow">
+            GOOGLE TRENDS MVP
+          </p>
+          <h1>
+            Güvenilir veriyi topla,
+            doğrula ve kanıtıyla sakla.
+          </h1>
+          <p className="hero-description">
+            Yapılandırılmış sorgu kümeleri sırayla işlenir. Her ham CSV,
+            doğrulama sonucu ve kaynak bilgisi uygulamaya ait çalışma
+            klasöründe korunur.
+          </p>
         </div>
 
-        <div className="status-row">
-          <span>Typed IPC bridge</span>
-          <strong>{ipcStatus}</strong>
+        <div className="configuration-card">
+          <div>
+            <span>Ülke</span>
+            <strong>Türkiye</strong>
+          </div>
+          <div>
+            <span>Tarih aralığı</span>
+            <strong>
+              18 Ağu 2024 — 17 Ağu 2026
+            </strong>
+          </div>
+          <div>
+            <span>Arama türü</span>
+            <strong>Web Search</strong>
+          </div>
+          <div>
+            <span>Kategori</span>
+            <strong>All Categories</strong>
+          </div>
         </div>
+      </section>
 
-        <div className="status-row">
-          <span>Application directories</span>
-          <strong>{appState ? 'READY' : 'LOADING'}</strong>
+      {errorMessage && (
+        <div
+          className="inline-alert danger"
+          role="alert"
+        >
+          <strong>İşlem tamamlanamadı</strong>
+          <span>{errorMessage}</span>
+          <button
+            type="button"
+            className="alert-close"
+            onClick={() =>
+              setErrorMessage(null)
+            }
+            aria-label="Hata mesajını kapat"
+          >
+            ×
+          </button>
         </div>
+      )}
 
-        <div className="status-row">
-          <span>YAML QueryConfig</span>
-          <strong>{queryConfigStatus}</strong>
+      {collection.phase ===
+        'MANUAL_ACTION_REQUIRED' && (
+        <div
+          className="inline-alert manual"
+          role="status"
+        >
+          <strong>
+            Google penceresinde işlem gerekli
+          </strong>
+          <span>
+            Açık sağlayıcı penceresindeki güvenlik veya oturum adımını
+            kendiniz tamamlayın. Uygulama CAPTCHA, 2FA veya hız sınırını
+            aşmaya çalışmaz.
+          </span>
         </div>
+      )}
 
-        <div className="status-row">
-          <span>SourceRegistry</span>
-          <strong>{sourceRegistryStatus}</strong>
+      {collection.export.status ===
+        'COMPLETED' && (
+        <div
+          className="inline-alert success"
+          role="status"
+        >
+          <strong>
+            Veri paketi hazır
+          </strong>
+          <span>
+            {collection.export
+              .normalized_row_count}{' '}
+            normalize satır ile CSV paketi ve XLSX çalışma kitabı
+            uygulama çalışma klasöründe oluşturuldu.
+          </span>
         </div>
+      )}
 
-        <div className="status-row">
-          <span>SQLite bootstrap</span>
-          <strong>{databaseStatus}</strong>
+      {collection.export.status ===
+        'FAILED' && (
+        <div
+          className="inline-alert danger"
+          role="alert"
+        >
+          <strong>
+            Yapılandırılmış çıktı oluşturulamadı
+          </strong>
+          <span>
+            Kabul edilmiş ham kanıt korunuyor.{' '}
+            {collection.export.error}
+          </span>
         </div>
+      )}
 
-        {appState && (
-          <dl className="application-info">
+      <section className="dashboard-grid">
+        <article className="panel run-panel">
+          <div className="panel-heading">
             <div>
-              <dt>Application</dt>
+              <p className="eyebrow">
+                AKTİF ÇALIŞMA
+              </p>
+              <h2>
+                Toplama kontrolü
+              </h2>
+            </div>
+            <span className="run-id">
+              {compactRunId(
+                collection.run_id ??
+                  collection.recovery
+                    .run_id,
+              )}
+            </span>
+          </div>
+
+          <div className="progress-copy">
+            <strong>
+              {completedGroups} /{' '}
+              {collection.total_groups}{' '}
+              küme tamamlandı
+            </strong>
+            <span>
+              {collection.current_group_id
+                ? `${collection.current_group_id} işleniyor`
+                : collection.message ??
+                  'Yeni bir çalışma başlatmaya hazır.'}
+            </span>
+          </div>
+          <div
+            className="progress-track"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress}
+            aria-label="Toplama ilerlemesi"
+          >
+            <span
+              style={{
+                width: `${progress}%`,
+              }}
+            />
+          </div>
+
+          <div className="primary-actions">
+            <button
+              type="button"
+              className="primary-button"
+              disabled={
+                !bootstrapReady ||
+                selectedGroupIds.length ===
+                  0 ||
+                isActive ||
+                pendingAction !== null
+              }
+              onClick={() =>
+                void runAction(
+                  'START',
+                  () =>
+                    window.roofroom
+                      .startCollection(
+                        selectedGroupIds,
+                      ),
+                )
+              }
+            >
+              {pendingAction === 'START'
+                ? 'Başlatılıyor…'
+                : 'Toplamayı Başlat'}
+            </button>
+            <button
+              type="button"
+              className="danger-button"
+              disabled={
+                !isActive ||
+                collection.phase ===
+                  'CANCELLING' ||
+                pendingAction !== null
+              }
+              onClick={() =>
+                void runAction(
+                  'CANCEL',
+                  () =>
+                    window.roofroom
+                      .cancelCollection(),
+                )
+              }
+            >
+              {pendingAction === 'CANCEL'
+                ? 'İptal ediliyor…'
+                : 'İptal Et'}
+            </button>
+          </div>
+
+          <div className="secondary-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={
+                !collection.recovery
+                  .can_resume ||
+                isActive ||
+                pendingAction !== null
+              }
+              onClick={() =>
+                void runAction(
+                  'RESUME',
+                  () =>
+                    window.roofroom
+                      .resumeCollection(),
+                )
+              }
+            >
+              Önceki Çalışmaya Devam Et
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={
+                !collection.recovery
+                  .can_retry ||
+                isActive ||
+                pendingAction !== null
+              }
+              onClick={() =>
+                void runAction(
+                  'RETRY',
+                  () =>
+                    window.roofroom
+                      .retryFailedCollection(),
+                )
+              }
+            >
+              Başarısız İşi Yeniden Dene
+            </button>
+          </div>
+        </article>
+
+        <aside className="panel summary-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">
+                YAPILANDIRMA
+              </p>
+              <h2>
+                Sorgu havuzu
+              </h2>
+            </div>
+          </div>
+          <dl className="summary-list">
+            <div>
+              <dt>Küme</dt>
               <dd>
-                {appState.applicationInfo.name}{' '}
-                {appState.applicationInfo.version}
+                {selectedGroupIds.length} /{' '}
+                {config?.groups.length ?? 0}
               </dd>
             </div>
-
             <div>
-              <dt>Runtime</dt>
-              <dd>
-                Electron {appState.applicationInfo.electronVersion}
-              </dd>
-            </div>
-
-            <div>
-              <dt>Platform</dt>
-              <dd>
-                {appState.applicationInfo.platform} /{' '}
-                {appState.applicationInfo.architecture}
-              </dd>
-            </div>
-
-            <div>
-              <dt>App data</dt>
-              <dd>
-                {appState.bootstrapStatus.directories.app_data_root}
-              </dd>
-            </div>
-          </dl>
-        )}
-
-        {appState?.bootstrapStatus.query_config.status ===
-          'READY' && (
-          <dl className="application-info">
-            <div>
-              <dt>Config source</dt>
-              <dd>
-                {
-                  appState.bootstrapStatus.query_config.config
-                    .source_id
-                }
-              </dd>
-            </div>
-
-            <div>
-              <dt>Config version</dt>
-              <dd>
-                {
-                  appState.bootstrapStatus.query_config.config
-                    .config_version
-                }
-              </dd>
-            </div>
-
-            <div>
-              <dt>Query groups</dt>
-              <dd>
-                {
-                  appState.bootstrapStatus.query_config.config.groups
-                    .length
-                }
-              </dd>
-            </div>
-
-            <div>
-              <dt>Queries</dt>
+              <dt>Keyword</dt>
               <dd>{queryCount}</dd>
             </div>
-
-            {firstGroup && (
-              <div>
-                <dt>Order proof</dt>
-                <dd>
-                  {firstGroup.query_group_id}: {' '}
-                  {firstGroup.queries.join(' → ')}
-                </dd>
-              </div>
-            )}
-          </dl>
-        )}
-
-        {googleTrendsSource && (
-          <dl className="application-info">
             <div>
-              <dt>Registered source</dt>
+              <dt>Kaynak durumu</dt>
               <dd>
-                {googleTrendsSource.source_name} /{' '}
-                {googleTrendsSource.source_id}
+                {bootstrapReady
+                  ? 'HAZIR'
+                  : 'HATA'}
               </dd>
             </div>
-
             <div>
-              <dt>Source mode</dt>
-              <dd>{googleTrendsSource.source_mode}</dd>
-            </div>
-
-            <div>
-              <dt>Dataset</dt>
-              <dd>{googleTrendsSource.dataset_types.join(', ')}</dd>
-            </div>
-
-            <div>
-              <dt>Source readiness</dt>
+              <dt>Uygulama</dt>
               <dd>
-                {googleTrendsSource.readiness.readiness_status}
+                v{appState.applicationInfo.version}
               </dd>
             </div>
-
             <div>
-              <dt>Readiness message</dt>
+              <dt>Çıktı</dt>
               <dd>
-                {googleTrendsSource.readiness.message ?? 'None'}
-              </dd>
-            </div>
-
-            <div>
-              <dt>Max concurrency</dt>
-              <dd>
-                {googleTrendsSource.capabilities.max_concurrency}
+                {collection.export.status}
               </dd>
             </div>
           </dl>
-        )}
-
-        {appState?.bootstrapStatus.database.status === 'READY' && (
-          <dl className="application-info">
-            <div>
-              <dt>Database</dt>
-              <dd>
-                {appState.bootstrapStatus.database.database_path}
-              </dd>
-            </div>
-
-            <div>
-              <dt>SQLite</dt>
-              <dd>
-                {appState.bootstrapStatus.database.sqlite_version}
-              </dd>
-            </div>
-
-            <div>
-              <dt>Schema version</dt>
-              <dd>
-                {appState.bootstrapStatus.database.schema_version}
-              </dd>
-            </div>
-
-            <div>
-              <dt>Migrations applied</dt>
-              <dd>
-                {
-                  appState.bootstrapStatus.database
-                    .migrations_applied
+          <div className="group-selector">
+            <div className="group-selector-heading">
+              <span>Toplanacak kümeler</span>
+              <button
+                type="button"
+                disabled={
+                  isActive ||
+                  config === null
                 }
-              </dd>
+                onClick={() =>
+                  setSelectedGroupIds(
+                    selectedGroupIds.length ===
+                      config?.groups.length
+                      ? []
+                      : config?.groups.map(
+                          (group) =>
+                            group.query_group_id,
+                        ) ?? [],
+                  )
+                }
+              >
+                {selectedGroupIds.length ===
+                config?.groups.length
+                  ? 'Tümünü kaldır'
+                  : 'Tümünü seç'}
+              </button>
             </div>
-
-            <div>
-              <dt>Journal mode</dt>
-              <dd>
-                {appState.bootstrapStatus.database.journal_mode}
-              </dd>
+            <div className="group-options">
+              {config?.groups.map(
+                (group) => (
+                  <label
+                    key={group.query_group_id}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedGroupIds.includes(
+                        group.query_group_id,
+                      )}
+                      disabled={isActive}
+                      onChange={() =>
+                        toggleGroup(
+                          group.query_group_id,
+                        )
+                      }
+                    />
+                    <span>
+                      <strong>
+                        {group.query_group_id}
+                      </strong>
+                      <small>
+                        {group.query_group_name}{' '}
+                        · {group.queries.length} keyword
+                      </small>
+                    </span>
+                  </label>
+                ),
+              )}
             </div>
-
-            <div>
-              <dt>Foreign keys</dt>
-              <dd>
-                {appState.bootstrapStatus.database.foreign_keys
-                  ? 'ON'
-                  : 'OFF'}
-              </dd>
-            </div>
-
-            <div>
-              <dt>Quick check</dt>
-              <dd>
-                {appState.bootstrapStatus.database.quick_check}
-              </dd>
-            </div>
-          </dl>
-        )}
-
-        {appState?.bootstrapStatus.query_config.status ===
-          'ERROR' && (
-          <p className="error-message">
-            QueryConfig error:{' '}
-            {appState.bootstrapStatus.query_config.error}
+          </div>
+          <div className="folder-actions">
+            <button
+              type="button"
+              className="folder-button"
+              disabled={
+                pendingAction !== null
+              }
+              onClick={() =>
+                void runAction(
+                  'OPEN_FOLDER',
+                  () =>
+                    window.roofroom
+                      .openDataFolder(),
+                )
+              }
+            >
+              Veri Klasörünü Aç
+            </button>
+            <button
+              type="button"
+              className="folder-button"
+              disabled={
+                pendingAction !== null ||
+                isActive
+              }
+              onClick={() =>
+                void runAction(
+                  'OPEN_CONFIG',
+                  () =>
+                    window.roofroom
+                      .openConfigFolder(),
+                )
+              }
+            >
+              Yapılandırma Klasörünü Aç
+            </button>
+          </div>
+          <p className="storage-note">
+            Ham kanıtın asıl kopyası Downloads değil, uygulamaya ait
+            çalışma klasörüdür. Sorgu havuzu tek bir
+            query-groups.yaml, .json veya .csv dosyasından bir sonraki
+            açılışta yüklenir.
           </p>
-        )}
+        </aside>
+      </section>
 
-        {appState?.bootstrapStatus.database.status === 'ERROR' && (
-          <p className="error-message">
-            SQLite error:{' '}
-            {appState.bootstrapStatus.database.error}
-          </p>
-        )}
+      <section className="panel jobs-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">
+              SONUÇLAR
+            </p>
+            <h2>
+              Sorgu kümeleri
+            </h2>
+          </div>
+          <span className="result-count">
+            {collection.jobs.length}{' '}
+            kayıt
+          </span>
+        </div>
 
-        {ipcError && (
-          <p className="error-message">
-            IPC error: {ipcError}
-          </p>
+        {collection.jobs.length === 0 ? (
+          <div className="empty-state">
+            <div>01</div>
+            <h3>
+              Henüz toplama sonucu yok
+            </h3>
+            <p>
+              Başlatıldığında kümeler sırayla toplanacak; her biri kendi
+              doğrulama ve artifact durumuyla burada görünecek.
+            </p>
+          </div>
+        ) : (
+          <div className="job-grid">
+            {collection.jobs.map(
+              (job) => (
+                <article
+                  className={`job-card ${jobTone(job)}`}
+                  key={job.query_group_id}
+                >
+                  <div className="job-card-heading">
+                    <strong>
+                      {job.query_group_id}
+                    </strong>
+                    <span>
+                      {job.validation_status}
+                    </span>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>İşlem</dt>
+                      <dd>
+                        {job.execution_status}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Artifact</dt>
+                      <dd>
+                        {job.artifact_state ??
+                          'YOK'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Deneme</dt>
+                      <dd>
+                        {job.attempt_number ??
+                          '—'}
+                      </dd>
+                    </div>
+                  </dl>
+                  {job.error_code && (
+                    <p className="job-error">
+                      {job.error_code}
+                    </p>
+                  )}
+                </article>
+              ),
+            )}
+          </div>
         )}
       </section>
+
+      <footer>
+        <span>
+          Yerel öncelikli · Kanıt korumalı · Modüler kaynak mimarisi
+        </span>
+        <span>
+          {appState.applicationInfo.platform} /{' '}
+          {appState.applicationInfo.architecture}
+        </span>
+      </footer>
     </main>
   );
 }

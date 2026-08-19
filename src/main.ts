@@ -1,9 +1,20 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  shell,
+} from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
 import { ensureApplicationDirectories } from './main/app/application-directories';
+import {
+  createGoogleTrendsDesktopController,
+} from './main/app/google-trends-desktop-controller-factory';
+import type {
+  GoogleTrendsDesktopController,
+} from './main/app/google-trends-desktop-controller';
 import {
   ensureExternalQueryConfig,
   loadQueryConfig,
@@ -29,7 +40,11 @@ if (started) {
 
 let googleTrendsRuntime:
   GoogleTrendsRuntime | null =
-    null;
+  null;
+
+let googleTrendsController:
+  GoogleTrendsDesktopController | null =
+  null;
 
 let googleTrendsShutdownPromise:
   Promise<void> | null =
@@ -76,7 +91,20 @@ const assertTrustedIpcSender = (
 
 const registerIpcHandlers = (
   bootstrapStatus: BootstrapStatus,
+  controller:
+    GoogleTrendsDesktopController | null,
 ): void => {
+  const requireController =
+    (): GoogleTrendsDesktopController => {
+      if (controller === null) {
+        throw new Error(
+          'Google Trends collection is unavailable because application bootstrap is not ready.',
+        );
+      }
+
+      return controller;
+    };
+
   ipcMain.handle(
     IPC_CHANNELS.GET_APPLICATION_INFO,
     (event): ApplicationInfo => {
@@ -97,6 +125,133 @@ const registerIpcHandlers = (
     (event): BootstrapStatus => {
       assertTrustedIpcSender(event);
       return bootstrapStatus;
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.GET_COLLECTION_STATE,
+    (event) => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      return requireController()
+        .getState();
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.START_COLLECTION,
+    (
+      event,
+      queryGroupIds:
+        unknown,
+    ) => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      if (
+        !Array.isArray(
+          queryGroupIds,
+        ) ||
+        queryGroupIds.length <
+          1 ||
+        !queryGroupIds.every(
+          (groupId) =>
+            typeof groupId ===
+              'string' &&
+            groupId.trim().length >
+              0,
+        )
+      ) {
+        throw new Error(
+          'Collection start requires one or more query group IDs.',
+        );
+      }
+
+      return requireController()
+        .start(
+          queryGroupIds,
+        );
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.RESUME_COLLECTION,
+    (event) => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      return requireController()
+        .resume();
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.RETRY_FAILED_COLLECTION,
+    (event) => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      return requireController()
+        .retryFailed();
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CANCEL_COLLECTION,
+    async (event) => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      return requireController()
+        .cancel();
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.OPEN_DATA_FOLDER,
+    async (event): Promise<void> => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      const errorMessage =
+        await shell.openPath(
+          bootstrapStatus
+            .directories.data,
+        );
+
+      if (errorMessage.length > 0) {
+        throw new Error(
+          `Could not open the application data folder: ${errorMessage}`,
+        );
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.OPEN_CONFIG_FOLDER,
+    async (event): Promise<void> => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      const errorMessage =
+        await shell.openPath(
+          bootstrapStatus
+            .directories.config,
+        );
+
+      if (errorMessage.length > 0) {
+        throw new Error(
+          `Could not open the application config folder: ${errorMessage}`,
+        );
+      }
     },
   );
 };
@@ -182,6 +337,28 @@ const initializeBootstrapStatus =
 
     const database = initializeDatabase(directories);
 
+    if (
+      queryConfig.status ===
+        'READY' &&
+      database.status ===
+        'READY'
+    ) {
+      googleTrendsController =
+        createGoogleTrendsDesktopController({
+          directories,
+          query_config:
+            queryConfig.config,
+          source:
+            runtime.source,
+          application_version:
+            app.getVersion(),
+          close_browser:
+            () =>
+              runtime.browser_manager
+                .close(),
+        });
+    }
+
     return {
       directories,
       query_config: queryConfig,
@@ -196,7 +373,10 @@ const initializeBootstrapStatus =
 app.whenReady().then(async () => {
   const bootstrapStatus = await initializeBootstrapStatus();
 
-  registerIpcHandlers(bootstrapStatus);
+  registerIpcHandlers(
+    bootstrapStatus,
+    googleTrendsController,
+  );
   createWindow();
 
   app.on('activate', () => {
@@ -218,6 +398,9 @@ app.on('before-quit', (event) => {
   const runtime =
     googleTrendsRuntime;
 
+  const controller =
+    googleTrendsController;
+
   if (runtime === null) {
     return;
   }
@@ -229,10 +412,30 @@ app.on('before-quit', (event) => {
   // event can then continue normally.
   googleTrendsRuntime =
     null;
+  googleTrendsController =
+    null;
 
   googleTrendsShutdownPromise =
-    runtime.browser_manager
-      .close()
+    (async (): Promise<void> => {
+      if (controller !== null) {
+        const state =
+          controller.getState();
+
+        if (
+          state.phase ===
+            'RUNNING' ||
+          state.phase ===
+            'CANCELLING'
+        ) {
+          await controller.cancel();
+        }
+
+        await controller.waitForIdle();
+      }
+
+      await runtime.browser_manager
+        .close();
+    })()
       .catch(
         (): void => {
           // Shutdown failure must not trap Electron in a quit loop.

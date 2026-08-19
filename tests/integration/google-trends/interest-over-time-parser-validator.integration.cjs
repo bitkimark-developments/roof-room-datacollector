@@ -196,6 +196,47 @@ const duplicateFirstDataRow = (
   );
 };
 
+const replaceAllDataValues = (
+  bytes,
+  replacement,
+) => {
+  const lines =
+    bytes
+      .toString('utf8')
+      .split('\n');
+
+  for (
+    let index = 3;
+    index < lines.length;
+    index += 1
+  ) {
+    if (
+      !/^\d{4}-\d{2}-\d{2},/u.test(
+        lines[index],
+      )
+    ) {
+      continue;
+    }
+
+    const columns =
+      lines[index].split(',');
+
+    lines[index] = [
+      columns[0],
+      ...columns
+        .slice(1)
+        .map(
+          () => replacement,
+        ),
+    ].join(',');
+  }
+
+  return Buffer.from(
+    lines.join('\n'),
+    'utf8',
+  );
+};
+
 const main = () => {
   const fixtureBytes =
     fs.readFileSync(
@@ -703,6 +744,77 @@ const main = () => {
 
   console.log(
     'PASS GT-VAL-007: empty relative-interest cells remain null and are never coerced to zero',
+  );
+
+  const allZeroDecision =
+    validate(
+      replaceAllDataValues(
+        fixtureBytes,
+        '0',
+      ),
+    );
+
+  assert.equal(
+    allZeroDecision
+      .validation_status,
+    'LOW_DATA',
+  );
+  assert.equal(
+    allZeroDecision
+      .findings.some(
+        (finding) =>
+          finding.check_id ===
+            'GT_ALL_ZERO' &&
+          finding.severity ===
+            'WARNING' &&
+          !finding.passed,
+      ),
+    true,
+  );
+  assert.equal(
+    allZeroDecision
+      .checks_failed,
+    0,
+  );
+
+  console.log(
+    'PASS GT-VAL-009: structurally valid all-zero evidence resolves to visible LOW_DATA rather than silently VALID or fabricated NO_DATA',
+  );
+
+  const allMissingDecision =
+    validate(
+      replaceAllDataValues(
+        fixtureBytes,
+        '',
+      ),
+    );
+
+  assert.equal(
+    allMissingDecision
+      .validation_status,
+    'LOW_DATA',
+  );
+  assert.equal(
+    allMissingDecision
+      .findings.find(
+        (finding) =>
+          finding.check_id ===
+          'GT_SIGNAL_DENSITY',
+      ).severity,
+    'WARNING',
+  );
+  assert.equal(
+    allMissingDecision
+      .findings.find(
+        (finding) =>
+          finding.check_id ===
+          'GT_ALL_ZERO',
+      ).passed,
+    true,
+  );
+
+  console.log(
+    'PASS GT-VAL-010: all-missing relative-interest evidence remains null and LOW_DATA without being mislabeled as all-zero or NO_DATA',
   );
 };
 

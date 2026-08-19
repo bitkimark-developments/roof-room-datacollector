@@ -46,6 +46,25 @@ const finding = (
   actual,
 });
 
+const warningFinding = (
+  checkId: string,
+  message: string,
+  expected:
+    ValidationFinding['expected'],
+  actual:
+    ValidationFinding['actual'],
+): ValidationFinding => ({
+  check_id:
+    checkId,
+  severity:
+    'WARNING',
+  passed:
+    false,
+  message,
+  expected,
+  actual,
+});
+
 const decision = (
   validationStatus:
     FinalValidationStatus,
@@ -331,6 +350,66 @@ const relativeInterestRangeIsValid = (
       ),
   );
 
+const signalStatistics = (
+  parsed:
+    ParsedGoogleTrendsInterestOverTime,
+) => {
+  const values =
+    parsed.rows.flatMap(
+      (row) =>
+        row.values.map(
+          (value) =>
+            value.relative_interest,
+        ),
+    );
+  const nonMissing =
+    values.filter(
+      (value) =>
+        value !== null,
+    );
+  const nonZero =
+    nonMissing.filter(
+      (value) =>
+        value > 0,
+    );
+  const queriesWithSignal =
+    parsed.series.filter(
+      (series) =>
+        parsed.rows.some(
+          (row) =>
+            row.values.some(
+              (value) =>
+                value.query ===
+                  series.query &&
+                value.relative_interest !==
+                  null &&
+                value.relative_interest >
+                  0,
+            ),
+        ),
+    ).length;
+
+  return {
+    total_value_cells:
+      values.length,
+    non_missing_cells:
+      nonMissing.length,
+    non_zero_cells:
+      nonZero.length,
+    queries_with_any_signal:
+      queriesWithSignal,
+    queries_total:
+      parsed.series.length,
+    all_values_are_zero:
+      values.length > 0 &&
+      nonMissing.length ===
+        values.length &&
+      nonZero.length === 0,
+    has_no_positive_signal:
+      nonZero.length === 0,
+  };
+};
+
 const createParseFailureDecision = (
   baseFindings:
     ValidationFinding[],
@@ -521,6 +600,42 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
       'integer or null',
       'parsed without coercing missing values to zero',
     ),
+  );
+
+  const signal =
+    signalStatistics(
+      parsed,
+    );
+
+  findings.push(
+    signal.all_values_are_zero
+      ? warningFinding(
+          'GT_ALL_ZERO',
+          'Every parsed relative-interest cell is zero; the structurally valid artifact is retained with a visible low-data warning.',
+          'at least one positive relative-interest cell',
+          signal,
+        )
+      : finding(
+          'GT_ALL_ZERO',
+          true,
+          'The dataset is not an all-zero time series.',
+          'not all relative-interest cells equal zero',
+          signal,
+        ),
+    signal.has_no_positive_signal
+      ? warningFinding(
+          'GT_SIGNAL_DENSITY',
+          'No positive relative-interest signal was observed; no percentage threshold or search-volume meaning was inferred.',
+          'at least one source-observed positive relative-interest value',
+          signal,
+        )
+      : finding(
+          'GT_SIGNAL_DENSITY',
+          true,
+          'At least one source-observed positive relative-interest value is present.',
+          'positive source signal present',
+          signal,
+        ),
   );
 
   const actualQueries =
@@ -715,6 +830,16 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
   if (!coverageMatches) {
     return decision(
       'DATE_MISMATCH',
+      findings,
+      validatedMetadata,
+    );
+  }
+
+  if (
+    signal.has_no_positive_signal
+  ) {
+    return decision(
+      'LOW_DATA',
       findings,
       validatedMetadata,
     );
