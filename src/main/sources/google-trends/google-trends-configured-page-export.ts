@@ -1,19 +1,13 @@
 import {
   createHash,
 } from 'node:crypto';
-import {
-  readFile,
-} from 'node:fs/promises';
 
 import type {
-  BrowserDownloadStore,
+  CapturedBrowserDownload,
 } from '../../browser/browser-download-capture';
 import type {
   ManagedBrowserPage,
 } from '../../browser/browser-manager';
-import type {
-  PersistedPublicDownload,
-} from '../../browser/persistent-download-store';
 
 import {
   applyGoogleTrendsCustomDateRange,
@@ -57,11 +51,9 @@ export class GoogleTrendsConfiguredPageExportError
 
 export interface ExportConfiguredGoogleTrendsPageInput {
   page: ManagedBrowserPage;
-  store: BrowserDownloadStore;
   queries: readonly string[];
   requested_date_start: string;
   requested_date_end: string;
-  public_preferred_filename?: string;
   ui_action_timeout_ms?: number;
   download_timeout_ms?: number;
 
@@ -80,7 +72,9 @@ export interface ExportConfiguredGoogleTrendsPageInput {
 export interface GoogleTrendsConfiguredPageExportResult {
   media_type: typeof CSV_MEDIA_TYPE;
   bytes: Uint8Array;
-  public_download: PersistedPublicDownload;
+  provider_filename: string;
+  byte_size: number;
+  sha256: string;
 }
 
 export interface GoogleTrendsConfiguredPageExportDependencies {
@@ -94,9 +88,6 @@ export interface GoogleTrendsConfiguredPageExportDependencies {
     typeof verifyGoogleTrendsFixedFilters;
   download_interest_over_time:
     typeof downloadGoogleTrendsInterestOverTime;
-  read_public_download(
-    absolutePath: string,
-  ): Promise<Uint8Array>;
 }
 
 const DEFAULT_DEPENDENCIES:
@@ -111,13 +102,6 @@ const DEFAULT_DEPENDENCIES:
       verifyGoogleTrendsFixedFilters,
     download_interest_over_time:
       downloadGoogleTrendsInterestOverTime,
-    read_public_download:
-      async (
-        absolutePath: string,
-      ): Promise<Uint8Array> =>
-        readFile(
-          absolutePath,
-        ),
   };
 
 const sha256 = (
@@ -129,31 +113,30 @@ const sha256 = (
     .update(bytes)
     .digest('hex');
 
-const assertPublicCopyIntegrity = (
+const assertCapturedDownloadIntegrity = (
   persisted:
-    PersistedPublicDownload,
-  bytes: Uint8Array,
+    CapturedBrowserDownload,
 ): void => {
   if (
-    bytes.byteLength !==
+    persisted.bytes.byteLength !==
     persisted.byte_size
   ) {
     throw new GoogleTrendsConfiguredPageExportError(
-      `Persisted public download byte-size mismatch: metadata=${persisted.byte_size}, reread=${bytes.byteLength}.`,
+      `Captured provider download byte-size mismatch: metadata=${persisted.byte_size}, bytes=${persisted.bytes.byteLength}.`,
     );
   }
 
-  const rereadSha256 =
+  const capturedSha256 =
     sha256(
-      bytes,
+      persisted.bytes,
     );
 
   if (
-    rereadSha256 !==
+    capturedSha256 !==
     persisted.sha256
   ) {
     throw new GoogleTrendsConfiguredPageExportError(
-      'Persisted public download SHA-256 mismatch after reread.',
+      'Captured provider download SHA-256 mismatch.',
     );
   }
 };
@@ -168,11 +151,10 @@ const assertPublicCopyIntegrity = (
  * → verify All categories + Web Search
  * → scoped Interest over time CSV download
  *
- * The browser download is first preserved in the user-visible public
- * download store. The exact persisted public copy is then reread and
- * checked against its recorded byte size and SHA-256. Those verified
- * bytes are returned to the caller so the shared CollectionOrchestrator
- * can remain the owner of the canonical run-scoped raw artifact.
+ * The provider download is captured as byte evidence without first
+ * writing a user-visible Downloads copy. Its size and SHA-256 evidence
+ * are checked before the bytes are returned to the shared
+ * CollectionOrchestrator, which owns canonical run-scoped persistence.
  *
  * This service deliberately does not navigate, refresh, retry, perform
  * authentication, or decide run/job state.
@@ -258,20 +240,11 @@ export const exportConfiguredGoogleTrendsPage =
       'DOWNLOAD',
     );
 
-    const publicDownload =
+    const capturedDownload =
       await dependencies
         .download_interest_over_time({
           page:
             input.page,
-          store:
-            input.store,
-          ...(input.public_preferred_filename ===
-          undefined
-            ? {}
-            : {
-                preferred_filename:
-                  input.public_preferred_filename,
-              }),
           ...(input.download_timeout_ms ===
           undefined
             ? {}
@@ -287,15 +260,8 @@ export const exportConfiguredGoogleTrendsPage =
               }),
         });
 
-    const bytes =
-      await dependencies
-        .read_public_download(
-          publicDownload.absolute_path,
-        );
-
-    assertPublicCopyIntegrity(
-      publicDownload,
-      bytes,
+    assertCapturedDownloadIntegrity(
+      capturedDownload,
     );
 
     return {
@@ -303,9 +269,13 @@ export const exportConfiguredGoogleTrendsPage =
         CSV_MEDIA_TYPE,
       bytes:
         new Uint8Array(
-          bytes,
+          capturedDownload.bytes,
         ),
-      public_download:
-        publicDownload,
+      provider_filename:
+        capturedDownload.suggested_filename,
+      byte_size:
+        capturedDownload.byte_size,
+      sha256:
+        capturedDownload.sha256,
     };
   };

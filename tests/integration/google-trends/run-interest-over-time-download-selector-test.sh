@@ -14,7 +14,6 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 npx tsc \
   src/main/browser/browser-manager.ts \
   src/main/browser/browser-download-capture.ts \
-  src/main/browser/persistent-download-store.ts \
   src/main/sources/google-trends/google-trends-interest-over-time-download.ts \
   src/shared/bootstrap-status.ts \
   src/shared/browser.ts \

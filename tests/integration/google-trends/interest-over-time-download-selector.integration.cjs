@@ -4,6 +4,11 @@ const assert = require(
 const path = require(
   'node:path',
 );
+const {
+  Readable,
+} = require(
+  'node:stream',
+);
 
 const [buildRoot] =
   process.argv.slice(2);
@@ -28,11 +33,32 @@ const {
 );
 
 class FakeDownload {
+  constructor() {
+    this.bytes =
+      Buffer.alloc(
+        2467,
+        1,
+      );
+    this.readCalls = 0;
+  }
+
   suggestedFilename() {
     return 'multiTimeline.csv';
   }
 
-  async saveAs() {}
+  async createReadStream() {
+    this.readCalls += 1;
+
+    return Readable.from(
+      this.bytes,
+    );
+  }
+
+  async saveAs() {
+    throw new Error(
+      'download capture must not write a public copy',
+    );
+  }
 
   async failure() {
     return null;
@@ -260,43 +286,13 @@ class FakePage {
   async close() {}
 }
 
-class FakeStore {
-  constructor() {
-    this.calls = [];
-  }
-
-  async save(input) {
-    this.calls.push(
-      input,
-    );
-
-    return {
-      filename:
-        input.preferred_filename ??
-        'multiTimeline.csv',
-      absolute_path:
-        '/Users/test/Downloads/RoofRoom Data Collector/google-trends/multiTimeline.csv',
-      byte_size:
-        2467,
-      sha256:
-        'sha256-placeholder',
-    };
-  }
-}
-
 const main = async () => {
   const page =
     new FakePage();
 
-  const store =
-    new FakeStore();
-
   const persisted =
     await downloadGoogleTrendsInterestOverTime({
       page,
-      store,
-      preferred_filename:
-        'GT01_TR_2024-08-18_2026-08-17_interest_over_time.csv',
       download_timeout_ms:
         20_000,
       ui_action_timeout_ms:
@@ -366,14 +362,8 @@ const main = async () => {
   );
 
   assert.equal(
-    store.calls.length,
+    page.download.readCalls,
     1,
-  );
-
-  assert.equal(
-    store.calls[0]
-      .source_id,
-    'google-trends',
   );
 
   console.log(
@@ -389,7 +379,7 @@ const main = async () => {
   );
 
   console.log(
-    'PASS GT-DOWNLOAD-004: the captured provider download is delegated to persistent public storage with google-trends source identity',
+    'PASS GT-DOWNLOAD-004: exact provider bytes are captured directly without creating a pre-Core Downloads copy',
   );
 
   const missingHeadingPage =
@@ -397,16 +387,11 @@ const main = async () => {
       headingCount: 0,
     });
 
-  const missingHeadingStore =
-    new FakeStore();
-
   await assert.rejects(
     () =>
       downloadGoogleTrendsInterestOverTime({
         page:
           missingHeadingPage,
-        store:
-          missingHeadingStore,
       }),
     (error) =>
       error instanceof
@@ -427,13 +412,13 @@ const main = async () => {
   );
 
   assert.equal(
-    missingHeadingStore
-      .calls.length,
+    missingHeadingPage
+      .download.readCalls,
     0,
   );
 
   console.log(
-    'PASS GT-DOWNLOAD-005: missing Interest over time heading fails closed before any download event wait or storage action',
+    'PASS GT-DOWNLOAD-005: missing Interest over time heading fails closed before any download event wait or byte capture',
   );
 
   const ambiguousDownloadPage =
@@ -441,16 +426,11 @@ const main = async () => {
       downloadButtonCount: 2,
     });
 
-  const ambiguousDownloadStore =
-    new FakeStore();
-
   await assert.rejects(
     () =>
       downloadGoogleTrendsInterestOverTime({
         page:
           ambiguousDownloadPage,
-        store:
-          ambiguousDownloadStore,
       }),
     (error) =>
       error instanceof
@@ -471,8 +451,8 @@ const main = async () => {
   );
 
   assert.equal(
-    ambiguousDownloadStore
-      .calls.length,
+    ambiguousDownloadPage
+      .download.readCalls,
     0,
   );
 
@@ -488,8 +468,6 @@ const main = async () => {
       downloadGoogleTrendsInterestOverTime({
         page:
           invalidTimeoutPage,
-        store:
-          new FakeStore(),
         ui_action_timeout_ms:
           0,
       }),

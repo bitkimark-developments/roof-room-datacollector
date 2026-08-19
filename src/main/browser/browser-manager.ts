@@ -2,6 +2,9 @@ import {
   mkdir,
 } from 'node:fs/promises';
 import * as path from 'node:path';
+import type {
+  Readable,
+} from 'node:stream';
 
 import type {
   ApplicationDirectories,
@@ -90,9 +93,7 @@ export interface ManagedBrowserLocator {
 export interface ManagedBrowserDownload {
   suggestedFilename(): string;
 
-  saveAs(
-    destinationPath: string,
-  ): Promise<void>;
+  createReadStream(): Promise<Readable>;
 
   failure(): Promise<string | null>;
 }

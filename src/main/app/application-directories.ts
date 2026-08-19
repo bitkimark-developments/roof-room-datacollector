@@ -4,6 +4,18 @@ import path from 'node:path';
 
 import type { ApplicationDirectories } from '../../shared/bootstrap-status';
 
+export const getApplicationOwnedDirectoryPaths = (
+  directories: ApplicationDirectories,
+): readonly string[] => [
+  directories.app_data_root,
+  directories.config,
+  directories.data,
+  directories.runs,
+  directories.database,
+  directories.browser_profiles,
+  directories.logs,
+];
+
 export const ensureApplicationDirectories =
   async (): Promise<ApplicationDirectories> => {
     const appDataRoot = path.join(app.getPath('userData'), 'app-data');
@@ -22,8 +34,12 @@ export const ensureApplicationDirectories =
       ),
     };
 
+    // public_downloads is a reserved downstream export destination.
+    // Do not create or treat it as application-owned runtime state.
     await Promise.all(
-      Object.values(directories).map((directory) =>
+      getApplicationOwnedDirectoryPaths(
+        directories,
+      ).map((directory) =>
         mkdir(directory, { recursive: true }),
       ),
     );

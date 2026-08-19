@@ -213,11 +213,6 @@ const main = async () => {
         failAt(
           'DOWNLOAD',
         ),
-      async read_public_download() {
-        throw new Error(
-          'must not reread after injected stage failure',
-        );
-      },
     };
 
     await assert.rejects(
@@ -225,7 +220,6 @@ const main = async () => {
         exportConfiguredGoogleTrendsPage(
           {
             page: {},
-            store: {},
             queries:
               context.query_group
                 .queries,
@@ -283,7 +277,6 @@ const main = async () => {
       new GoogleTrendsCollector({
         browser_manager:
           browserManager,
-        download_store: {},
         probe_provider:
           async () => ({
             provider_state:
@@ -348,7 +341,6 @@ const main = async () => {
     new GoogleTrendsCollector({
       browser_manager:
         browserManager,
-      download_store: {},
       probe_provider:
         async () => ({
           provider_state:
@@ -410,7 +402,6 @@ const main = async () => {
     new GoogleTrendsCollector({
       browser_manager:
         browserManager,
-      download_store: {},
       probe_provider:
         async () => ({
           provider_state:
@@ -481,7 +472,6 @@ const main = async () => {
     new GoogleTrendsCollector({
       browser_manager:
         browserManager,
-      download_store: {},
       probe_provider:
         async () => ({
           provider_state:
@@ -538,7 +528,6 @@ const main = async () => {
     new GoogleTrendsCollector({
       browser_manager:
         browserManager,
-      download_store: {},
       probe_provider:
         async () => ({
           provider_state:
@@ -598,7 +587,6 @@ const main = async () => {
     new GoogleTrendsCollector({
       browser_manager:
         browserManager,
-      download_store: {},
       probe_provider:
         async () => ({
           provider_state:
@@ -694,7 +682,6 @@ const main = async () => {
       new GoogleTrendsCollector({
         browser_manager:
           browserManager,
-        download_store: {},
         probe_provider:
           async () => ({
             provider_state:

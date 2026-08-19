@@ -3,15 +3,9 @@ import type {
   ManagedBrowserPage,
 } from '../../browser/browser-manager';
 import {
-  captureAndPersistBrowserDownload,
-  type BrowserDownloadStore,
+  captureBrowserDownload,
+  type CapturedBrowserDownload,
 } from '../../browser/browser-download-capture';
-import type {
-  PersistedPublicDownload,
-} from '../../browser/persistent-download-store';
-
-const GOOGLE_TRENDS_SOURCE_ID =
-  'google-trends';
 
 const INTEREST_OVER_TIME_HEADING =
   'Interest over time';
@@ -34,8 +28,6 @@ export class GoogleTrendsUiContractError
 
 export interface DownloadGoogleTrendsInterestOverTimeInput {
   page: ManagedBrowserPage;
-  store: BrowserDownloadStore;
-  preferred_filename?: string;
   download_timeout_ms?: number;
   ui_action_timeout_ms?: number;
 }
@@ -95,7 +87,7 @@ const requireExactlyOne = async (
 export const downloadGoogleTrendsInterestOverTime =
   async (
     input: DownloadGoogleTrendsInterestOverTimeInput,
-  ): Promise<PersistedPublicDownload> => {
+  ): Promise<CapturedBrowserDownload> => {
     const uiActionTimeout =
       requirePositiveTimeout(
         input.ui_action_timeout_ms,
@@ -133,25 +125,14 @@ export const downloadGoogleTrendsInterestOverTime =
       '"Interest over time" download button',
     );
 
-    return captureAndPersistBrowserDownload({
+    return captureBrowserDownload({
       page:
         input.page,
-      store:
-        input.store,
-      source_id:
-        GOOGLE_TRENDS_SOURCE_ID,
       trigger_download:
         () =>
           downloadButton.click({
             timeout:
               uiActionTimeout,
-          }),
-      ...(input.preferred_filename ===
-      undefined
-        ? {}
-        : {
-            preferred_filename:
-              input.preferred_filename,
           }),
       ...(input.download_timeout_ms ===
       undefined

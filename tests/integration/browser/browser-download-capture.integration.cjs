@@ -1,8 +1,18 @@
 const assert = require(
   'node:assert/strict',
 );
+const {
+  createHash,
+} = require(
+  'node:crypto',
+);
 const path = require(
   'node:path',
+);
+const {
+  Readable,
+} = require(
+  'node:stream',
 );
 
 const [buildRoot] =
@@ -15,7 +25,8 @@ if (!buildRoot) {
 }
 
 const {
-  captureAndPersistBrowserDownload,
+  BrowserDownloadCaptureError,
+  captureBrowserDownload,
 } = require(
   path.join(
     buildRoot,
@@ -26,43 +37,46 @@ const {
 );
 
 class FakeDownload {
+  constructor({
+    bytes = Buffer.from(
+      'provider csv bytes',
+      'utf8',
+    ),
+    failure = null,
+  } = {}) {
+    this.bytes = bytes;
+    this.failureValue = failure;
+    this.readCalls = 0;
+  }
+
   suggestedFilename() {
     return 'multiTimeline.csv';
   }
 
-  async saveAs() {}
+  async createReadStream() {
+    this.readCalls += 1;
+
+    return Readable.from(
+      this.bytes,
+    );
+  }
+
+  async saveAs() {
+    throw new Error(
+      'capture must not persist through saveAs',
+    );
+  }
 
   async failure() {
-    return null;
+    return this.failureValue;
   }
 }
 
 class FakePage {
-  constructor() {
+  constructor(download = new FakeDownload()) {
     this.waitCalls = [];
     this.waitArmed = false;
-    this.download =
-      new FakeDownload();
-  }
-
-  async goto() {
-    return null;
-  }
-
-  async title() {
-    return 'Google Trends';
-  }
-
-  locator() {
-    throw new Error(
-      'not used in this test',
-    );
-  }
-
-  getByRole() {
-    throw new Error(
-      'not used in this test',
-    );
+    this.download = download;
   }
 
   waitForEvent(
@@ -79,49 +93,27 @@ class FakePage {
       this.download,
     );
   }
-
-  async close() {}
-}
-
-class FakeStore {
-  constructor() {
-    this.calls = [];
-  }
-
-  async save(input) {
-    this.calls.push(input);
-
-    return {
-      filename:
-        input.preferred_filename ??
-        input.download
-          .suggestedFilename(),
-      absolute_path:
-        '/tmp/public-download.csv',
-      byte_size: 2467,
-      sha256:
-        'sha256-placeholder',
-    };
-  }
 }
 
 const main = async () => {
-  const page =
-    new FakePage();
+  const bytes =
+    Buffer.from(
+      'exact provider csv bytes',
+      'utf8',
+    );
 
-  const store =
-    new FakeStore();
+  const page =
+    new FakePage(
+      new FakeDownload({
+        bytes,
+      }),
+    );
 
   let triggerCalls = 0;
 
-  const persisted =
-    await captureAndPersistBrowserDownload({
+  const captured =
+    await captureBrowserDownload({
       page,
-      store,
-      source_id:
-        'google-trends',
-      preferred_filename:
-        'GT01_TR_2024-08-18_2026-08-17_interest_over_time.csv',
       timeout_ms: 12_345,
       trigger_download:
         async () => {
@@ -139,7 +131,6 @@ const main = async () => {
     triggerCalls,
     1,
   );
-
   assert.deepEqual(
     page.waitCalls,
     [
@@ -152,56 +143,55 @@ const main = async () => {
     ],
   );
 
-  assert.equal(
-    store.calls.length,
-    1,
-  );
-
-  assert.equal(
-    store.calls[0]
-      .source_id,
-    'google-trends',
-  );
-
-  assert.strictEqual(
-    store.calls[0]
-      .download,
-    page.download,
-  );
-
-  assert.equal(
-    store.calls[0]
-      .preferred_filename,
-    'GT01_TR_2024-08-18_2026-08-17_interest_over_time.csv',
-  );
-
-  assert.equal(
-    persisted.byte_size,
-    2467,
-  );
-
   console.log(
     'PASS BROWSER-DOWNLOAD-001: the page download listener is armed before the triggering UI action',
   );
 
-  console.log(
-    'PASS BROWSER-DOWNLOAD-002: exactly one captured download is delegated to persistent public storage',
+  assert.deepEqual(
+    Buffer.from(
+      captured.bytes,
+    ),
+    bytes,
+  );
+  assert.equal(
+    captured.byte_size,
+    bytes.byteLength,
+  );
+  assert.equal(
+    captured.sha256,
+    createHash('sha256')
+      .update(bytes)
+      .digest('hex'),
+  );
+  assert.equal(
+    page.download.readCalls,
+    1,
   );
 
   console.log(
-    'PASS BROWSER-DOWNLOAD-003: caller-controlled source ID, preferred filename, and bounded timeout cross the capture boundary',
+    'PASS BROWSER-DOWNLOAD-002: exact provider bytes, byte size, and SHA-256 are captured without writing a public copy',
+  );
+
+  assert.equal(
+    captured.suggested_filename,
+    'multiTimeline.csv',
+  );
+  assert.equal(
+    page.waitCalls[0]
+      .options.timeout,
+    12_345,
+  );
+
+  console.log(
+    'PASS BROWSER-DOWNLOAD-003: provider filename evidence and caller-controlled bounded timeout cross the capture boundary',
   );
 
   const defaultTimeoutPage =
     new FakePage();
 
-  await captureAndPersistBrowserDownload({
+  await captureBrowserDownload({
     page:
       defaultTimeoutPage,
-    store:
-      new FakeStore(),
-    source_id:
-      'google-trends',
     trigger_download:
       async () => {},
   });
@@ -227,13 +217,9 @@ const main = async () => {
 
     await assert.rejects(
       () =>
-        captureAndPersistBrowserDownload({
+        captureBrowserDownload({
           page:
             invalidPage,
-          store:
-            new FakeStore(),
-          source_id:
-            'google-trends',
           timeout_ms:
             invalid,
           trigger_download:
@@ -256,18 +242,11 @@ const main = async () => {
   const failingTriggerPage =
     new FakePage();
 
-  const failingStore =
-    new FakeStore();
-
   await assert.rejects(
     () =>
-      captureAndPersistBrowserDownload({
+      captureBrowserDownload({
         page:
           failingTriggerPage,
-        store:
-          failingStore,
-        source_id:
-          'google-trends',
         trigger_download:
           async () => {
             throw new Error(
@@ -283,14 +262,48 @@ const main = async () => {
       .waitCalls.length,
     1,
   );
-
   assert.equal(
-    failingStore.calls.length,
+    failingTriggerPage
+      .download.readCalls,
     0,
   );
 
   console.log(
-    'PASS BROWSER-DOWNLOAD-006: trigger failures are surfaced without persisting a phantom download or retrying',
+    'PASS BROWSER-DOWNLOAD-006: trigger failures are surfaced without reading phantom bytes or retrying',
+  );
+
+  const failedDownloadPage =
+    new FakePage(
+      new FakeDownload({
+        failure:
+          'download canceled',
+      }),
+    );
+
+  await assert.rejects(
+    () =>
+      captureBrowserDownload({
+        page:
+          failedDownloadPage,
+        trigger_download:
+          async () => {},
+      }),
+    (error) =>
+      error instanceof
+        BrowserDownloadCaptureError &&
+      /download canceled/u.test(
+        error.message,
+      ),
+  );
+
+  assert.equal(
+    failedDownloadPage
+      .download.readCalls,
+    0,
+  );
+
+  console.log(
+    'PASS BROWSER-DOWNLOAD-007: provider-reported download failure blocks byte capture and remains a typed failure',
   );
 };
 

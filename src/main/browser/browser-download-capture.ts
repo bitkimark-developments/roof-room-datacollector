@@ -1,29 +1,38 @@
+import {
+  createHash,
+} from 'node:crypto';
+import {
+  buffer,
+} from 'node:stream/consumers';
+
 import type {
-  ManagedBrowserDownload,
   ManagedBrowserPage,
 } from './browser-manager';
-import type {
-  PersistedPublicDownload,
-} from './persistent-download-store';
 
 const DEFAULT_DOWNLOAD_TIMEOUT_MS =
   30_000;
 
-export interface BrowserDownloadStore {
-  save(input: {
-    source_id: string;
-    download: ManagedBrowserDownload;
-    preferred_filename?: string;
-  }): Promise<PersistedPublicDownload>;
+export interface CapturedBrowserDownload {
+  suggested_filename: string;
+  bytes: Uint8Array;
+  byte_size: number;
+  sha256: string;
 }
 
-export interface CaptureAndPersistBrowserDownloadInput {
+export interface CaptureBrowserDownloadInput {
   page: ManagedBrowserPage;
-  store: BrowserDownloadStore;
-  source_id: string;
   trigger_download: () => Promise<void>;
-  preferred_filename?: string;
   timeout_ms?: number;
+}
+
+export class BrowserDownloadCaptureError
+  extends Error
+{
+  constructor(message: string) {
+    super(message);
+    this.name =
+      'BrowserDownloadCaptureError';
+  }
 }
 
 const requirePositiveTimeout = (
@@ -46,15 +55,17 @@ const requirePositiveTimeout = (
 };
 
 /**
- * Captures exactly one page-scoped download event and persists it
- * through the configured public download store.
+ * Captures exactly one page-scoped download event and reads the provider
+ * bytes directly from Playwright's download stream.
  *
  * The listener is armed before the UI action is triggered. This helper
- * does not retry, refresh, navigate, or otherwise alter provider state.
+ * does not write to Downloads, retry, refresh, navigate, or otherwise
+ * alter provider state. The caller passes the bytes to shared Core,
+ * which owns run-scoped candidate persistence and later acceptance.
  */
-export const captureAndPersistBrowserDownload = async (
-  input: CaptureAndPersistBrowserDownloadInput,
-): Promise<PersistedPublicDownload> => {
+export const captureBrowserDownload = async (
+  input: CaptureBrowserDownloadInput,
+): Promise<CapturedBrowserDownload> => {
   const timeout =
     requirePositiveTimeout(
       input.timeout_ms,
@@ -85,19 +96,65 @@ export const captureAndPersistBrowserDownload = async (
     throw error;
   }
 
-  const download =
-    await downloadPromise;
+  let download;
 
-  return input.store.save({
-    source_id:
-      input.source_id,
-    download,
-    ...(input.preferred_filename ===
-    undefined
-      ? {}
-      : {
-          preferred_filename:
-            input.preferred_filename,
-        }),
-  });
+  try {
+    download =
+      await downloadPromise;
+  } catch (error: unknown) {
+    throw new BrowserDownloadCaptureError(
+      `Browser download event failed: ${
+        error instanceof Error
+          ? error.message
+          : 'unknown error'
+      }`,
+    );
+  }
+
+  let bytes: Buffer;
+
+  try {
+    const failure =
+      await download.failure();
+
+    if (failure !== null) {
+      throw new BrowserDownloadCaptureError(
+        `Browser download failed: ${failure}`,
+      );
+    }
+
+    const stream =
+      await download.createReadStream();
+
+    bytes =
+      await buffer(stream);
+  } catch (error: unknown) {
+    if (
+      error instanceof
+        BrowserDownloadCaptureError
+    ) {
+      throw error;
+    }
+
+    throw new BrowserDownloadCaptureError(
+      `Browser download byte capture failed: ${
+        error instanceof Error
+          ? error.message
+          : 'unknown error'
+      }`,
+    );
+  }
+
+  return {
+    suggested_filename:
+      download.suggestedFilename(),
+    bytes:
+      new Uint8Array(bytes),
+    byte_size:
+      bytes.byteLength,
+    sha256:
+      createHash('sha256')
+        .update(bytes)
+        .digest('hex'),
+  };
 };

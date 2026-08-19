@@ -12,18 +12,16 @@ TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 npx tsc \
-  src/main/browser/persistent-download-store.ts \
+  src/main/app/application-directories.ts \
   src/shared/bootstrap-status.ts \
-  src/shared/query-config.ts \
-  src/shared/source.ts \
   --rootDir src \
   --outDir "$TMP_ROOT/build" \
   --module commonjs \
   --target ES2022 \
+  --esModuleInterop \
   --strict \
   --skipLibCheck
 
-node \
-  tests/integration/browser/persistent-download-store.integration.cjs \
-  "$TMP_ROOT/build" \
-  "$TMP_ROOT/work"
+NODE_PATH="$PROJECT_DIR/node_modules" node \
+  tests/integration/filesystem/application-directory-boundary.integration.cjs \
+  "$TMP_ROOT/build"

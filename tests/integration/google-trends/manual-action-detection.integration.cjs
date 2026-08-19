@@ -240,7 +240,6 @@ const collector =
   new GoogleTrendsCollector({
     browser_manager:
       browserManager,
-    download_store: {},
     probe_provider:
       async () => {
         trace.push(

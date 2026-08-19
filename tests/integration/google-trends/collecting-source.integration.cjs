@@ -39,6 +39,17 @@ const {
 );
 
 const {
+  BrowserDownloadCaptureError,
+} = require(
+  path.join(
+    buildRoot,
+    'main',
+    'browser',
+    'browser-download-capture.js',
+  ),
+);
+
+const {
   GoogleTrendsQueryGroupUiContractError,
 } = require(
   path.join(
@@ -309,10 +320,6 @@ const main = async () => {
       page,
       trace,
     );
-  const downloadStore = {
-    marker:
-      'public-store',
-  };
   const bytes =
     new Uint8Array(
       [
@@ -327,8 +334,6 @@ const main = async () => {
     new GoogleTrendsCollector({
       browser_manager:
         browserManager,
-      download_store:
-        downloadStore,
 
       probe_provider:
         async (
@@ -374,18 +379,14 @@ const main = async () => {
             media_type:
               'text/csv',
             bytes,
-            public_download: {
-              filename:
-                'GT01_TR_24M_interest_over_time.csv',
-              absolute_path:
-                '/public/GT01_TR_24M_interest_over_time.csv',
-              byte_size:
-                bytes.byteLength,
-              sha256:
-                'a'.repeat(
-                  64,
-                ),
-            },
+            provider_filename:
+              'multiTimeline.csv',
+            byte_size:
+              bytes.byteLength,
+            sha256:
+              'a'.repeat(
+                64,
+              ),
           };
         },
     });
@@ -478,8 +479,18 @@ const main = async () => {
     page,
   );
   assert.equal(
-    exportCall.store,
-    downloadStore,
+    Object.prototype.hasOwnProperty.call(
+      exportCall,
+      'store',
+    ),
+    false,
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(
+      exportCall,
+      'public_preferred_filename',
+    ),
+    false,
   );
   assert.deepEqual(
     exportCall.queries,
@@ -496,11 +507,6 @@ const main = async () => {
     exportCall
       .requested_date_end,
     '2026-08-17',
-  );
-  assert.equal(
-    exportCall
-      .public_preferred_filename,
-    'GT01_TR_24M_interest_over_time.csv',
   );
 
   console.log(
@@ -523,7 +529,6 @@ const main = async () => {
           ratePage,
           rateTrace,
         ),
-      download_store: {},
       probe_provider:
         async () => {
           rateTrace.push(
@@ -610,7 +615,6 @@ const main = async () => {
           invalidPage,
           invalidTrace,
         ),
-      download_store: {},
       probe_provider:
         async () => {
           throw new Error(
@@ -672,7 +676,6 @@ const main = async () => {
           probeFailPage,
           probeFailTrace,
         ),
-      download_store: {},
       probe_provider:
         async () => {
           probeFailTrace.push(
@@ -731,7 +734,6 @@ const main = async () => {
           exportFailPage,
           exportFailTrace,
         ),
-      download_store: {},
       probe_provider:
         async () => ({
           provider_state:
@@ -784,6 +786,72 @@ const main = async () => {
     'PASS GT-COLLECTOR-005: unexpected export exceptions become controlled FAILED results instead of escaping and leaving a RUNNING job',
   );
 
+  const downloadFailTrace =
+    [];
+  const downloadFailPage =
+    new FakePage(
+      downloadFailTrace,
+    );
+
+  const downloadFailCollector =
+    new GoogleTrendsCollector({
+      browser_manager:
+        new FakeBrowserManager(
+          downloadFailPage,
+          downloadFailTrace,
+        ),
+      probe_provider:
+        async () => ({
+          provider_state:
+            'NO_RATE_LIMIT_SIGNAL',
+          error_code:
+            null,
+          retry_after:
+            null,
+          signals:
+            [],
+          requested_url:
+            'https://trends.google.com/trends/explore',
+          final_url:
+            'https://trends.google.com/trends/explore',
+          response_status:
+            200,
+        }),
+      export_configured_page:
+        async () => {
+          throw new BrowserDownloadCaptureError(
+            'provider download stream failed',
+          );
+        },
+    });
+
+  const downloadFailResult =
+    await downloadFailCollector
+      .collect(
+        makeContext(),
+      );
+
+  assert.equal(
+    downloadFailResult.result_type,
+    'FAILED',
+  );
+  assert.equal(
+    downloadFailResult.error_code,
+    'DOWNLOAD_FAILED',
+  );
+  assert.equal(
+    downloadFailTrace.filter(
+      (entry) =>
+        entry ===
+        'page.close',
+    ).length,
+    1,
+  );
+
+  console.log(
+    'PASS GT-COLLECTOR-009: provider download-stream failures map to DOWNLOAD_FAILED and close the dedicated page',
+  );
+
   const interactionRateTrace =
     [];
   const interactionRatePage =
@@ -802,7 +870,6 @@ const main = async () => {
           interactionRatePage,
           interactionRateTrace,
         ),
-      download_store: {},
       probe_provider:
         async () => ({
           provider_state:
@@ -922,7 +989,6 @@ const main = async () => {
           unrelatedRatePage
             .trace,
         ),
-      download_store: {},
       probe_provider:
         async () => ({
           provider_state:
@@ -1000,7 +1066,6 @@ const main = async () => {
           completedRatePage
             .trace,
         ),
-      download_store: {},
       probe_provider:
         async () => ({
           provider_state:
@@ -1036,18 +1101,14 @@ const main = async () => {
             media_type:
               'text/csv',
             bytes,
-            public_download: {
-              filename:
-                'GT01_TR_24M_interest_over_time.csv',
-              absolute_path:
-                '/public/GT01_TR_24M_interest_over_time.csv',
-              byte_size:
-                bytes.byteLength,
-              sha256:
-                'a'.repeat(
-                  64,
-                ),
-            },
+            provider_filename:
+              'multiTimeline.csv',
+            byte_size:
+              bytes.byteLength,
+            sha256:
+              'a'.repeat(
+                64,
+              ),
           };
         },
     });

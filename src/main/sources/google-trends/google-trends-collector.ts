@@ -1,5 +1,5 @@
-import type {
-  BrowserDownloadStore,
+import {
+  BrowserDownloadCaptureError,
 } from '../../browser/browser-download-capture';
 import {
   BrowserManagerError,
@@ -7,9 +7,6 @@ import {
   type ManagedBrowserPage,
   type ManagedBrowserResponse,
 } from '../../browser/browser-manager';
-import {
-  PublicDownloadStorageError,
-} from '../../browser/persistent-download-store';
 import type {
   SourceCollectionContext,
   SourceCollectionResult,
@@ -118,7 +115,6 @@ export class GoogleTrendsCollectionContextError
 
 export interface GoogleTrendsCollectorDependencies {
   browser_manager: BrowserManager;
-  download_store: BrowserDownloadStore;
   probe_provider?: (
     page: ManagedBrowserPage,
   ) => Promise<GoogleTrendsProviderProbeResult>;
@@ -561,9 +557,6 @@ export class GoogleTrendsCollector {
       const exported =
         await this.exportConfiguredPage({
           page,
-          store:
-            this.dependencies
-              .download_store,
           queries:
             context.query_group
               .queries,
@@ -575,8 +568,6 @@ export class GoogleTrendsCollector {
             context
               .requested_configuration
               .requested_date_end,
-          public_preferred_filename:
-            filename,
           on_stage:
             (stage): void => {
               if (
@@ -643,7 +634,7 @@ export class GoogleTrendsCollector {
 
       if (
         error instanceof
-          PublicDownloadStorageError ||
+          BrowserDownloadCaptureError ||
         error instanceof
           GoogleTrendsConfiguredPageExportError
       ) {

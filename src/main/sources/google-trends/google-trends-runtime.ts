@@ -7,9 +7,6 @@ import {
   type PersistentBrowserLauncher,
 } from '../../browser/browser-manager';
 import {
-  PersistentDownloadStore,
-} from '../../browser/persistent-download-store';
-import {
   PlaywrightChromiumLauncher,
 } from '../../browser/playwright-browser-launcher';
 
@@ -45,17 +42,10 @@ export const createGoogleTrendsRuntime = (
       launcher,
     );
 
-  const downloadStore =
-    new PersistentDownloadStore(
-      directories,
-    );
-
   const collector =
     new GoogleTrendsCollector({
       browser_manager:
         browserManager,
-      download_store:
-        downloadStore,
     });
 
   return {

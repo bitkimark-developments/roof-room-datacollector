@@ -43,7 +43,7 @@ const hash = (
 
 const makeDependencies = ({
   bytes,
-  publicDownloadOverrides = {},
+  capturedDownloadOverrides = {},
   verifyError = null,
 } = {}) => {
   const trace = [];
@@ -61,18 +61,20 @@ const makeDependencies = ({
       'utf8',
     );
 
-  const publicDownload = {
-    filename:
+  const capturedDownload = {
+    suggested_filename:
       'multiTimeline.csv',
-    absolute_path:
-      '/public/google-trends/multiTimeline.csv',
+    bytes:
+      new Uint8Array(
+        artifactBytes,
+      ),
     byte_size:
       artifactBytes.byteLength,
     sha256:
       hash(
         artifactBytes,
       ),
-    ...publicDownloadOverrides,
+    ...capturedDownloadOverrides,
   };
 
   const dependencies = {
@@ -119,19 +121,7 @@ const makeDependencies = ({
         input,
       });
 
-      return publicDownload;
-    },
-
-    async read_public_download(absolutePath) {
-      trace.push({
-        step:
-          'reread-public-copy',
-        absolutePath,
-      });
-
-      return new Uint8Array(
-        artifactBytes,
-      );
+      return capturedDownload;
     },
   };
 
@@ -142,7 +132,7 @@ const makeDependencies = ({
       new Uint8Array(
         artifactBytes,
       ),
-    publicDownload,
+    capturedDownload,
   };
 };
 
@@ -150,10 +140,6 @@ const makeInput = () => ({
   page: {
     marker:
       'managed-page',
-  },
-  store: {
-    marker:
-      'download-store',
   },
   queries: [
     'canlı bitki',
@@ -166,8 +152,6 @@ const makeInput = () => ({
     '2024-08-18',
   requested_date_end:
     '2026-08-17',
-  public_preferred_filename:
-    'GT01__interest-over-time.csv',
   ui_action_timeout_ms:
     4_000,
   download_timeout_ms:
@@ -198,7 +182,6 @@ const main = async () => {
       'date-range',
       'fixed-filters',
       'download',
-      'reread-public-copy',
     ],
   );
 
@@ -226,12 +209,6 @@ const main = async () => {
   assert.equal(
     first.trace[4]
       .input
-      .preferred_filename,
-    'GT01__interest-over-time.csv',
-  );
-  assert.equal(
-    first.trace[4]
-      .input
       .download_timeout_ms,
     30_000,
   );
@@ -243,14 +220,7 @@ const main = async () => {
   );
 
   console.log(
-    'PASS GT-CONFIGURED-EXPORT-002: query/date/timeout/public-filename evidence crosses the composed service boundary unchanged',
-  );
-
-  assert.equal(
-    first.trace[5]
-      .absolutePath,
-    first.publicDownload
-      .absolute_path,
+    'PASS GT-CONFIGURED-EXPORT-002: query/date/timeout evidence crosses the composed service boundary unchanged',
   );
   assert.equal(
     result.media_type,
@@ -264,13 +234,23 @@ const main = async () => {
       first.artifactBytes,
     ),
   );
-  assert.deepEqual(
-    result.public_download,
-    first.publicDownload,
+  assert.equal(
+    result.provider_filename,
+    'multiTimeline.csv',
+  );
+  assert.equal(
+    result.byte_size,
+    first.artifactBytes.byteLength,
+  );
+  assert.equal(
+    result.sha256,
+    hash(
+      first.artifactBytes,
+    ),
   );
 
   console.log(
-    'PASS GT-CONFIGURED-EXPORT-003: exact persisted public CSV bytes are reread and returned for later canonical run-scoped storage',
+    'PASS GT-CONFIGURED-EXPORT-003: exact captured provider bytes and integrity evidence are returned for canonical run-scoped storage',
   );
 
   const blocked =
@@ -309,7 +289,7 @@ const main = async () => {
 
   const wrongSize =
     makeDependencies({
-      publicDownloadOverrides: {
+      capturedDownloadOverrides: {
         byte_size:
           999_999,
       },
@@ -330,12 +310,12 @@ const main = async () => {
   );
 
   console.log(
-    'PASS GT-CONFIGURED-EXPORT-005: reread public bytes must match the persisted byte-size evidence',
+    'PASS GT-CONFIGURED-EXPORT-005: captured bytes must match their byte-size evidence',
   );
 
   const wrongHash =
     makeDependencies({
-      publicDownloadOverrides: {
+      capturedDownloadOverrides: {
         sha256:
           '0'.repeat(
             64,
@@ -358,7 +338,7 @@ const main = async () => {
   );
 
   console.log(
-    'PASS GT-CONFIGURED-EXPORT-006: reread public bytes must match the persisted SHA-256 evidence before crossing into core storage',
+    'PASS GT-CONFIGURED-EXPORT-006: captured bytes must match their SHA-256 evidence before crossing into core storage',
   );
 
   const noOptional =
@@ -367,8 +347,6 @@ const main = async () => {
   const minimalInput =
     makeInput();
 
-  delete minimalInput
-    .public_preferred_filename;
   delete minimalInput
     .ui_action_timeout_ms;
   delete minimalInput
@@ -387,15 +365,6 @@ const main = async () => {
     ),
     false,
   );
-  assert.equal(
-    Object.prototype.hasOwnProperty.call(
-      noOptional.trace[4]
-        .input,
-      'preferred_filename',
-    ),
-    false,
-  );
-
   console.log(
     'PASS GT-CONFIGURED-EXPORT-007: optional UI/download settings remain absent so lower-level verified defaults stay authoritative',
   );
