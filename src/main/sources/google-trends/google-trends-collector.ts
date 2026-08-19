@@ -5,6 +5,7 @@ import {
   BrowserManagerError,
   type BrowserManager,
   type ManagedBrowserPage,
+  type ManagedBrowserResponse,
 } from '../../browser/browser-manager';
 import {
   PublicDownloadStorageError,
@@ -75,6 +76,11 @@ const GOOGLE_TRENDS_PROFILE_ID =
 
 const RAW_FILENAME_SUFFIX =
   '_TR_24M_interest_over_time.csv';
+
+const GOOGLE_TRENDS_ORIGIN =
+  new URL(
+    GOOGLE_TRENDS_EXPLORE_URL,
+  ).origin;
 
 export const GOOGLE_TRENDS_COLLECTION_ERROR_CODES = {
   UNSUPPORTED_CONFIGURATION:
@@ -231,6 +237,31 @@ const failed = (
     errorCode,
   message,
 });
+
+const isGoogleTrendsRateLimitedResponse = (
+  response:
+    ManagedBrowserResponse,
+): boolean => {
+  try {
+    return (
+      response.status() === 429 &&
+      new URL(
+        response.url(),
+      ).origin ===
+        GOOGLE_TRENDS_ORIGIN
+    );
+  } catch {
+    return false;
+  }
+};
+
+const rateLimitedDuringCollection =
+  (): SourceCollectionResult =>
+    failed(
+      GOOGLE_TRENDS_COLLECTION_ERROR_CODES
+        .RATE_LIMITED,
+      'Google Trends returned HTTP 429 during collection. Collection stopped without refresh or retry.',
+    );
 
 const QUERY_GROUP_DIAGNOSTIC_CONTROL_VALUES =
   new Set<string>(
@@ -435,6 +466,23 @@ export class GoogleTrendsCollector {
     let keepPageOpenForManualAction =
       false;
 
+    let rateLimitedResponseObserved =
+      false;
+
+    const observeProviderResponse = (
+      response:
+        ManagedBrowserResponse,
+    ): void => {
+      if (
+        isGoogleTrendsRateLimitedResponse(
+          response,
+        )
+      ) {
+        rateLimitedResponseObserved =
+          true;
+      }
+    };
+
     let exportStage:
       GoogleTrendsConfiguredPageStage | null =
       null;
@@ -460,6 +508,11 @@ export class GoogleTrendsCollector {
       page =
         await session.context
           .newPage();
+
+      page.on?.(
+        'response',
+        observeProviderResponse,
+      );
 
       phase =
         'PROBE_PROVIDER';
@@ -526,10 +579,24 @@ export class GoogleTrendsCollector {
             filename,
           on_stage:
             (stage): void => {
+              if (
+                rateLimitedResponseObserved
+              ) {
+                throw new Error(
+                  'Google Trends rate-limit response was observed before the next provider stage.',
+                );
+              }
+
               exportStage =
                 stage;
             },
         });
+
+      if (
+        rateLimitedResponseObserved
+      ) {
+        return rateLimitedDuringCollection();
+      }
 
       return {
         result_type:
@@ -542,6 +609,12 @@ export class GoogleTrendsCollector {
           exported.bytes,
       };
     } catch (error: unknown) {
+      if (
+        rateLimitedResponseObserved
+      ) {
+        return rateLimitedDuringCollection();
+      }
+
       if (
         error instanceof
           BrowserManagerError
@@ -633,6 +706,15 @@ export class GoogleTrendsCollector {
         page !== null &&
         !keepPageOpenForManualAction
       ) {
+        try {
+          page.off?.(
+            'response',
+            observeProviderResponse,
+          );
+        } catch {
+          // Observability cleanup must not prevent page cleanup.
+        }
+
         try {
           await page.close();
         } catch {

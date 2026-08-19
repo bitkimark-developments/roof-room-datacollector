@@ -38,6 +38,18 @@ const {
   ),
 );
 
+const {
+  GoogleTrendsQueryGroupUiContractError,
+} = require(
+  path.join(
+    buildRoot,
+    'main',
+    'sources',
+    'google-trends',
+    'google-trends-query-group-ui.js',
+  ),
+);
+
 const makeContext = (
   overrides = {},
 ) => ({
@@ -95,6 +107,47 @@ class FakePage {
   constructor(trace) {
     this.trace =
       trace;
+    this.responseListeners =
+      new Set();
+  }
+
+  on(event, listener) {
+    assert.equal(
+      event,
+      'response',
+    );
+
+    this.responseListeners
+      .add(listener);
+  }
+
+  off(event, listener) {
+    assert.equal(
+      event,
+      'response',
+    );
+
+    this.responseListeners
+      .delete(listener);
+  }
+
+  emitResponse({
+    status,
+    url,
+  }) {
+    for (
+      const listener of
+        this.responseListeners
+    ) {
+      listener({
+        status: () =>
+          status,
+        url: () =>
+          url,
+        headerValue: async () =>
+          null,
+      });
+    }
   }
 
   async close() {
@@ -729,6 +782,295 @@ const main = async () => {
 
   console.log(
     'PASS GT-COLLECTOR-005: unexpected export exceptions become controlled FAILED results instead of escaping and leaving a RUNNING job',
+  );
+
+  const interactionRateTrace =
+    [];
+  const interactionRatePage =
+    new FakePage(
+      interactionRateTrace,
+    );
+  let interactionExportCalls =
+    0;
+  let interactionNextStageBlocked =
+    false;
+
+  const interactionRateCollector =
+    new GoogleTrendsCollector({
+      browser_manager:
+        new FakeBrowserManager(
+          interactionRatePage,
+          interactionRateTrace,
+        ),
+      download_store: {},
+      probe_provider:
+        async () => ({
+          provider_state:
+            'NO_RATE_LIMIT_SIGNAL',
+          error_code:
+            null,
+          retry_after:
+            null,
+          signals:
+            [],
+          requested_url:
+            'https://trends.google.com/trends/explore',
+          final_url:
+            'https://trends.google.com/trends/explore',
+          response_status:
+            200,
+        }),
+      export_configured_page:
+        async (input) => {
+          interactionExportCalls +=
+            1;
+
+          input.on_stage(
+            'QUERY_GROUP',
+          );
+
+          interactionRatePage
+            .emitResponse({
+              status:
+                429,
+              url:
+                'https://example.com/optional-resource',
+            });
+
+          interactionRatePage
+            .emitResponse({
+              status:
+                429,
+              url:
+                'https://trends.google.com/trends/api/provider-resource',
+            });
+
+          try {
+            input.on_stage(
+              'GEOGRAPHY',
+            );
+          } catch {
+            interactionNextStageBlocked =
+              true;
+          }
+
+          throw new GoogleTrendsQueryGroupUiContractError(
+            'Provider suggestion did not become actionable.',
+            {
+              control:
+                'SEARCH_TERM_SUGGESTION',
+              observed_count:
+                0,
+              query_index:
+                0,
+            },
+          );
+        },
+    });
+
+  const interactionRateResult =
+    await interactionRateCollector
+      .collect(
+        makeContext(),
+      );
+
+  assert.equal(
+    interactionRateResult
+      .result_type,
+    'FAILED',
+  );
+  assert.equal(
+    interactionRateResult
+      .error_code,
+    'RATE_LIMITED',
+  );
+  assert.equal(
+    interactionExportCalls,
+    1,
+  );
+  assert.equal(
+    interactionNextStageBlocked,
+    true,
+  );
+  assert.equal(
+    interactionRatePage
+      .responseListeners
+      .size,
+    0,
+  );
+  assert.equal(
+    interactionRateTrace.filter(
+      (entry) =>
+        entry ===
+        'page.close',
+    ).length,
+    1,
+  );
+
+  console.log(
+    'PASS GT-COLLECTOR-006: a same-origin HTTP 429 observed during UI interaction takes priority over a later UI timeout and stops without refresh or retry',
+  );
+
+  const unrelatedRatePage =
+    new FakePage([]);
+
+  const unrelatedRateCollector =
+    new GoogleTrendsCollector({
+      browser_manager:
+        new FakeBrowserManager(
+          unrelatedRatePage,
+          unrelatedRatePage
+            .trace,
+        ),
+      download_store: {},
+      probe_provider:
+        async () => ({
+          provider_state:
+            'NO_RATE_LIMIT_SIGNAL',
+          error_code:
+            null,
+          retry_after:
+            null,
+          signals:
+            [],
+          requested_url:
+            'https://trends.google.com/trends/explore',
+          final_url:
+            'https://trends.google.com/trends/explore',
+          response_status:
+            200,
+        }),
+      export_configured_page:
+        async (input) => {
+          input.on_stage(
+            'QUERY_GROUP',
+          );
+
+          unrelatedRatePage
+            .emitResponse({
+              status:
+                429,
+              url:
+                'https://example.com/optional-resource',
+            });
+
+          throw new GoogleTrendsQueryGroupUiContractError(
+            'Provider suggestion did not become actionable.',
+            {
+              control:
+                'SEARCH_TERM_SUGGESTION',
+              observed_count:
+                0,
+              query_index:
+                2,
+            },
+          );
+        },
+    });
+
+  const unrelatedRateResult =
+    await unrelatedRateCollector
+      .collect(
+        makeContext(),
+      );
+
+  assert.equal(
+    unrelatedRateResult
+      .error_code,
+    'GOOGLE_TRENDS_UI_CONTRACT_ERROR',
+  );
+  assert.match(
+    unrelatedRateResult
+      .message,
+    /control=SEARCH_TERM_SUGGESTION; observed_count=0; query_index=2/u,
+  );
+
+  console.log(
+    'PASS GT-COLLECTOR-007: cross-origin HTTP 429 responses do not overwrite the bounded Google Trends UI diagnostic',
+  );
+
+  const completedRatePage =
+    new FakePage([]);
+
+  const completedRateCollector =
+    new GoogleTrendsCollector({
+      browser_manager:
+        new FakeBrowserManager(
+          completedRatePage,
+          completedRatePage
+            .trace,
+        ),
+      download_store: {},
+      probe_provider:
+        async () => ({
+          provider_state:
+            'NO_RATE_LIMIT_SIGNAL',
+          error_code:
+            null,
+          retry_after:
+            null,
+          signals:
+            [],
+          requested_url:
+            'https://trends.google.com/trends/explore',
+          final_url:
+            'https://trends.google.com/trends/explore',
+          response_status:
+            200,
+        }),
+      export_configured_page:
+        async (input) => {
+          input.on_stage(
+            'DOWNLOAD',
+          );
+
+          completedRatePage
+            .emitResponse({
+              status:
+                429,
+              url:
+                'https://trends.google.com/trends/api/provider-resource',
+            });
+
+          return {
+            media_type:
+              'text/csv',
+            bytes,
+            public_download: {
+              filename:
+                'GT01_TR_24M_interest_over_time.csv',
+              absolute_path:
+                '/public/GT01_TR_24M_interest_over_time.csv',
+              byte_size:
+                bytes.byteLength,
+              sha256:
+                'a'.repeat(
+                  64,
+                ),
+            },
+          };
+        },
+    });
+
+  const completedRateResult =
+    await completedRateCollector
+      .collect(
+        makeContext(),
+      );
+
+  assert.equal(
+    completedRateResult
+      .error_code,
+    'RATE_LIMITED',
+  );
+  assert.equal(
+    completedRateResult
+      .result_type,
+    'FAILED',
+  );
+
+  console.log(
+    'PASS GT-COLLECTOR-008: an export cannot become an artifact when a same-origin HTTP 429 was observed before source completion',
   );
 };
 

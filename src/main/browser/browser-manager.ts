@@ -32,6 +32,8 @@ export class BrowserManagerError extends Error {
 export interface ManagedBrowserResponse {
   status(): number;
 
+  url(): string;
+
   headerValue(
     name: string,
   ): Promise<string | null>;
@@ -137,6 +139,22 @@ export interface ManagedBrowserPage {
       timeout?: number;
     },
   ): Promise<ManagedBrowserDownload>;
+
+  on?(
+    event: 'response',
+    listener: (
+      response:
+        ManagedBrowserResponse,
+    ) => void,
+  ): unknown;
+
+  off?(
+    event: 'response',
+    listener: (
+      response:
+        ManagedBrowserResponse,
+    ) => void,
+  ): unknown;
 
   close(): Promise<void>;
 }
