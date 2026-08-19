@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `3f67f92 feat: compare initial Google Trends input methods`
+**Latest verified technical checkpoint:** `f99a21c test: verify sequential Google Trends entry`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -19,6 +19,8 @@ Branch and latest verified checkpoints:
 
 ```text
 main
+f99a21c test: verify sequential Google Trends entry
+5f4080d fix: enter initial Google Trends query sequentially
 3f67f92 feat: compare initial Google Trends input methods
 7676080 fix: enter Google Trends comparison queries sequentially
 ff60b93 feat: compare Google Trends query input methods
@@ -326,7 +328,9 @@ the add-comparison control appeared
 
 `7676080` therefore keeps the earlier live-successful `fill` method for the initial input and uses bounded `pressSequentially` only for provider-created dynamic comparison inputs. It adds no delay, sleep, refresh, retry, or positional fallback. This is deterministically verified through `GT-QUERY-001..015`.
 
-A production QUERY_GROUP gate after `7676080` stopped at the still-`fill`-based initial query with `SEARCH_TERM_SUGGESTION observed_count=0 query_index=0`. `3f67f92` can now compare initial `fill` and `pressSequentially` safely, but its first live use encountered same-origin HTTP 429 before producing that comparison. Initial-input `pressSequentially` therefore remains an untested live hypothesis and is not yet wired into production.
+A production QUERY_GROUP gate after `7676080` stopped at the still-`fill`-based initial query with `SEARCH_TERM_SUGGESTION observed_count=0 query_index=0`. `3f67f92` can compare initial `fill` and `pressSequentially` safely, but its first live use encountered same-origin HTTP 429 before producing that comparison.
+
+`5f4080d` applies the already live-successful, event-faithful `pressSequentially` contract to the initial Angular autocomplete input as well. `f99a21c` deterministically verifies that all five GT01 inputs use bounded sequential key events and that no production query input uses a single `fill` mutation. This initial-input extension remains pending live stage acceptance after the provider pause; it is not yet recorded as a proven live success.
 
 The staged waterfall runner introduced in `70ad27e` and `27a43f8` later completed QUERY_GROUP in two consecutive targeted live acceptance runs. QUERY_GROUP is therefore a functionally completed prerequisite module. Intermittent autocomplete absence remains a provider-reliability/hardening concern; it no longer reopens the completed module unless deterministic or repeatable evidence proves a regression.
 
@@ -536,7 +540,7 @@ Google Trends 0–100 values are relative interest only. They must never be conv
 
 # 10. Verified Deterministic Gate — 2026-08-19
 
-The affected deterministic M3 surface, integrated M2 gate, lint, TypeScript, and package were rerun from the current `3f67f92` / `7676080` diagnostic and production baselines.
+The affected deterministic M3 surface, integrated M2 gate, lint, TypeScript, and package were rerun from the current `f99a21c` all-input sequential-entry baseline.
 
 Current verified ranges:
 
@@ -553,7 +557,7 @@ BROWSER-DOWNLOAD-001..007 PASS
 GT-DOWNLOAD-001..013 PASS
 GT-DATE-DIALOG-001..010 PASS
 GT-DATE-RANGE-001..008 PASS
-GT-QUERY-001..015 PASS
+GT-QUERY-001..016 PASS
 GT-GEO-001..008 PASS
 GT-FILTER-001..007 PASS
 GT-CONFIGURED-EXPORT-001..010 PASS
@@ -586,6 +590,8 @@ After `97f0afb`, the affected storage/source/runtime/validator/manual-action sui
 After `0f217fa`, the custom-date-dialog, custom-date-range, UI-diagnostic, and collecting-source suites, lint, and TypeScript passed. After `50fd156` and `087a2ba`, the live-query-diagnostic command suite passed through `GT-LIVE-QUERY-DIAG-CMD-005`; the collecting-source suite, lint, TypeScript, and `git diff --check` also passed. After `ffa8534`, every current deterministic `test:m3:*` command, the integrated M2 gate, sequential orchestrator regression, lint, `npx tsc --noEmit`, and `npm run package` for `darwin/arm64` passed.
 
 After `f4fa7cd`, DOWNLOAD strategies passed through `GT-DOWNLOAD-013`; live-stage command, configured export, collecting source, UI diagnostics, live command, Core runner, M2 integrated gate, lint, TypeScript, and darwin/arm64 packaging also passed. After `7676080` and `3f67f92`, QUERY_GROUP remained green through `GT-QUERY-015`; the live-query diagnostic command, BrowserManager, configured export, collecting source, live-stage command, DOWNLOAD strategies, UI diagnostics, Core runner, integrated M2 gate, lint, TypeScript, `git diff --check`, and darwin/arm64 packaging passed.
+
+After `5f4080d` and `f99a21c`, QUERY_GROUP passed through `GT-QUERY-016`; configured export, collecting source, live-stage command, UI diagnostics, live GT01 command, Core runner, integrated M2 gate, lint, TypeScript, `git diff --check`, and darwin/arm64 packaging passed.
 
 The Vite CJS Node API deprecation message remains a non-failing warning.
 
@@ -646,6 +652,8 @@ This path is deterministically verified by `GT-CORE-001..011` for accepted data,
 
 Downloads is not the authoritative application datastore. Only an accepted artifact linked through the application-owned run/job/attempt/validation chain is canonical. A rejected run-scoped artifact remains immutable audit evidence but is not canonical data. User-visible CSV/XLSX packages remain a downstream ExportManager responsibility and may consume only validated accepted artifacts.
 
+Both preserved discovery provider files, `multiTimeline.csv` and `multiTimeline__2.csv`, were rechecked read-only through the current validator after `f99a21c`. Each independently returned `VALID`, 13 total checks, zero failed checks, and validated weekly coverage from `2024-08-18` through `2026-08-16`. This does not make Downloads canonical; it proves the current parser/validator accepts both distinct real provider byte samples without rewriting them.
+
 Do not delete, move, or rewrite existing provider evidence. First inventory provenance and determine whether another canonical copy exists. Developer helper files in Downloads are not application state.
 
 Read-only provenance inventory on 2026-08-19 established:
@@ -703,6 +711,8 @@ the first f4fa7cd no-download run stopped earlier at initial-query suggestion ab
 comparison-input fill was then proven unreliable; pressSequentially succeeded and entered production
 the updated production QUERY_GROUP gate again stopped at the still-fill-based initial input
 the first initial-input A/B diagnostic encountered same-origin HTTP 429
+all five production query inputs now use the sequential-entry contract
+the initial-input extension is deterministically verified but not yet live accepted
 provider work stopped immediately with no refresh, retry, download, artifact, or validation
 ```
 
@@ -713,8 +723,8 @@ Exact next provider action:
 ```text
 make no immediate repeated Google Trends request
 do not refresh, retry, or evade the provider restriction
-after a deliberate provider pause, run exactly one initial-input A/B diagnostic from 3f67f92 or a later deterministically verified checkpoint:
-npm run m3:live-query-diagnostic -- --confirm-live-diagnostic
+after a deliberate provider pause, run exactly one no-download readiness gate from f99a21c or a later deterministically verified checkpoint:
+npm run m3:live-stage -- --stage=FIXED_FILTERS --inspect-download-readiness --confirm-live-stage
 ```
 
 Interpret that run as follows:
@@ -723,16 +733,10 @@ Interpret that run as follows:
 if RATE_LIMITED occurs again
 → stop immediately with no refresh or retry
 
-if initial pressSequentially persists the configured query, exposes the expected Search Term suggestion, and produces exactly one provider-created empty comparison slot
-→ change only the initial query input method to pressSequentially
-→ keep the exact Search Term suggestion and every other QUERY_GROUP contract unchanged
-→ rerun the deterministic QUERY_GROUP gate and exactly one targeted live QUERY_GROUP gate
+if QUERY_GROUP fails again
+→ report only the structured control/count/index evidence and do not reopen unrelated modules
 
-if initial pressSequentially does not satisfy all three postconditions
-→ do not wire it into production; use the safe DOM/count evidence to evaluate the next input-method hypothesis
-
-after the updated QUERY_GROUP gate completes
-→ run exactly one no-download FIXED_FILTERS/DOWNLOAD-readiness diagnostic
+if QUERY_GROUP, GEOGRAPHY, DATE_RANGE, and FIXED_FILTERS complete
 → compare all five strategy results instead of stopping at the first match
 
 after one live DOWNLOAD strategy is selected and verified
@@ -779,17 +783,11 @@ do not refresh or immediately retry
 # 15. M3 Success Sequence
 
 ```text
-current deterministic f4fa7cd DOWNLOAD-strategy and 7676080 comparison-input baseline
+current deterministic f4fa7cd DOWNLOAD-strategy and f99a21c all-input sequential-entry baseline
 ↓
 deliberate provider pause without refresh/retry/evasion
 ↓
-one initial-input fill/pressSequentially A/B diagnostic
-↓
-evidence-based initial-input method correction if all postconditions pass
-↓
-one targeted QUERY_GROUP gate
-↓
-one no-download five-strategy DOWNLOAD-readiness diagnostic
+one no-download pre-stage plus five-strategy DOWNLOAD-readiness diagnostic
 ↓
 evidence-based DOWNLOAD-only correction if required
 ↓
