@@ -175,12 +175,21 @@ export const applyGoogleTrendsCustomDateRange =
         },
       );
 
-    await requireExactlyOne(
-      customRangeOption,
-      '"Custom time range..." option',
-      GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
-        .CUSTOM_TIME_RANGE_OPTION,
-    );
+    const initialCustomRangeOptionCount =
+      await customRangeOption.count();
+
+    if (initialCustomRangeOptionCount > 1) {
+      throw new GoogleTrendsDateRangeUiContractError(
+        `Expected at most one "Custom time range..." option while waiting for it to become available; found ${initialCustomRangeOptionCount}.`,
+        {
+          control:
+            GOOGLE_TRENDS_DATE_RANGE_DIAGNOSTIC_CONTROLS
+              .CUSTOM_TIME_RANGE_OPTION,
+          observed_count:
+            initialCustomRangeOptionCount,
+        },
+      );
+    }
 
     await runLocatorAction(
       customRangeOption,

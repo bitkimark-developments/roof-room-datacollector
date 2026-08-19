@@ -33,10 +33,13 @@ class FakeLocator {
     name,
     count = 1,
     trace,
+    beforeClick,
   }) {
     this.name = name;
     this.countValue = count;
     this.trace = trace;
+    this.beforeClick =
+      beforeClick;
     this.children =
       new Map();
   }
@@ -62,6 +65,16 @@ class FakeLocator {
         this.name,
       options,
     });
+
+    if (this.beforeClick) {
+      this.beforeClick();
+    }
+
+    if (this.countValue !== 1) {
+      throw new Error(
+        `strict mode violation for ${this.name}: ${this.countValue} matches`,
+      );
+    }
   }
 
   async fill(
@@ -116,6 +129,8 @@ class FakeLocator {
       op: 'count',
       locator:
         this.name,
+      observedCount:
+        this.countValue,
     });
 
     return this.countValue;
@@ -126,6 +141,7 @@ class FakePage {
   constructor({
     dateFilterCount = 1,
     optionCount = 1,
+    optionBecomesAvailableOnClick = false,
     dialogCount = 1,
     startCount = 1,
     endCount = 1,
@@ -151,6 +167,13 @@ class FakePage {
           optionCount,
         trace:
           this.trace,
+        beforeClick:
+          optionBecomesAvailableOnClick
+            ? () => {
+                this.customOption.countValue =
+                  1;
+              }
+            : undefined,
       });
 
     this.dialog =
@@ -580,6 +603,64 @@ const main = async () => {
 
   console.log(
     'PASS GT-DATE-RANGE-007: invalid UI timeout fails before provider UI inspection',
+  );
+
+  const delayedCustomOptionPage =
+    new FakePage({
+      optionCount:
+        0,
+      optionBecomesAvailableOnClick:
+        true,
+    });
+
+  await applyGoogleTrendsCustomDateRange({
+    page:
+      delayedCustomOptionPage,
+    requested_date_start:
+      '2024-08-18',
+    requested_date_end:
+      '2026-08-17',
+    ui_action_timeout_ms:
+      4_000,
+  });
+
+  const initialOptionCount =
+    delayedCustomOptionPage
+      .trace.find(
+        (entry) =>
+          entry.op ===
+            'count' &&
+          entry.locator ===
+            'custom-range-option',
+      );
+
+  const customOptionClick =
+    delayedCustomOptionPage
+      .trace.find(
+        (entry) =>
+          entry.op ===
+            'click' &&
+          entry.locator ===
+            'custom-range-option',
+      );
+
+  assert.equal(
+    initialOptionCount
+      ?.observedCount,
+    0,
+  );
+
+  assert.deepEqual(
+    customOptionClick
+      ?.options,
+    {
+      timeout:
+        4_000,
+    },
+  );
+
+  console.log(
+    'PASS GT-DATE-RANGE-008: the bounded strict click action waits for the asynchronously exposed Custom time range option',
   );
 };
 
