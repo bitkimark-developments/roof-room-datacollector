@@ -15,6 +15,7 @@ if (!buildRoot) {
 }
 
 const {
+  GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS,
   verifyGoogleTrendsFixedFilters,
   GoogleTrendsFixedFilterContractError,
 } = require(
@@ -459,6 +460,119 @@ const main = async () => {
 
   console.log(
     'PASS GT-FILTER-007: invalid read timeout fails before provider UI inspection',
+  );
+
+  const diagnosticCases = [
+    {
+      page: new FakePage({
+        categoryPickerCount:
+          0,
+      }),
+      control:
+        GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+          .CATEGORY_PICKER,
+      observedCount:
+        0,
+    },
+    {
+      page: new FakePage({
+        categoryButtonCount:
+          2,
+      }),
+      control:
+        GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+          .CATEGORY_PICKER_BUTTON,
+      observedCount:
+        2,
+    },
+    {
+      page: new FakePage({
+        categoryText:
+          'SENSITIVE_CATEGORY',
+      }),
+      control:
+        GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+          .CATEGORY_LABEL,
+      observedCount:
+        0,
+    },
+    {
+      page: new FakePage({
+        searchPickerCount:
+          0,
+      }),
+      control:
+        GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+          .SEARCH_PROPERTY_PICKER,
+      observedCount:
+        0,
+    },
+    {
+      page: new FakePage({
+        selectedValueCount:
+          2,
+      }),
+      control:
+        GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+          .SEARCH_PROPERTY_SELECTED_VALUE,
+      observedCount:
+        2,
+    },
+    {
+      page: new FakePage({
+        searchPropertyText:
+          'SENSITIVE_SEARCH_PROPERTY',
+      }),
+      control:
+        GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+          .SEARCH_PROPERTY_LABEL,
+      observedCount:
+        0,
+    },
+  ];
+
+  for (const diagnosticCase of
+    diagnosticCases) {
+    let observedError =
+      null;
+
+    try {
+      await verifyGoogleTrendsFixedFilters({
+        page:
+          diagnosticCase.page,
+      });
+    } catch (error) {
+      observedError =
+        error;
+    }
+
+    assert.equal(
+      observedError instanceof
+        GoogleTrendsFixedFilterContractError,
+      true,
+    );
+    assert.deepEqual(
+      observedError.diagnostic_context,
+      {
+        control:
+          diagnosticCase.control,
+        observed_count:
+          diagnosticCase.observedCount,
+      },
+    );
+    assert.equal(
+      JSON.stringify(
+        observedError
+          .diagnostic_context,
+      ).includes(
+        'SENSITIVE',
+      ),
+      false,
+    );
+  }
+
+  console.log(
+    'PASS GT-FILTER-008: every fixed-filter failure exposes only an allowlisted control and safe cardinality without provider labels',
   );
 };
 

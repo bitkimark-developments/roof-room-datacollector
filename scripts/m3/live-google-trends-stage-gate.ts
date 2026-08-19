@@ -32,6 +32,7 @@ import {
   GoogleTrendsDateRangeUiContractError,
 } from '../../src/main/sources/google-trends/google-trends-custom-date-range';
 import {
+  GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS,
   GoogleTrendsFixedFilterContractError,
 } from '../../src/main/sources/google-trends/google-trends-fixed-filter-verifier';
 import {
@@ -117,6 +118,13 @@ const DATE_DIALOG_CONTROLS =
   new Set<string>(
     Object.values(
       GOOGLE_TRENDS_DATE_DIALOG_DIAGNOSTIC_CONTROLS,
+    ),
+  );
+
+const FIXED_FILTER_CONTROLS =
+  new Set<string>(
+    Object.values(
+      GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS,
     ),
   );
 
@@ -709,11 +717,30 @@ export const safeStageGateFailure = (
     error instanceof
       GoogleTrendsFixedFilterContractError
   ) {
-    return {
+    const result = {
       ...base,
       error_class:
         'GoogleTrendsFixedFilterContractError',
     };
+
+    const diagnostic =
+      error.diagnostic_context;
+
+    return diagnostic !== null &&
+      FIXED_FILTER_CONTROLS.has(
+        diagnostic.control,
+      ) &&
+      validObservedCount(
+        diagnostic.observed_count,
+      )
+      ? {
+          ...result,
+          control:
+            diagnostic.control,
+          observed_count:
+            diagnostic.observed_count,
+        }
+      : result;
   }
 
   return base;

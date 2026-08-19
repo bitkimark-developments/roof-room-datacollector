@@ -33,6 +33,20 @@ const {
   ),
 );
 
+const {
+  GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS,
+  GoogleTrendsFixedFilterContractError,
+} = require(
+  path.join(
+    buildRoot,
+    'src',
+    'main',
+    'sources',
+    'google-trends',
+    'google-trends-fixed-filter-verifier.js',
+  ),
+);
+
 assert.equal(
   LIVE_CONFIGURED_URL_QUERY_GROUP_ID,
   'GT01',
@@ -163,6 +177,49 @@ assert.equal(
 
 console.log(
   'PASS GT-LIVE-CONFIG-URL-CMD-003: diagnostic failures expose only stage and allowlisted error class',
+);
+
+const fixedFilterFailure =
+  safeConfiguredUrlDiagnosticFailure(
+    'FIXED_FILTERS',
+    new GoogleTrendsFixedFilterContractError(
+      'SENSITIVE_LABEL_MUST_NOT_ESCAPE',
+      {
+        control:
+          GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+            .CATEGORY_PICKER,
+        observed_count:
+          0,
+      },
+    ),
+  );
+
+assert.deepEqual(
+  fixedFilterFailure,
+  {
+    result_type:
+      'CONFIGURED_URL_DIAGNOSTIC_FAILED',
+    stage:
+      'FIXED_FILTERS',
+    error_class:
+      'GoogleTrendsFixedFilterContractError',
+    control:
+      'CATEGORY_PICKER',
+    observed_count:
+      0,
+  },
+);
+assert.equal(
+  JSON.stringify(
+    fixedFilterFailure,
+  ).includes(
+    'SENSITIVE',
+  ),
+  false,
+);
+
+console.log(
+  'PASS GT-LIVE-CONFIG-URL-CMD-006: fixed-filter failures include only allowlisted control cardinality without provider labels',
 );
 
 const providerBlock =

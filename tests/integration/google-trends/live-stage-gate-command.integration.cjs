@@ -31,6 +31,20 @@ const {
 );
 
 const {
+  GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS,
+  GoogleTrendsFixedFilterContractError,
+} = require(
+  path.join(
+    buildRoot,
+    'src',
+    'main',
+    'sources',
+    'google-trends',
+    'google-trends-fixed-filter-verifier.js',
+  ),
+);
+
+const {
   GOOGLE_TRENDS_QUERY_GROUP_DIAGNOSTIC_CONTROLS,
   GoogleTrendsQueryGroupUiContractError,
 } = require(
@@ -201,6 +215,58 @@ assert.equal(
 
 console.log(
   'PASS GT-LIVE-STAGE-CMD-002: stage failures expose only target/current/completed gates and allowlisted cardinality evidence',
+);
+
+const fixedFilterFailure =
+  safeStageGateFailure(
+    'FIXED_FILTERS',
+    'FIXED_FILTERS',
+    [
+      'QUERY_GROUP',
+      'GEOGRAPHY',
+      'DATE_RANGE',
+    ],
+    new GoogleTrendsFixedFilterContractError(
+      'SENSITIVE_LABEL_MUST_NOT_ESCAPE',
+      {
+        control:
+          GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+            .SEARCH_PROPERTY_PICKER,
+        observed_count:
+          0,
+      },
+    ),
+  );
+
+assert.deepEqual(
+  fixedFilterFailure,
+  {
+    result_type:
+      'STAGE_GATE_FAILED',
+    target_stage:
+      'FIXED_FILTERS',
+    current_stage:
+      'FIXED_FILTERS',
+    completed_stages: [
+      'QUERY_GROUP',
+      'GEOGRAPHY',
+      'DATE_RANGE',
+    ],
+    error_class:
+      'GoogleTrendsFixedFilterContractError',
+    control:
+      'SEARCH_PROPERTY_PICKER',
+    observed_count:
+      0,
+  },
+);
+assert.equal(
+  JSON.stringify(
+    fixedFilterFailure,
+  ).includes(
+    'SENSITIVE',
+  ),
+  false,
 );
 
 const response = (

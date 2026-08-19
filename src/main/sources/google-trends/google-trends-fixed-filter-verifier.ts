@@ -21,13 +21,49 @@ const EXPECTED_SEARCH_PROPERTY_LABEL =
 const DEFAULT_UI_READ_TIMEOUT_MS =
   10_000;
 
+export const GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS = {
+  CATEGORY_PICKER:
+    'CATEGORY_PICKER',
+  CATEGORY_PICKER_BUTTON:
+    'CATEGORY_PICKER_BUTTON',
+  CATEGORY_LABEL:
+    'CATEGORY_LABEL',
+  SEARCH_PROPERTY_PICKER:
+    'SEARCH_PROPERTY_PICKER',
+  SEARCH_PROPERTY_SELECTED_VALUE:
+    'SEARCH_PROPERTY_SELECTED_VALUE',
+  SEARCH_PROPERTY_LABEL:
+    'SEARCH_PROPERTY_LABEL',
+} as const;
+
+export type GoogleTrendsFixedFilterDiagnosticControl =
+  (typeof GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS)[
+    keyof typeof GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+  ];
+
+export interface GoogleTrendsFixedFilterDiagnosticContext {
+  control:
+    GoogleTrendsFixedFilterDiagnosticControl;
+  observed_count: number;
+}
+
 export class GoogleTrendsFixedFilterContractError
   extends Error
 {
-  constructor(message: string) {
+  readonly diagnostic_context:
+    GoogleTrendsFixedFilterDiagnosticContext | null;
+
+  constructor(
+    message: string,
+    diagnosticContext:
+      GoogleTrendsFixedFilterDiagnosticContext | null =
+      null,
+  ) {
     super(message);
     this.name =
       'GoogleTrendsFixedFilterContractError';
+    this.diagnostic_context =
+      diagnosticContext;
   }
 }
 
@@ -58,6 +94,8 @@ const requirePositiveTimeout = (
 const requireExactlyOne = async (
   locator: ManagedBrowserLocator,
   description: string,
+  control:
+    GoogleTrendsFixedFilterDiagnosticControl,
 ): Promise<void> => {
   const count =
     await locator.count();
@@ -65,6 +103,11 @@ const requireExactlyOne = async (
   if (count !== 1) {
     throw new GoogleTrendsFixedFilterContractError(
       `Expected exactly one ${description}; found ${count}.`,
+      {
+        control,
+        observed_count:
+          count,
+      },
     );
   }
 };
@@ -118,6 +161,8 @@ export const verifyGoogleTrendsFixedFilters =
     await requireExactlyOne(
       categoryPicker,
       'Google Trends category picker',
+      GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+        .CATEGORY_PICKER,
     );
 
     const categoryButton =
@@ -128,6 +173,8 @@ export const verifyGoogleTrendsFixedFilters =
     await requireExactlyOne(
       categoryButton,
       'category picker button',
+      GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+        .CATEGORY_PICKER_BUTTON,
     );
 
     const categoryLabel =
@@ -142,6 +189,13 @@ export const verifyGoogleTrendsFixedFilters =
     ) {
       throw new GoogleTrendsFixedFilterContractError(
         `Expected Google Trends category "${EXPECTED_CATEGORY_LABEL}"; found "${categoryLabel}".`,
+        {
+          control:
+            GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+              .CATEGORY_LABEL,
+          observed_count:
+            0,
+        },
       );
     }
 
@@ -153,6 +207,8 @@ export const verifyGoogleTrendsFixedFilters =
     await requireExactlyOne(
       searchPropertyPicker,
       'Google Trends search-property picker',
+      GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+        .SEARCH_PROPERTY_PICKER,
     );
 
     const selectedValue =
@@ -163,6 +219,8 @@ export const verifyGoogleTrendsFixedFilters =
     await requireExactlyOne(
       selectedValue,
       'search-property selected value',
+      GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+        .SEARCH_PROPERTY_SELECTED_VALUE,
     );
 
     const searchPropertyLabel =
@@ -177,6 +235,13 @@ export const verifyGoogleTrendsFixedFilters =
     ) {
       throw new GoogleTrendsFixedFilterContractError(
         `Expected Google Trends search property "${EXPECTED_SEARCH_PROPERTY_LABEL}"; found "${searchPropertyLabel}".`,
+        {
+          control:
+            GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS
+              .SEARCH_PROPERTY_LABEL,
+          observed_count:
+            0,
+        },
       );
     }
   };

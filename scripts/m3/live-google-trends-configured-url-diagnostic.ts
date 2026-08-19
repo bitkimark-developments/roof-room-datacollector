@@ -25,6 +25,8 @@ import {
   type GoogleTrendsConfiguredExploreUrlAssessment,
 } from '../../src/main/sources/google-trends/google-trends-configured-explore-url';
 import {
+  GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS,
+  GoogleTrendsFixedFilterContractError,
   verifyGoogleTrendsFixedFilters,
 } from '../../src/main/sources/google-trends/google-trends-fixed-filter-verifier';
 import {
@@ -80,6 +82,8 @@ export interface SafeConfiguredUrlDiagnosticFailure {
   stage:
     ConfiguredUrlDiagnosticStage;
   error_class: string;
+  control?: string;
+  observed_count?: number;
 }
 
 export interface SafeConfiguredUrlDiagnosticSuccess {
@@ -191,22 +195,62 @@ const SAFE_DIAGNOSTIC_ERROR_CLASSES =
     'GoogleTrendsUiContractError',
   ]);
 
+const FIXED_FILTER_DIAGNOSTIC_CONTROLS =
+  new Set<string>(
+    Object.values(
+      GOOGLE_TRENDS_FIXED_FILTER_DIAGNOSTIC_CONTROLS,
+    ),
+  );
+
 export const safeConfiguredUrlDiagnosticFailure = (
   stage:
     ConfiguredUrlDiagnosticStage,
   error: unknown,
-): SafeConfiguredUrlDiagnosticFailure => ({
-  result_type:
-    'CONFIGURED_URL_DIAGNOSTIC_FAILED',
-  stage,
-  error_class:
-    error instanceof Error &&
-    SAFE_DIAGNOSTIC_ERROR_CLASSES.has(
-      error.name,
-    )
-      ? error.name
-      : 'UNKNOWN_DIAGNOSTIC_ERROR',
-});
+): SafeConfiguredUrlDiagnosticFailure => {
+  const base:
+    SafeConfiguredUrlDiagnosticFailure = {
+      result_type:
+        'CONFIGURED_URL_DIAGNOSTIC_FAILED',
+      stage,
+      error_class:
+        error instanceof Error &&
+        SAFE_DIAGNOSTIC_ERROR_CLASSES.has(
+          error.name,
+        )
+          ? error.name
+          : 'UNKNOWN_DIAGNOSTIC_ERROR',
+    };
+
+  if (
+    stage === 'FIXED_FILTERS' &&
+    error instanceof
+      GoogleTrendsFixedFilterContractError &&
+    error.diagnostic_context !==
+      null &&
+    FIXED_FILTER_DIAGNOSTIC_CONTROLS.has(
+      error.diagnostic_context
+        .control,
+    ) &&
+    Number.isSafeInteger(
+      error.diagnostic_context
+        .observed_count,
+    ) &&
+    error.diagnostic_context
+      .observed_count >= 0
+  ) {
+    return {
+      ...base,
+      control:
+        error.diagnostic_context
+          .control,
+      observed_count:
+        error.diagnostic_context
+          .observed_count,
+    };
+  }
+
+  return base;
+};
 
 export const safeProviderBlockResult = (
   provider:
