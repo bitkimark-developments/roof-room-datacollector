@@ -2,7 +2,7 @@
 
 **Current Milestone:** M3 — Google Trends MVP Collector
 **Previous Milestone:** M2 — Core Collector Engine — COMPLETE
-**Latest verified technical checkpoint:** `087a2ba fix: classify query diagnostic rate limits`
+**Latest verified technical checkpoint:** `ffa8534 feat: inspect Google Trends download readiness`
 **Verified baseline date:** 2026-08-19
 
 ---
@@ -19,6 +19,12 @@ Branch and latest verified checkpoints:
 
 ```text
 main
+ffa8534 feat: inspect Google Trends download readiness
+3799be1 fix: extend Google Trends card readiness
+c47be4b fix: wait for Google Trends download controls
+34810be feat: add Google Trends download diagnostics
+27a43f8 feat: add Google Trends live stage gates
+70ad27e refactor: add Google Trends stage gates
 087a2ba fix: classify query diagnostic rate limits
 50fd156 feat: diagnose Google Trends query input persistence
 0f217fa fix: wait for Google Trends date dialog
@@ -181,6 +187,11 @@ ordered Search Term query-group adapter
 Türkiye geography adapter
 All categories / Web Search verification
 configured-page export composition
+shared pre-download stage runner with explicit acceptance gates
+download-free live stage command for QUERY_GROUP / GEOGRAPHY / DATE_RANGE / FIXED_FILTERS
+structured DOWNLOAD heading/button diagnostics
+bounded download-card heading/button readiness
+redacted download-readiness DOM diagnostic that cannot trigger download
 GoogleTrendsCollector and GoogleTrendsSource
 main-process runtime composition and shutdown
 safe stage diagnostics
@@ -286,6 +297,8 @@ The structural diagnostic was extended in `50fd156` to report only safe boolean 
 
 The same exact Search Term locator succeeded in earlier live structural evidence. The new failures therefore prove intermittent suggestion absence for these attempts; they do not prove selector drift or justify a positional/keyboard fallback.
 
+The staged waterfall runner introduced in `70ad27e` and `27a43f8` later completed QUERY_GROUP in two consecutive targeted live acceptance runs. QUERY_GROUP is therefore a functionally completed prerequisite module. Intermittent autocomplete absence remains a provider-reliability/hardening concern; it no longer reopens the completed module unless deterministic or repeatable evidence proves a regression.
+
 ---
 
 # 7. Geography and Date-Range State
@@ -327,7 +340,26 @@ control=ARCHIVE_DIALOG
 observed_count=0
 ```
 
-`0f217fa` replaces that premature dialog count check with a bounded exact-one wait using the existing locator and timeout. Ambiguous counts still fail closed. This is deterministically verified by `GT-DATE-DIALOG-010`. No later live run has reached `ARCHIVE_DIALOG`; the next full collection stopped earlier at the intermittent QUERY_GROUP suggestion boundary.
+`0f217fa` replaces that premature dialog count check with a bounded exact-one wait using the existing locator and timeout. Ambiguous counts still fail closed. This is deterministically verified by `GT-DATE-DIALOG-010`.
+
+The first targeted live DATE_RANGE gate after `27a43f8` completed:
+
+```text
+QUERY_GROUP
+GEOGRAPHY
+DATE_RANGE
+```
+
+The next targeted FIXED_FILTERS gate completed:
+
+```text
+QUERY_GROUP
+GEOGRAPHY
+DATE_RANGE
+FIXED_FILTERS
+```
+
+This live evidence verifies the full `0f217fa` custom-date dialog path, including applying the requested start/end inputs and activating OK. QUERY_GROUP, GEOGRAPHY, DATE_RANGE, and FIXED_FILTERS are now locked completed pre-download modules.
 
 Current structured date controls:
 
@@ -346,21 +378,22 @@ END_DATE_INPUT
 
 The source-level GT01 vertical slice has not produced an accepted artifact through the current automation.
 
-Most advanced verified live path:
+Current waterfall gate state:
 
 ```text
-QUERY_GROUP passed all five queries
-GEOGRAPHY passed after b7c43d1
-DATE_RANGE reached
-CUSTOM_TIME_RANGE_OPTION passed after 42ebbe9
-ARCHIVE_DIALOG reported observed_count=0
-no download or artifact was produced
+QUERY_GROUP    DONE — targeted live stage gate completed
+GEOGRAPHY      DONE — targeted live stage gate completed
+DATE_RANGE     DONE — targeted live stage gate completed
+FIXED_FILTERS  DONE — targeted live stage gate completed
+DOWNLOAD       IN PROGRESS — Interest over time heading not found
+CORE ARTIFACT  PENDING — no provider bytes yet
+VALIDATION     PENDING — no candidate artifact yet
 ```
 
-That Core-integrated run persisted:
+The first full Core-integrated run after the four pre-download modules completed reached DOWNLOAD and persisted:
 
 ```text
-run_id: rr_20260819T031148872Z_033267
+run_id: rr_20260819T034449747Z_667f1b
 run_status: RUNNING
 job_execution_status: FAILED
 attempt_number: 1
@@ -370,21 +403,29 @@ artifact: null
 validation: null
 ```
 
-The first controlled full run after `0f217fa` persisted:
+`34810be` added structured DOWNLOAD controls:
 
 ```text
-run_id: rr_20260819T031347369Z_ee4183
+INTEREST_OVER_TIME_HEADING
+DOWNLOAD_BUTTON
+```
+
+`c47be4b` replaced premature heading/button cardinality checks with bounded readiness. `3799be1` aligned default download-card readiness with the existing 30-second download window. A subsequent full run completed every pre-download module but still reported:
+
+```text
+run_id: rr_20260819T035039561Z_72b4fa
 run_status: RUNNING
 job_execution_status: FAILED
 attempt_number: 1
 validation_status: NOT_RUN
 error_code: GOOGLE_TRENDS_UI_CONTRACT_ERROR
-control: SEARCH_TERM_SUGGESTION
+control: INTEREST_OVER_TIME_HEADING
 observed_count: 0
-query_index: 1
 artifact: null
 validation: null
 ```
+
+This proves the current DOWNLOAD blocker is not a ten-second readiness race. Either the live card/heading contract has changed or the result card is not rendering. `ffa8534` adds a no-download structural diagnostic to distinguish those states. Its first controlled use stopped as `RATE_LIMITED` on same-origin HTTP 429, so no structural result was collected and provider work stopped without refresh/retry.
 
 Last pre-monitor controlled live result after `42ebbe9`:
 
@@ -450,7 +491,7 @@ Google Trends 0–100 values are relative interest only. They must never be conv
 
 # 10. Verified Deterministic Gate — 2026-08-19
 
-The complete deterministic M3 surface, integrated M2 gate, sequential orchestrator regression, lint, TypeScript, and package were rerun from the current `087a2ba` technical baseline after the `c01f4eb` handoff reconciliation.
+The complete deterministic M3 surface, integrated M2 gate, sequential orchestrator regression, lint, TypeScript, and package were rerun from the current `ffa8534` technical baseline.
 
 Current verified ranges:
 
@@ -464,13 +505,13 @@ GT-DATE-001..002 PASS
 GT-VAL-001..008 PASS
 GT-ADAPTER-001..007 PASS
 BROWSER-DOWNLOAD-001..007 PASS
-GT-DOWNLOAD-001..007 PASS
+GT-DOWNLOAD-001..010 PASS
 GT-DATE-DIALOG-001..010 PASS
 GT-DATE-RANGE-001..008 PASS
 GT-QUERY-001..015 PASS
 GT-GEO-001..008 PASS
 GT-FILTER-001..007 PASS
-GT-CONFIGURED-EXPORT-001..007 PASS
+GT-CONFIGURED-EXPORT-001..010 PASS
 GT-SOURCE-001..003 PASS
 GT-COLLECTOR-001..009 PASS
 GT-RUNTIME-001..005 PASS
@@ -478,8 +519,9 @@ GT-PACKAGE-001 PASS
 GT-MANUAL-001..006 PASS
 GT-LIVE-GT01-CMD-001..005 PASS
 GT-CORE-001..011 PASS
-GT-DIAG-001..008 PASS
+GT-DIAG-001..009 PASS
 GT-LIVE-QUERY-DIAG-CMD-001..005 PASS
+GT-LIVE-STAGE-CMD-001..005 PASS
 M2-GATE-001..008 PASS
 PIPELINE-001..004 PASS
 STORAGE-BOUNDARY-001..002 PASS
@@ -496,7 +538,7 @@ git diff --check PASS before each checkpoint
 
 After `97f0afb`, the affected storage/source/runtime/validator/manual-action suites, the sequential orchestrator suite, the integrated M2 gate, lint, TypeScript, and packaging were rerun successfully. After `cf56053`, provider-state/probe, collector, UI-diagnostic, live-command, Core-runner, BrowserManager, lint, TypeScript, and darwin/arm64 packaging checks also passed. After `e1539dd`, the Google Trends CSV validator, CollectionValidator adapter, Core persistence runner, sequential orchestrator, integrated M2 gate, lint, TypeScript, and darwin/arm64 packaging checks passed. After `3142606`, the full deterministic M3 surface, sequential orchestrator, integrated M2 gate, storage-boundary tests, lint, TypeScript, and darwin/arm64 packaging checks passed. The first package attempt was blocked only by sandboxed `github.com` DNS access; the same package command passed with network access.
 
-After `0f217fa`, the custom-date-dialog, custom-date-range, UI-diagnostic, and collecting-source suites, lint, and TypeScript passed. After `50fd156` and `087a2ba`, the live-query-diagnostic command suite passed through `GT-LIVE-QUERY-DIAG-CMD-005`; the collecting-source suite, lint, TypeScript, and `git diff --check` also passed. The subsequent full rerun passed every current deterministic `test:m3:*` command, the integrated M2 gate, the sequential orchestrator regression, lint, `npx tsc --noEmit`, and `npm run package` for `darwin/arm64`.
+After `0f217fa`, the custom-date-dialog, custom-date-range, UI-diagnostic, and collecting-source suites, lint, and TypeScript passed. After `50fd156` and `087a2ba`, the live-query-diagnostic command suite passed through `GT-LIVE-QUERY-DIAG-CMD-005`; the collecting-source suite, lint, TypeScript, and `git diff --check` also passed. After `ffa8534`, every current deterministic `test:m3:*` command, the integrated M2 gate, sequential orchestrator regression, lint, `npx tsc --noEmit`, and `npm run package` for `darwin/arm64` passed.
 
 The Vite CJS Node API deprecation message remains a non-failing warning.
 
@@ -553,7 +595,7 @@ real GoogleTrendsSource
 → metadata JSON + validation JSON + structured run log
 ```
 
-This path is deterministically verified by `GT-CORE-001..011` for accepted data, source failure, manual action, rejected non-data content, validated actual-date/country metadata, and fail-closed metadata checks. `BROWSER-DOWNLOAD-001..007`, `GT-DOWNLOAD-001..007`, and `STORAGE-BOUNDARY-001..002` verify direct byte capture, typed download failure, no pre-Core Downloads write, and no eager public-directory creation. The path is restricted to exactly one GT01 group and does not add provider retry, refresh, navigation, selector, or timing behavior.
+This path is deterministically verified by `GT-CORE-001..011` for accepted data, source failure, manual action, rejected non-data content, validated actual-date/country metadata, and fail-closed metadata checks. `BROWSER-DOWNLOAD-001..007`, `GT-DOWNLOAD-001..010`, and `STORAGE-BOUNDARY-001..002` verify direct byte capture, typed download failure, bounded card readiness, no pre-Core Downloads write, and no eager public-directory creation. The path is restricted to exactly one GT01 group and does not add provider retry, refresh, or navigation behavior.
 
 Downloads is not the authoritative application datastore. Only an accepted artifact linked through the application-owned run/job/attempt/validation chain is canonical. A rejected run-scoped artifact remains immutable audit evidence but is not canonical data. User-visible CSV/XLSX packages remain a downstream ExportManager responsibility and may consume only validated accepted artifacts.
 
@@ -563,10 +605,10 @@ Read-only provenance inventory on 2026-08-19 established:
 
 ```text
 app-data SQLite:
-3 runs / 3 jobs / 3 attempts
+7 runs / 7 jobs / 7 attempts
 all runs remain RUNNING for explicit resume policy
 all jobs and attempts are FAILED
-attempt error codes: RATE_LIMITED, GOOGLE_TRENDS_UI_CONTRACT_ERROR, GOOGLE_TRENDS_UI_CONTRACT_ERROR
+attempt error-code counts: RATE_LIMITED=1, GOOGLE_TRENDS_UI_CONTRACT_ERROR=6
 0 artifacts / 0 validations
 PRAGMA quick_check = ok
 
@@ -605,23 +647,23 @@ The `cf56053` live attempt proves that a real provider failure traverses Core in
 Current live blocker:
 
 ```text
-the latest full GT01 collection stopped at QUERY_GROUP
-SEARCH_TERM_SUGGESTION remained absent for query_index=1 after the bounded action
-a later safe structural diagnostic reproduced the absent second-query suggestion
-all autocomplete containers were present but hidden with no accessible suggestion controls
-the next diagnostic stopped even earlier when the first suggestion did not appear
-that last diagnostic predated interaction-429 classification and therefore cannot exclude an interaction HTTP 429
-no selector drift has been proven because the exact locator succeeded in earlier live evidence
+QUERY_GROUP, GEOGRAPHY, DATE_RANGE, and FIXED_FILTERS are live-complete modules
+the latest advanced full GT01 run stopped only at DOWNLOAD
+INTEREST_OVER_TIME_HEADING remained absent after the bounded 30-second readiness window
+the exact live card/heading DOM contract is still unknown
+the first no-download structural readiness diagnostic encountered same-origin HTTP 429
+provider work stopped immediately with no refresh, retry, download, artifact, or validation
 ```
 
-The earlier `cf56053` run still proves rate limiting for that specific attempt. It does not retrospectively establish the cause of every `SEARCH_TERM_SUGGESTION` count-zero result.
+The HTTP 429 applies to the latest diagnostic attempt only. It does not establish why the Interest over time heading was absent in the preceding full runs.
 
 Exact next provider action:
 
 ```text
 make no immediate repeated Google Trends request
-do not refresh, retry, or evade a provider restriction
-after a deliberate provider pause, run exactly one controlled GT01 collection from 087a2ba or a later deterministically verified checkpoint
+do not refresh, retry, or evade the provider restriction
+after a deliberate provider pause, run exactly one no-download readiness diagnostic from ffa8534 or a later deterministically verified checkpoint:
+npm run m3:live-stage -- --stage=FIXED_FILTERS --inspect-download-readiness --confirm-live-stage
 ```
 
 Interpret that run as follows:
@@ -630,17 +672,15 @@ Interpret that run as follows:
 if RATE_LIMITED occurs again
 → stop immediately with no refresh or retry
 
-if QUERY_GROUP passes
-→ verify whether 0f217fa advances past ARCHIVE_DIALOG
+if the result cards exist under a changed bounded semantic contract
+→ change only the DOWNLOAD module and its deterministic tests
 
-if another structured control fails
-→ make only the smallest evidence-based correction
+if no result card is rendered
+→ diagnose the provider result state without touching completed modules
 
-if SEARCH_TERM_SUGGESTION fails again without RATE_LIMITED
-→ use the 087a2ba structural diagnostic in a separately controlled later run before changing selectors, waits, retry, navigation, or provider behavior
-
-if an artifact is produced
-→ run the existing validator and do not infer anything from exact live numeric values
+after DOWNLOAD readiness is corrected
+→ run exactly one Core-routed GT01 collection
+→ preserve and validate the artifact without asserting exact live numeric values
 ```
 
 Do not expand to GT02–GT20 until GT01 produces an accepted artifact and canonical Core persistence is proven.
@@ -682,21 +722,15 @@ do not refresh or immediately retry
 # 15. M3 Success Sequence
 
 ```text
-current deterministic 087a2ba Core-integrated, interaction-429-aware, source-metadata-aware, Core-owned-storage baseline
+current deterministic ffa8534 stage-gated, Core-integrated, interaction-429-aware, Core-owned-storage baseline
 ↓
 deliberate provider pause without refresh/retry/evasion
 ↓
-one later controlled live GT01
+one no-download DOWNLOAD-readiness structural diagnostic
 ↓
-stable five-query group
+evidence-based DOWNLOAD-only correction if required
 ↓
-Türkiye
-↓
-exact custom date range including the 0f217fa dialog-readiness correction
-↓
-All categories + Web Search verification
-↓
-Interest Over Time provider export
+one Core-routed GT01
 ↓
 ARTIFACT_PRODUCED
 ↓
