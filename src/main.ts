@@ -16,6 +16,9 @@ import type {
   GoogleTrendsDesktopController,
 } from './main/app/google-trends-desktop-controller';
 import {
+  findLatestExportWorkbook,
+} from './main/app/application-file-access';
+import {
   ensureExternalQueryConfig,
   loadQueryConfig,
 } from './main/config/query-config-loader';
@@ -223,14 +226,39 @@ const registerIpcHandlers = (
       const errorMessage =
         await shell.openPath(
           bootstrapStatus
-            .directories.data,
+            .directories.runs,
         );
 
       if (errorMessage.length > 0) {
         throw new Error(
-          `Could not open the application data folder: ${errorMessage}`,
+          `Teknik çalışma arşivi açılamadı: ${errorMessage}`,
         );
       }
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.OPEN_LATEST_EXPORT,
+    async (event): Promise<void> => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      const workbookPath =
+        await findLatestExportWorkbook(
+          bootstrapStatus
+            .directories,
+        );
+
+      if (workbookPath === null) {
+        throw new Error(
+          'Henüz açılabilecek tamamlanmış bir veri paketi yok.',
+        );
+      }
+
+      shell.showItemInFolder(
+        workbookPath,
+      );
     },
   );
 
@@ -244,12 +272,13 @@ const registerIpcHandlers = (
       const errorMessage =
         await shell.openPath(
           bootstrapStatus
-            .directories.config,
+            .query_config
+            .config_path,
         );
 
       if (errorMessage.length > 0) {
         throw new Error(
-          `Could not open the application config folder: ${errorMessage}`,
+          `Keyword yapılandırma dosyası açılamadı: ${errorMessage}`,
         );
       }
     },

@@ -20,6 +20,9 @@ bash \
 bash \
   tests/integration/app/run-google-trends-desktop-controller-test.sh
 
+bash \
+  tests/integration/app/run-application-file-access-test.sh
+
 for TEST_SCRIPT in \
   "$PROJECT_DIR"/tests/integration/google-trends/run-*-test.sh
 do
@@ -32,4 +35,4 @@ bash \
 bash \
   tests/integration/app/run-desktop-ui-smoke-test.sh
 
-echo 'PASS RELEASE-GATE-001: deterministic Core, Google Trends, desktop, configuration, validation, and export gates completed'
+echo 'PASS RELEASE-GATE-001: deterministic Core, Google Trends, desktop file access, configuration, validation, and export gates completed'

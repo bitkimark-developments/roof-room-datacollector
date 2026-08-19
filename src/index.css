@@ -421,6 +421,16 @@ h1 {
   gap: 8px;
 }
 
+.output-button {
+  border-color: #9eb9ae;
+  background: #edf6f1;
+  color: #1f654d;
+}
+
+.output-button:hover:not(:disabled) {
+  background: #dfefe7;
+}
+
 .group-selector {
   margin: 4px 0 18px;
   padding: 13px;
@@ -451,7 +461,7 @@ h1 {
 }
 
 .group-options {
-  max-height: 190px;
+  max-height: 300px;
   display: grid;
   gap: 6px;
   overflow: auto;
@@ -459,7 +469,7 @@ h1 {
 
 .group-options label {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 9px;
   padding: 8px;
   border: 1px solid #e6e6df;
@@ -471,6 +481,7 @@ h1 {
 .group-options input {
   width: 15px;
   height: 15px;
+  margin-top: 2px;
   accent-color: #1f6b50;
 }
 
@@ -490,6 +501,12 @@ h1 {
   font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.query-terms {
+  color: #52615b;
+  font-size: 9px;
+  line-height: 1.45;
 }
 
 .storage-note {

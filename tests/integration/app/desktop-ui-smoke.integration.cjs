@@ -268,6 +268,8 @@ const main = async () => {
             async () => collection,
           openDataFolder:
             async () => {},
+          openLatestExport:
+            async () => {},
           openConfigFolder:
             async () => {},
         };
@@ -318,6 +320,26 @@ const main = async () => {
       1,
     );
     assert.equal(
+      await page.getByText(
+        'first · second',
+        {
+          exact:
+            true,
+        },
+      ).count(),
+      1,
+    );
+    assert.equal(
+      await page.getByRole(
+        'button',
+        {
+          name:
+            'Son Veri Paketini Aç',
+        },
+      ).count(),
+      1,
+    );
+    assert.equal(
       await page.getByRole(
         'button',
         {
@@ -339,6 +361,17 @@ const main = async () => {
     );
     await groupCheckboxes.nth(1)
       .uncheck();
+    assert.equal(
+      await page.locator(
+        '.summary-list div',
+      ).filter({
+        hasText:
+          'Keyword',
+      }).locator(
+        'dd',
+      ).textContent(),
+      '2',
+    );
     await page.getByRole(
       'button',
       {

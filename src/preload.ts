@@ -44,6 +44,11 @@ const roofroomApi: RoofRoomApi = {
       IPC_CHANNELS.OPEN_DATA_FOLDER,
     ),
 
+  openLatestExport: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.OPEN_LATEST_EXPORT,
+    ),
+
   openConfigFolder: () =>
     ipcRenderer.invoke(
       IPC_CHANNELS.OPEN_CONFIG_FOLDER,

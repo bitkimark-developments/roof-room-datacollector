@@ -18,6 +18,8 @@ export const IPC_CHANNELS = {
     'collection:cancel',
   OPEN_DATA_FOLDER:
     'collection:open-data-folder',
+  OPEN_LATEST_EXPORT:
+    'collection:open-latest-export',
   OPEN_CONFIG_FOLDER:
     'collection:open-config-folder',
 } as const;
@@ -46,5 +48,6 @@ export interface RoofRoomApi {
   cancelCollection: () =>
     Promise<DesktopCollectionState>;
   openDataFolder: () => Promise<void>;
+  openLatestExport: () => Promise<void>;
   openConfigFolder: () => Promise<void>;
 }

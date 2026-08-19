@@ -309,13 +309,23 @@ export function App() {
   const queryCount =
     useMemo(
       () =>
-        config?.groups.reduce(
-          (total, group) =>
-            total +
-            group.queries.length,
-          0,
-        ) ?? 0,
-      [config],
+        config?.groups
+          .filter(
+            (group) =>
+              selectedGroupIds.includes(
+                group.query_group_id,
+              ),
+          )
+          .reduce(
+            (total, group) =>
+              total +
+              group.queries.length,
+            0,
+          ) ?? 0,
+      [
+        config,
+        selectedGroupIds,
+      ],
     );
 
   const isActive =
@@ -766,6 +776,9 @@ export function App() {
                         {group.query_group_name}{' '}
                         · {group.queries.length} keyword
                       </small>
+                      <span className="query-terms">
+                        {group.queries.join(' · ')}
+                      </span>
                     </span>
                   </label>
                 ),
@@ -773,6 +786,23 @@ export function App() {
             </div>
           </div>
           <div className="folder-actions">
+            <button
+              type="button"
+              className="folder-button output-button"
+              disabled={
+                pendingAction !== null
+              }
+              onClick={() =>
+                void runAction(
+                  'OPEN_FOLDER',
+                  () =>
+                    window.roofroom
+                      .openLatestExport(),
+                )
+              }
+            >
+              Son Veri Paketini Aç
+            </button>
             <button
               type="button"
               className="folder-button"
@@ -788,7 +818,7 @@ export function App() {
                 )
               }
             >
-              Veri Klasörünü Aç
+              Teknik Çalışma Arşivini Aç
             </button>
             <button
               type="button"
@@ -806,14 +836,14 @@ export function App() {
                 )
               }
             >
-              Yapılandırma Klasörünü Aç
+              Keyword Dosyasını Düzenle
             </button>
           </div>
           <p className="storage-note">
-            Ham kanıtın asıl kopyası Downloads değil, uygulamaya ait
-            çalışma klasörüdür. Sorgu havuzu tek bir
-            query-groups.yaml, .json veya .csv dosyasından bir sonraki
-            açılışta yüklenir.
+            Son veri paketi düğmesi en yeni XLSX dosyasını Finder’da
+            seçer. rr_ ile başlayan klasörler değiştirilmeyen teknik
+            çalışma kimlikleridir. Keyword dosyasındaki değişiklikler
+            uygulama yeniden açıldığında yüklenir.
           </p>
         </aside>
       </section>
