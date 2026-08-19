@@ -16,6 +16,7 @@ if (!buildRoot) {
 
 const {
   LIVE_QUERY_DOM_DIAGNOSTIC_CONFIRMATION_FLAG,
+  classifyQueryInputState,
   parseLiveQueryDomDiagnosticArguments,
   requireLiveQueryDomDiagnosticConfirmation,
   sanitizeQueryDomDiagnosticRows,
@@ -153,4 +154,34 @@ assert.deepEqual(
 
 console.log(
   'PASS GT-LIVE-QUERY-DIAG-CMD-002: structural evidence redacts configured query strings without emitting page text, values, or HTML',
+);
+
+assert.deepEqual(
+  classifyQueryInputState(
+    'online bitki',
+    'online bitki',
+  ),
+  {
+    is_empty:
+      false,
+    matches_expected_query:
+      true,
+  },
+);
+
+assert.deepEqual(
+  classifyQueryInputState(
+    '',
+    'online bitki',
+  ),
+  {
+    is_empty:
+      true,
+    matches_expected_query:
+      false,
+  },
+);
+
+console.log(
+  'PASS GT-LIVE-QUERY-DIAG-CMD-004: query input persistence is reported only as safe boolean state without exposing configured query text',
 );

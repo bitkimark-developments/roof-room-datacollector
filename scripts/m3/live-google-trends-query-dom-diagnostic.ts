@@ -79,6 +79,11 @@ export interface LiveQueryDomDiagnosticArguments {
   confirmed: boolean;
 }
 
+export interface SafeQueryInputState {
+  is_empty: boolean;
+  matches_expected_query: boolean;
+}
+
 const usage = (): string =>
   [
     'Usage:',
@@ -245,6 +250,16 @@ export const sanitizeQueryDomDiagnosticRows = (
           ),
       }),
     );
+
+export const classifyQueryInputState = (
+  value: string,
+  expectedQuery: string,
+): SafeQueryInputState => ({
+  is_empty:
+    value.length === 0,
+  matches_expected_query:
+    value === expectedQuery,
+});
 
 const resolveAppDataRoot = (): string => {
   const override =
@@ -567,6 +582,17 @@ const main = async (): Promise<void> => {
       },
     );
 
+    const filledComparisonInput =
+      await comparisonInput
+        .elementHandle();
+
+    const comparisonInputAfterFill =
+      classifyQueryInputState(
+        await comparisonInput
+          .inputValue(),
+        secondQuery,
+      );
+
     const expectedSuggestion =
       page.getByRole(
         'button',
@@ -596,6 +622,22 @@ const main = async (): Promise<void> => {
 
     const finalExpectedSuggestionCount =
       await expectedSuggestion.count();
+
+    const comparisonInputAfterSuggestionAction =
+      classifyQueryInputState(
+        await comparisonInput
+          .inputValue(),
+        secondQuery,
+      );
+
+    const filledComparisonInputRemainedConnected =
+      filledComparisonInput === null
+        ? false
+        : await filledComparisonInput
+          .evaluate(
+            (element) =>
+              element.isConnected,
+          );
 
     const selectorCounts:
       Record<string, number> = {};
@@ -664,6 +706,12 @@ const main = async (): Promise<void> => {
             suggestionAction,
           final_expected_suggestion_count:
             finalExpectedSuggestionCount,
+          comparison_input_after_fill:
+            comparisonInputAfterFill,
+          comparison_input_after_suggestion_action:
+            comparisonInputAfterSuggestionAction,
+          filled_comparison_input_remained_connected:
+            filledComparisonInputRemainedConnected,
           selector_counts:
             selectorCounts,
           compare_contracts:
