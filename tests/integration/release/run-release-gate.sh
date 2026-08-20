@@ -21,6 +21,9 @@ bash \
   tests/integration/app/run-google-trends-desktop-controller-test.sh
 
 bash \
+  tests/integration/app/run-google-trends-period-selection-test.sh
+
+bash \
   tests/integration/app/run-application-file-access-test.sh
 
 for TEST_SCRIPT in \
