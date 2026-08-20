@@ -15,6 +15,11 @@ import type {
   DesktopCollectionJobSummary,
   DesktopCollectionState,
 } from './shared/collection-control';
+import {
+  deriveGoogleTrendsRequestedDateRange,
+  GOOGLE_TRENDS_PERIOD_PRESETS,
+  type GoogleTrendsPeriodPreset,
+} from './shared/google-trends-period';
 
 interface AppState {
   applicationInfo:
@@ -38,6 +43,65 @@ const ACTIVE_PHASES =
     'EXPORTING',
     'CANCELLING',
   ]);
+
+const GOOGLE_TRENDS_PERIOD_LABELS:
+  Record<
+    GoogleTrendsPeriodPreset,
+    string
+  > = {
+    '1W':
+      '1 Hafta',
+    '1M':
+      '1 Ay',
+    '6M':
+      '6 Ay',
+    '12M':
+      '12 Ay',
+    '24M':
+      '24 Ay',
+    '36M':
+      '36 Ay',
+  };
+
+const formatLocalCalendarDate = (
+  value: Date,
+): string => {
+  const year =
+    value.getFullYear();
+  const month =
+    String(
+      value.getMonth() + 1,
+    ).padStart(
+      2,
+      '0',
+    );
+  const day =
+    String(
+      value.getDate(),
+    ).padStart(
+      2,
+      '0',
+    );
+
+  return `${year}-${month}-${day}`;
+};
+
+const getLastCompleteLocalDate =
+  (): string => {
+    const now =
+      new Date();
+
+    const lastCompleteDay =
+      new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - 1,
+      );
+
+    return formatLocalCalendarDate(
+      lastCompleteDay,
+    );
+  };
 
 const phaseLabel = (
   phase:
@@ -142,6 +206,15 @@ export function App() {
   const [selectedGroupIds, setSelectedGroupIds] =
     useState<string[]>(
       [],
+    );
+  const [periodPreset, setPeriodPreset] =
+    useState<GoogleTrendsPeriodPreset>(
+      '24M',
+    );
+  const [referenceDate, setReferenceDate] =
+    useState<string>(
+      () =>
+        getLastCompleteLocalDate(),
     );
 
   const refreshCollection =
@@ -328,6 +401,26 @@ export function App() {
       ],
     );
 
+  const requestedDateRange =
+    useMemo(
+      () => {
+        try {
+          return deriveGoogleTrendsRequestedDateRange({
+            period_preset:
+              periodPreset,
+            reference_date:
+              referenceDate,
+          });
+        } catch {
+          return null;
+        }
+      },
+      [
+        periodPreset,
+        referenceDate,
+      ],
+    );
+
   const isActive =
     collection !== null &&
     ACTIVE_PHASES.has(
@@ -452,7 +545,10 @@ export function App() {
           <div>
             <span>Tarih aralığı</span>
             <strong>
-              18 Ağu 2024 — 17 Ağu 2026
+              {requestedDateRange ===
+              null
+                ? 'Geçerli tarih seçin'
+                : `${requestedDateRange.requested_date_start} — ${requestedDateRange.requested_date_end}`}
             </strong>
           </div>
           <div>
@@ -557,6 +653,85 @@ export function App() {
             </span>
           </div>
 
+          <div className="period-controls">
+            <div className="period-preset-field">
+              <span className="period-control-label">
+                Dönem
+              </span>
+              <div
+                className="period-preset-options"
+                role="group"
+                aria-label="Dönem"
+              >
+                {GOOGLE_TRENDS_PERIOD_PRESETS.map(
+                  (preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      className="period-preset-button"
+                      aria-pressed={
+                        periodPreset ===
+                        preset
+                      }
+                      disabled={
+                        isActive ||
+                        pendingAction !==
+                          null
+                      }
+                      onClick={() =>
+                        setPeriodPreset(
+                          preset,
+                        )
+                      }
+                    >
+                      {
+                        GOOGLE_TRENDS_PERIOD_LABELS[
+                          preset
+                        ]
+                      }
+                    </button>
+                  ),
+                )}
+              </div>
+            </div>
+
+            <div className="period-details">
+              <label className="period-reference">
+                <span>
+                  Bitiş / Referans Tarihi
+                </span>
+                <input
+                  type="date"
+                  value={referenceDate}
+                  disabled={
+                    isActive ||
+                    pendingAction !==
+                      null
+                  }
+                  onChange={(event) =>
+                    setReferenceDate(
+                      event.target.value,
+                    )
+                  }
+                />
+              </label>
+
+              <div className="period-preview">
+                <span>
+                  Kesin tarih aralığı
+                </span>
+                <strong
+                  data-testid="period-range-preview"
+                >
+                  {requestedDateRange ===
+                  null
+                    ? 'Geçerli tarih seçin'
+                    : `${requestedDateRange.requested_date_start} — ${requestedDateRange.requested_date_end}`}
+                </strong>
+              </div>
+            </div>
+          </div>
+
           <div className="progress-copy">
             <strong>
               {completedGroups} /{' '}
@@ -593,6 +768,8 @@ export function App() {
                 !bootstrapReady ||
                 selectedGroupIds.length ===
                   0 ||
+                requestedDateRange ===
+                  null ||
                 isActive ||
                 pendingAction !== null
               }
@@ -606,9 +783,9 @@ export function App() {
                           selectedGroupIds,
                         period: {
                           period_preset:
-                            '24M',
+                            periodPreset,
                           reference_date:
-                            '2026-08-17',
+                            referenceDate,
                         },
                       }),
                 )

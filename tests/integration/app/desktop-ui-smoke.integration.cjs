@@ -247,18 +247,23 @@ const main = async () => {
         bootstrapStatus: bootstrap,
         collectionState: collection,
       }) => {
+        window.__fixtureCollectionState =
+          collection;
+
         window.roofroom = {
           getApplicationInfo:
             async () => info,
           getBootstrapStatus:
             async () => bootstrap,
           getCollectionState:
-            async () => collection,
+            async () =>
+              window.__fixtureCollectionState,
           startCollection:
             async (request) => {
               window.__startCollectionRequest =
                 request;
-              return collection;
+              return window
+                .__fixtureCollectionState;
             },
           resumeCollection:
             async () => collection,
@@ -350,6 +355,95 @@ const main = async () => {
       true,
     );
 
+    const defaultPeriodButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            '24 Ay',
+        },
+      );
+
+    assert.equal(
+      await defaultPeriodButton
+        .getAttribute(
+          'aria-pressed',
+        ),
+      'true',
+    );
+
+    const referenceDateInput =
+      page.getByLabel(
+        'Bitiş / Referans Tarihi',
+      );
+
+    const expectedLastCompleteDate =
+      await page.evaluate(
+        () => {
+          const now =
+            new Date();
+
+          const lastCompleteDay =
+            new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              now.getDate() - 1,
+            );
+
+          const year =
+            lastCompleteDay
+              .getFullYear();
+          const month =
+            String(
+              lastCompleteDay
+                .getMonth() + 1,
+            ).padStart(
+              2,
+              '0',
+            );
+          const day =
+            String(
+              lastCompleteDay
+                .getDate(),
+            ).padStart(
+              2,
+              '0',
+            );
+
+          return `${year}-${month}-${day}`;
+        },
+      );
+
+    assert.equal(
+      await referenceDateInput
+        .inputValue(),
+      expectedLastCompleteDate,
+    );
+
+    const sixMonthButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            '6 Ay',
+          exact:
+            true,
+        },
+      );
+
+    await sixMonthButton.click();
+
+    await referenceDateInput.fill(
+      '2026-08-17',
+    );
+
+    assert.equal(
+      await page.getByTestId(
+        'period-range-preview',
+      ).textContent(),
+      '2026-02-18 — 2026-08-17',
+    );
+
     const groupCheckboxes =
       page.getByRole(
         'checkbox',
@@ -391,7 +485,7 @@ const main = async () => {
         ],
         period: {
           period_preset:
-            '24M',
+            '6M',
           reference_date:
             '2026-08-17',
         },
@@ -413,6 +507,37 @@ const main = async () => {
 
     console.log(
       'PASS DESKTOP-UI-001: production renderer exposes selectable groups, collection controls, progress, VALID, and LOW_DATA states through the typed bridge contract',
+    );
+
+    await page.evaluate(
+      () => {
+        window.__fixtureCollectionState = {
+          ...window.__fixtureCollectionState,
+          phase:
+            'RUNNING',
+          run_status:
+            'RUNNING',
+        };
+      },
+    );
+
+    await page.waitForTimeout(
+      1200,
+    );
+
+    assert.equal(
+      await sixMonthButton.isDisabled(),
+      true,
+    );
+
+    assert.equal(
+      await referenceDateInput
+        .isDisabled(),
+      true,
+    );
+
+    console.log(
+      'PASS DESKTOP-UI-002: period preset and reference-date controls use the last complete day by default, derive exact ranges, submit the selected period, and lock during active collection',
     );
   } finally {
     await browser.close();
