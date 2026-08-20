@@ -25,5 +25,6 @@ node \
   tests/integration/google-trends/interest-over-time-parser-validator.integration.cjs \
   "$TMP_ROOT/build" \
   tests/fixtures/google-trends/interest-over-time/gt01-valid-5-queries.csv \
-  tests/fixtures/google-trends/interest-over-time/gt01-valid-1w-5-queries-day.csv
+  tests/fixtures/google-trends/interest-over-time/gt01-valid-1w-5-queries-day.csv \
+  tests/fixtures/google-trends/interest-over-time/gt01-valid-12m-5-queries-week.csv
 

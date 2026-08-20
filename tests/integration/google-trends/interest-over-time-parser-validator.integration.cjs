@@ -17,21 +17,28 @@ const [
   buildRoot,
   fixturePath,
   dailyFixturePath,
+  weeklyBoundaryFixturePath,
 ] = process.argv.slice(2);
 
 if (
   !buildRoot ||
   !fixturePath ||
-  !dailyFixturePath
+  !dailyFixturePath ||
+  !weeklyBoundaryFixturePath
 ) {
   throw new Error(
-    'Expected compiled build root plus real weekly and daily Google Trends fixture paths.',
+    'Expected compiled build root plus real weekly, daily, and weekly-boundary Google Trends fixture paths.',
   );
 }
 
 const dailyFixtureBytes =
   fs.readFileSync(
     dailyFixturePath,
+  );
+
+const weeklyBoundaryFixtureBytes =
+  fs.readFileSync(
+    weeklyBoundaryFixturePath,
   );
 
 const {
@@ -72,6 +79,9 @@ const EXPECTED_SHA256 =
 
 const EXPECTED_DAY_SHA256 =
   '2416979c25a062ab603275aa6e6aba2990ed080bb5457f87d80325bb8c3a7d08';
+
+const EXPECTED_12M_WEEK_SHA256 =
+  '8afc603fe77ab7f2f43152c83071da71c0c954573ff309b202323022f47a55a5';
 
 const sha256 = (
   bytes,
@@ -621,6 +631,126 @@ const main = () => {
 
   console.log(
     'PASS GT-DATE-004: a gap in observed Day cadence fails visibly as DATE_MISMATCH',
+  );
+
+
+  assert.equal(
+    sha256(
+      weeklyBoundaryFixtureBytes,
+    ),
+    EXPECTED_12M_WEEK_SHA256,
+  );
+
+  const weeklyBoundaryHashBefore =
+    sha256(
+      weeklyBoundaryFixtureBytes,
+    );
+
+  const weeklyBoundaryParsed =
+    parseGoogleTrendsInterestOverTimeCsv(
+      weeklyBoundaryFixtureBytes,
+    );
+
+  assert.equal(
+    sha256(
+      weeklyBoundaryFixtureBytes,
+    ),
+    weeklyBoundaryHashBefore,
+  );
+
+  assert.equal(
+    weeklyBoundaryParsed.temporal_dimension,
+    'Week',
+  );
+
+  assert.equal(
+    weeklyBoundaryParsed.rows.length,
+    53,
+  );
+
+  assert.equal(
+    weeklyBoundaryParsed.rows[0]
+      .period_start,
+    '2025-08-17',
+  );
+
+  assert.equal(
+    weeklyBoundaryParsed.rows[
+      weeklyBoundaryParsed.rows.length - 1
+    ].period_start,
+    '2026-08-16',
+  );
+
+  const weeklyBoundaryDecision =
+    validate(
+      weeklyBoundaryFixtureBytes,
+      {
+        requested_date_start:
+          '2025-08-18',
+        requested_date_end:
+          '2026-08-17',
+      },
+    );
+
+  assert.equal(
+    weeklyBoundaryDecision
+      .validation_status,
+    'VALID',
+  );
+
+  const weeklyBoundaryDateFinding =
+    weeklyBoundaryDecision.findings.find(
+      (finding) =>
+        finding.check_id ===
+        'GT_DATE_COVERAGE',
+    );
+
+  assert.ok(
+    weeklyBoundaryDateFinding,
+  );
+
+  assert.equal(
+    weeklyBoundaryDateFinding.passed,
+    true,
+  );
+
+  assert.equal(
+    weeklyBoundaryDateFinding.expected
+      .expected_first_bucket,
+    '2025-08-17',
+  );
+
+  assert.equal(
+    weeklyBoundaryDateFinding.expected
+      .expected_last_bucket,
+    '2026-08-16',
+  );
+
+  assert.equal(
+    weeklyBoundaryDateFinding.expected
+      .cadence_days,
+    7,
+  );
+
+  assert.deepEqual(
+    weeklyBoundaryDecision
+      .validated_metadata,
+    {
+      actual_date_start:
+        '2025-08-17',
+      actual_date_end:
+        '2026-08-16',
+      country_name:
+        null,
+    },
+  );
+
+  console.log(
+    'PASS GT-PARSE-006: exact real 12M provider fixture parses as Week without mutating raw bytes',
+  );
+
+  console.log(
+    'PASS GT-DATE-005: weekly coverage accepts observed Sunday buckets on or before both requested boundaries',
   );
 
   const unknownSchema =

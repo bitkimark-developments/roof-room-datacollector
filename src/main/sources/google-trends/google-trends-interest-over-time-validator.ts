@@ -225,7 +225,7 @@ const formatIsoDate = (
     .toISOString()
     .slice(0, 10);
 
-const expectedLastWeeklyBucket = (
+const expectedWeeklyBucketBoundary = (
   requestedEnd: string,
 ): string => {
   const end =
@@ -332,6 +332,18 @@ const hasWeeklyCadence = (
   return true;
 };
 
+const expectedFirstBucket = (
+  parsed:
+    ParsedGoogleTrendsInterestOverTime,
+  requestedStart: string,
+): string =>
+  parsed.temporal_dimension ===
+    'Day'
+    ? requestedStart
+    : expectedWeeklyBucketBoundary(
+        requestedStart,
+      );
+
 const expectedLastBucket = (
   parsed:
     ParsedGoogleTrendsInterestOverTime,
@@ -340,7 +352,7 @@ const expectedLastBucket = (
   parsed.temporal_dimension ===
     'Day'
     ? requestedEnd
-    : expectedLastWeeklyBucket(
+    : expectedWeeklyBucketBoundary(
         requestedEnd,
       );
 
@@ -373,7 +385,11 @@ const dateCoverageMatches = (
     ].period_start;
 
   return (
-    first === requestedStart &&
+    first ===
+      expectedFirstBucket(
+        parsed,
+        requestedStart,
+      ) &&
     last ===
       expectedLastBucket(
         parsed,
@@ -860,7 +876,10 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
         requested_end:
           input.requested_date_end,
         expected_first_bucket:
-          input.requested_date_start,
+          expectedFirstBucket(
+            parsed,
+            input.requested_date_start,
+          ),
         expected_last_bucket:
           expectedLastBucket(
             parsed,

@@ -51,3 +51,30 @@ absolute search volume.
 Purpose: deterministic parser and validator coverage for the observed one-week
 Google Trends daily Interest Over Time schema. The provider bytes remain unchanged.
 
+## gt01-valid-12m-5-queries-week.csv
+
+- derived_from: real Google Trends UI CSV export
+- source_id: google-trends
+- source_mode: GOOGLE_TRENDS_UI
+- dataset_type: INTEREST_OVER_TIME
+- collected_on: 2026-08-20
+- requested_country: TR
+- observed_series_header_geography_label: Türkiye
+- requested_date_start: 2025-08-18
+- requested_date_end: 2026-08-17
+- observed_first_week: 2025-08-17
+- observed_last_week: 2026-08-16
+- observed_temporal_dimension: Week
+- query_group_id: GT01
+- query_count: 5
+- row_count: 53
+- byte_size: 1326
+- sha256: 8afc603fe77ab7f2f43152c83071da71c0c954573ff309b202323022f47a55a5
+- byte_preservation: exact provider-export bytes preserved from the rejected Stage 4 12M discovery run before weekly start-boundary validation was corrected
+- sensitive_content_review: no account, cookie, authorization, password, or session content is present
+
+Purpose: deterministic regression evidence for the observed Google Trends
+weekly bucket behavior where both requested boundaries map to the Sunday
+bucket on or before the requested date. Requested dates remain separate from
+actual provider bucket dates.
+
