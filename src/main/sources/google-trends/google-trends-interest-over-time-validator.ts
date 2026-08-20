@@ -262,6 +262,35 @@ const hasDuplicatePeriods = (
   );
 };
 
+const hasDailyCadence = (
+  parsed:
+    ParsedGoogleTrendsInterestOverTime,
+): boolean => {
+  const days =
+    parsed.rows.map(
+      (row) =>
+        toDayNumber(
+          row.period_start,
+        ),
+    );
+
+  for (
+    let index = 1;
+    index < days.length;
+    index += 1
+  ) {
+    if (
+      days[index] -
+        days[index - 1] !==
+      1
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 const hasWeeklyCadence = (
   parsed:
     ParsedGoogleTrendsInterestOverTime,
@@ -303,6 +332,31 @@ const hasWeeklyCadence = (
   return true;
 };
 
+const expectedLastBucket = (
+  parsed:
+    ParsedGoogleTrendsInterestOverTime,
+  requestedEnd: string,
+): string =>
+  parsed.temporal_dimension ===
+    'Day'
+    ? requestedEnd
+    : expectedLastWeeklyBucket(
+        requestedEnd,
+      );
+
+const temporalCadenceMatches = (
+  parsed:
+    ParsedGoogleTrendsInterestOverTime,
+): boolean =>
+  parsed.temporal_dimension ===
+    'Day'
+    ? hasDailyCadence(
+        parsed,
+      )
+    : hasWeeklyCadence(
+        parsed,
+      );
+
 const dateCoverageMatches = (
   parsed:
     ParsedGoogleTrendsInterestOverTime,
@@ -321,10 +375,13 @@ const dateCoverageMatches = (
   return (
     first === requestedStart &&
     last ===
-      expectedLastWeeklyBucket(
+      expectedLastBucket(
+        parsed,
         requestedEnd,
       ) &&
-    hasWeeklyCadence(parsed)
+    temporalCadenceMatches(
+      parsed,
+    )
   );
 };
 
@@ -569,8 +626,8 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
     finding(
       'GEN_REQUIRED_COLUMNS',
       true,
-      'Observed CSV contains Week and query-series columns.',
-      'Week plus query-series columns',
+      'Observed CSV contains a supported temporal dimension and query-series columns.',
+      'Day or Week plus query-series columns',
       [
         parsed.temporal_dimension,
         ...parsed.series.map(
@@ -584,13 +641,13 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
       true,
       'Observed provider structure matches Interest Over Time.',
       'INTEREST_OVER_TIME',
-      'Week time series',
+      `${parsed.temporal_dimension} time series`,
     ),
     finding(
       'GT_TEMPORAL_DIMENSION',
       true,
-      'Observed temporal dimension is weekly.',
-      'Week',
+      `Observed temporal dimension is ${parsed.temporal_dimension}.`,
+      'Day or Week',
       parsed.temporal_dimension,
     ),
     finding(
@@ -733,9 +790,9 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
       'GT_DUPLICATE_PERIODS',
       !duplicatePeriods,
       duplicatePeriods
-        ? 'Duplicate weekly periods were found.'
-        : 'Weekly period keys are unique.',
-      'unique weekly periods',
+        ? 'Duplicate temporal periods were found.'
+        : 'Temporal period keys are unique.',
+      'unique temporal periods',
       duplicatePeriods
         ? 'duplicates detected'
         : 'unique',
@@ -785,8 +842,18 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
       'GT_DATE_COVERAGE',
       coverageMatches,
       coverageMatches
-        ? 'Weekly source buckets cover the requested range using the observed Sunday bucket boundary behavior.'
-        : 'Weekly source bucket coverage does not match the requested range.',
+        ? (
+            parsed.temporal_dimension ===
+              'Day'
+              ? 'Daily source buckets exactly cover the requested inclusive date range.'
+              : 'Weekly source buckets cover the requested range using the observed Sunday bucket boundary behavior.'
+          )
+        : (
+            parsed.temporal_dimension ===
+              'Day'
+              ? 'Daily source bucket coverage does not match the requested inclusive date range.'
+              : 'Weekly source bucket coverage does not match the requested range.'
+          ),
       {
         requested_start:
           input.requested_date_start,
@@ -795,18 +862,29 @@ export const validateGoogleTrendsInterestOverTimeCsv = (
         expected_first_bucket:
           input.requested_date_start,
         expected_last_bucket:
-          expectedLastWeeklyBucket(
+          expectedLastBucket(
+            parsed,
             input.requested_date_end,
           ),
-        cadence_days: 7,
+        cadence_days:
+          parsed.temporal_dimension ===
+            'Day'
+            ? 1
+            : 7,
       },
       {
         actual_first_bucket:
           actualFirst,
         actual_last_bucket:
           actualLast,
+        cadence_is_daily:
+          hasDailyCadence(
+            parsed,
+          ),
         cadence_is_weekly:
-          hasWeeklyCadence(parsed),
+          hasWeeklyCadence(
+            parsed,
+          ),
       },
     ),
   );

@@ -21,7 +21,7 @@ export interface GoogleTrendsInterestRow {
 
 export interface ParsedGoogleTrendsInterestOverTime {
   category_label: string;
-  temporal_dimension: 'Week';
+  temporal_dimension: 'Day' | 'Week';
   series: GoogleTrendsInterestSeries[];
   rows: GoogleTrendsInterestRow[];
 }
@@ -419,7 +419,7 @@ export const parseGoogleTrendsInterestOverTimeCsv = (
     throw new GoogleTrendsCsvParseError(
       'GEN_REQUIRED_COLUMNS',
       'Google Trends CSV has no Interest Over Time header.',
-      'Week plus one or more query-series columns',
+      'Day or Week plus one or more query-series columns',
       'missing header',
     );
   }
@@ -429,15 +429,21 @@ export const parseGoogleTrendsInterestOverTimeCsv = (
 
   cursor += 1;
 
+  const temporalDimension =
+    header[0]?.trim();
+
   if (
     header.length < 2 ||
-    header[0].trim() !== 'Week'
+    (
+      temporalDimension !== 'Day' &&
+      temporalDimension !== 'Week'
+    )
   ) {
     throw new GoogleTrendsCsvParseError(
       'GT_TEMPORAL_DIMENSION',
-      'Google Trends Interest Over Time header must start with Week.',
-      'Week',
-      header[0] ?? null,
+      'Google Trends Interest Over Time header must start with an observed supported temporal dimension.',
+      'Day or Week',
+      temporalDimension ?? null,
     );
   }
 
@@ -518,7 +524,7 @@ export const parseGoogleTrendsInterestOverTimeCsv = (
     throw new GoogleTrendsCsvParseError(
       'GEN_REQUIRED_COLUMNS',
       'Google Trends Interest Over Time CSV contains no temporal rows.',
-      'at least one Week row',
+      'at least one Day or Week row',
       0,
     );
   }
@@ -527,7 +533,7 @@ export const parseGoogleTrendsInterestOverTimeCsv = (
     category_label:
       categoryLabel,
     temporal_dimension:
-      'Week',
+      temporalDimension,
     series,
     rows: dataRows,
   };

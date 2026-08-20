@@ -16,16 +16,23 @@ const path = require(
 const [
   buildRoot,
   fixturePath,
+  dailyFixturePath,
 ] = process.argv.slice(2);
 
 if (
   !buildRoot ||
-  !fixturePath
+  !fixturePath ||
+  !dailyFixturePath
 ) {
   throw new Error(
-    'Expected compiled build root and real Google Trends fixture path.',
+    'Expected compiled build root plus real weekly and daily Google Trends fixture paths.',
   );
 }
+
+const dailyFixtureBytes =
+  fs.readFileSync(
+    dailyFixturePath,
+  );
 
 const {
   GoogleTrendsCsvParseError,
@@ -62,6 +69,9 @@ const EXPECTED_QUERIES = [
 
 const EXPECTED_SHA256 =
   '9bd0f03d00dd803932f8207e2c74326619874af05b5509cf6aeefc2369aad883';
+
+const EXPECTED_DAY_SHA256 =
+  '2416979c25a062ab603275aa6e6aba2990ed080bb5457f87d80325bb8c3a7d08';
 
 const sha256 = (
   bytes,
@@ -457,6 +467,160 @@ const main = () => {
 
   console.log(
     'PASS GT-PARSE-003: missing requested series resolves to QUERY_MISMATCH',
+  );
+
+
+  assert.equal(
+    sha256(
+      dailyFixtureBytes,
+    ),
+    EXPECTED_DAY_SHA256,
+  );
+
+  const dailyHashBefore =
+    sha256(
+      dailyFixtureBytes,
+    );
+
+  const dailyParsed =
+    parseGoogleTrendsInterestOverTimeCsv(
+      dailyFixtureBytes,
+    );
+
+  assert.equal(
+    sha256(
+      dailyFixtureBytes,
+    ),
+    dailyHashBefore,
+  );
+
+  assert.equal(
+    dailyParsed.temporal_dimension,
+    'Day',
+  );
+
+  assert.equal(
+    dailyParsed.rows.length,
+    7,
+  );
+
+  assert.equal(
+    dailyParsed.rows[0]
+      .period_start,
+    '2026-08-11',
+  );
+
+  assert.equal(
+    dailyParsed.rows[
+      dailyParsed.rows.length - 1
+    ].period_start,
+    '2026-08-17',
+  );
+
+  assert.deepEqual(
+    dailyParsed.rows[0]
+      .values.map(
+        (value) =>
+          value.relative_interest,
+      ),
+    [100, 0, 0, 0, 0],
+  );
+
+  const dailyDecision =
+    validate(
+      dailyFixtureBytes,
+      {
+        requested_date_start:
+          '2026-08-11',
+        requested_date_end:
+          '2026-08-17',
+      },
+    );
+
+  assert.equal(
+    dailyDecision.validation_status,
+    'VALID',
+  );
+
+  const dailyDateFinding =
+    dailyDecision.findings.find(
+      (finding) =>
+        finding.check_id ===
+        'GT_DATE_COVERAGE',
+    );
+
+  assert.ok(
+    dailyDateFinding,
+  );
+
+  assert.equal(
+    dailyDateFinding.passed,
+    true,
+  );
+
+  assert.equal(
+    dailyDateFinding.expected
+      .expected_last_bucket,
+    '2026-08-17',
+  );
+
+  assert.equal(
+    dailyDateFinding.expected
+      .cadence_days,
+    1,
+  );
+
+  assert.deepEqual(
+    dailyDecision
+      .validated_metadata,
+    {
+      actual_date_start:
+        '2026-08-11',
+      actual_date_end:
+        '2026-08-17',
+      country_name:
+        null,
+    },
+  );
+
+  console.log(
+    'PASS GT-PARSE-005: exact real 1W provider fixture parses as Day without mutating raw bytes',
+  );
+
+  console.log(
+    'PASS GT-DATE-003: observed Day buckets exactly cover the requested inclusive 1W range',
+  );
+
+  const dailyGapBytes =
+    Buffer.from(
+      dailyFixtureBytes
+        .toString('utf8')
+        .split('\n')
+        .filter(
+          (line) =>
+            !line.startsWith(
+              '2026-08-12,',
+            ),
+        )
+        .join('\n'),
+      'utf8',
+    );
+
+  assert.equal(
+    validate(
+      dailyGapBytes,
+      {
+        requested_date_start:
+          '2026-08-11',
+        requested_date_end:
+          '2026-08-17',
+      },
+    ).validation_status,
+    'DATE_MISMATCH',
+  );
+
+  console.log(
+    'PASS GT-DATE-004: a gap in observed Day cadence fails visibly as DATE_MISMATCH',
   );
 
   const unknownSchema =
