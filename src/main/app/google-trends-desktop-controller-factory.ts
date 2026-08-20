@@ -4,6 +4,10 @@ import type {
 import type {
   DesktopRecoveryState,
 } from '../../shared/collection-control';
+import {
+  deriveGoogleTrendsRequestedDateRange,
+  type GoogleTrendsPeriodSelection,
+} from '../../shared/google-trends-period';
 import type {
   QueryConfig,
 } from '../../shared/query-config';
@@ -38,12 +42,6 @@ import {
   GoogleTrendsDesktopController,
 } from './google-trends-desktop-controller';
 
-const REQUESTED_DATE_START =
-  '2024-08-18';
-
-const REQUESTED_DATE_END =
-  '2026-08-17';
-
 export interface CreateGoogleTrendsDesktopControllerInput {
   directories:
     ApplicationDirectories;
@@ -56,8 +54,16 @@ export interface CreateGoogleTrendsDesktopControllerInput {
     Promise<void>;
 }
 
-const makeRequestedConfiguration =
-  (): RequestedCollectionConfiguration => ({
+const makeRequestedConfiguration = (
+  periodSelection:
+    GoogleTrendsPeriodSelection,
+): RequestedCollectionConfiguration => {
+  const requestedDateRange =
+    deriveGoogleTrendsRequestedDateRange(
+      periodSelection,
+    );
+
+  return {
     source_mode:
       'GOOGLE_TRENDS_UI',
     country_code:
@@ -65,9 +71,11 @@ const makeRequestedConfiguration =
     language_code:
       null,
     requested_date_start:
-      REQUESTED_DATE_START,
+      requestedDateRange
+        .requested_date_start,
     requested_date_end:
-      REQUESTED_DATE_END,
+      requestedDateRange
+        .requested_date_end,
     category_id:
       null,
     category_name:
@@ -78,7 +86,8 @@ const makeRequestedConfiguration =
       'Search Term',
     dataset_type:
       'INTEREST_OVER_TIME',
-  });
+  };
+};
 
 const selectQueryGroups = (
   queryConfig: QueryConfig,
@@ -245,6 +254,7 @@ export const createGoogleTrendsDesktopController = (
     start_batch:
       (
         selectedGroupIds,
+        periodSelection,
         hooks,
       ) =>
         runGoogleTrendsBatchThroughCore({
@@ -256,7 +266,9 @@ export const createGoogleTrendsDesktopController = (
               selectedGroupIds,
             ),
           requested_configuration:
-            makeRequestedConfiguration(),
+            makeRequestedConfiguration(
+              periodSelection,
+            ),
           application_version:
             input.application_version,
           source:

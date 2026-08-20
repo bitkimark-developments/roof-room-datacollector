@@ -18,10 +18,10 @@ const roofroomApi: RoofRoomApi = {
     ),
 
   startCollection:
-    (queryGroupIds) =>
+    (request) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.START_COLLECTION,
-      queryGroupIds,
+      request,
     ),
 
   resumeCollection: () =>

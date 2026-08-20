@@ -24,6 +24,13 @@ export interface GoogleTrendsRequestedDateRange {
     string;
 }
 
+export interface GoogleTrendsCollectionStartRequest {
+  query_group_ids:
+    string[];
+  period:
+    GoogleTrendsPeriodSelection;
+}
+
 export const isGoogleTrendsPeriodPreset = (
   value: unknown,
 ): value is GoogleTrendsPeriodPreset =>
@@ -207,6 +214,63 @@ export const normalizeGoogleTrendsPeriodSelection = (
     reference_date:
       formatIsoCalendarDate(
         referenceDate,
+      ),
+  };
+};
+
+export const normalizeGoogleTrendsCollectionStartRequest = (
+  value: unknown,
+): GoogleTrendsCollectionStartRequest => {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(
+      value,
+    )
+  ) {
+    throw new Error(
+      'Google Trends collection start request must be an object.',
+    );
+  }
+
+  const candidate =
+    value as Record<
+      string,
+      unknown
+    >;
+
+  const queryGroupIds =
+    candidate.query_group_ids;
+
+  if (
+    !Array.isArray(
+      queryGroupIds,
+    ) ||
+    queryGroupIds.length < 1 ||
+    !queryGroupIds.every(
+      (groupId) =>
+        typeof groupId ===
+          'string' &&
+        groupId.trim().length >
+          0,
+    ) ||
+    new Set(
+      queryGroupIds,
+    ).size !==
+      queryGroupIds.length
+  ) {
+    throw new Error(
+      'Google Trends collection start requires one or more unique query group IDs.',
+    );
+  }
+
+  return {
+    query_group_ids: [
+      ...queryGroupIds,
+    ],
+    period:
+      normalizeGoogleTrendsPeriodSelection(
+        candidate.period,
       ),
   };
 };

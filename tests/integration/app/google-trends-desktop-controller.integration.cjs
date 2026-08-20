@@ -160,6 +160,13 @@ const emptyRecovery = {
   false,
 };
 
+const requestedPeriod = {
+  period_preset:
+    '24M',
+  reference_date:
+    '2026-08-17',
+};
+
 const exportResult = {
   export_directory:
     '/fixture/run/exports/package',
@@ -183,13 +190,21 @@ const main = async () => {
         'GT02',
       ],
       start_batch:
-        (groupIds, hooks) => {
+        (
+          groupIds,
+          periodSelection,
+          hooks,
+        ) => {
           assert.deepEqual(
             groupIds,
             [
               'GT01',
               'GT02',
             ],
+          );
+          assert.deepEqual(
+            periodSelection,
+            requestedPeriod,
           );
           observedHooks =
             hooks;
@@ -217,7 +232,7 @@ const main = async () => {
     () =>
       controller.start([
         'GT99',
-      ]),
+      ], requestedPeriod),
     /unique query group IDs/,
   );
   assert.equal(
@@ -229,7 +244,7 @@ const main = async () => {
     controller.start([
       'GT01',
       'GT02',
-    ]);
+    ], requestedPeriod);
 
   assert.equal(
     started.phase,
@@ -244,7 +259,7 @@ const main = async () => {
     () =>
       controller.start([
         'GT01',
-      ]),
+      ], requestedPeriod),
     /already active/,
   );
 
@@ -419,6 +434,7 @@ const main = async () => {
       start_batch:
         (
           _groupIds,
+          _periodSelection,
           hooks,
         ) => {
           cancelHooks =
@@ -447,7 +463,7 @@ const main = async () => {
 
   cancelController.start([
     'GT01',
-  ]);
+  ], requestedPeriod);
   cancelHooks.on_run_available(
     runRecord('RUNNING'),
   );
@@ -515,7 +531,7 @@ const main = async () => {
   exportFailureController.start([
     'GT01',
     'GT02',
-  ]);
+  ], requestedPeriod);
   await exportFailureController
     .waitForIdle();
 

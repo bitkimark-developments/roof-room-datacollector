@@ -36,6 +36,9 @@ import type {
   BootstrapStatus,
   QueryConfigLoadStatus,
 } from './shared/bootstrap-status';
+import {
+  normalizeGoogleTrendsCollectionStartRequest,
+} from './shared/google-trends-period';
 
 if (started) {
   app.quit();
@@ -147,35 +150,24 @@ const registerIpcHandlers = (
     IPC_CHANNELS.START_COLLECTION,
     (
       event,
-      queryGroupIds:
+      request:
         unknown,
     ) => {
       assertTrustedIpcSender(
         event,
       );
 
-      if (
-        !Array.isArray(
-          queryGroupIds,
-        ) ||
-        queryGroupIds.length <
-          1 ||
-        !queryGroupIds.every(
-          (groupId) =>
-            typeof groupId ===
-              'string' &&
-            groupId.trim().length >
-              0,
-        )
-      ) {
-        throw new Error(
-          'Collection start requires one or more query group IDs.',
+      const normalizedRequest =
+        normalizeGoogleTrendsCollectionStartRequest(
+          request,
         );
-      }
 
       return requireController()
         .start(
-          queryGroupIds,
+          normalizedRequest
+            .query_group_ids,
+          normalizedRequest
+            .period,
         );
     },
   );

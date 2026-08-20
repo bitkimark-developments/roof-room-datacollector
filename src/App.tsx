@@ -601,9 +601,16 @@ export function App() {
                   'START',
                   () =>
                     window.roofroom
-                      .startCollection(
-                        selectedGroupIds,
-                      ),
+                      .startCollection({
+                        query_group_ids:
+                          selectedGroupIds,
+                        period: {
+                          period_preset:
+                            '24M',
+                          reference_date:
+                            '2026-08-17',
+                        },
+                      }),
                 )
               }
             >

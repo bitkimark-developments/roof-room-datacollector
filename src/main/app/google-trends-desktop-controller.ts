@@ -9,6 +9,10 @@ import type {
   DesktopExportState,
   DesktopRecoveryState,
 } from '../../shared/collection-control';
+import {
+  normalizeGoogleTrendsPeriodSelection,
+  type GoogleTrendsPeriodSelection,
+} from '../../shared/google-trends-period';
 import type {
   GoogleTrendsCoreBatchRunResult,
   GoogleTrendsCoreRunHooks,
@@ -47,6 +51,8 @@ export interface GoogleTrendsDesktopControllerDependencies {
   start_batch: (
     queryGroupIds:
       readonly string[],
+    periodSelection:
+      GoogleTrendsPeriodSelection,
     hooks:
       GoogleTrendsCoreRunHooks,
   ) =>
@@ -228,6 +234,8 @@ export class GoogleTrendsDesktopController {
   start(
     queryGroupIds:
       readonly string[],
+    periodSelection:
+      GoogleTrendsPeriodSelection,
   ): DesktopCollectionState {
     this.requireIdle();
 
@@ -255,6 +263,11 @@ export class GoogleTrendsDesktopController {
       );
     }
 
+    const normalizedPeriodSelection =
+      normalizeGoogleTrendsPeriodSelection(
+        periodSelection,
+      );
+
     return this.launch(
       'START',
       queryGroupIds.length,
@@ -262,6 +275,7 @@ export class GoogleTrendsDesktopController {
         this.dependencies
           .start_batch(
             queryGroupIds,
+            normalizedPeriodSelection,
             hooks,
           ),
     );

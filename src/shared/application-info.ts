@@ -2,6 +2,9 @@ import type { BootstrapStatus } from './bootstrap-status';
 import type {
   DesktopCollectionState,
 } from './collection-control';
+import type {
+  GoogleTrendsCollectionStartRequest,
+} from './google-trends-period';
 
 export const IPC_CHANNELS = {
   GET_APPLICATION_INFO: 'app:get-application-info',
@@ -38,7 +41,8 @@ export interface RoofRoomApi {
   getCollectionState: () =>
     Promise<DesktopCollectionState>;
   startCollection: (
-    queryGroupIds: string[],
+    request:
+      GoogleTrendsCollectionStartRequest,
   ) =>
     Promise<DesktopCollectionState>;
   resumeCollection: () =>

@@ -255,9 +255,9 @@ const main = async () => {
           getCollectionState:
             async () => collection,
           startCollection:
-            async (groupIds) => {
-              window.__selectedGroupIds =
-                groupIds;
+            async (request) => {
+              window.__startCollectionRequest =
+                request;
               return collection;
             },
           resumeCollection:
@@ -383,11 +383,19 @@ const main = async () => {
     assert.deepEqual(
       await page.evaluate(
         () =>
-          window.__selectedGroupIds,
+          window.__startCollectionRequest,
       ),
-      [
-        'GT01',
-      ],
+      {
+        query_group_ids: [
+          'GT01',
+        ],
+        period: {
+          period_preset:
+            '24M',
+          reference_date:
+            '2026-08-17',
+        },
+      },
     );
 
     const screenshotPath =

@@ -17,6 +17,7 @@ if (!buildRoot) {
 const {
   GOOGLE_TRENDS_PERIOD_PRESETS,
   deriveGoogleTrendsRequestedDateRange,
+  normalizeGoogleTrendsCollectionStartRequest,
   normalizeGoogleTrendsPeriodSelection,
 } = require(
   path.join(
@@ -190,4 +191,71 @@ assert.throws(
 
 console.log(
   'PASS GT-PERIOD-004: unsupported presets and invalid calendar dates fail closed',
+);
+
+const normalizedStartRequest =
+  normalizeGoogleTrendsCollectionStartRequest({
+    query_group_ids: [
+      'GT01',
+      'GT02',
+    ],
+    period: {
+      period_preset:
+        '6M',
+      reference_date:
+        '2026-08-17',
+    },
+  });
+
+assert.deepEqual(
+  normalizedStartRequest,
+  {
+    query_group_ids: [
+      'GT01',
+      'GT02',
+    ],
+    period: {
+      period_preset:
+        '6M',
+      reference_date:
+        '2026-08-17',
+    },
+  },
+);
+
+assert.throws(
+  () =>
+    normalizeGoogleTrendsCollectionStartRequest({
+      query_group_ids: [
+        'GT01',
+        'GT01',
+      ],
+      period: {
+        period_preset:
+          '24M',
+        reference_date:
+          '2026-08-17',
+      },
+    }),
+  /unique query group IDs/,
+);
+
+assert.throws(
+  () =>
+    normalizeGoogleTrendsCollectionStartRequest({
+      query_group_ids: [
+        'GT01',
+      ],
+      period: {
+        period_preset:
+          '2W',
+        reference_date:
+          '2026-08-17',
+      },
+    }),
+  /Unsupported Google Trends period preset/,
+);
+
+console.log(
+  'PASS GT-PERIOD-005: collection start requests normalize query groups and period selection through one fail-closed IPC contract',
 );
