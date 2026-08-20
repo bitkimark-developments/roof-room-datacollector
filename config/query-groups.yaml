@@ -1,23 +1,48 @@
 version: 1
 source: google-trends
 
-# M1 deterministic configuration slice.
-# Expand to GT01-GT20 only after the loader/validation boundary is verified.
 groups:
   - id: GT01
-    name: generic_commercial
+    name: category_language
     queries:
-      - canlı bitki
-      - online bitki
-      - bitki satın al
-      - bitki siparişi
+      - salon çiçeği
+      - salon bitkisi
+      - ev bitkisi
+      - saksı çiçeği
       - saksılı bitki
 
   - id: GT02
-    name: indoor_terminology
+    name: top_species
     queries:
-      - salon bitkisi
-      - salon bitkileri
-      - iç mekan bitkisi
-      - iç mekan bitkileri
-      - ev bitkileri
+      - starliçe
+      - deve tabanı
+      - paşa kılıcı
+      - para ağacı
+      - antoryum
+
+  - id: GT03
+    name: species_names_A
+    queries:
+      - deve tabanı
+      - monstera
+      - starliçe
+      - strelitzia
+      - cennet kuşu çiçeği
+
+  - id: GT04
+    name: species_names_B
+    queries:
+      - yuka çiçeği
+      - yucca
+      - kauçuk çiçeği
+      - kauçuk bitkisi
+      - ficus
+
+  - id: GT05
+    name: usecases
+    queries:
+      - ofis bitkileri
+      - banyo bitkileri
+      - yatak odası bitkileri
+      - gölge seven bitkiler
+      - büyük salon bitkileri
