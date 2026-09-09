@@ -4,9 +4,9 @@
 
 **Current milestone:** Release 1.0 multi-source foundation and source-adapter rollout
 
-**Current stage:** Documentation reconciliation checkpoint; application implementation is paused pending review
+**Current stage:** Google Trends period-preset cleanup checkpoint complete; next stage awaits approval
 
-**Current goal:** Preserve the proven Google Trends/Core baseline, finish the existing period-preset WIP as a separate checkpoint, then add approved Release 1.0 sources through independent vertical slices
+**Current goal:** Preserve the proven Google Trends/Core baseline, then design the source-neutral job/provenance compatibility contract as the next isolated stage
 
 ---
 
@@ -24,47 +24,31 @@ Current branch:
 feat/google-trends-period-presets
 ```
 
-Current HEAD:
+Technical HEAD recorded before this separate handoff documentation commit:
 
 ```text
-0259a3caa493f4b76636e7e82b053440a8503ac1
-0259a3c config: add real Google Trends validation groups
+ac1088e7a139c5e69701588b52b3cc57ac4f4886
+ac1088e fix: remove unsupported Google Trends 36M preset
 ```
 
 Branch relationship observed during this checkpoint:
 
 ```text
 main: 11b897b docs: refresh project handoff for current Google Trends baseline
-feature branch: 6 commits ahead of main, 0 behind
+feature branch after the pending handoff commit: 9 commits ahead of main, 0 behind
 ```
 
 Latest committed technical checkpoint verified by the current deterministic gate:
 
 ```text
-0259a3c config: add real Google Trends validation groups
+ac1088e fix: remove unsupported Google Trends 36M preset
 ```
 
 ## 2. Working tree state
 
-The working tree was already dirty before this documentation reconciliation.
+The previously existing 36M application/test WIP was reviewed, completed with an explicit rejection assertion, deterministically verified, and committed separately as `ac1088e`.
 
-Pre-existing uncommitted application/test WIP, preserved without modification by this documentation task:
-
-```text
-M  src/App.tsx
-M  src/shared/google-trends-period.ts
-M  tests/integration/app/google-trends-period-selection.integration.cjs
-```
-
-Observed WIP meaning:
-
-```text
-remove the 36M period preset from the renderer label map,
-shared period contract/arithmetic,
-and deterministic period-selection integration expectations
-```
-
-This is the previously suspected Google Trends 36M cleanup. It is real, uncommitted, internally consistent across the three changed files, and passed the current deterministic release gate. It has not been committed or mixed into documentation edits.
+No tracked application or test change remains after that code checkpoint.
 
 Pre-existing untracked files, preserved without modification:
 
@@ -77,21 +61,14 @@ Pre-existing untracked files, preserved without modification:
 
 `PROJECT_HANDOFF.pre-20260820.md` is an untracked historical handoff snapshot. There is no tracked file named `PROJECT_UPDATE_2026-08-20.md` in the live repository. No historical file was moved, deleted, or rewritten during this task.
 
-Documentation changed by this reconciliation:
+Closed checkpoints:
 
 ```text
-M  AGENTS.md
-M  PROJECT_SPEC.md
-M  ARCHITECTURE.md
-M  DATA_CONTRACTS.md
-M  VALIDATION_SPEC.md
-M  TEST_STRATEGY.md
-M  SOURCE_MODULE_GUIDE.md
-M  DECISIONS.md
-M  PROJECT_HANDOFF.md
+826a45c docs: reconcile multi-source release scope
+ac1088e fix: remove unsupported Google Trends 36M preset
 ```
 
-Nothing is staged. No commit was created.
+Only this live-state handoff update is pending as a separate documentation change.
 
 ## 3. Product and Release 1.0 boundary
 
@@ -107,7 +84,7 @@ Release 1.0 is now the verified multi-source scope. The following acquisition pa
 
 | Source | Approved acquisition | Feasibility | Implementation |
 |---|---|---:|---:|
-| Google Trends Interest Over Time | Playwright + provider CSV export | FINAL PASS | implemented reference source; current period cleanup WIP |
+| Google Trends Interest Over Time | Playwright + provider CSV export | FINAL PASS | implemented reference source; 36M cleanup closed |
 | Google Search Console | official Search Analytics API | FINAL PASS | NOT IMPLEMENTED |
 | Google Ads Search Terms | official Ads API, verified `search_term_view`/SEARCH | FINAL PASS | NOT IMPLEMENTED |
 | Keyword Planner historical metrics | official Ads API | FINAL PASS | NOT IMPLEMENTED |
@@ -220,7 +197,7 @@ GT04
 GT05
 ```
 
-The committed period-preset work added 1W, 1M, 6M, 12M, 24M, and 36M. The current uncommitted WIP removes 36M consistently, leaving:
+The supported period contract is now:
 
 ```text
 1W
@@ -230,7 +207,9 @@ The committed period-preset work added 1W, 1M, 6M, 12M, 24M, and 36M. The curren
 24M
 ```
 
-Deterministic fixtures currently prove daily parsing/coverage for 1W and weekly behavior for 12M/current long-range validation cases. The current gate proves period request normalization and UI propagation. A live provider collection was not run during this documentation checkpoint, and no claim is made that GT03–GT05 or every period preset has fresh live acceptance evidence on this HEAD/WIP.
+The public preset list, TypeScript union/arithmetic, renderer labels, and integration expectations all exclude 36M. The period test explicitly verifies that a `36M` request fails closed as unsupported.
+
+Deterministic fixtures currently prove daily parsing/coverage for 1W and weekly behavior for 12M/current long-range validation cases. The current gate proves period request normalization and UI propagation. A live provider collection was not run during this cleanup checkpoint, and no claim is made that GT03–GT05 or every period preset has fresh live acceptance evidence on this HEAD.
 
 ## 6. Storage state
 
@@ -256,25 +235,20 @@ The application defines a user-visible Downloads root as a reserved downstream e
 
 ## 7. Test and build status
 
-Commands run during this checkpoint:
+Commands run for the 36M cleanup checkpoint:
 
 ```text
-git diff --check
+git status --short
+git diff -- <three period WIP files>
+npm run test:m3:gt-period
 npm run test:release:gate
-npm run test:release:gate   # repeated outside the restricted sandbox after a local-bind EPERM
+git diff --check
 ```
 
 Observed results:
 
-1. The first `git diff --check` found trailing Markdown whitespace in the newly edited documents. Those documentation issues were corrected. Final verification is recorded below after this handoff rewrite.
-2. The first deterministic release-gate run passed TypeScript, lint, Core, configuration, desktop-controller, Google Trends, validation, and export suites, then stopped at the local desktop UI test with:
-
-```text
-Error: listen EPERM: operation not permitted 127.0.0.1
-```
-
-This was a restricted-sandbox local socket permission failure, not a provider request or application assertion failure.
-3. The complete gate was rerun with local execution permission and passed through:
+1. Targeted period selection passed `GT-PERIOD-001..005`; `GT-PERIOD-004` explicitly covers removed `36M` rejection.
+2. The complete deterministic gate passed through:
 
 ```text
 PASS DESKTOP-UI-001
@@ -282,7 +256,8 @@ PASS DESKTOP-UI-002
 PASS RELEASE-GATE-001
 ```
 
-The passing gate included the current uncommitted 36M-removal WIP and documentation changes. It made no live provider request.
+3. `git diff --check` passed and the reviewed code diff contained only the three intended period files.
+4. No live provider request was made.
 
 Not run during this checkpoint:
 
@@ -295,22 +270,18 @@ any GSC/Google Ads/Keyword Planner/SerpApi/provider request
 
 ## 8. Known issues supported by live evidence
 
-1. The 36M cleanup is valid-looking and deterministically passing but remains uncommitted WIP on the feature branch.
-2. Documentation changes currently share the working tree with that unrelated application/test WIP and must be staged/committed separately.
-3. `CODEX_HANDOFF_CURRENT.md` and `PROJECT_HANDOFF.pre-20260820.md` are useful but untracked historical snapshots; their intended repository disposition is not yet approved.
-4. Core job/request/metadata contracts are still shaped around Google Trends query groups and cannot represent every new source honestly without compatible evolution.
-5. Secure OAuth/API-key lifecycle for API sources is not implemented.
-6. Freshness/due/on-demand lifecycle is not implemented.
-7. Desktop source dashboard, import workflows, API source setup, and multi-source export are not implemented.
-8. Only Google Trends is registered/composed as a production source.
-9. No current-source implementation exists for GSC, Ads Search Terms, Keyword Planner, İkas, Bitkimark XML, or SERP despite their feasibility PASS.
-10. Fresh live acceptance for the current five-group configuration and period-preset branch is not established by this documentation session.
+1. `CODEX_HANDOFF_CURRENT.md` and `PROJECT_HANDOFF.pre-20260820.md` are useful but untracked historical snapshots; their intended repository disposition is not yet approved.
+2. Core job/request/metadata contracts are still shaped around Google Trends query groups and cannot represent every new source honestly without compatible evolution.
+3. Secure OAuth/API-key lifecycle for API sources is not implemented.
+4. Freshness/due/on-demand lifecycle is not implemented.
+5. Desktop source dashboard, import workflows, API source setup, and multi-source export are not implemented.
+6. Only Google Trends is registered/composed as a production source.
+7. No current-source implementation exists for GSC, Ads Search Terms, Keyword Planner, İkas, Bitkimark XML, or SERP despite their feasibility PASS.
+8. Fresh live acceptance for the current five-group configuration and supported period presets is not established by this cleanup session.
 
 ## 9. Open decisions that block next work
 
 No provider feasibility decision blocks implementation of the approved sources.
-
-The immediate repository blocker is procedural: the documentation checkpoint and pre-existing 36M WIP must remain separate commits/reviews.
 
 Before the first non-GT source slice, one compatible contract decision is required: how Core represents jobs and provenance that do not have a Google Trends `query_group_id`, without renaming existing statuses or corrupting schema-v4 data.
 
@@ -335,16 +306,13 @@ Unless new failing evidence appears, do not reopen or rewrite:
 
 ## 11. Exact next action
 
-After this documentation checkpoint is reviewed:
+After this handoff checkpoint is reviewed, begin the first multi-source foundation stage by designing and testing a source-neutral job/provenance compatibility contract for work that has no `query_group_id`, including an explicit SQLite migration/compatibility plan if the stored schema must change.
 
-1. stage and commit only the nine reconciled documentation/instruction files, leaving all pre-existing source/test WIP and untracked historical files untouched;
-2. review and checkpoint the existing 36M-removal WIP separately using its targeted period test plus the deterministic release gate;
-3. begin the first multi-source implementation slice by designing and testing a source-neutral job/provenance compatibility contract for work that has no `query_group_id`, including an explicit SQLite migration/compatibility plan if the stored schema must change;
-4. do not implement a provider adapter until that contract slice is approved and passing.
+Do not implement a provider adapter until that contract slice is separately approved and passing.
 
 The recommended first provider vertical slice after that foundation is the İkas Products `FILE_IMPORT` path: preserve one original XLSX as run-scoped raw evidence, parse one sanitized real-shape fixture, keep blank stock `NULL`, validate it, and persist provenance through the existing Core. This avoids introducing OAuth and quota behavior before the generic non-query-group lifecycle is proven.
 
-No part of this next action was implemented during the documentation reconciliation.
+No part of this next action was implemented during the 36M cleanup.
 
 ## 12. Epistemic checkpoint
 
@@ -364,11 +332,11 @@ No part of this next action was implemented during the documentation reconciliat
 ### HENÜZ TEST EDİLMEMİŞ HİPOTEZ
 
 - The exact schema/interface shape for generic jobs, credential state, and freshness can be selected without disrupting existing schema-v4 GT data.
-- The current five GT groups and every supported period preset work live against the provider on this branch/WIP.
+- The current five GT groups and every supported period preset work live against the provider on this branch.
 - The proposed İkas-first sequence will require fewer Core changes than an API-first source after detailed implementation design.
 
 ## 13. Handoff discipline
 
 `PROJECT_HANDOFF.md` is the living repository-state document. Update it only from Git, code, stored evidence, and tests that actually ran. Keep feasibility, implementation, deterministic verification, and live-provider acceptance as separate claims.
 
-Do not let this handoff authorize live provider calls, source implementation, WIP cleanup, file deletion, credential changes, or commits without the next explicit approved stage.
+Do not let this handoff authorize live provider calls, Core generalization, source implementation, file deletion, or credential changes without the next explicit approved stage.
