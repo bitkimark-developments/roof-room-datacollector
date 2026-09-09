@@ -36,7 +36,6 @@ assert.deepEqual(
     '6M',
     '12M',
     '24M',
-    '36M',
   ],
 );
 
@@ -71,12 +70,6 @@ const expectedRanges = {
   '24M': {
     requested_date_start:
       '2024-08-18',
-    requested_date_end:
-      establishedEnd,
-  },
-  '36M': {
-    requested_date_start:
-      '2023-08-18',
     requested_date_end:
       establishedEnd,
   },
@@ -171,6 +164,17 @@ assert.throws(
   () =>
     normalizeGoogleTrendsPeriodSelection({
       period_preset:
+        '36M',
+      reference_date:
+        '2026-08-17',
+    }),
+  /Unsupported Google Trends period preset/,
+);
+
+assert.throws(
+  () =>
+    normalizeGoogleTrendsPeriodSelection({
+      period_preset:
         '1M',
       reference_date:
         '2026-02-30',
@@ -190,7 +194,7 @@ assert.throws(
 );
 
 console.log(
-  'PASS GT-PERIOD-004: unsupported presets and invalid calendar dates fail closed',
+  'PASS GT-PERIOD-004: removed and unsupported presets plus invalid calendar dates fail closed',
 );
 
 const normalizedStartRequest =

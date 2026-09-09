@@ -59,8 +59,6 @@ const GOOGLE_TRENDS_PERIOD_LABELS:
       '12 Ay',
     '24M':
       '24 Ay',
-    '36M':
-      '36 Ay',
   };
 
 const formatLocalCalendarDate = (

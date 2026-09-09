@@ -4,7 +4,6 @@ export const GOOGLE_TRENDS_PERIOD_PRESETS = [
   '6M',
   '12M',
   '24M',
-  '36M',
 ] as const;
 
 export type GoogleTrendsPeriodPreset =
@@ -166,8 +165,6 @@ const periodMonths = (
       return 12;
     case '24M':
       return 24;
-    case '36M':
-      return 36;
   }
 };
 
