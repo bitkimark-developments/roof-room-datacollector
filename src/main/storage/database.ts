@@ -7,7 +7,7 @@ import type {
 } from '../../shared/bootstrap-status';
 
 const DATABASE_FILENAME = 'roofroom.sqlite';
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 type SqliteRow = Record<string, unknown>;
 
@@ -428,6 +428,193 @@ const migrateToVersion4 = (database: DatabaseSync): void => {
   }
 };
 
+const migrateToVersion5 = (database: DatabaseSync): void => {
+  const unmatchedContextRow = requireRow(
+    database
+      .prepare(`
+        SELECT COUNT(*) AS unmatched_count
+        FROM jobs AS job
+        INNER JOIN runs AS run
+          ON run.run_id = job.run_id
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM json_each(
+            run.configuration_snapshot_json,
+            '$.selected_query_groups'
+          ) AS query_group
+          WHERE json_extract(
+            query_group.value,
+            '$.query_group_id'
+          ) = job.query_group_id
+        )
+      `)
+      .get(),
+    'schema-v5 query-group context preflight',
+  );
+
+  const unmatchedContextCount = requireNumber(
+    unmatchedContextRow,
+    'unmatched_count',
+    'schema-v5 query-group context preflight',
+  );
+
+  if (unmatchedContextCount !== 0) {
+    throw new Error(
+      `Schema-v5 migration cannot reconstruct ${unmatchedContextCount} persisted job source context(s).`,
+    );
+  }
+
+  database.exec('PRAGMA foreign_keys = OFF');
+  database.exec('BEGIN IMMEDIATE');
+
+  try {
+    database.exec(`
+      CREATE TABLE jobs_v5 (
+        job_id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        job_key TEXT NOT NULL,
+        query_group_id TEXT,
+        source_context_json TEXT NOT NULL
+          CHECK (json_valid(source_context_json))
+          CHECK (json_type(source_context_json) = 'object'),
+        job_order INTEGER NOT NULL
+          CHECK (job_order >= 0),
+        execution_status TEXT NOT NULL
+          CHECK (
+            execution_status IN (
+              'PENDING',
+              'RUNNING',
+              'VALIDATING',
+              'COMPLETED',
+              'FAILED',
+              'CANCELLED',
+              'MANUAL_ACTION_REQUIRED',
+              'RETRY_PENDING'
+            )
+          ),
+        validation_status TEXT NOT NULL
+          CHECK (
+            validation_status IN (
+              'NOT_RUN',
+              'VALID',
+              'LOW_DATA',
+              'NO_DATA',
+              'INVALID_SCHEMA',
+              'ERROR_NOT_DATA',
+              'DATE_MISMATCH',
+              'QUERY_MISMATCH'
+            )
+          ),
+        attempt_count INTEGER NOT NULL DEFAULT 0
+          CHECK (attempt_count >= 0),
+        accepted_artifact_id TEXT,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT,
+        FOREIGN KEY (run_id)
+          REFERENCES runs(run_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT,
+        UNIQUE (run_id, source_id, job_key),
+        UNIQUE (run_id, job_order)
+      ) STRICT;
+
+      INSERT INTO jobs_v5 (
+        job_id,
+        run_id,
+        source_id,
+        job_key,
+        query_group_id,
+        source_context_json,
+        job_order,
+        execution_status,
+        validation_status,
+        attempt_count,
+        accepted_artifact_id,
+        created_at,
+        started_at,
+        completed_at
+      )
+      SELECT
+        job.job_id,
+        job.run_id,
+        job.source_id,
+        job.job_key,
+        job.query_group_id,
+        json_object(
+          'query_group',
+          json((
+            SELECT query_group.value
+            FROM json_each(
+              run.configuration_snapshot_json,
+              '$.selected_query_groups'
+            ) AS query_group
+            WHERE json_extract(
+              query_group.value,
+              '$.query_group_id'
+            ) = job.query_group_id
+            LIMIT 1
+          ))
+        ),
+        job.job_order,
+        job.execution_status,
+        job.validation_status,
+        job.attempt_count,
+        job.accepted_artifact_id,
+        job.created_at,
+        job.started_at,
+        job.completed_at
+      FROM jobs AS job
+      INNER JOIN runs AS run
+        ON run.run_id = job.run_id;
+
+      DROP TABLE jobs;
+      ALTER TABLE jobs_v5 RENAME TO jobs;
+
+      CREATE INDEX idx_jobs_run_order
+        ON jobs(run_id, job_order);
+    `);
+
+    const foreignKeyProblems = database
+      .prepare('PRAGMA foreign_key_check')
+      .all();
+
+    if (foreignKeyProblems.length !== 0) {
+      throw new Error(
+        'Schema-v5 migration would leave invalid foreign-key relationships.',
+      );
+    }
+
+    database
+      .prepare(`
+        INSERT INTO schema_migrations (
+          version,
+          name,
+          applied_at
+        ) VALUES (?, ?, ?)
+      `)
+      .run(
+        5,
+        'source_neutral_job_context',
+        new Date().toISOString(),
+      );
+
+    database.exec('PRAGMA user_version = 5');
+    database.exec('COMMIT');
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK');
+    } catch {
+      // Preserve the original migration failure.
+    }
+
+    throw error;
+  } finally {
+    database.exec('PRAGMA foreign_keys = ON');
+  }
+};
+
 const applyMigrations = (database: DatabaseSync): number => {
   let schemaVersion = readUserVersion(database);
 
@@ -454,6 +641,11 @@ const applyMigrations = (database: DatabaseSync): number => {
 
   if (schemaVersion < 4) {
     migrateToVersion4(database);
+    schemaVersion = readUserVersion(database);
+  }
+
+  if (schemaVersion < 5) {
+    migrateToVersion5(database);
     schemaVersion = readUserVersion(database);
   }
 

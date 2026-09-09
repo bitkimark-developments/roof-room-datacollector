@@ -138,6 +138,12 @@ const batchResult = () => ({
 const contextFor = (
   groupId,
 ) => ({
+  source_id:
+    'google-trends',
+  job_key:
+    groupId,
+  query_group_id:
+    groupId,
   query_group: {
     query_group_id:
       groupId,
@@ -146,6 +152,17 @@ const contextFor = (
     queries: [
       'redacted fixture query',
     ],
+  },
+  source_context: {
+    query_group: {
+      query_group_id:
+        groupId,
+      query_group_name:
+        groupId,
+      queries: [
+        'redacted fixture query',
+      ],
+    },
   },
 });
 

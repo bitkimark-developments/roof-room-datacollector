@@ -17,6 +17,8 @@ import type {
 } from '../../shared/bootstrap-status';
 import type {
   JobRecord,
+  QueryGroupRunConfigurationSnapshot,
+  RequestedCollectionConfiguration,
   RunRecord,
 } from '../../shared/run-job';
 import type {
@@ -449,6 +451,28 @@ const createExportData =
     run: RunRecord,
     jobs: readonly JobRecord[],
   ): Promise<NormalizedExportData> => {
+    const requested =
+      run.requested_configuration;
+    const snapshot =
+      run.configuration_snapshot;
+
+    if (
+      requested === null ||
+      snapshot.source_id !==
+        GOOGLE_TRENDS_SOURCE_ID ||
+      !Array.isArray(
+        snapshot.selected_query_groups,
+      )
+    ) {
+      throw new Error(
+        `Run ${run.run_id} does not contain a Google Trends configuration snapshot.`,
+      );
+    }
+
+    const googleTrendsSnapshot =
+      snapshot as QueryGroupRunConfigurationSnapshot;
+    const googleTrendsRequested =
+      requested as RequestedCollectionConfiguration;
     const queryUniverse:
       ExportRow[] = [];
     const trendsRows:
@@ -459,7 +483,7 @@ const createExportData =
       ExportRow[] = [];
 
     for (const group of
-      run.configuration_snapshot
+      googleTrendsSnapshot
         .selected_query_groups) {
       group.queries.forEach(
         (query, index) => {
@@ -472,7 +496,7 @@ const createExportData =
               index + 1,
             query,
             source_id:
-              run.configuration_snapshot
+              googleTrendsSnapshot
                 .source_id,
             active:
               true,
@@ -538,31 +562,31 @@ const createExportData =
             source_id:
               job.source_id,
             source_mode:
-              run.requested_configuration
+              googleTrendsRequested
                 .source_mode,
             dataset_type:
               normalizeEnum(
-                run.requested_configuration
+                googleTrendsRequested
                   .dataset_type,
               ),
             country_code:
-              run.requested_configuration
+              googleTrendsRequested
                 .country_code,
             search_type:
               normalizeEnum(
-                run.requested_configuration
+                googleTrendsRequested
                   .search_type,
               ),
             selection_type:
               normalizeEnum(
-                run.requested_configuration
+                googleTrendsRequested
                   .selection_type,
               ),
             requested_date_start:
-              run.requested_configuration
+              googleTrendsRequested
                 .requested_date_start,
             requested_date_end:
-              run.requested_configuration
+              googleTrendsRequested
                 .requested_date_end,
             actual_date_start:
               actualDateStart,
@@ -674,37 +698,37 @@ const createExportData =
           application_version:
             run.application_version,
           source_id:
-            run.configuration_snapshot
+            googleTrendsSnapshot
               .source_id,
           source_mode:
-            run.requested_configuration
+            googleTrendsRequested
               .source_mode,
           country_code:
-            run.requested_configuration
+            googleTrendsRequested
               .country_code,
           category_name:
-            run.requested_configuration
+            googleTrendsRequested
               .category_name,
           search_type:
             normalizeEnum(
-              run.requested_configuration
+              googleTrendsRequested
                 .search_type,
             ),
           selection_type:
             normalizeEnum(
-              run.requested_configuration
+              googleTrendsRequested
                 .selection_type,
             ),
           dataset_type:
             normalizeEnum(
-              run.requested_configuration
+              googleTrendsRequested
                 .dataset_type,
             ),
           requested_date_start:
-            run.requested_configuration
+            googleTrendsRequested
               .requested_date_start,
           requested_date_end:
-            run.requested_configuration
+            googleTrendsRequested
               .requested_date_end,
           query_group_count:
             jobs.length,

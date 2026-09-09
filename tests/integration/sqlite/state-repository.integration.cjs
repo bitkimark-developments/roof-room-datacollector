@@ -165,8 +165,8 @@ if (upgraded.status !== 'READY') {
   throw new Error(upgraded.error);
 }
 
-assert.equal(upgraded.schema_version, 4);
-assert.equal(upgraded.migrations_applied, 4);
+assert.equal(upgraded.schema_version, 5);
+assert.equal(upgraded.migrations_applied, 5);
 
 // DB-001 fresh database path
 const directories = makeDirectories('state-repository');
@@ -178,8 +178,8 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 4);
-assert.equal(bootstrap.migrations_applied, 4);
+assert.equal(bootstrap.schema_version, 5);
+assert.equal(bootstrap.migrations_applied, 5);
 
 const databasePath = getDatabasePath(directories);
 
@@ -340,6 +340,7 @@ assert.deepEqual(
     [2, 'run_job_persistence'],
     [3, 'attempt_persistence'],
     [4, 'artifact_validation_persistence'],
+    [5, 'source_neutral_job_context'],
   ],
 );
 
@@ -352,7 +353,7 @@ console.log(
   'PASS ID-002: rapid run_id generation remained unique',
 );
 console.log(
-  'PASS DB-001: legacy schema v1 upgrades to v4',
+  'PASS DB-001: legacy schema v1 upgrades to v5',
 );
 console.log(
   'PASS DB-002: run persisted as PENDING',

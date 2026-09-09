@@ -19,7 +19,11 @@ import {
   isRunStatus,
   isValidationStatus,
   type ExecutionStatus,
+  type JobPlan,
   type JobRecord,
+  type JsonObject,
+  type JsonValue,
+  type QueryGroupRunConfigurationSnapshot,
   type RequestedCollectionConfiguration,
   type RunConfigurationSnapshot,
   type RunRecord,
@@ -28,8 +32,9 @@ import {
 } from '../../shared/run-job';
 import type { ValidationSummaryRecord } from '../../shared/validation-summary';
 
-const REQUIRED_SCHEMA_VERSION = 4;
+const REQUIRED_SCHEMA_VERSION = 5;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const DOCUMENT_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const RUN_ID_PATTERN =
   /^rr_\d{8}T\d{9}Z_[0-9a-f]{6}$/;
 
@@ -39,6 +44,12 @@ export interface CreateRunInput {
   query_config: QueryConfig;
   application_version: string;
   requested_configuration: RequestedCollectionConfiguration;
+}
+
+export interface CreateRunFromJobPlansInput {
+  application_version: string;
+  configuration_snapshot: JsonObject;
+  job_plans: JobPlan[];
 }
 
 export interface StateCounts {
@@ -231,6 +242,75 @@ const parseJson = (
   }
 };
 
+const requireJsonValue = (
+  value: unknown,
+  context: string,
+): JsonValue => {
+  if (value === null) {
+    return null;
+  }
+
+  if (
+    typeof value === 'string' ||
+    typeof value === 'boolean'
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value === 'number' &&
+    Number.isFinite(value)
+  ) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry, index) =>
+      requireJsonValue(
+        entry,
+        `${context}[${index}]`,
+      ),
+    );
+  }
+
+  if (typeof value === 'object') {
+    const record = requireRecord(value, context);
+
+    return Object.fromEntries(
+      Object.entries(record).map(
+        ([key, entry]) => [
+          key,
+          requireJsonValue(
+            entry,
+            `${context}.${key}`,
+          ),
+        ],
+      ),
+    );
+  }
+
+  throw new Error(
+    `${context} must contain only JSON-compatible values.`,
+  );
+};
+
+const requireJsonObject = (
+  value: unknown,
+  context: string,
+): JsonObject => {
+  const normalized = requireJsonValue(value, context);
+
+  if (
+    typeof normalized !== 'object' ||
+    normalized === null ||
+    Array.isArray(normalized)
+  ) {
+    throw new Error(`${context} must be a JSON object.`);
+  }
+
+  return normalized;
+};
+
 const parseSelectedSources = (
   value: string,
 ): string[] => {
@@ -253,9 +333,9 @@ const parseSelectedSources = (
   return [...parsed];
 };
 
-const parseConfigurationSnapshot = (
+const parseQueryGroupConfigurationSnapshot = (
   value: string,
-): RunConfigurationSnapshot => {
+): QueryGroupRunConfigurationSnapshot => {
   const parsed = requireRecord(
     parseJson(value, 'configuration_snapshot_json'),
     'configuration_snapshot',
@@ -404,7 +484,7 @@ const parseConfigurationSnapshot = (
 };
 
 const extractRequestedConfiguration = (
-  snapshot: RunConfigurationSnapshot,
+  snapshot: QueryGroupRunConfigurationSnapshot,
 ): RequestedCollectionConfiguration => ({
   source_mode: snapshot.source_mode,
   country_code: snapshot.country_code,
@@ -418,6 +498,55 @@ const extractRequestedConfiguration = (
   dataset_type: snapshot.dataset_type,
 });
 
+const parseRunConfigurationSnapshot = (
+  value: string,
+): {
+  snapshot: RunConfigurationSnapshot;
+  requested_configuration:
+    RequestedCollectionConfiguration | null;
+} => {
+  const parsed = requireJsonObject(
+    parseJson(value, 'configuration_snapshot_json'),
+    'configuration_snapshot',
+  );
+
+  const legacyKeys = [
+    'config_version',
+    'source_id',
+    'source_mode',
+    'country_code',
+    'language_code',
+    'requested_date_start',
+    'requested_date_end',
+    'category_id',
+    'category_name',
+    'search_type',
+    'selection_type',
+    'dataset_type',
+    'selected_query_groups',
+  ] as const;
+
+  const isLegacyQueryGroupSnapshot = legacyKeys.every(
+    (key) => Object.hasOwn(parsed, key),
+  );
+
+  if (!isLegacyQueryGroupSnapshot) {
+    return {
+      snapshot: parsed,
+      requested_configuration: null,
+    };
+  }
+
+  const snapshot =
+    parseQueryGroupConfigurationSnapshot(value);
+
+  return {
+    snapshot,
+    requested_configuration:
+      extractRequestedConfiguration(snapshot),
+  };
+};
+
 const mapRunRow = (rawRow: unknown): RunRecord => {
   const row = requireRecord(rawRow, 'run');
 
@@ -429,7 +558,7 @@ const mapRunRow = (rawRow: unknown): RunRecord => {
     );
   }
 
-  const snapshot = parseConfigurationSnapshot(
+  const parsedSnapshot = parseRunConfigurationSnapshot(
     requireString(
       row,
       'configuration_snapshot_json',
@@ -479,8 +608,9 @@ const mapRunRow = (rawRow: unknown): RunRecord => {
       ),
     ),
     requested_configuration:
-      extractRequestedConfiguration(snapshot),
-    configuration_snapshot: snapshot,
+      parsedSnapshot.requested_configuration,
+    configuration_snapshot:
+      parsedSnapshot.snapshot,
   };
 };
 
@@ -507,10 +637,21 @@ const mapJobRow = (rawRow: unknown): JobRecord => {
     run_id: requireString(row, 'run_id', 'job'),
     source_id: requireString(row, 'source_id', 'job'),
     job_key: requireString(row, 'job_key', 'job'),
-    query_group_id: requireString(
+    query_group_id: requireNullableString(
       row,
       'query_group_id',
       'job',
+    ),
+    source_context: requireJsonObject(
+      parseJson(
+        requireString(
+          row,
+          'source_context_json',
+          'job',
+        ),
+        'source_context_json',
+      ),
+      'job.source_context',
     ),
     job_order: requireInteger(
       row,
@@ -921,7 +1062,7 @@ const validateCreateRunInput = (
 
 const buildSnapshot = (
   input: CreateRunInput,
-): RunConfigurationSnapshot => ({
+): QueryGroupRunConfigurationSnapshot => ({
   config_version: input.query_config.config_version,
   source_id: input.query_config.source_id,
   ...input.requested_configuration,
@@ -933,6 +1074,94 @@ const buildSnapshot = (
     }),
   ),
 });
+
+const normalizeCreateRunFromJobPlansInput = (
+  input: CreateRunFromJobPlansInput,
+): CreateRunFromJobPlansInput => {
+  const applicationVersion = requireNonEmpty(
+    input.application_version,
+    'application_version',
+  );
+
+  if (input.job_plans.length === 0) {
+    throw new Error(
+      'job_plans must contain at least one job.',
+    );
+  }
+
+  const seenJobs = new Set<string>();
+  const normalizedPlans = input.job_plans.map(
+    (plan, index) => {
+      const sourceId = requireNonEmpty(
+        plan.source_id,
+        `job_plans[${index}].source_id`,
+      );
+      const jobKey = requireNonEmpty(
+        plan.job_key,
+        `job_plans[${index}].job_key`,
+      );
+
+      if (!DOCUMENT_KEY_PATTERN.test(jobKey)) {
+        throw new Error(
+          `job_plans[${index}].job_key must be filesystem-safe for persisted JSON documents.`,
+        );
+      }
+      const identity = `${sourceId}\0${jobKey}`;
+
+      if (seenJobs.has(identity)) {
+        throw new Error(
+          `job_plans contains duplicate source_id/job_key: ${sourceId}/${jobKey}.`,
+        );
+      }
+
+      seenJobs.add(identity);
+
+      if (
+        plan.query_group_id !== null &&
+        plan.query_group_id.trim().length === 0
+      ) {
+        throw new Error(
+          `job_plans[${index}].query_group_id must be non-empty or null.`,
+        );
+      }
+
+      return {
+        source_id: sourceId,
+        job_key: jobKey,
+        query_group_id: plan.query_group_id,
+        source_context: requireJsonObject(
+          plan.source_context,
+          `job_plans[${index}].source_context`,
+        ),
+      };
+    },
+  );
+
+  const sourceIds = new Set(
+    normalizedPlans.map((plan) => plan.source_id),
+  );
+
+  if (sourceIds.size !== 1) {
+    throw new Error(
+      'job_plans must contain jobs from exactly one source_id in this release.',
+    );
+  }
+
+  const configurationSnapshot = requireJsonObject(
+    input.configuration_snapshot,
+    'configuration_snapshot',
+  );
+
+  parseRunConfigurationSnapshot(
+    JSON.stringify(configurationSnapshot),
+  );
+
+  return {
+    application_version: applicationVersion,
+    configuration_snapshot: configurationSnapshot,
+    job_plans: normalizedPlans,
+  };
+};
 
 const requireErrorCode = (
   errorCode: unknown,
@@ -993,10 +1222,55 @@ export class StateRepository {
   } {
     validateCreateRunInput(input);
 
+    return this.createRunFromJobPlans({
+      application_version:
+        input.application_version,
+      configuration_snapshot:
+        requireJsonObject(
+          buildSnapshot(input),
+          'configuration_snapshot',
+        ),
+      job_plans:
+        input.query_config.groups.map(
+          (group) => ({
+            source_id:
+              input.query_config.source_id,
+            job_key:
+              group.query_group_id,
+            query_group_id:
+              group.query_group_id,
+            source_context: {
+              query_group: {
+                query_group_id:
+                  group.query_group_id,
+                query_group_name:
+                  group.query_group_name,
+                queries: [...group.queries],
+              },
+            },
+          }),
+        ),
+    });
+  }
+
+  createRunFromJobPlans(
+    rawInput: CreateRunFromJobPlansInput,
+  ): {
+    run: RunRecord;
+    jobs: JobRecord[];
+  } {
+    const input =
+      normalizeCreateRunFromJobPlansInput(rawInput);
+
     const runId = createRunId();
     const createdAt = new Date().toISOString();
-    const snapshot = buildSnapshot(input);
-    const selectedSources = [input.query_config.source_id];
+    const selectedSources = [
+      ...new Set(
+        input.job_plans.map(
+          (plan) => plan.source_id,
+        ),
+      ),
+    ];
 
     this.database.exec('BEGIN IMMEDIATE');
 
@@ -1022,7 +1296,9 @@ export class StateRepository {
           null,
           input.application_version,
           JSON.stringify(selectedSources),
-          JSON.stringify(snapshot),
+          JSON.stringify(
+            input.configuration_snapshot,
+          ),
         );
 
       const insertJob = this.database.prepare(`
@@ -1032,6 +1308,7 @@ export class StateRepository {
           source_id,
           job_key,
           query_group_id,
+          source_context_json,
           job_order,
           execution_status,
           validation_status,
@@ -1040,21 +1317,24 @@ export class StateRepository {
           created_at,
           started_at,
           completed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
-      input.query_config.groups.forEach(
-        (group, jobOrder) => {
+      input.job_plans.forEach(
+        (plan, jobOrder) => {
           insertJob.run(
             createJobId(
               runId,
-              input.query_config.source_id,
-              group.query_group_id,
+              plan.source_id,
+              plan.job_key,
             ),
             runId,
-            input.query_config.source_id,
-            group.query_group_id,
-            group.query_group_id,
+            plan.source_id,
+            plan.job_key,
+            plan.query_group_id,
+            JSON.stringify(
+              plan.source_context,
+            ),
             jobOrder,
             'PENDING',
             'NOT_RUN',
@@ -2226,6 +2506,7 @@ export class StateRepository {
           source_id,
           job_key,
           query_group_id,
+          source_context_json,
           job_order,
           execution_status,
           validation_status,
@@ -2251,6 +2532,7 @@ export class StateRepository {
           source_id,
           job_key,
           query_group_id,
+          source_context_json,
           job_order,
           execution_status,
           validation_status,

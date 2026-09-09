@@ -13,6 +13,10 @@ import {
   GOOGLE_TRENDS_COLLECTION_ERROR_CODES,
   type GoogleTrendsCollector,
 } from './google-trends-collector';
+import {
+  adaptGoogleTrendsCollectionContext,
+  GoogleTrendsSourceContextError,
+} from './google-trends-source-context';
 
 const GOOGLE_TRENDS_SOURCE_ID =
   'google-trends';
@@ -137,8 +141,27 @@ export class GoogleTrendsSource
       };
     }
 
-    return this.collector.collect(
-      context,
-    );
+    try {
+      return this.collector.collect(
+        adaptGoogleTrendsCollectionContext(
+          context,
+        ),
+      );
+    } catch (error: unknown) {
+      if (
+        error instanceof
+          GoogleTrendsSourceContextError
+      ) {
+        return {
+          result_type: 'FAILED',
+          error_code:
+            GOOGLE_TRENDS_COLLECTION_ERROR_CODES
+              .UNSUPPORTED_CONFIGURATION,
+          message: error.message,
+        };
+      }
+
+      throw error;
+    }
   }
 }

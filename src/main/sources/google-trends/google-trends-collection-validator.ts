@@ -11,6 +11,11 @@ import type {
 import {
   validateGoogleTrendsInterestOverTimeCsv,
 } from './google-trends-interest-over-time-validator';
+import {
+  adaptGoogleTrendsValidationContext,
+  GoogleTrendsSourceContextError,
+  type GoogleTrendsValidationContext,
+} from './google-trends-source-context';
 
 const GOOGLE_TRENDS_SOURCE_ID =
   'google-trends';
@@ -71,7 +76,7 @@ const requireEqual = (
 };
 
 const assertContextConsistency = (
-  context: CollectionValidationContext,
+  context: GoogleTrendsValidationContext,
 ): void => {
   if (
     context.job.run_id !==
@@ -124,7 +129,7 @@ const assertContextConsistency = (
 };
 
 const assertSupportedMvpConfiguration = (
-  context: CollectionValidationContext,
+  context: GoogleTrendsValidationContext,
 ): void => {
   const requested =
     context.run
@@ -171,8 +176,28 @@ export class GoogleTrendsCollectionValidator
   implements CollectionValidator
 {
   async validate(
-    context: CollectionValidationContext,
+    rawContext: CollectionValidationContext,
   ): Promise<CollectionValidationDecision> {
+    let context: GoogleTrendsValidationContext;
+
+    try {
+      context =
+        adaptGoogleTrendsValidationContext(
+          rawContext,
+        );
+    } catch (error: unknown) {
+      if (
+        error instanceof
+          GoogleTrendsSourceContextError
+      ) {
+        throw new GoogleTrendsValidationContextError(
+          `Google Trends validation query group context is invalid: ${error.message}`,
+        );
+      }
+
+      throw error;
+    }
+
     assertContextConsistency(
       context,
     );

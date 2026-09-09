@@ -216,12 +216,12 @@ class ExportFixtureSource {
       result_type:
         'ARTIFACT_PRODUCED',
       preferred_filename:
-        `${context.query_group.query_group_id}.csv`,
+        `${context.source_context.query_group.query_group_id}.csv`,
       media_type:
         'text/csv',
       bytes:
         providerCsv(
-          context.query_group,
+          context.source_context.query_group,
         ),
     };
   }

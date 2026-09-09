@@ -167,32 +167,6 @@ const requireNonEmptyErrorCode = (
   return value;
 };
 
-const getQueryGroup = (
-  run: RunRecord,
-  job: JobRecord,
-) => {
-  const group =
-    run.configuration_snapshot
-      .selected_query_groups
-      .find(
-        (candidate) =>
-          candidate.query_group_id ===
-          job.query_group_id,
-      );
-
-  if (!group) {
-    throw new Error(
-      `Run snapshot does not contain query group ${job.query_group_id} for job ${job.job_id}.`,
-    );
-  }
-
-  return {
-    query_group_id: group.query_group_id,
-    query_group_name: group.query_group_name,
-    queries: [...group.queries],
-  };
-};
-
 export class CollectionOrchestrator {
   constructor(
     private readonly store:
@@ -529,12 +503,6 @@ export class CollectionOrchestrator {
       );
     }
 
-    const queryGroup =
-      getQueryGroup(
-        run,
-        job,
-      );
-
     const collection =
       await source.collect({
         run_id: runId,
@@ -544,9 +512,12 @@ export class CollectionOrchestrator {
           attempt.attempt_number,
         source_id: job.source_id,
         job_key: job.job_key,
+        query_group_id:
+          job.query_group_id,
         requested_configuration:
           run.requested_configuration,
-        query_group: queryGroup,
+        source_context:
+          job.source_context,
       });
 
     if (
@@ -694,7 +665,8 @@ export class CollectionOrchestrator {
         job: validatingJob,
         attempt,
         artifact,
-        query_group: queryGroup,
+        source_context:
+          validatingJob.source_context,
         absolute_path:
           persisted.absolute_path,
       });
@@ -714,7 +686,8 @@ export class CollectionOrchestrator {
             source_mode:
               source.sourceMode,
           },
-          query_group: queryGroup,
+          source_context:
+            validatingJob.source_context,
           validation_status:
             validation.validation_status,
           actual_date_start:

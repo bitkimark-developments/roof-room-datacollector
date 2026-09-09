@@ -119,6 +119,24 @@ const cloneExport = (
   ...exportState,
 });
 
+const requireGoogleTrendsQueryGroupId = (
+  job: {
+    job_key: string;
+    query_group_id: string | null;
+  },
+): string => {
+  if (
+    job.query_group_id === null ||
+    job.query_group_id !== job.job_key
+  ) {
+    throw new Error(
+      `Google Trends job ${job.job_key} has invalid query-group identity.`,
+    );
+  }
+
+  return job.query_group_id;
+};
+
 export class GoogleTrendsDesktopController {
   private readonly now: () => Date;
 
@@ -584,18 +602,16 @@ export class GoogleTrendsDesktopController {
       SourceCollectionContext,
   ): void {
     this.startedGroups.add(
-      context.query_group
-        .query_group_id,
+      context.job_key,
     );
 
     this.patch({
       current_group_id:
-        context.query_group
-          .query_group_id,
+        context.job_key,
       groups_started:
         this.startedGroups.size,
       message:
-        `${context.query_group.query_group_id} toplanıyor…`,
+        `${context.job_key} toplanıyor…`,
     });
   }
 
@@ -606,8 +622,7 @@ export class GoogleTrendsDesktopController {
       SourceCollectionResult,
   ): void {
     this.collectedGroups.add(
-      context.query_group
-        .query_group_id,
+      context.job_key,
     );
 
     this.patch({
@@ -616,11 +631,11 @@ export class GoogleTrendsDesktopController {
       message:
         result.result_type ===
           'ARTIFACT_PRODUCED'
-          ? `${context.query_group.query_group_id} doğrulanıyor…`
+          ? `${context.job_key} doğrulanıyor…`
           : result.result_type ===
               'MANUAL_ACTION_REQUIRED'
-            ? `${context.query_group.query_group_id} için sağlayıcı penceresinde manuel işlem gerekiyor.`
-            : `${context.query_group.query_group_id} kabul edilmiş bir kanıt üretmedi.`,
+            ? `${context.job_key} için sağlayıcı penceresinde manuel işlem gerekiyor.`
+            : `${context.job_key} kabul edilmiş bir kanıt üretmedi.`,
     });
   }
 
@@ -660,8 +675,9 @@ export class GoogleTrendsDesktopController {
         result.jobs.map(
           (entry) => ({
             query_group_id:
-              entry.job
-                .query_group_id,
+              requireGoogleTrendsQueryGroupId(
+                entry.job,
+              ),
             execution_status:
               entry.job
                 .execution_status,

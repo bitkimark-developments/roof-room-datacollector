@@ -88,6 +88,8 @@ const makeContext = (
     'google-trends',
   job_key:
     'GT01',
+  query_group_id:
+    'GT01',
   requested_configuration: {
     source_mode:
       'GOOGLE_TRENDS_UI',
@@ -109,6 +111,21 @@ const makeContext = (
       'Search Term',
     dataset_type:
       'INTEREST_OVER_TIME',
+  },
+  source_context: {
+    query_group: {
+      query_group_id:
+        'GT01',
+      query_group_name:
+        'generic_commercial',
+      queries: [
+        'canlı bitki',
+        'online bitki',
+        'bitki satın al',
+        'bitki siparişi',
+        'saksılı bitki',
+      ],
+    },
   },
   query_group: {
     query_group_id:
@@ -391,7 +408,7 @@ const main = async () => {
               .get('q')
               .split(','),
             makeContext()
-              .query_group
+              .source_context.query_group
               .queries,
           );
 
@@ -466,6 +483,7 @@ const main = async () => {
   assert.equal(
     produced.result_type,
     'ARTIFACT_PRODUCED',
+    produced.message ?? undefined,
   );
   assert.equal(
     produced.preferred_filename,
@@ -502,6 +520,28 @@ const main = async () => {
       'configured.export',
       'page.close',
     ],
+  );
+
+  const traceBeforeInvalidSourceContext =
+    trace.length;
+  const invalidSourceContext =
+    await source.collect(
+      makeContext({
+        source_context: {},
+      }),
+    );
+
+  assert.equal(
+    invalidSourceContext.result_type,
+    'FAILED',
+  );
+  assert.equal(
+    invalidSourceContext.error_code,
+    'UNSUPPORTED_CONFIGURATION',
+  );
+  assert.equal(
+    trace.length,
+    traceBeforeInvalidSourceContext,
   );
 
   const openCall =
@@ -545,7 +585,7 @@ const main = async () => {
   assert.deepEqual(
     exportCall.queries,
     makeContext()
-      .query_group
+      .source_context.query_group
       .queries,
   );
   assert.equal(

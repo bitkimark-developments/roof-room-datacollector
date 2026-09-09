@@ -1,6 +1,6 @@
 # RoofRoom Data Collector — Data Contracts
 
-**Status:** Canonical contracts reconciled with SQLite schema version 4 and current TypeScript interfaces
+**Status:** Canonical contracts reconciled with SQLite schema version 5 and current TypeScript interfaces
 **Rule:** Conceptual multi-source additions do not silently rename implemented persisted values
 
 ---
@@ -47,7 +47,7 @@ Exact future source IDs, dataset IDs, and source-mode strings must be introduced
 
 ## 4. Current implemented status contracts
 
-These values match `src/shared/run-job.ts` and SQLite schema version 4 and must not be renamed without an explicit migration.
+These values match `src/shared/run-job.ts` and SQLite schema version 5 and must not be renamed without an explicit migration.
 
 ### Run status
 
@@ -133,9 +133,9 @@ A run records one coordinated operation, application version, selected sources, 
 
 ### Job
 
-A job is the independent execution, resume, and retry unit. It records source identity, stable job key, order, execution/validation states, attempt count, and accepted artifact reference.
+A job is the independent execution, resume, and retry unit. It records source identity, stable `job_key`, JSON-compatible source context, order, execution/validation states, attempt count, and accepted artifact reference.
 
-Current schema requires `query_group_id` on every job because it was built for the Google Trends slice. Multi-source implementation must reconcile this constraint explicitly rather than fabricate a query group for unrelated sources.
+`query_group_id` is nullable and Google-Trends/legacy-specific. Non-Google-Trends jobs use `NULL`; they never fabricate a query group or sentinel. Google Trends jobs retain `job_key === query_group_id` and persist their real query-group context.
 
 ### Attempt
 
@@ -170,7 +170,7 @@ Raw provider evidence begins as a candidate, remains preserved after validation 
 
 ## 8. SQLite boundary
 
-Current database schema version: `4`.
+Current database schema version: `5`.
 
 Implemented tables:
 
@@ -222,7 +222,7 @@ observed context where proven
 
 Where supported, raw artifacts carry byte size and SHA-256. Dataset schema version and application version are separate concepts.
 
-The current metadata document is Google-Trends-shaped and includes query-group, country, category, search type, selection type, requested dates, actual dates, and raw artifact linkage. Other source modules require compatible source-specific metadata contracts rather than fake Google Trends fields.
+Google Trends metadata remains backward compatible at metadata schema version 1 and includes query-group, country, category, search type, selection type, requested dates, actual dates, and raw artifact linkage. A non-query-group job emits source-neutral metadata schema version 2 with source, job, attempt, raw artifact, validation, and persisted source-context evidence rather than fake Google Trends fields.
 
 ## 11. Requested versus observed context
 

@@ -90,7 +90,7 @@ The deterministic Core suite covers:
 - renderer/main/preload privilege boundaries;
 - export eligibility and provenance.
 
-New multi-source Core tests must include jobs that do not naturally have a Google Trends query group before the current schema constraint is changed. That test should drive an explicit compatible migration rather than a fake placeholder value.
+Multi-source Core tests include jobs that do not naturally have a Google Trends query group. Schema-v4 migration preservation, nullable `query_group_id`, persisted source context, and the fake JSON source lifecycle are deterministic release-gate coverage; no placeholder query group is used.
 
 ## 6. Acquisition-mode suites
 

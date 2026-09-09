@@ -12,7 +12,6 @@ TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 npx tsc \
-  src/main/browser/browser-manager.ts \
   src/main/core/collection-orchestrator.ts \
   src/main/core/job-execution-state-machine.ts \
   src/main/core/metadata-manager.ts \
@@ -22,15 +21,12 @@ npx tsc \
   src/main/core/run-execution-state-machine.ts \
   src/main/core/run-manager.ts \
   src/main/core/source-registry.ts \
-  src/main/logging/log-redaction.ts \
-  src/main/logging/structured-logger.ts \
   src/main/storage/database.ts \
   src/main/storage/state-repository.ts \
   src/main/storage/storage-manager.ts \
   src/shared/artifact.ts \
   src/shared/attempt.ts \
   src/shared/bootstrap-status.ts \
-  src/shared/browser.ts \
   src/shared/collection.ts \
   src/shared/logging.ts \
   src/shared/metadata.ts \
@@ -50,15 +46,6 @@ npx tsc \
   --skipLibCheck
 
 node \
-  tests/integration/m2-gate/integrated-m2-gate.integration.cjs \
+  tests/integration/orchestration/source-neutral-fake-json.integration.cjs \
   "$TMP_ROOT/build" \
   "$TMP_ROOT/work"
-
-bash \
-  tests/integration/sqlite/run-schema-v5-migration-test.sh
-
-bash \
-  tests/integration/sqlite/run-source-neutral-job-persistence-test.sh
-
-bash \
-  tests/integration/orchestration/run-source-neutral-fake-json-test.sh

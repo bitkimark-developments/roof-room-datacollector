@@ -63,7 +63,7 @@ The current live repository defines:
 - `SourceRegistry` for lowercase-hyphenated IDs;
 - `CollectionOrchestrator` for current run/job/attempt/artifact lifecycle.
 
-These interfaces are currently Google-Trends-shaped in places: collection context includes a `query_group`, run configuration contains search-specific fields, and SQLite jobs require `query_group_id`. A new source design must expose these compatibility constraints and evolve them through tests/migration where necessary. It must not fill unrelated fields with invented values.
+The shared collection and validation contexts now carry persisted JSON-compatible `source_context` without requiring a `QueryGroup`. SQLite schema version 5 allows `query_group_id = NULL`, while the Google Trends adapter reconstructs and validates its own query-group semantics from source context. Run configuration and desktop composition remain Google-Trends-shaped in places; new sources must not fill unrelated fields with invented values.
 
 ## 6. Required source responsibilities
 

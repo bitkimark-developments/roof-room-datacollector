@@ -8,9 +8,11 @@ import {
   type ManagedBrowserResponse,
 } from '../../browser/browser-manager';
 import type {
-  SourceCollectionContext,
   SourceCollectionResult,
 } from '../../../shared/collection';
+import type {
+  GoogleTrendsCollectionContext,
+} from './google-trends-source-context';
 
 import {
   exportPreconfiguredGoogleTrendsPage,
@@ -149,7 +151,7 @@ const requireEqual = (
 };
 
 const assertSupportedContext = (
-  context: SourceCollectionContext,
+  context: GoogleTrendsCollectionContext,
 ): void => {
   requireEqual(
     context.source_id,
@@ -208,7 +210,7 @@ const assertSupportedContext = (
 };
 
 const rawFilename = (
-  context: SourceCollectionContext,
+  context: GoogleTrendsCollectionContext,
 ): string =>
   `${context.query_group.query_group_id}${RAW_FILENAME_SUFFIX}`;
 
@@ -544,7 +546,7 @@ export class GoogleTrendsCollector {
   }
 
   async collect(
-    context: SourceCollectionContext,
+    context: GoogleTrendsCollectionContext,
   ): Promise<SourceCollectionResult> {
     let configuredExploreInput:
       GoogleTrendsConfiguredExploreUrlInput;

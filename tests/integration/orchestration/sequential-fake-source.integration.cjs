@@ -164,7 +164,7 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 4);
+assert.equal(bootstrap.schema_version, 5);
 
 const requestedConfiguration = {
   source_mode: 'FAKE_TEST',
@@ -261,7 +261,7 @@ class FakeSourceModule {
       this.id,
     );
     assert.equal(
-      context.query_group.query_group_id,
+      context.source_context.query_group.query_group_id,
       context.job_key,
     );
     assert.equal(

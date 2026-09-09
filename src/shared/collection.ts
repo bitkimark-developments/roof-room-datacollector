@@ -1,10 +1,10 @@
 import type { AttemptRecord } from './attempt';
 import type { ArtifactRecord } from './artifact';
-import type { QueryGroup } from './query-config';
 import type {
   DataSourceModule,
 } from './source';
 import type {
+  JsonObject,
   JobRecord,
   RequestedCollectionConfiguration,
   RunRecord,
@@ -21,8 +21,10 @@ export interface SourceCollectionContext {
   attempt_number: number;
   source_id: string;
   job_key: string;
-  requested_configuration: RequestedCollectionConfiguration;
-  query_group: QueryGroup;
+  query_group_id: string | null;
+  requested_configuration:
+    RequestedCollectionConfiguration | null;
+  source_context: JsonObject;
 }
 
 export type SourceCollectionResult =
@@ -68,7 +70,7 @@ export interface CollectionValidationContext {
   job: JobRecord;
   attempt: AttemptRecord;
   artifact: ArtifactRecord;
-  query_group: QueryGroup;
+  source_context: JsonObject;
   absolute_path: string;
 }
 

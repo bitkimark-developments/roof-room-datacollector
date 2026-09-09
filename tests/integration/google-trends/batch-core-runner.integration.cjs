@@ -215,7 +215,7 @@ class BatchFixtureSource {
     );
 
     if (
-      context.query_group
+      context.source_context.query_group
         .query_group_id ===
       this.failGroupId
     ) {
@@ -233,12 +233,12 @@ class BatchFixtureSource {
       result_type:
         'ARTIFACT_PRODUCED',
       preferred_filename:
-        `${context.query_group.query_group_id}.csv`,
+        `${context.source_context.query_group.query_group_id}.csv`,
       media_type:
         'text/csv',
       bytes:
         Buffer.from(
-          `fixture:${context.query_group.query_group_id}`,
+          `fixture:${context.source_context.query_group.query_group_id}`,
           'utf8',
         ),
     };
@@ -321,7 +321,7 @@ const main = async () => {
   assert.deepEqual(
     successSource.collectCalls.map(
       (context) =>
-        context.query_group
+        context.source_context.query_group
           .query_group_id,
     ),
     [
@@ -483,7 +483,7 @@ const main = async () => {
   assert.deepEqual(
     retrySource.collectCalls.map(
       (context) =>
-        context.query_group
+        context.source_context.query_group
           .query_group_id,
     ),
     [
@@ -580,7 +580,7 @@ const main = async () => {
   assert.deepEqual(
     continuedSource.collectCalls.map(
       (context) =>
-        context.query_group
+        context.source_context.query_group
           .query_group_id,
     ),
     [

@@ -38,6 +38,21 @@ export const VALIDATION_STATUSES = [
 export type ValidationStatus =
   (typeof VALIDATION_STATUSES)[number];
 
+export type JsonPrimitive =
+  | string
+  | number
+  | boolean
+  | null;
+
+export type JsonValue =
+  | JsonPrimitive
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+export type JsonObject = {
+  [key: string]: JsonValue;
+};
+
 export interface RequestedCollectionConfiguration {
   source_mode: string;
   country_code: string;
@@ -51,7 +66,7 @@ export interface RequestedCollectionConfiguration {
   dataset_type: string;
 }
 
-export interface RunConfigurationSnapshot
+export interface QueryGroupRunConfigurationSnapshot
   extends RequestedCollectionConfiguration {
   config_version: number;
   source_id: string;
@@ -62,6 +77,10 @@ export interface RunConfigurationSnapshot
   }>;
 }
 
+export type RunConfigurationSnapshot =
+  | QueryGroupRunConfigurationSnapshot
+  | JsonObject;
+
 export interface RunRecord {
   run_id: string;
   run_status: RunStatus;
@@ -70,8 +89,16 @@ export interface RunRecord {
   completed_at: string | null;
   application_version: string;
   selected_sources: string[];
-  requested_configuration: RequestedCollectionConfiguration;
+  requested_configuration:
+    RequestedCollectionConfiguration | null;
   configuration_snapshot: RunConfigurationSnapshot;
+}
+
+export interface JobPlan {
+  source_id: string;
+  job_key: string;
+  query_group_id: string | null;
+  source_context: JsonObject;
 }
 
 export interface JobRecord {
@@ -79,7 +106,8 @@ export interface JobRecord {
   run_id: string;
   source_id: string;
   job_key: string;
-  query_group_id: string;
+  query_group_id: string | null;
+  source_context: JsonObject;
   job_order: number;
   execution_status: ExecutionStatus;
   validation_status: ValidationStatus;

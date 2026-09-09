@@ -489,8 +489,10 @@ const main = async () => {
       source_mode:
         'GOOGLE_TRENDS_UI',
     },
-    query_group:
-      gt01,
+    source_context: {
+      query_group:
+        gt01,
+    },
     validation_status:
       'VALID',
     actual_date_start:

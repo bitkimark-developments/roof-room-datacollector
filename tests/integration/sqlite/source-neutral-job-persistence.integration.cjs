@@ -1,0 +1,201 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const [buildRoot, workRoot] = process.argv.slice(2);
+
+if (!buildRoot || !workRoot) {
+  throw new Error(
+    'Expected compiled build root and temporary work root.',
+  );
+}
+
+const {
+  getDatabasePath,
+  initializeDatabase,
+} = require(
+  path.join(buildRoot, 'main', 'storage', 'database.js'),
+);
+const {
+  StateRepository,
+} = require(
+  path.join(
+    buildRoot,
+    'main',
+    'storage',
+    'state-repository.js',
+  ),
+);
+
+const root = path.join(workRoot, 'source-neutral-job');
+const directories = {
+  app_data_root: root,
+  config: path.join(root, 'config'),
+  data: path.join(root, 'data'),
+  runs: path.join(root, 'data', 'runs'),
+  database: path.join(root, 'database'),
+  browser_profiles: path.join(root, 'browser-profiles'),
+  logs: path.join(root, 'logs'),
+};
+
+fs.mkdirSync(directories.database, { recursive: true });
+
+const bootstrap = initializeDatabase(directories);
+
+assert.equal(bootstrap.status, 'READY');
+
+if (bootstrap.status !== 'READY') {
+  throw new Error(bootstrap.error);
+}
+
+const databasePath = getDatabasePath(directories);
+const sourceContext = {
+  dataset_type: 'DETERMINISTIC_JSON',
+  acquisition_mode: 'FILE_IMPORT',
+  request: {
+    input_name: 'fixture.json',
+    preserve_nulls: true,
+  },
+};
+const configurationSnapshot = {
+  schema_version: 1,
+  source_id: 'fake-json',
+  requested_context: {
+    batch_label: 'source-neutral-persistence',
+  },
+};
+
+const repositoryA = new StateRepository(databasePath);
+const created = repositoryA.createRunFromJobPlans({
+  application_version: '1.0.0',
+  configuration_snapshot: configurationSnapshot,
+  job_plans: [
+    {
+      source_id: 'fake-json',
+      job_key: 'fixture-import-001',
+      query_group_id: null,
+      source_context: sourceContext,
+    },
+  ],
+});
+
+assert.deepEqual(created.run.selected_sources, ['fake-json']);
+assert.deepEqual(
+  created.run.configuration_snapshot,
+  configurationSnapshot,
+);
+assert.equal(created.jobs.length, 1);
+assert.equal(created.jobs[0].job_key, 'fixture-import-001');
+assert.equal(created.jobs[0].query_group_id, null);
+assert.deepEqual(created.jobs[0].source_context, sourceContext);
+
+assert.throws(
+  () =>
+    repositoryA.createRunFromJobPlans({
+      application_version: '1.0.0',
+      configuration_snapshot: configurationSnapshot,
+      job_plans: [
+        {
+          source_id: 'fake-json',
+          job_key: 'duplicate',
+          query_group_id: null,
+          source_context: {},
+        },
+        {
+          source_id: 'fake-json',
+          job_key: 'duplicate',
+          query_group_id: null,
+          source_context: {},
+        },
+      ],
+    }),
+  /duplicate source_id\/job_key/u,
+);
+
+assert.throws(
+  () =>
+    repositoryA.createRunFromJobPlans({
+      application_version: '1.0.0',
+      configuration_snapshot: configurationSnapshot,
+      job_plans: [
+        {
+          source_id: 'fake-json',
+          job_key: 'unsafe/key',
+          query_group_id: null,
+          source_context: {},
+        },
+      ],
+    }),
+  /filesystem-safe/u,
+);
+
+assert.throws(
+  () =>
+    repositoryA.createRunFromJobPlans({
+      application_version: '1.0.0',
+      configuration_snapshot: configurationSnapshot,
+      job_plans: [
+        {
+          source_id: 'fake-json',
+          job_key: 'one',
+          query_group_id: null,
+          source_context: {},
+        },
+        {
+          source_id: 'other-source',
+          job_key: 'two',
+          query_group_id: null,
+          source_context: {},
+        },
+      ],
+    }),
+  /exactly one source_id/u,
+);
+
+const arbitrarySnapshotWithLegacyKey = {
+  ...configurationSnapshot,
+  selected_query_groups: 'generic-source-field',
+};
+
+const genericSnapshotRun = repositoryA.createRunFromJobPlans({
+  application_version: '1.0.0',
+  configuration_snapshot: arbitrarySnapshotWithLegacyKey,
+  job_plans: [
+    {
+      source_id: 'fake-json',
+      job_key: 'generic-snapshot',
+      query_group_id: null,
+      source_context: {},
+    },
+  ],
+});
+
+assert.deepEqual(
+  genericSnapshotRun.run.configuration_snapshot,
+  arbitrarySnapshotWithLegacyKey,
+);
+
+const runId = created.run.run_id;
+const jobId = created.jobs[0].job_id;
+
+repositoryA.close();
+
+const repositoryB = new StateRepository(databasePath);
+const reopenedRun = repositoryB.getRun(runId);
+const reopenedJob = repositoryB.getJob(jobId);
+
+assert.ok(reopenedRun);
+assert.deepEqual(
+  reopenedRun.configuration_snapshot,
+  configurationSnapshot,
+);
+assert.ok(reopenedJob);
+assert.equal(reopenedJob.query_group_id, null);
+assert.equal(reopenedJob.job_key, 'fixture-import-001');
+assert.deepEqual(reopenedJob.source_context, sourceContext);
+
+repositoryB.close();
+
+console.log(
+  'PASS DB-011: source-neutral job context and NULL query_group_id survive repository restart',
+);

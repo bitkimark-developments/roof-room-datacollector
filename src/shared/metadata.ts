@@ -1,8 +1,9 @@
 import type {
+  JsonObject,
   ValidationStatus,
 } from './run-job';
 
-export interface DatasetMetadataDocument {
+export interface GoogleTrendsDatasetMetadataDocument {
   schema_version: 1;
   run_id: string;
   job_id: string;
@@ -43,3 +44,29 @@ export interface DatasetMetadataDocument {
     'NOT_RUN'
   >;
 }
+
+export interface SourceNeutralDatasetMetadataDocument {
+  schema_version: 2;
+  run_id: string;
+  job_id: string;
+  attempt_id: string;
+  attempt_number: number;
+  source_id: string;
+  source_name: string;
+  source_mode: string;
+  job_key: string;
+  query_group_id: null;
+  source_context: JsonObject;
+  retrieved_at: string;
+  application_version: string;
+  raw_artifact_id: string;
+  raw_relative_path: string;
+  validation_status: Exclude<
+    ValidationStatus,
+    'NOT_RUN'
+  >;
+}
+
+export type DatasetMetadataDocument =
+  | GoogleTrendsDatasetMetadataDocument
+  | SourceNeutralDatasetMetadataDocument;

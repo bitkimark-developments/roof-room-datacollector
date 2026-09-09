@@ -79,7 +79,7 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 4);
+assert.equal(bootstrap.schema_version, 5);
 
 const requestedConfiguration = {
   source_mode: 'GOOGLE_TRENDS_UI',

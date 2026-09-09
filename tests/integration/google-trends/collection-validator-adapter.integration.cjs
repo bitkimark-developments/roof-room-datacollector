@@ -139,6 +139,15 @@ const createContext = (
     job_key: 'GT01',
     query_group_id:
       'GT01',
+    source_context: {
+      query_group:
+        overrides.query_group ?? {
+          ...queryGroup,
+          queries: [
+            ...queryGroup.queries,
+          ],
+        },
+    },
     job_order: 1,
     execution_status:
       'VALIDATING',
@@ -203,13 +212,8 @@ const createContext = (
     job,
     attempt,
     artifact,
-    query_group:
-      overrides.query_group ?? {
-        ...queryGroup,
-        queries: [
-          ...queryGroup.queries,
-        ],
-      },
+    source_context:
+      job.source_context,
     absolute_path:
       absolutePath,
   };

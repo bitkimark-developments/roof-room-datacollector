@@ -29,7 +29,7 @@ The live repository currently uses:
 - TypeScript and Vite through Electron Forge;
 - a `SourceRegistry` and `DataSourceModule`/`CollectingDataSourceModule` contracts;
 - `CollectionOrchestrator`, run/job/attempt state machines, resume, reconciliation, and retry policy;
-- `StateRepository` backed by `node:sqlite` schema version 4;
+- `StateRepository` backed by `node:sqlite` schema version 5;
 - `StorageManager` for application-owned run-scoped evidence;
 - source-specific Google Trends collection, parsing, validation, and export;
 - Playwright with an application-owned persistent browser profile.
@@ -151,7 +151,7 @@ Current canonical application state is under the Electron `userData/app-data` bo
 
 Raw writes are collision-safe and run-scoped. Derived files do not replace raw evidence. Downloads is reserved for intentional user-visible copies and is not canonical application state.
 
-Current schema version 4 includes `runs`, `jobs`, `attempts`, `artifacts`, and `validations`. It has no implemented freshness or credential tables, and current jobs require `query_group_id`; those are compatibility facts to address in future approved slices, not fields to rename in documentation.
+Current schema version 5 includes `runs`, `jobs`, `attempts`, `artifacts`, and `validations`. Jobs use `job_key` as their generic identity, persist JSON-compatible source context, and allow `query_group_id = NULL` for non-Google-Trends work. Existing Google Trends jobs retain `job_key === query_group_id`. The schema still has no implemented freshness or credential tables.
 
 ## 10. Credential/access architecture
 

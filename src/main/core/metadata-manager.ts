@@ -11,6 +11,7 @@ import type {
   QueryGroup,
 } from '../../shared/query-config';
 import type {
+  JsonObject,
   JobRecord,
   RunRecord,
   ValidationStatus,
@@ -28,7 +29,7 @@ export interface CreateDatasetMetadataInput {
   attempt: AttemptRecord;
   raw_artifact: ArtifactRecord;
   source: DatasetMetadataSource;
-  query_group: QueryGroup;
+  source_context: JsonObject;
   validation_status: Exclude<
     ValidationStatus,
     'NOT_RUN'
@@ -48,7 +49,6 @@ export class MetadataManager {
       attempt,
       raw_artifact: rawArtifact,
       source,
-      query_group: queryGroup,
     } = input;
 
     if (
@@ -71,15 +71,6 @@ export class MetadataManager {
     ) {
       throw new Error(
         'Dataset metadata source context does not match the job.',
-      );
-    }
-
-    if (
-      queryGroup.query_group_id !==
-      job.query_group_id
-    ) {
-      throw new Error(
-        'Dataset metadata query-group context does not match the job.',
       );
     }
 
@@ -111,6 +102,48 @@ export class MetadataManager {
         'country_name',
       );
 
+    if (job.query_group_id === null) {
+      return {
+        schema_version: 2,
+        run_id: run.run_id,
+        job_id: job.job_id,
+        attempt_id: attempt.attempt_id,
+        attempt_number:
+          attempt.attempt_number,
+        source_id: source.source_id,
+        source_name: source.source_name,
+        source_mode: source.source_mode,
+        job_key: job.job_key,
+        query_group_id: null,
+        source_context: {
+          ...input.source_context,
+        },
+        retrieved_at: rawArtifact.created_at,
+        application_version:
+          run.application_version,
+        raw_artifact_id:
+          rawArtifact.artifact_id,
+        raw_relative_path:
+          rawArtifact.relative_path,
+        validation_status:
+          input.validation_status,
+      };
+    }
+
+    const queryGroup =
+      this.requireQueryGroup(
+        input.source_context,
+        job,
+      );
+    const requested =
+      run.requested_configuration;
+
+    if (requested === null) {
+      throw new Error(
+        'Query-group dataset metadata requires requested configuration.',
+      );
+    }
+
     return {
       schema_version: 1,
       run_id: run.run_id,
@@ -123,8 +156,7 @@ export class MetadataManager {
       source_mode: source.source_mode,
 
       dataset_type:
-        run.requested_configuration
-          .dataset_type,
+        requested.dataset_type,
 
       query_group_id:
         queryGroup.query_group_id,
@@ -133,33 +165,25 @@ export class MetadataManager {
       queries: [...queryGroup.queries],
 
       country_code:
-        run.requested_configuration
-          .country_code,
+        requested.country_code,
       country_name:
         countryName,
       language_code:
-        run.requested_configuration
-          .language_code,
+        requested.language_code,
 
       category_id:
-        run.requested_configuration
-          .category_id,
+        requested.category_id,
       category_name:
-        run.requested_configuration
-          .category_name,
+        requested.category_name,
       search_type:
-        run.requested_configuration
-          .search_type,
+        requested.search_type,
       selection_type:
-        run.requested_configuration
-          .selection_type,
+        requested.selection_type,
 
       requested_date_start:
-        run.requested_configuration
-          .requested_date_start,
+        requested.requested_date_start,
       requested_date_end:
-        run.requested_configuration
-          .requested_date_end,
+        requested.requested_date_end,
       actual_date_start:
         actualDateStart,
       actual_date_end:
@@ -176,6 +200,51 @@ export class MetadataManager {
 
       validation_status:
         input.validation_status,
+    };
+  }
+
+  private requireQueryGroup(
+    sourceContext: JsonObject,
+    job: JobRecord,
+  ): QueryGroup {
+    const rawGroup =
+      sourceContext.query_group;
+
+    if (
+      typeof rawGroup !== 'object' ||
+      rawGroup === null ||
+      Array.isArray(rawGroup)
+    ) {
+      throw new Error(
+        'Dataset metadata source_context.query_group must be an object.',
+      );
+    }
+
+    const queryGroupId =
+      rawGroup.query_group_id;
+    const queryGroupName =
+      rawGroup.query_group_name;
+    const queries = rawGroup.queries;
+
+    if (
+      typeof queryGroupId !== 'string' ||
+      typeof queryGroupName !== 'string' ||
+      !Array.isArray(queries) ||
+      !queries.every(
+        (query) =>
+          typeof query === 'string',
+      ) ||
+      queryGroupId !== job.query_group_id
+    ) {
+      throw new Error(
+        'Dataset metadata query-group context does not match the job.',
+      );
+    }
+
+    return {
+      query_group_id: queryGroupId,
+      query_group_name: queryGroupName,
+      queries: [...queries],
     };
   }
 
