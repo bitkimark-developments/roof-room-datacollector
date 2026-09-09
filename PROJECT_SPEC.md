@@ -1,1044 +1,278 @@
 # RoofRoom Data Collector — Project Specification
 
 **Document:** `PROJECT_SPEC.md`  
-**Product:** RoofRoom Data Collector  
-**Status:** M0 approved baseline  
-**Purpose:** Define the relatively stable product scope, architecture, requirements, technical boundaries, data principles, and acceptance criteria for RoofRoom Data Collector.
+**Status:** Canonical Release 1.0 product specification
+**Scope:** Stable product boundaries, verified source scope, integrity rules, and release acceptance criteria
 
 ---
 
-## 1. Product Overview
+## 1. Product definition
 
-RoofRoom Data Collector is a **local-first, modular desktop data collection application**.
+RoofRoom Data Collector is a local-first, modular desktop data-collection application.
 
-Its purpose is to collect, preserve, validate, document, and export reliable raw data from external data sources for later analysis.
-
-The application is not an analysis or decision-making engine.
-
-Its core responsibility is:
+Its governing workflow is:
 
 > **Collect → Preserve → Validate → Document → Export**
 
-Potential data sources include:
+The product collects trustworthy source evidence for later use. It is not an analysis or decision engine.
 
-- Google Trends
-- Google Ads Keyword Planner
-- Google Search Console
-- Semrush
-- Google Merchant Center
-- Google Analytics 4
-- Google Ads
-- Future data sources
-
-The initial release focuses exclusively on **Google Trends**.
-
----
-
-## 2. Product Goals
-
-RoofRoom Data Collector should:
-
-1. Reduce repetitive manual data-export work.
-2. Preserve original source data whenever possible.
-3. Make every collected dataset traceable to its source and collection run.
-4. Detect incomplete, invalid, suspicious, or incorrect exports.
-5. Allow interrupted collection runs to resume.
-6. Allow failed jobs to be retried independently.
-7. Standardize data collection without inventing unavailable values.
-8. Export structured datasets suitable for later analysis.
-9. Support multiple source modules inside one application.
-10. Prioritize reliability and reproducibility over collection speed.
+The Collector must not generate SEO strategy, keyword recommendations, blog-topic or page-type decisions, PDP/category/blog recommendations, SERP intent conclusions, or advertising, merchandising, and commercial decisions. Those activities belong to a separate downstream analysis or agentic layer.
 
----
+## 2. Product goals
 
-## 3. Non-Goals
-
-RoofRoom Data Collector must not automatically produce commercial, marketing, SEO, merchandising, or advertising recommendations.
-
-Examples of out-of-scope outputs:
-
-- “Increase budget for this keyword.”
-- “This plant is the best advertising product.”
-- “Add this SKU to PMax.”
-- “Use this query as a negative keyword.”
-- “Allocate more budget to Istanbul.”
-- “This product has the highest commercial potential.”
-
-These belong to a separate future analysis layer.
-
-The collector may calculate technical validation statistics required to assess dataset integrity, but those calculations must not be presented as business strategy.
-
----
-
-# 4. Architecture Principle
+The application should:
 
-The product must be designed as:
+1. reduce repetitive manual acquisition and export work;
+2. host multiple independent source modules behind one shared Core;
+3. prefer verified, supported acquisition paths;
+4. preserve original provider evidence whenever practical;
+5. trace every dataset to its source, run, job, attempt, request context, and raw artifact;
+6. validate acquired or imported evidence before canonical acceptance;
+7. expose incomplete, malformed, suspicious, unsupported, or blocked outcomes;
+8. support safe resume and job-level retry without erasing attempt history;
+9. preserve source-native meaning and missing-value semantics;
+10. export structured data suitable for downstream analysis.
 
-> **One application with multiple independent data-source modules.**
+Reliability, auditability, and recoverability take priority over collection speed.
 
-Google Trends is the first source module, not the application itself.
+## 3. Architecture principle
 
-The architecture should separate:
+RoofRoom Data Collector is:
 
-- Shared application/core responsibilities
-- Source-specific collection logic
-- Validation
-- Storage
-- Metadata/provenance
-- Export
-- User interface
+> **One application with multiple independent source modules and shared Core infrastructure.**
 
-Future data sources should normally be added as modules rather than separate desktop applications.
+The shared Core owns cross-source lifecycle concerns. A source module owns only its provider-specific acquisition, parsing, semantic validation, and operational error mapping.
 
-A separate application should only be considered when strong technical, security, licensing, runtime, or deployment constraints require isolation.
+Google Trends is the first implemented source and the reference browser-export module. It is not the entire product.
 
----
+Adding a source should extend the application rather than create another unrelated collector. Separate runtimes are justified only by concrete security, licensing, compatibility, deployment, or isolation requirements.
 
-# 5. High-Level Architecture
+## 4. Release 1.0 source scope
 
-Conceptual architecture:
+The source paths below passed feasibility checks using real provider, account, file, or endpoint evidence and are approved for implementation. **Feasibility approval does not mean the adapter is already implemented.** Current implementation status belongs in `PROJECT_HANDOFF.md`.
 
-```text
-RoofRoom Data Collector
-│
-├── Desktop UI
-│
-├── Application Core
-│   ├── Run Manager
-│   ├── Job Manager
-│   ├── State / Resume Manager
-│   ├── Browser Manager
-│   ├── File / Storage Manager
-│   ├── Metadata Manager
-│   ├── Logging
-│   └── Export Manager
-│
-├── Validation Engine
-│
-├── Source Modules
-│   ├── Google Trends
-│   ├── Google Keyword Planner       [future]
-│   ├── Google Search Console        [future]
-│   ├── Semrush                      [future]
-│   ├── Merchant Center              [future]
-│   └── Other sources                [future]
-│
-├── Local State
-│   └── SQLite
-│
-└── Data Storage
-    ├── Raw source files
-    ├── Metadata
-    ├── Validation results
-    ├── Logs
-    └── Structured exports
-```
+### 4.1 Google Trends
 
----
+- Dataset: Interest Over Time.
+- Primary acquisition: Playwright-controlled Google Trends UI and the provider-supported CSV export.
+- Initial semantics: externally configured comparison groups, Turkey, All Categories, Web Search, Search Term.
+- Status: feasibility **FINAL PASS**; implemented reference source.
 
-# 6. Shared Core Responsibilities
+Values from 0 through 100 are relative interest, not search counts. Independently normalized comparison groups retain group context and are not silently treated as globally comparable. Search Term and Topic datasets remain separate. Exact supported period behavior is defined by the live code and contracts, not inferred from historical documentation.
 
-The application core should provide reusable infrastructure for all source modules.
+### 4.2 Google Search Console
 
-## 6.1 Run Management
+- Primary acquisition: official Search Analytics API.
+- Verified datasets: query; query + page; date + query.
+- Native metrics include clicks, impressions, CTR, and average position.
+- Status: feasibility **FINAL PASS**; implementation state is tracked separately.
 
-A **run** represents one user-initiated collection operation.
+Privacy filtering, row limits, data latency, property identity, and requested versus returned dimensions must remain visible in provenance.
 
-A run should have:
+### 4.3 Google Ads Search Terms
 
-- `run_id`
-- created timestamp
-- started timestamp
-- completed timestamp where applicable
-- selected source(s)
-- selected jobs/query groups
-- requested configuration
-- run status
-- application version
+- Primary acquisition: official Google Ads API.
+- Verified source mode: `search_term_view`.
+- Real rows were returned from the Bitkimark account for a SEARCH campaign.
+- Status: feasibility **FINAL PASS**; implementation state is tracked separately.
 
-Possible run states may include:
+The SEARCH proof must not be generalized silently to Performance Max or another materially different mode. An unverified mode must be routed to a separately proven acquisition contract or produce an explicit unsupported/manual state.
 
-- `PENDING`
-- `RUNNING`
-- `PAUSED`
-- `COMPLETED`
-- `COMPLETED_WITH_WARNINGS`
-- `FAILED`
-- `CANCELLED`
-- `MANUAL_ACTION_REQUIRED`
+### 4.4 Google Ads Keyword Planner historical metrics
 
----
+- Primary acquisition: official Google Ads API.
+- Verified operation: `KeywordPlanIdeaService.GenerateKeywordHistoricalMetrics`.
+- Verified response shape: keyword, average monthly searches, competition, competition index, and 12 monthly search-volume rows.
+- Fallback: manual Keyword Planner CSV import.
+- Status: API and file feasibility **FINAL PASS**; implementation state is tracked separately.
 
-## 6.2 Job Management
+The verified manual file uses UTF-16 text, tab-separated fields despite a `.csv` extension, and provider metadata/segmentation rows before keyword rows. Blank metrics remain `NULL`; they are never converted to zero.
 
-Collection work should be split into independent jobs.
+### 4.5 İkas product catalog
 
-For the Google Trends MVP, one query group should normally correspond to one collection job.
+- Acquisition: manually exported Products XLSX imported into RoofRoom.
+- Preserve the original workbook and normalize separately.
+- Blank stock remains `NULL`, never zero.
+- Status: feasibility **FINAL PASS**; implementation state is tracked separately.
 
-Example:
+### 4.6 Bitkimark public site
 
-```text
-GT01 completed
-GT02 completed
-GT03 failed
-GT04 pending
-```
+- Acquisition: standard HTTP and sitemap/XML.
+- Verified structure: `sitemap.xml`, `blogs.xml`, `pages.xml`, `products.xml`, and `collections.xml`.
+- Preserve `loc` and `lastmod` where supplied.
+- Status: feasibility **FINAL PASS**; implementation state is tracked separately.
 
-Completed jobs should not be rerun unnecessarily after an interruption.
+`lastmod` is provider evidence. It must not be transformed into an unsupported conclusion that page content definitely changed.
 
-Failed jobs must be independently retryable.
+### 4.7 SERP
 
----
+- Provider: SerpApi Free.
+- Acquisition: explicit, on-demand query batches.
+- A real Turkey/Turkish Google Search smoke test and account/free-quota behavior were verified.
+- Status: feasibility **FINAL PASS**; implementation state is tracked separately.
 
-## 6.3 Resume Support
+SERP is not a continuous rank tracker and must not automatically query the entire keyword universe on every refresh.
 
-Application state must be persisted locally.
+The Collector may preserve query context, retrieval time, organic positions, title, URL, domain, snippet, provider feature data, raw JSON, and provider metadata. It must not derive dominant intent, commercial fit, recommended page type, `NEW BLOG`, `PDP FIRST`, or `CATEGORY FIRST`.
 
-If the application closes unexpectedly, the next launch should be able to determine:
+### 4.8 Excluded and future sources
 
-- which run was interrupted,
-- which jobs completed successfully,
-- which jobs failed,
-- which jobs were pending,
-- whether resume is possible.
+Semrush is not an active Release 1.0 requirement because no current paid/API acquisition path has been verified. Historical references do not put it back on the implementation roadmap.
 
-Resume must preserve already accepted raw data rather than automatically recollecting it.
+Merchant Center, GA4, Google Ads performance datasets beyond the verified Search Terms scope, and other providers are extensibility examples only. Each requires a separate feasibility and scope gate.
 
----
+## 5. Acquisition vocabulary
 
-## 6.4 Browser Management
-
-Browser automation should be centralized rather than implemented separately by every source module.
-
-When browser automation is needed:
-
-- Prefer Playwright.
-- Use an application-specific persistent browser profile.
-- Do not depend on the user's normal Chrome default profile.
-- Do not store account passwords.
-- Allow the user to perform authentication manually when required.
-
-Browser security challenges must not be bypassed.
-
----
-
-## 6.5 Validation
-
-A successful download is not automatically a successful collection.
-
-Every collected dataset must pass source-appropriate validation before being marked accepted.
-
-Validation details are defined separately in `VALIDATION_SPEC.md`.
-
----
-
-## 6.6 Logging
-
-The application should maintain sufficient logs to understand:
-
-- run lifecycle,
-- job lifecycle,
-- browser failures,
-- download failures,
-- parsing failures,
-- validation failures,
-- manual-action states,
-- retries,
-- unexpected exceptions.
-
-Logs should support debugging without exposing sensitive credentials.
-
----
-
-# 7. Preferred Technology Direction
-
-Current preferred technology stack:
-
-- **Language:** TypeScript
-- **Desktop:** Electron
-- **UI:** React
-- **Build tooling:** Vite
-- **Browser automation:** Playwright
-- **Local state/database:** SQLite
-- **Configuration:** YAML/JSON/CSV import adapters with one canonical internal QueryConfig
-- **Version control:** Git
-- **CSV processing:** appropriate maintained Node/TypeScript library
-- **XLSX export:** appropriate maintained Node/TypeScript library
-
-Package versions must not be fixed from memory.
-
-When implementation starts, current official documentation should be checked before selecting runtime and package versions.
-
-Primary development environment:
-
-- MacBook Air M1
-- macOS
-- Visual Studio Code
-
-Development instructions should prefer macOS-compatible commands.
-
----
-
-# 8. API and Automation Policy
-
-Use the following priority order when integrating a data source:
-
-1. Supported official API, when suitable.
-2. Supported first-party export mechanism through the official UI.
-3. Controlled browser automation using Playwright.
-4. Manual user intervention where platform restrictions require it.
-
-Avoid architectures dependent on undocumented/private endpoints when a supported API or UI workflow exists.
-
-The application must not:
-
-- store user passwords,
-- bypass CAPTCHA,
-- bypass 2FA,
-- bypass anti-bot systems,
-- bypass rate limits,
-- use CAPTCHA-solving services,
-- use proxy rotation to evade platform restrictions,
-- steal or silently copy browser sessions,
-- rely on unauthorized private endpoints.
-
-When user action is required, use a controlled state such as:
-
-`MANUAL_ACTION_REQUIRED`
-
----
-
-# 9. Data Integrity Principles
-
-## 9.1 Never Invent Data
-
-Unavailable values must remain unavailable.
-
-Missing values must not silently become zero.
-
-Use:
-
-- `NULL`
-- blank/empty field where the output format requires it
-
-according to the relevant data contract.
-
----
-
-## 9.2 Preserve Raw Data
-
-Original source files should be treated as immutable whenever practical.
-
-If normalization or transformation is required:
-
-- preserve the raw source file,
-- create a separate normalized or derived dataset,
-- retain traceability between derived data and the raw source.
-
----
-
-## 9.3 Source Separation
-
-Metrics from different sources must retain their source semantics.
-
-Examples:
-
-```text
-Google Trends
-metric class = relative demand
-
-Google Keyword Planner
-metric class = approximate Google Ads search-volume data
-
-Google Search Console
-metric class = RoofRoom/Bitkimark observed Google visibility
-
-Semrush
-metric class = third-party estimate
-```
-
-Values from different sources must not be averaged or merged into one metric merely because they appear conceptually similar.
-
----
-
-# 10. Google Trends MVP Scope
-
-## 10.1 MVP Objective
-
-The first release must reliably collect Google Trends **Interest Over Time** data for predefined query groups.
-
-The initial target query universe consists of `GT01` through `GT20`.
-
-The query universe must not be hard-coded into collector logic.
-
-It must be loaded from external configuration.
-
-Release 1.0 must accept external Google Trends query configuration through:
-
-- YAML
-- JSON
-- CSV
-
-YAML is the canonical human-authored format and the first implementation target. JSON and CSV are import adapters that must normalize into the same internal `QueryConfig` contract before Release 1.0. Collector logic must remain independent of the input file format.
-
----
-
-## 10.2 Fixed Google Trends Settings
-
-Default MVP settings:
-
-| Setting | Value |
+| Acquisition mode | Release 1.0 use |
 |---|---|
-| Geography | Turkey |
-| Category | All Categories |
-| Search Type | Web Search |
-| Selection | Search Term |
-| Primary Period | Exact 24-month range |
-| Dataset | Interest Over Time |
+| `BROWSER_EXPORT` | Google Trends |
+| `OFFICIAL_API` | Google Search Console; Google Ads Search Terms; Keyword Planner |
+| `FILE_IMPORT` | İkas Products XLSX; Keyword Planner CSV fallback |
+| `HTTP_XML` | Bitkimark public site |
+| `THIRD_PARTY_API` | SERP through SerpApi |
 
-The requested date range should normally exclude the incomplete current day.
+Source identity, dataset identity, source mode, and acquisition mode are separate concepts. These names are architectural vocabulary; they do not by themselves rename current persisted values, TypeScript unions, SQLite fields, or IPC contracts.
 
-Example for a run on 2026-08-18:
+## 6. Shared Core responsibilities
 
-```text
-requested_start = 2024-08-18
-requested_end   = 2026-08-17
-```
+The Core conceptually owns:
 
-The system must distinguish the requested date range from the actual range returned by the source.
+- run and job management;
+- immutable attempt history;
+- resume, reconciliation, and retry coordination;
+- source registration and capability discovery;
+- browser lifecycle for sources that need a browser;
+- credential and access lifecycle through a dedicated security boundary;
+- freshness, due, and on-demand lifecycle;
+- raw, candidate, accepted, rejected, and derived artifact lifecycle;
+- storage and metadata/provenance;
+- validation orchestration;
+- structured logging and export coordination;
+- desktop UI and trusted IPC coordination.
 
----
+Credential and freshness responsibilities are required, but this specification does not require classes with particular names. They must be integrated compatibly with the existing Core rather than used as justification for a rewrite.
 
-## 10.3 Google Trends Query Groups
+## 7. Security and provider policy
 
-Each group must retain:
+Acquisition preference is: supported official API; supported first-party export; controlled browser automation; explicit user intervention or file import where necessary.
 
-- group identifier, e.g. `GT04`
-- group name
-- ordered query list
-- source configuration
-- comparison-group context
+The application must not store user passwords; put OAuth refresh tokens, API keys, developer tokens, client secrets, or passwords in ordinary config, logs, exports, or documentation; use the user's normal browser profile; copy sessions without explicit consent; bypass CAPTCHA, 2FA, anti-bot controls, quotas, or rate limits; use CAPTCHA solvers or proxy rotation for evasion; or depend on undocumented/private endpoints as the default when a supported path exists.
 
-A query appearing in multiple groups must remain associated with each comparison group in raw and normalized datasets.
+Authentication or security intervention is an operational state such as `MANUAL_ACTION_REQUIRED`, not a dataset validation result. Rate limiting or quota exhaustion must stop unsafe automatic progress.
 
-Raw Trends values must not be deduplicated in a way that loses group context.
+## 8. Data-integrity rules
 
----
+### 8.1 Raw evidence
 
-# 11. Google Trends Data Semantics
+Original provider evidence should be immutable whenever practical. Examples include Google Trends CSV, Google API raw JSON, SerpApi raw JSON, original İkas XLSX, imported Keyword Planner CSV, and downloaded sitemap/XML.
 
-Google Trends values must be stored as **relative interest**, not absolute search volume.
+Parsing, normalization, or export creates separate representations. Rejected or suspicious evidence is not automatically deleted.
 
-Valid:
+### 8.2 Missing values
 
-```text
-relative_interest = 70
-```
+Missing, blank, withheld, unavailable, and zero are distinct. A missing value remains `NULL` or an empty output cell. Zero is used only when the source actually returned zero.
 
-Invalid:
+### 8.3 Source semantics
 
-```text
-estimated_searches = 7000
-```
+Metrics from different providers remain separate and explicitly named. Google Trends relative interest, Keyword Planner estimates, GSC observed performance, Google Ads account metrics, catalog facts, and third-party SERP data must not be collapsed into an invented generic score or volume.
 
-The collector must never convert Google Trends 0–100 values into estimated search counts.
+### 8.4 Requested and observed context
 
----
+The requested date, geography, language, device, dimensions, selection mode, and source mode must remain distinguishable from provider-returned or observed context.
 
-## 11.1 Cross-Group Comparability
+### 8.5 Execution and validation
 
-Different Google Trends comparison groups may be normalized independently.
+A successful API response, HTTP request, browser interaction, download, or file import does not automatically make a valid dataset. Execution status and validation status remain separate domains.
 
-Therefore values from separate comparison groups must not automatically be treated as globally comparable.
+## 9. Lifecycle
 
-Example:
-
-```text
-GT04
-Monstera = 100
-Starliçe = 80
-
-GT05
-Ficus = 100
-Monstera = 70
-```
-
-These values must retain their group context.
-
-No global ranking may be implied directly from the raw values.
-
----
-
-## 11.2 Search Term vs Topic
-
-Search Term and Topic must remain separate source modes/datasets.
-
-They must never be silently merged into one numeric series.
-
-The Google Trends MVP uses:
-
-`selection_type = SEARCH_TERM`
-
-Topic support belongs to a later enhancement unless explicitly moved into scope.
-
----
-
-## 11.3 UI vs API Modes
-
-If Google Trends UI exports and Google Trends API produce differently scaled datasets, they must be treated as different source modes.
-
-Example conceptual modes:
-
-- `GOOGLE_TRENDS_UI`
-- `GOOGLE_TRENDS_API`
-
-Scaling differences must be represented in metadata rather than hidden.
-
----
-
-# 12. Google Trends MVP Collection Workflow
-
-Target workflow for each selected query group:
+All acquisition modes participate in the same trust lifecycle:
 
 ```text
-Load config
-↓
-Create job
-↓
-Open Google Trends
-↓
-Apply query comparison group
-↓
-Apply Turkey geography
-↓
-Apply exact date range
-↓
-Apply All Categories
-↓
-Apply Web Search
-↓
-Ensure Search Term selection
-↓
-Wait for Interest Over Time dataset
-↓
-Use official CSV export where feasible
-↓
-Preserve downloaded source file
-↓
-Generate metadata
-↓
-Validate dataset
-↓
-Accept / warn / reject
-↓
-Persist job state
-↓
-Continue to next job
+Plan job
+→ acquire or import
+→ preserve raw/candidate evidence
+→ parse
+→ validate
+→ accept, warn, or reject
+→ record provenance
+→ export eligible data
 ```
 
-Collection should be sequential by default.
+Run, job, and attempt remain separate concepts. A job is the independent resume/retry unit. A retry creates a new attempt and does not overwrite prior evidence.
 
-Aggressive parallel collection is not required for the MVP.
+Freshness/readiness are separate from execution: freshness answers whether work is due, stale, fresh, needed, or on demand; readiness answers whether access, credentials, input, and source prerequisites permit work; execution answers what happened during a job; validation answers whether the resulting dataset can be trusted.
 
-Reliability is more important than speed.
+## 10. Desktop product boundary
 
----
+The desktop application should provide a non-technical workflow for seeing sources and their safe connection/readiness state; understanding freshness or import need; selecting configured work; starting explicit provider or import operations; viewing progress and operational stops; resuming or explicitly retrying eligible work; opening canonical evidence and accepted exports; and distinguishing raw technical archives from user-facing exports.
 
-# 13. Google Trends Raw File Naming
+Provider credentials and sensitive content must not cross into the renderer except through strictly limited safe state.
 
-Initial naming convention:
+## 11. Storage and provenance
+
+Canonical application state and raw run evidence use a deliberate application-owned location. A user-visible Downloads directory may contain intentional exported/copied files, but it is not the authoritative datastore.
+
+Every accepted dataset must be traceable through stable identifiers to source and dataset semantics; acquisition/source mode; run, job, and attempt; requested and observed context; raw artifact and checksum where available; retrieval/import time; validation outcome; and application/schema version where applicable.
+
+Physical paths and exact database fields are governed by the live implementation and `DATA_CONTRACTS.md`.
+
+## 12. Testing policy
+
+Normal unit, integration, regression, and CI tests must not call live providers. They use fixtures, mocks, fake source modules, and controlled local dependencies.
+
+Live provider tests are explicit, limited, manual or separately invoked, and quota-aware. They verify access, response structure, parsing, and provenance rather than unstable exact business metrics.
+
+SerpApi quota must not be consumed automatically. Google Ads, GSC, or Keyword Planner calls must not run in ordinary regression loops. Google Trends live actions remain explicitly guarded. Sanitized fixtures must come from observed provider behavior, not invented schemas presented as evidence.
+
+## 13. Source implementation gate
 
 ```text
-GT01_TR_24M_interest_over_time.csv
-GT02_TR_24M_interest_over_time.csv
-...
-GT20_TR_24M_interest_over_time.csv
+feasibility/acquisition proof
+→ source and dataset contract
+→ explicit implementation permission
+→ one end-to-end vertical slice
+→ deterministic regression coverage
+→ limited live acceptance evidence
+→ release integration
 ```
 
-Names may later include run-specific or timestamp context at the directory level rather than modifying source filenames unnecessarily.
-
-The original downloaded bytes should be preserved.
-
----
-
-# 14. Data Storage Model
-
-A run-oriented structure is preferred.
-
-Conceptual example:
-
-```text
-data/
-└── runs/
-    └── <run_id>/
-        ├── run.json
-        ├── google-trends/
-        │   ├── raw/
-        │   ├── metadata/
-        │   └── validation/
-        ├── exports/
-        └── logs/
-```
-
-Example:
-
-```text
-data/runs/rr_20260818T005912345Z_a7f3c9/
-```
-
-Exact filesystem-safe run ID formatting will be defined in `DATA_CONTRACTS.md`.
-
----
-
-# 15. Provenance Requirements
-
-Every accepted or rejected dataset should retain enough metadata to support later auditing.
-
-Relevant canonical fields include:
-
-- `source_id`
-- `source_mode`
-- `query_group_id`
-- `queries`
-- `country_code`
-- `language_code`
-- `requested_date_start`
-- `requested_date_end`
-- `actual_date_start`
-- `actual_date_end`
-- `category_id`
-- `category_name`
-- `search_type`
-- `selection_type`
-- `retrieved_at`
-- `run_id`
-- `job_id`
-- `application_version`
-- `validation_status`
-- `raw_artifact_id`
-
-Human-readable source/country/category names may be stored as supplemental metadata where useful.
-
-Where useful, a cryptographic file hash may be stored to help prove that raw files were not modified after collection.
-
----
-
-# 16. Validation Requirements
-
-Every Google Trends export must be validated before acceptance.
-
-Relevant checks include:
-
-- file exists,
-- file is readable,
-- content is expected data rather than HTML/login/error output,
-- CSV parses successfully,
-- expected queries are present,
-- expected columns/dimensions are present,
-- date data is present,
-- requested vs actual date coverage is understood,
-- numeric fields are parseable,
-- values fall within expected source constraints,
-- data is non-empty,
-- all-zero datasets are detected,
-- unexpected columns are detected,
-- duplicate dates/rows are detected where applicable.
-
-Canonical dataset validation statuses include:
-
-- `NOT_RUN`
-- `VALID`
-- `LOW_DATA`
-- `NO_DATA`
-- `INVALID_SCHEMA`
-- `ERROR_NOT_DATA`
-- `DATE_MISMATCH`
-- `QUERY_MISMATCH`
-
-Operational conditions remain separate from dataset validation. For example, a failed download is represented through `execution_status = FAILED` plus `error_code = DOWNLOAD_FAILED`, while provider-side user intervention uses `execution_status = MANUAL_ACTION_REQUIRED`; in both cases validation remains `NOT_RUN` unless a real candidate dataset exists.
-
-Detailed validation logic belongs in `VALIDATION_SPEC.md`.
-
----
-
-# 17. Retry and Failure Handling
-
-Failed jobs must not automatically invalidate unrelated successful jobs.
-
-A user should be able to retry selected failed jobs.
-
-Example:
-
-```text
-GT01 VALID
-GT02 VALID
-GT03 FAILED (error_code=DOWNLOAD_FAILED)
-GT04 VALID
-```
-
-The application should allow retrying `GT03` without recollecting `GT01`, `GT02`, and `GT04`.
-
-Unexpected failures must be logged.
-
----
-
-# 18. Desktop UI Scope
-
-The Google Trends MVP UI should remain intentionally simple.
-
-Conceptual interface:
-
-```text
-ROOFROOM DATA COLLECTOR
-
-Google Trends
-Status: Ready
-
-Period
-● Last 24 Months
-○ Custom
-
-Query Groups
-[x] GT01
-[x] GT02
-[x] GT03
-...
-[x] GT20
-
-[ START COLLECTION ]
-```
-
-Progress view:
-
-```text
-GT01  Completed
-GT02  Completed
-GT03  Low Data
-GT04  Running
-GT05  Waiting
-```
-
-Useful controls may include:
-
-- Start
-- Cancel
-- Retry Failed
-- Resume Previous Run
-- Open Data Folder
-
-Pause support may be implemented if it does not complicate MVP reliability.
-
----
-
-# 19. Export Requirements
-
-The collector should preserve source-specific raw datasets first.
-
-It may additionally generate a structured workbook for analysis.
-
-Initial target workbook:
-
-```text
-ROOFROOM_SEARCH_DEMAND_RAW_<date>.xlsx
-```
-
-Potential MVP sheets:
-
-- `README`
-- `RUN_METADATA`
-- `QUERY_UNIVERSE`
-- `GT_24M_RAW`
-- `VALIDATION_LOG`
-- `ERROR_LOG`
-
-Workbook generation must not modify or replace original raw source files.
-
-Missing values must remain missing rather than being converted to zero.
-
----
-
-# 20. Future Source Modules
-
-The architecture must allow future modules such as:
-
-## Google Ads Keyword Planner
-
-Potential future datasets:
-
-- historical metrics
-- monthly searches
-- competition
-- competition index
-- top-of-page bid ranges
-- keyword discovery
-
-Prefer the official Google Ads API where available and suitable.
-
----
-
-## Google Search Console
-
-Potential future datasets:
-
-- queries
-- query/page
-- date/query
-
-Prefer the official Search Analytics API.
-
-Search Console data must represent observed site visibility, not total Turkey market search volume.
-
----
-
-## Semrush
-
-Semrush data is a third-party estimate and must retain source labeling.
-
-It must not replace first-party Google metrics.
-
----
-
-## Merchant Center / GA4 / Google Ads
-
-These may be added as separate source modules after the core architecture and earlier source modules are stable.
-
----
-
-# 21. Out of Scope for Google Trends MVP
-
-The following are intentionally postponed until the base Interest Over Time collector is stable:
-
-- Keyword Planner
-- Search Console
-- Semrush
-- Merchant Center
-- GA4
-- Google Ads performance collection
-- Topic Audit
-- Interest by Subregion
-- Related Top Queries
-- Related Rising Queries
-- 36-month secondary collection
-- 5-year structural trend collection
-- automatic anchor stitching
-- global Trends normalization
-- marketing analysis
-- SEO strategy recommendations
-- advertising recommendations
-
-These items must not delay the first stable Google Trends MVP.
-
----
-
-# 22. Development Workflow
-
-Development discipline:
-
-> **Plan → Implement → Test → Verify → Git Commit → Document → Next Milestone**
-
-Prefer small working vertical slices.
-
-For Google Trends:
-
-1. Make one query group work reliably.
-2. Verify the resulting raw file manually and programmatically.
-3. Test a small number of groups.
-4. Add resume/retry robustness.
-5. Expand to GT01–GT20.
-6. Run regression tests.
-
-Do not implement large untested sections before running the application.
-
-Before major code changes, inspect the existing repository and relevant files.
-
-Do not rewrite working architecture without a clear reason.
-
----
-
-# 23. Project Milestones
-
-High-level roadmap:
-
-## M0 — Product & Architecture Lock
-
-Define:
-
-- scope,
-- architecture,
-- data contracts,
-- source module boundaries,
-- validation philosophy,
-- security principles,
-- acceptance criteria.
-
-## M1 — Application Skeleton
-
-Deliver:
-
-- Electron application launches,
-- React UI renders,
-- local application structure exists,
-- config loading works,
-- SQLite initializes,
-- basic source registry exists.
-
-## M2 — Core Collector Engine
-
-Deliver:
-
-- run management,
-- job state,
-- persistence,
-- resume/retry foundation,
-- logging,
-- storage infrastructure,
-- browser manager foundation.
-
-## M3 — Google Trends MVP Collector
-
-Deliver:
-
-- Playwright Google Trends workflow,
-- one reliable query group,
-- official CSV download handling,
-- the minimum vertical-slice validation required to trust a real artifact (file/content checks, parsing, query identity, temporal structure, numeric validity, candidate → accepted/rejected),
-- expand progressively to GT01–GT20 only after the first slice is trustworthy.
-
-## M4 — Validation Engine
-
-Deliver:
-
-- reusable generic validation framework,
-- full deterministic validation-status mapping,
-- validation persistence and reporting,
-- rejection/warning handling,
-- LOW_DATA and NO_DATA calibration from real source behavior,
-- fixture/regression coverage for validation failures.
-
-## M5 — Desktop UX
-
-Deliver:
-
-- source status,
-- query selection,
-- progress UI,
-- retry/resume controls,
-- usable local workflow.
-
-## M6 — Data Package & Workbook
-
-Deliver:
-
-- structured export package,
-- workbook generation,
-- metadata sheets,
-- validation/error reporting.
-
-## M7 — Hardening & Release 1.0
-
-Deliver:
-
-- failure simulations,
-- recovery testing,
-- regression testing,
-- fresh-install testing,
-- release documentation,
-- stable Google Trends MVP.
-
----
-
-# 24. Google Trends MVP Acceptance Criteria
-
-The Google Trends MVP is successful when:
-
-- GT01–GT20 can be loaded from external configuration.
-- Release 1.0 accepts YAML, JSON, and CSV query configuration inputs that normalize to the same internal contract.
-- The app runs locally on the target macOS development environment.
-- Turkey geography is applied.
-- All Categories is applied.
-- Web Search is applied.
-- Search Term mode is used.
-- An exact 24-month requested range can be applied.
-- Interest Over Time is collected for selected groups.
-- Google Trends CSV exports can be saved locally.
-- Original raw files are preserved.
-- Each dataset receives provenance metadata.
-- Each dataset is validated.
-- Corrupted/non-data downloads are detected.
-- Missing or suspicious datasets are not silently accepted.
-- Failed jobs can be retried independently.
-- Interrupted runs can be resumed.
-- Completed jobs are not unnecessarily recollected.
-- Google account passwords are never stored by the app.
-- CAPTCHA/2FA/anti-bot protections are not bypassed.
-- Google Trends values remain relative-interest values.
-- Cross-group comparability is not assumed automatically.
-- Duplicate queries retain comparison-group context.
-- Missing values are not silently converted to zero.
-- A structured CSV/XLSX analysis package can be generated.
-
----
-
-# 25. Locked Initial Decisions
-
-Unless later evidence requires revision, the following decisions are considered the current architecture baseline:
-
-1. Product name: **RoofRoom Data Collector**.
-2. Product is local-first desktop software.
-3. Product uses a modular multi-source architecture.
-4. Google Trends is the first source module.
-5. Initial Google Trends scope is Interest Over Time only.
-6. Initial primary time window is exact 24 months.
-7. Initial geography is Turkey.
-8. Initial search type is Web Search.
-9. Initial category is All Categories.
-10. Initial selection type is Search Term.
-11. Query groups are externally configurable.
-12. Raw source files are preserved.
-13. Missing values are not replaced with zero.
-14. Google Trends 0–100 values are not converted to search volume.
-15. Different Trends comparison groups are not assumed globally comparable.
-16. Search Term and Topic datasets remain separate.
-17. Playwright is the preferred browser automation technology.
-18. Application-specific persistent browser profiles are preferred.
-19. Official APIs or supported exports are preferred over undocumented endpoints.
-20. CAPTCHA, 2FA, anti-bot, and rate-limit bypass techniques are prohibited.
-21. SQLite is the preferred local state store.
-22. TypeScript/Electron/React/Vite is the current desktop stack direction.
-23. Development proceeds through small tested milestones.
-24. The Google Trends MVP must be stable before adding later source modules.
-
----
-
-# 26. Related Project Documents
-
-This specification should be complemented by:
-
-- `PROJECT_HANDOFF.md` — current project state and next action
-- `ARCHITECTURE.md` — detailed component architecture
-- `DATA_CONTRACTS.md` — schemas, identifiers, naming, null semantics
-- `VALIDATION_SPEC.md` — detailed validation logic
-- `TEST_STRATEGY.md` — verification and regression strategy
-- `DECISIONS.md` — architecture decision log
-- `SOURCE_MODULE_GUIDE.md` — contract for adding future source modules
-
-`PROJECT_SPEC.md` should remain relatively stable.
-
-Fast-changing project progress must be recorded in `PROJECT_HANDOFF.md`, not here.
-
----
-
-# 27. Governing Product Principle
-
-The primary quality metric of RoofRoom Data Collector is **not how much data it collects**.
-
-The primary quality metric is how reliably the collected data can be:
-
-- traced,
-- validated,
-- preserved,
-- reproduced,
-- audited,
-- exported without losing source meaning.
-
-When reliability conflicts with collection speed, prefer reliability.
+No source is blocked merely because Google Trends must be “finished first.” It is blocked when its own feasibility, contract, permission, integrity, or test gate is missing.
+
+## 14. Release 1.0 acceptance criteria
+
+Release 1.0 is complete only when:
+
+1. every in-scope adapter is actually implemented and implementation is not confused with feasibility;
+2. each implemented source uses the shared run/job/attempt and artifact lifecycle;
+3. every source has real or sanitized evidence-based fixtures;
+4. raw evidence and provenance are preserved;
+5. missing values remain missing;
+6. requested and observed context are distinguishable;
+7. source-specific validation prevents suspicious evidence from canonical acceptance;
+8. operational access/quota failures remain separate from validation;
+9. safe resume/retry behavior is verified where supported;
+10. exports preserve source identity and metric semantics;
+11. credential and freshness responsibilities are implemented through Core-compatible boundaries;
+12. the desktop workflow exposes supported sources without leaking secrets;
+13. automated regression makes no live-provider requests;
+14. explicit live smoke evidence exists for each implemented acquisition path;
+15. unsupported source modes fail visibly rather than claiming completeness.
+
+The existing Google Trends MVP remains a completed reference slice only to the extent proven by live code and tests. It does not satisfy the multi-source Release 1.0 gate by itself.
+
+## 15. Document authority
+
+- `PROJECT_HANDOFF.md` records live repository state and the exact next action.
+- `ARCHITECTURE.md` records component boundaries and dependency direction.
+- `DATA_CONTRACTS.md` records identifiers, states, null semantics, and provenance contracts.
+- `VALIDATION_SPEC.md` records generic and source-specific validation behavior.
+- `TEST_STRATEGY.md` records deterministic and live-test gates.
+- `SOURCE_MODULE_GUIDE.md` records source onboarding and module boundaries.
+- `DECISIONS.md` preserves architecture decision history and supersession.
+
+Fast-changing progress must not be written into this specification.
+
+## 16. Governing product rule
+
+The primary quality metric is not how much data the application collects. It is how reliably the evidence can be traced, preserved, validated, reproduced, audited, and exported without losing source meaning.

@@ -235,7 +235,7 @@ A separate analysis product/layer is explicitly designed later.
 
 # ADR-004 — Google Trends Is the First MVP Source
 
-**Status:** ACCEPTED  
+**Status:** SUPERSEDED by ADR-050
 **Date:** 2026-08-18
 
 ## Decision
@@ -265,7 +265,7 @@ A blocking Google Trends platform change makes another source a better first pro
 
 # ADR-005 — Narrow Google Trends MVP Scope
 
-**Status:** ACCEPTED  
+**Status:** SUPERSEDED by ADR-051
 **Date:** 2026-08-18
 
 ## Decision
@@ -1679,6 +1679,137 @@ The exact no-positive-signal boundary is deterministic. Calibration for sparse b
 
 ---
 
+# ADR-050 — Release 1.0 Is the Verified Multi-Source Collector
+
+**Status:** ACCEPTED
+**Date:** 2026-09-09
+**Supersedes:** ADR-004
+
+## Decision
+
+Release 1.0 includes the source families whose acquisition paths passed real feasibility checks: Google Trends, Google Search Console, Google Ads Search Terms, Google Ads Keyword Planner historical metrics with manual CSV fallback, İkas Products XLSX, Bitkimark public sitemap/XML, and on-demand SERP through SerpApi.
+
+Feasibility PASS grants implementation permission; it does not mean an adapter is implemented. Semrush is not active Release 1.0 scope. Merchant Center, GA4, and other providers remain examples until they pass their own feasibility and scope gates.
+
+## Context
+
+ADR-004 correctly made Google Trends the first Core proof. That proof now exists, and real acquisition feasibility has been established for additional modes and sources.
+
+## Consequences
+
+Release documentation must report feasibility and implementation independently. The multi-source Release 1.0 gate is not complete merely because Google Trends passes.
+
+---
+
+# ADR-051 — Google Trends Remains the Reference Browser-Export Module
+
+**Status:** ACCEPTED
+**Date:** 2026-09-09
+**Supersedes:** ADR-005 as the overall Release 1.0 boundary
+
+## Decision
+
+Google Trends remains the first implemented source and the reference `BROWSER_EXPORT` module. Its Interest Over Time semantics, comparison-group integrity, security rules, and evidence-based date behavior remain source-specific.
+
+The currently supported period presets and exact runtime behavior are governed by the tested implementation. Historical fixed-24-month scope and later period expansion do not constrain unrelated source modules.
+
+## Consequences
+
+New sources reuse the Core lifecycle, not Google Trends selectors, query-group assumptions, CSV schema, or browser requirement.
+
+---
+
+# ADR-052 — New Sources Require Feasibility Proof Before Implementation
+
+**Status:** ACCEPTED
+**Date:** 2026-09-09
+
+## Decision
+
+Source onboarding follows:
+
+```text
+feasibility/acquisition proof
+→ source contract
+→ implementation permission
+→ vertical slice
+→ deterministic regression
+→ limited live acceptance
+```
+
+## Consequences
+
+Old documentation references do not create implementation scope. Unverified provider modes cannot be presented as complete. The former rule that every source must wait for all Google Trends work is superseded.
+
+---
+
+# ADR-053 — Automated Regression Never Calls Live Providers
+
+**Status:** ACCEPTED
+**Date:** 2026-09-09
+**Extends:** ADR-034 and ADR-043
+
+## Decision
+
+Unit, integration, regression, release-gate, and CI tests use fixtures, mocks, fake sources, and controlled local dependencies. They never call live providers.
+
+Live provider smoke tests are explicit, separately invoked, limited, quota-aware, and do not assert unstable exact business metrics.
+
+## Consequences
+
+SerpApi quota is never consumed automatically. Google Ads, GSC, Keyword Planner, and Google Trends are not called repeatedly during regression work.
+
+---
+
+# ADR-054 — Credentials Use a Dedicated Core Security Boundary
+
+**Status:** ACCEPTED
+**Date:** 2026-09-09
+
+## Decision
+
+OAuth tokens, API keys, developer tokens, client secrets, and equivalent credentials are mediated by a dedicated Core security boundary. They do not live in ordinary configuration, logs, exports, documentation, or renderer state.
+
+This decision defines a responsibility, not a mandatory class name. The implementation must reconcile with the existing Electron main/preload/renderer boundary and use appropriate secure local storage.
+
+## Consequences
+
+Source modules declare access needs and receive controlled access. UI sees safe readiness/connection states only. Development-only ADC/gcloud state is not an undocumented production dependency.
+
+---
+
+# ADR-055 — Freshness Is Separate From Readiness and Execution
+
+**Status:** ACCEPTED
+**Date:** 2026-09-09
+
+## Decision
+
+Freshness/due state is a separate Core responsibility from credential readiness, job execution, and dataset validation.
+
+## Consequences
+
+A source may be due but not authenticated, ready but fresh, import-needed without an access failure, or on demand without being stale. SERP remains on demand rather than a continuous rank tracker. Exact persisted values are deferred to compatible implementation design.
+
+---
+
+# ADR-056 — All Acquisition Modes Share One Core Lifecycle
+
+**Status:** ACCEPTED
+**Date:** 2026-09-09
+
+## Decision
+
+`BROWSER_EXPORT`, `OFFICIAL_API`, `FILE_IMPORT`, `HTTP_XML`, and `THIRD_PARTY_API` use the same run/job/attempt, raw/candidate/accepted artifact, validation, provenance, logging, and export lifecycle.
+
+Source identity, source mode, dataset identity, and acquisition mode remain distinct concepts. These architectural terms do not rename current persisted enums or fields automatically.
+
+## Consequences
+
+Core is generalized through tested compatible slices. Source-specific selectors, API resources, file layouts, and response semantics remain inside source modules.
+
+---
+
 # 4. Deferred Decisions
 
 The following decisions are intentionally not locked in M0.
@@ -2035,8 +2166,8 @@ Validation is mandatory.
 | ADR-001 | One modular application | ACCEPTED |
 | ADR-002 | Local-first desktop | ACCEPTED |
 | ADR-003 | Collector / analysis separation | ACCEPTED |
-| ADR-004 | Google Trends first MVP source | ACCEPTED |
-| ADR-005 | Narrow GT MVP scope | ACCEPTED |
+| ADR-004 | Google Trends first MVP source | SUPERSEDED by ADR-050 |
+| ADR-005 | Narrow GT MVP scope | SUPERSEDED by ADR-051 |
 | ADR-006 | External query configuration | ACCEPTED |
 | ADR-007 | Prefer official API / supported UI | ACCEPTED |
 | ADR-008 | Playwright preferred | ACCEPTED |
@@ -2081,6 +2212,13 @@ Validation is mandatory.
 | ADR-047 | Built-in node:sqlite storage backend | ACCEPTED |
 | ADR-048 | write-excel-file for MVP workbook | ACCEPTED |
 | ADR-049 | Exact no-positive-signal evidence is LOW_DATA | ACCEPTED |
+| ADR-050 | R1 is the verified multi-source collector | ACCEPTED |
+| ADR-051 | GT remains the reference browser-export module | ACCEPTED |
+| ADR-052 | New sources require feasibility proof | ACCEPTED |
+| ADR-053 | Automated regression never calls live providers | ACCEPTED |
+| ADR-054 | Credentials use a Core security boundary | ACCEPTED |
+| ADR-055 | Freshness is separate from readiness/execution | ACCEPTED |
+| ADR-056 | Acquisition modes share one Core lifecycle | ACCEPTED |
 
 ---
 

@@ -28,27 +28,19 @@ The collector does not make marketing, SEO, advertising, merchandising, or comme
 
 Analysis belongs to a separate future layer.
 
-## Current MVP boundary
+## Release scope discipline
 
-Release 1.0 is Google Trends only.
+Release 1.0 is the verified multi-source scope defined in `PROJECT_SPEC.md`.
 
-Current Google Trends target:
+Feasibility approval, repository implementation, deterministic verification, and live-provider acceptance are separate claims. Read `PROJECT_HANDOFF.md` before deciding what is actually implemented or what action is next.
 
-- GT01–GT20 loaded from external configuration
-- Turkey
-- All Categories
-- Web Search
-- Search Term
-- exact requested 24-month date range
-- Interest Over Time
-- provider CSV export when feasible
-- raw-file preservation
-- provenance
-- validation
-- retry/resume
-- structured CSV/XLSX output
+Google Trends is the first implemented/reference browser-export source module. Do not reopen its working Core/provider behavior without new failing evidence or an explicitly approved scope.
 
-Do not expand into Keyword Planner, Search Console, Semrush, Merchant Center, GA4, Google Ads, Topic datasets, related queries, subregions, or other enhancements before the base Google Trends MVP is stable.
+Add another source only through:
+
+Feasibility/acquisition proof → source contract → implementation permission → vertical slice → deterministic regression → limited explicit live acceptance.
+
+Semrush is not an active Release 1.0 requirement. Merchant Center, GA4, and other future providers remain extensibility examples until they pass their own feasibility and scope gates.
 
 ## Architecture
 
