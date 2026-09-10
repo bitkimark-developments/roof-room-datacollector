@@ -36,6 +36,9 @@ bash \
   tests/integration/export/run-google-trends-export-manager-test.sh
 
 bash \
+  tests/integration/sources/run-non-google-source-slices-test.sh
+
+bash \
   tests/integration/app/run-desktop-ui-smoke-test.sh
 
 echo 'PASS RELEASE-GATE-001: deterministic Core, Google Trends, desktop file access, configuration, validation, and export gates completed'

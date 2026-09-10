@@ -332,6 +332,8 @@ The renderer receives only safe readiness/connection state. The secure storage r
 
 ## 17. Source-specific dataset semantics
 
+The İkas Products import is `FILE_IMPORT`; the original XLSX is canonical evidence and normalized product fields remain nullable when absent. Bitkimark sitemap acquisition is `HTTP_XML`; canonical URL inventory and raw XML are preserved, with deterministic keyword annotations kept as derived data.
+
 ### Google Trends — Interest Over Time
 
 Preserve query-group ID, query identity/order, geography, category, search type, selection type, requested/observed period, temporal bucket, and nullable relative-interest values. Duplicate queries in separate groups remain separate comparison contexts.

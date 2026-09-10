@@ -230,6 +230,8 @@ The renderer must not receive tokens, API keys, unrestricted paths, raw account 
 
 ## 12. Export tests
 
+Deterministic non-Google source coverage includes one İkas XLSX raw-preservation/parser/validator slice and one Bitkimark XML inventory/annotation/validator slice; live provider requests remain excluded from routine gates.
+
 Exports must:
 
 - include only eligible accepted/accepted-with-warning data;

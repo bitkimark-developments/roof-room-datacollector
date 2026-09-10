@@ -1,0 +1,48 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { zipSync, strToU8 } = require('fflate');
+(async () => {
+const [buildRoot, workRoot] = process.argv.slice(2);
+if (!buildRoot || !workRoot) throw new Error('Expected compiled build root and temporary work root.');
+const { parseIkasProductsXlsx } = require(path.join(buildRoot, 'main', 'sources', 'ikas', 'ikas-products-parser.js'));
+const { parseBitkimarkSitemap } = require(path.join(buildRoot, 'main', 'sources', 'bitkimark', 'bitkimark-sitemap-parser.js'));
+const { IkasProductsSource } = require(path.join(buildRoot, 'main', 'sources', 'ikas', 'ikas-products-source.js'));
+const { BitkimarkSitemapSource } = require(path.join(buildRoot, 'main', 'sources', 'bitkimark', 'bitkimark-sitemap-source.js'));
+const { IkasProductsValidator } = require(path.join(buildRoot, 'main', 'sources', 'ikas', 'ikas-products-validator.js'));
+const { BitkimarkSitemapValidator } = require(path.join(buildRoot, 'main', 'sources', 'bitkimark', 'bitkimark-sitemap-validator.js'));
+
+const sheet = (rows) => `<?xml version="1.0"?><worksheet><sheetData>${rows.map((row, r) => `<row r="${r + 1}">${row.map((v, c) => `<c r="${String.fromCharCode(65 + c)}${r + 1}" t="str"><v>${v}</v></c>`).join('')}</row>`).join('')}</sheetData></worksheet>`;
+const xlsx = new Uint8Array(zipSync({ 'xl/workbook.xml': strToU8('<workbook/>'), 'xl/worksheets/sheet1.xml': strToU8(sheet([['Product ID', 'Product title', 'Price', 'Sale price'], ['p1', 'Ficus', '12.5', '']])) }));
+const parsed = parseIkasProductsXlsx(xlsx);
+assert.equal(parsed.rows[0].product_id, 'p1');
+assert.equal(parsed.rows[0].product_title, 'Ficus');
+assert.equal(parsed.rows[0].sale_price, null);
+assert.throws(() => parseIkasProductsXlsx(new Uint8Array([1, 2, 3])));
+const ikasPath = path.join(workRoot, 'ikas.xlsx');
+fs.mkdirSync(workRoot, { recursive: true }); fs.writeFileSync(ikasPath, xlsx);
+const ikasSource = new IkasProductsSource(ikasPath);
+const collectedIkas = await ikasSource.collect({});
+assert.equal(collectedIkas.result_type, 'ARTIFACT_PRODUCED');
+assert.deepEqual([...collectedIkas.bytes], [...xlsx]);
+const ikasDecision = await new IkasProductsValidator().validate({ absolute_path: ikasPath });
+assert.equal(ikasDecision.validation_status, 'VALID');
+
+const xml = Buffer.from('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://bitkimark.com/ficus-benjamin</loc></url><url><loc>https://bitkimark.com/about</loc><lastmod>2026-09-10</lastmod></url></urlset>');
+const fakeFetch = async () => ({ ok: true, status: 200, arrayBuffer: async () => xml });
+const sitemapSource = new BitkimarkSitemapSource('https://bitkimark.com/sitemap.xml', fakeFetch);
+const collectedSitemap = await sitemapSource.collect({});
+assert.equal(collectedSitemap.result_type, 'ARTIFACT_PRODUCED');
+const sitemapDoc = parseBitkimarkSitemap(collectedSitemap.bytes, 'https://bitkimark.com/sitemap.xml', '2026-09-10T00:00:00.000Z');
+assert.equal(sitemapDoc.entries.length, 2);
+assert.deepEqual(sitemapDoc.entries[0].annotations, ['ficus', 'benjamin']);
+assert.deepEqual(sitemapDoc.entries[1].annotations, []);
+const sitemapPath = path.join(workRoot, 'sitemap.xml'); fs.writeFileSync(sitemapPath, xml);
+const sitemapDecision = await new BitkimarkSitemapValidator().validate({ absolute_path: sitemapPath, source_context: { source_url: 'https://bitkimark.com/sitemap.xml' } });
+assert.equal(sitemapDecision.validation_status, 'VALID');
+const badFetch = async () => ({ ok: true, status: 200, arrayBuffer: async () => Buffer.from('<html>error</html>') });
+const bad = await new BitkimarkSitemapSource('https://bitkimark.com/sitemap.xml', badFetch).collect({});
+assert.equal(bad.result_type, 'ARTIFACT_PRODUCED');
+assert.throws(() => parseBitkimarkSitemap(bad.bytes, 'https://bitkimark.com/sitemap.xml', '2026-09-10T00:00:00.000Z'));
+console.log('PASS NON-GOOGLE-SOURCES-001: İkas XLSX and Bitkimark sitemap preserve raw bytes and produce validated source-specific parses');
+})();

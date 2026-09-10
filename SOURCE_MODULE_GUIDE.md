@@ -157,6 +157,8 @@ Requirements:
 
 ## 12. `FILE_IMPORT` pattern
 
+The İkas Products slice uses content-based XLSX parsing and preserves the selected workbook bytes before parsing. Exact production column mapping remains evidence-bound to the current user-provided workbook; unsupported or unproven headers fail closed.
+
 Use for İkas Products and Keyword Planner CSV fallback.
 
 Requirements:
@@ -171,6 +173,8 @@ Requirements:
 8. keep imported and API acquisition provenance distinct.
 
 ## 13. `HTTP_XML` pattern
+
+The Bitkimark sitemap slice preserves the exact XML response bytes, validates URL-set structure, and emits deterministic substring annotations while retaining the complete URL inventory. It does not crawl pages or infer SEO meaning.
 
 Use for Bitkimark public sitemaps.
 

@@ -201,6 +201,8 @@ Validation findings carry structured detail. New operational failures should not
 
 ## 13. Source-specific architecture notes
 
+İkas Products and Bitkimark Sitemap are independent source modules entering the existing Run → Job → Attempt → Artifact → Validation lifecycle. Neither source introduces QueryGroup assumptions or cross-source row merging.
+
 ### Google Trends
 
 Current flow uses externally configured query groups, one sequential job per group, an app-owned Playwright profile, supported CSV capture, run-scoped storage, parser/validator, SQLite state, and structured export. Current production runner, desktop factory, and export implementation remain source-specific even though the shared Core now supports multi-source Runs.
