@@ -393,3 +393,45 @@ Remaining acceptance work:
 Next major MVP checkpoint: Google API source integration for GSC, Google Ads Search Terms, and Keyword Planner, using the existing Workspace connection/readiness boundary.
 
 The two historical untracked files remain intentionally untouched.
+
+## 16. Google API adapters checkpoint — 2026-09-10
+
+Technical implementation commit:
+
+`252c6de feat: add google api source adapters`
+
+Implemented and deterministically verified:
+
+- Google Search Console Query × Page adapter.
+- Bounded Search Console `startRow` pagination and raw-page preservation.
+- Google Ads Search Terms adapter using the official SearchStream acquisition path.
+- Google Keyword Planner historical-metrics adapter.
+- Keyword Planner preserves group context, requested keyword context, monthly history, missing values, and deterministic monetary-micros conversion.
+- Source-specific IDs, source classes, readiness seams, validators, and deterministic integration tests.
+- Existing Workspace ownership, Saved Presets, Last Run Settings, readiness, source-neutral Core, multi-source behavior, Google Trends, İkas, and Bitkimark contracts remain compatible.
+
+Official provider contracts were checked during implementation. No undocumented/private provider endpoints were introduced.
+
+Verification passed:
+
+- npm run test:m3:google-api-adapters
+- npm run test:m2:gate
+- npm run test:m2:multi-source-run
+- npm run test:m3:gt-batch-core-runner
+- npm run lint
+- npx tsc --noEmit
+- git diff --check
+- npm run test:release:gate
+- PASS RELEASE-GATE-001
+
+No live provider calls ran and no provider quota was consumed.
+
+Current limitation:
+
+- The adapters use the existing credential/readiness boundary, but production credential acquisition and real request composition are not yet implemented.
+- GSC, Google Ads Search Terms, and Keyword Planner are therefore not yet ready for explicit live acceptance.
+- Provider-unavailable fields must remain missing rather than fabricated.
+
+Next major MVP checkpoint: production Google credential/request composition for GSC and Google Ads, reusing the existing Workspace connection and credential boundaries without redesigning the adapters.
+
+The two historical untracked files remain intentionally untouched.
