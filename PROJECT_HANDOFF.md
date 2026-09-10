@@ -435,3 +435,46 @@ Current limitation:
 Next major MVP checkpoint: production Google credential/request composition for GSC and Google Ads, reusing the existing Workspace connection and credential boundaries without redesigning the adapters.
 
 The two historical untracked files remain intentionally untouched.
+
+## 17. Production Google credential/request composition checkpoint — 2026-09-10
+
+Technical implementation commit:
+
+`58c2ad9 feat: add production google credential composition`
+
+Implemented and deterministically verified:
+
+- Production Google credential composition using the existing Workspace connection and CredentialStore boundaries.
+- Electron/macOS secure-storage-backed credential implementation.
+- PKCE-based Google OAuth authorization/bootstrap components.
+- OAuth token exchange and refresh-token flow.
+- Short-lived access tokens remain memory-only.
+- Authenticated Google Search Console request composition.
+- Authenticated Google Ads request composition for Search Terms and Keyword Planner.
+- Google Ads customer/login-customer metadata remains separate from secret credential material.
+- Source readiness maps missing/unavailable credentials and reauthorization requirements fail-closed.
+- No credential secret is persisted through SQLite, Presets, Last Run Settings, Run Snapshots, source context, logs, provenance, or exports.
+- Existing GSC, Search Terms, and Keyword Planner adapters remain the normalization/validation layer rather than being duplicated.
+- Deterministic guarded/live-entry seams were added for later explicit manual acceptance.
+- Existing Workspace, Preset, readiness, source-neutral Core, multi-source, Google Trends, İkas, and Bitkimark behavior remains compatible.
+
+Verification passed:
+
+- focused Google credential/composition tests
+- npm run test:m3:google-api-adapters
+- relevant readiness/Core compatibility tests
+- npx tsc --noEmit
+- npm run lint
+- git diff --check
+- npm run test:release:gate
+- PASS RELEASE-GATE-001
+
+No real Google provider data requests were executed during this checkpoint.
+
+Live acceptance still requires explicit user-authorized Google configuration/account setup and guarded execution against the intended Workspace/accounts.
+
+Next major MVP checkpoint: SerpApi source adapter for the locked BLOG-WEEK-2026-09-10 query scope, with query-level quota-aware retry behavior.
+
+After SerpApi, the remaining major product checkpoint is generalized desktop multi-source Run Setup / Review / Progress / Result / Data Package integration before the full real acceptance run.
+
+The two historical untracked files remain intentionally untouched.
