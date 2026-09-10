@@ -224,6 +224,10 @@ Connection/readiness infrastructure is covered by deterministic v8 migration and
 
 Google request-composition tests use a deterministic `safeStorage` adapter and fake HTTP responses to verify encrypted-at-rest credential files, PKCE material, browser-bootstrap composition, form-encoded refresh exchange, bearer and Ads headers, bounded explicit live guards, reauthorization state, missing-credential failure, and absence of secret propagation. They never open a browser or call Google.
 
+SerpApi source coverage uses sanitized deterministic JSON and fake credentials/transport to verify one request per query, Workspace isolation, Türkiye/Turkish/Desktop parameters, exact raw preservation, first-ten organic/PAA normalization, nullable fields, readiness, quota/timeout stop behavior, and independent query-level Job plans. No SerpApi request runs in deterministic tests.
+
+The guarded `m3:live-serpapi` command has a deterministic argument test proving unconfirmed or unbounded invocations exit before Electron/provider activity.
+
 The Workspace preset checkpoint is covered by deterministic schema-v7 migration and repository reservation vertical-slice tests, including Workspace isolation, preset immutability, atomic Last Run update/rollback, immutable resolved snapshots, and reopen persistence.
 
 Test safe source summaries, readiness/freshness distinction, selection/import input, start/cancel/resume/retry intent, progress and validation display, unsupported/manual/quota states, canonical file opening, export opening, and strict rejection of invalid renderer inputs.

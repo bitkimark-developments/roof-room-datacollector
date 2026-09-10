@@ -1,9 +1,9 @@
-export interface ApiResponse { status: number; body: unknown; }
+export interface ApiResponse { status: number; body: unknown; raw_body?: Uint8Array; }
 export type ApiRequester = (request: { url: string; method: 'GET' | 'POST'; body?: unknown; headers?: Record<string, string> }) => Promise<ApiResponse>;
 
 export class GoogleApiTransportError extends Error {
   constructor(
-    public readonly code: 'PROVIDER_AUTHORIZATION_FAILED' | 'RATE_OR_QUOTA_FAILED' | 'NETWORK_OR_PROVIDER_FAILED',
+    public readonly code: 'PROVIDER_AUTHORIZATION_FAILED' | 'RATE_OR_QUOTA_FAILED' | 'NETWORK_OR_PROVIDER_FAILED' | 'REQUEST_TIMEOUT',
     message: string,
   ) {
     super(message);
@@ -19,6 +19,7 @@ export const createFetchApiRequester = (
   const timeout = setTimeout(() => abortController.abort(), timeoutMs);
   let response: Response;
   let body: unknown;
+  let rawBody: Uint8Array;
   try {
     response = await fetchImplementation(request.url, {
       method: request.method,
@@ -31,10 +32,20 @@ export const createFetchApiRequester = (
           : JSON.stringify(request.body),
     });
     const contentType = response.headers.get('content-type') ?? '';
+    rawBody = new Uint8Array(await response.arrayBuffer());
+    const textBody = new TextDecoder().decode(rawBody);
     body = contentType.includes('application/json')
-      ? await response.json()
-      : await response.text();
-  } catch {
+      ? (() => {
+          try { return JSON.parse(textBody) as unknown; } catch { return textBody; }
+        })()
+      : textBody;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new GoogleApiTransportError(
+        'REQUEST_TIMEOUT',
+        'Google API request timed out.',
+      );
+    }
     throw new GoogleApiTransportError(
       'NETWORK_OR_PROVIDER_FAILED',
       'Google API network request failed.',
@@ -62,7 +73,7 @@ export const createFetchApiRequester = (
     );
   }
 
-  return { status: response.status, body };
+  return { status: response.status, body, raw_body: rawBody };
 };
 
 export const requireApiObject = (value: unknown, context: string): Record<string, unknown> => { if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error(`${context} must be an object.`); return value as Record<string, unknown>; };

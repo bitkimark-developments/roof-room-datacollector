@@ -306,6 +306,10 @@ Schema v8 adds `workspace_source_connections`, one logical record per `(workspac
 
 Google OAuth bundles are addressed only by opaque `credential_ref` and stored as OS-encrypted files. Google Ads customer/login-customer IDs remain safe connection metadata; refresh tokens, client secrets, and developer-token compatibility values remain encrypted credential material.
 
+SerpApi connections store only an opaque `credential_ref` and safe source metadata. Each `serpapi` Job carries query, `TR`/`tr`/desktop/Google request context and no API key. The exact provider JSON response is preserved as raw evidence; normalized `GOOGLE_SERP` rows use `ORGANIC` or provider-returned `PAA` result types, nullable fields, and at most the first ten organic results.
+
+The guarded manual smoke command is single-query and first-page only; it persists through the existing Run/Job/Attempt/artifact/validation lifecycle and never retries quota, authentication, provider, network, or timeout failures.
+
 Schema v7 adds `saved_collection_presets` (Workspace-owned durable reusable JSON objects) and `workspace_last_run_settings` (one system-managed JSON object per Workspace). Presets may retain relative source rules; each reserved Run Snapshot stores resolved absolute dates and reference date. Drafts are TypeScript-only and do not persist automatically. Last Run Settings records the last attempted configuration after successful Run reservation.
 
 Freshness is a separate conceptual domain from readiness, execution, and validation.

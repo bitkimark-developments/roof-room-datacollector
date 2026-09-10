@@ -45,6 +45,12 @@ bash \
   tests/integration/google-api/run-google-credential-composition-test.sh
 
 bash \
+  tests/integration/serpapi/run-serpapi-source-test.sh
+
+bash \
+  tests/integration/serpapi/run-live-serpapi-command-test.sh
+
+bash \
   tests/integration/app/run-desktop-ui-smoke-test.sh
 
 echo 'PASS RELEASE-GATE-001: deterministic Core, Google Trends, desktop file access, configuration, validation, and export gates completed'

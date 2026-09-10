@@ -30,6 +30,8 @@
     "test:m3:non-google-sources": "bash tests/integration/sources/run-non-google-source-slices-test.sh",
     "test:m3:google-api-adapters": "bash tests/integration/google-api/run-google-api-adapters-test.sh",
     "test:m3:google-credentials": "bash tests/integration/google-api/run-google-credential-composition-test.sh",
+    "test:m3:serpapi": "bash tests/integration/serpapi/run-serpapi-source-test.sh",
+    "test:m3:live-serpapi-command": "bash tests/integration/serpapi/run-live-serpapi-command-test.sh",
     "test:m2:preset-reservation": "bash tests/integration/sqlite/run-saved-preset-run-reservation-test.sh",
     "test:m2:workspace-ownership": "bash tests/integration/sqlite/run-workspace-run-ownership-test.sh",
     "test:m2:source-neutral-state": "bash tests/integration/sqlite/run-source-neutral-job-persistence-test.sh",
@@ -77,7 +79,8 @@
     "test:release:gate": "bash tests/integration/release/run-release-gate.sh",
     "m3:live-query-diagnostic": "bash scripts/m3/run-live-google-trends-query-dom-diagnostic.sh",
     "test:m3:live-stage-command": "bash tests/integration/google-trends/run-live-stage-gate-command-test.sh",
-    "m3:live-stage": "bash scripts/m3/run-live-google-trends-stage-gate.sh"
+    "m3:live-stage": "bash scripts/m3/run-live-google-trends-stage-gate.sh",
+    "m3:live-serpapi": "bash scripts/m3/run-live-serpapi-smoke.sh"
   },
   "keywords": [],
   "author": {
