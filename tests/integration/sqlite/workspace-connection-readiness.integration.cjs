@@ -1,0 +1,41 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { DatabaseSync } = require('node:sqlite');
+(async () => {
+const [buildRoot, workRoot] = process.argv.slice(2);
+if (!buildRoot || !workRoot) throw new Error('Expected compiled build root and temporary work root.');
+const { getDatabasePath, initializeDatabase } = require(path.join(buildRoot, 'main', 'storage', 'database.js'));
+const { StateRepository } = require(path.join(buildRoot, 'main', 'storage', 'state-repository.js'));
+const { InMemoryCredentialStore } = require(path.join(buildRoot, 'main', 'core', 'credential-store.js'));
+const { ReadinessRegistry, ReadinessRegistryError } = require(path.join(buildRoot, 'main', 'core', 'readiness-registry.js'));
+const directories = { app_data_root: workRoot, config: path.join(workRoot, 'config'), data: path.join(workRoot, 'data'), runs: path.join(workRoot, 'data', 'runs'), database: path.join(workRoot, 'database'), browser_profiles: path.join(workRoot, 'browser-profiles'), logs: path.join(workRoot, 'logs') };
+fs.mkdirSync(directories.database, { recursive: true });
+assert.equal(initializeDatabase(directories).status, 'READY');
+const databasePath = getDatabasePath(directories);
+const repository = new StateRepository(databasePath);
+const a = repository.createWorkspace({ workspace_name: 'A' });
+const b = repository.createWorkspace({ workspace_name: 'B' });
+const connection = repository.upsertSourceConnection({ workspace_id: a.workspace_id, source_id: 'fake-source', credential_ref: 'cred:a', safe_metadata: { account_ref: 'acct-a' } });
+assert.equal(repository.getSourceConnection(b.workspace_id, 'fake-source'), null);
+assert.throws(() => repository.upsertSourceConnection({ workspace_id: a.workspace_id, source_id: 'fake-source', credential_ref: 'cred:a', safe_metadata: { api_key: 'secret-value' } }), /secret-like|credential/iu);
+
+const credentials = new InMemoryCredentialStore();
+credentials.put('cred:a');
+const readiness = new ReadinessRegistry(repository, credentials);
+readiness.register('fake-source', ({ connection: currentConnection, credential_available }) => {
+  if (!currentConnection) return 'CONFIGURATION_REQUIRED';
+  if (!credential_available) return 'CONNECTION_REQUIRED';
+  return 'READY';
+});
+assert.equal((await readiness.getReadiness(a.workspace_id, 'fake-source')).readiness_status, 'READY');
+assert.equal((await readiness.getReadiness(b.workspace_id, 'fake-source')).readiness_status, 'CONFIGURATION_REQUIRED');
+credentials.remove('cred:a');
+assert.equal((await readiness.getReadiness(a.workspace_id, 'fake-source')).readiness_status, 'CONNECTION_REQUIRED');
+await assert.rejects(() => readiness.getReadiness(a.workspace_id, 'unsupported-source'), ReadinessRegistryError);
+const direct = new DatabaseSync(databasePath);
+assert.equal(direct.prepare('SELECT COUNT(*) AS count FROM workspace_source_connections WHERE safe_metadata_json LIKE ?').get('%secret-value%').count, 0);
+direct.close();
+repository.close();
+console.log('PASS CONNECTION-READINESS-001: Workspace connections, credential availability, and source-keyed readiness remain isolated and secret-free');
+})();

@@ -189,6 +189,8 @@ Examples:
 
 ## 12. Validation architecture
 
+Workspace-owned source connections are a Core persistence boundary. SQLite stores only source-owned safe metadata and a credential reference; an injected credential port answers availability without exposing secret values. A source-keyed readiness registry combines the Workspace-scoped connection with that availability and delegates semantic requirements to the source evaluator.
+
 Workspace-owned reusable configuration is persisted as Saved Collection Presets and system-managed Last Run Settings. A temporary Run Draft resolves effective source-owned configuration without mutating its origin. New starts use one atomic repository reservation transaction that persists the immutable resolved Run Snapshot and updates Last Run Settings together; credentials remain outside all three stores.
 
 `ValidationCoordinator`/Core lifecycle owns validation invocation and artifact state transition. `CollectionValidatorRegistry` fails closed for invalid, duplicate, or unknown source IDs, and `CollectionOrchestrator` resolves a validator for each Job from `job.source_id`. Each source validator owns semantic checks.

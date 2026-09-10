@@ -2264,6 +2264,7 @@ Validation is mandatory.
 | ADR-057 | One collection operation is one multi-source Run | ACCEPTED |
 | ADR-058 | Workspace owns Runs and database enforces active slot | ACCEPTED |
 | ADR-059 | Workspace-owned Saved Presets and atomic Last Run Settings reservation | ACCEPTED |
+| ADR-060 | Workspace-owned connection metadata with credential boundary and source-keyed readiness | ACCEPTED |
 
 ---
 

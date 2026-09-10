@@ -165,8 +165,8 @@ if (upgraded.status !== 'READY') {
   throw new Error(upgraded.error);
 }
 
-assert.equal(upgraded.schema_version, 7);
-assert.equal(upgraded.migrations_applied, 7);
+assert.equal(upgraded.schema_version, 8);
+assert.equal(upgraded.migrations_applied, 8);
 
 // DB-001 fresh database path
 const directories = makeDirectories('state-repository');
@@ -178,8 +178,8 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 7);
-assert.equal(bootstrap.migrations_applied, 7);
+assert.equal(bootstrap.schema_version, 8);
+assert.equal(bootstrap.migrations_applied, 8);
 
 const databasePath = getDatabasePath(directories);
 
@@ -398,6 +398,7 @@ assert.deepEqual(
     [5, 'source_neutral_job_context'],
     [6, 'workspace_run_ownership'],
     [7, 'workspace_collection_settings'],
+    [8, 'workspace_source_connections'],
   ],
 );
 

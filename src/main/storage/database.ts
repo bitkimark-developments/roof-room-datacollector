@@ -7,7 +7,7 @@ import type {
 } from '../../shared/bootstrap-status';
 
 const DATABASE_FILENAME = 'roofroom.sqlite';
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 export const MIGRATION_COMPATIBILITY_WORKSPACE_ID =
   'ws_development_migration';
@@ -884,6 +884,41 @@ const migrateToVersion7 = (database: DatabaseSync): void => {
   }
 };
 
+const migrateToVersion8 = (database: DatabaseSync): void => {
+  database.exec('BEGIN IMMEDIATE');
+  try {
+    database.exec(`
+      CREATE TABLE workspace_source_connections (
+        connection_id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        credential_ref TEXT,
+        safe_metadata_json TEXT NOT NULL
+          CHECK (json_valid(safe_metadata_json))
+          CHECK (json_type(safe_metadata_json) = 'object'),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (workspace_id)
+          REFERENCES workspaces(workspace_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT,
+        UNIQUE (workspace_id, source_id)
+      ) STRICT;
+      CREATE INDEX ix_workspace_source_connections_workspace
+        ON workspace_source_connections(workspace_id, source_id);
+    `);
+    database.prepare(`
+      INSERT INTO schema_migrations (version, name, applied_at)
+      VALUES (?, ?, ?)
+    `).run(8, 'workspace_source_connections', new Date().toISOString());
+    database.exec('PRAGMA user_version = 8');
+    database.exec('COMMIT');
+  } catch (error: unknown) {
+    try { database.exec('ROLLBACK'); } catch { /* preserve original */ }
+    throw error;
+  }
+};
+
 const applyMigrations = (database: DatabaseSync): number => {
   let schemaVersion = readUserVersion(database);
 
@@ -925,6 +960,11 @@ const applyMigrations = (database: DatabaseSync): number => {
 
   if (schemaVersion < 7) {
     migrateToVersion7(database);
+    schemaVersion = readUserVersion(database);
+  }
+
+  if (schemaVersion < 8) {
+    migrateToVersion8(database);
     schemaVersion = readUserVersion(database);
   }
 

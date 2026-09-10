@@ -40,8 +40,12 @@ import type {
   ReusableCollectionConfiguration,
   SavedCollectionPresetRecord,
 } from '../../shared/collection-configuration';
+import type {
+  UpsertWorkspaceSourceConnectionInput,
+  WorkspaceSourceConnectionRecord,
+} from '../../shared/workspace-connection';
 
-const REQUIRED_SCHEMA_VERSION = 7;
+const REQUIRED_SCHEMA_VERSION = 8;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DOCUMENT_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const RUN_ID_PATTERN =
@@ -365,6 +369,23 @@ const requireJsonObject = (
   }
 
   return normalized;
+};
+
+const assertSafeConnectionMetadata = (value: JsonObject): JsonObject => {
+  const forbidden = /(password|passwd|token|secret|api[_-]?key|cookie|oauth|refresh)/iu;
+  const visit = (candidate: JsonValue, path: string): void => {
+    if (Array.isArray(candidate)) {
+      candidate.forEach((entry, index) => visit(entry, `${path}[${index}]`));
+      return;
+    }
+    if (typeof candidate !== 'object' || candidate === null) return;
+    Object.entries(candidate).forEach(([key, entry]) => {
+      if (forbidden.test(key)) throw new Error(`${path}.${key} contains a forbidden credential-like field.`);
+      visit(entry, `${path}.${key}`);
+    });
+  };
+  visit(value, 'safe_metadata');
+  return value;
 };
 
 const parseSelectedSources = (
@@ -736,6 +757,23 @@ const mapLastRunSettingsRow = (rawRow: unknown): LastRunSettingsRecord => {
       'last_run_settings.reusable_configuration',
     ),
     updated_at: requireUtcTimestamp(requireString(row, 'updated_at', 'last run settings'), 'last_run_settings.updated_at'),
+  };
+};
+
+const mapWorkspaceSourceConnectionRow = (rawRow: unknown): WorkspaceSourceConnectionRecord => {
+  const row = requireRecord(rawRow, 'workspace source connection');
+  const credentialRef = requireNullableString(row, 'credential_ref', 'workspace source connection');
+  return {
+    connection_id: requireString(row, 'connection_id', 'workspace source connection'),
+    workspace_id: requireString(row, 'workspace_id', 'workspace source connection'),
+    source_id: requireString(row, 'source_id', 'workspace source connection'),
+    credential_ref: credentialRef,
+    safe_metadata: assertSafeConnectionMetadata(requireJsonObject(
+      parseJson(requireString(row, 'safe_metadata_json', 'workspace source connection'), 'safe_metadata_json'),
+      'workspace_source_connection.safe_metadata',
+    )),
+    created_at: requireUtcTimestamp(requireString(row, 'created_at', 'workspace source connection'), 'workspace_source_connection.created_at'),
+    updated_at: requireUtcTimestamp(requireString(row, 'updated_at', 'workspace source connection'), 'workspace_source_connection.updated_at'),
   };
 };
 
@@ -1516,6 +1554,62 @@ export class StateRepository {
       FROM workspace_last_run_settings WHERE workspace_id = ?
     `).get(workspaceId);
     return row === undefined ? null : mapLastRunSettingsRow(row);
+  }
+
+  upsertSourceConnection(
+    input: UpsertWorkspaceSourceConnectionInput,
+  ): WorkspaceSourceConnectionRecord {
+    const workspaceId = requireNonEmpty(input.workspace_id, 'workspace_id');
+    const sourceId = requireNonEmpty(input.source_id, 'source_id');
+    const credentialRef = input.credential_ref === null
+      ? null
+      : requireNonEmpty(input.credential_ref, 'credential_ref');
+    const safeMetadata = assertSafeConnectionMetadata(requireJsonObject(input.safe_metadata, 'safe_metadata'));
+    const existing = this.getSourceConnection(workspaceId, sourceId);
+    const connectionId = existing?.connection_id ?? `conn_${randomBytes(8).toString('hex')}`;
+    const timestamp = new Date().toISOString();
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      this.database.prepare(`
+        INSERT INTO workspace_source_connections (
+          connection_id, workspace_id, source_id, credential_ref,
+          safe_metadata_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(workspace_id, source_id) DO UPDATE SET
+          credential_ref = excluded.credential_ref,
+          safe_metadata_json = excluded.safe_metadata_json,
+          updated_at = excluded.updated_at
+      `).run(connectionId, workspaceId, sourceId, credentialRef, JSON.stringify(safeMetadata), existing?.created_at ?? timestamp, timestamp);
+      this.database.exec('COMMIT');
+    } catch (error: unknown) {
+      try { this.database.exec('ROLLBACK'); } catch { /* preserve original */ }
+      throw error;
+    }
+    const connection = this.getSourceConnection(workspaceId, sourceId);
+    if (!connection) throw new Error(`Connection for ${sourceId} was not readable after persistence.`);
+    return connection;
+  }
+
+  getSourceConnection(workspaceId: string, sourceId: string): WorkspaceSourceConnectionRecord | null {
+    requireNonEmpty(workspaceId, 'workspace_id');
+    requireNonEmpty(sourceId, 'source_id');
+    const row = this.database.prepare(`
+      SELECT connection_id, workspace_id, source_id, credential_ref,
+        safe_metadata_json, created_at, updated_at
+      FROM workspace_source_connections
+      WHERE workspace_id = ? AND source_id = ?
+    `).get(workspaceId, sourceId);
+    return row === undefined ? null : mapWorkspaceSourceConnectionRow(row);
+  }
+
+  listSourceConnections(workspaceId: string): WorkspaceSourceConnectionRecord[] {
+    requireNonEmpty(workspaceId, 'workspace_id');
+    return this.database.prepare(`
+      SELECT connection_id, workspace_id, source_id, credential_ref,
+        safe_metadata_json, created_at, updated_at
+      FROM workspace_source_connections
+      WHERE workspace_id = ? ORDER BY source_id ASC
+    `).all(workspaceId).map(mapWorkspaceSourceConnectionRow);
   }
 
   createRunFromQueryConfig(

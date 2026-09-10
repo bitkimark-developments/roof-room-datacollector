@@ -66,6 +66,12 @@ bash \
   tests/integration/sqlite/run-schema-v7-migration-test.sh
 
 bash \
+  tests/integration/sqlite/run-schema-v8-migration-test.sh
+
+bash \
+  tests/integration/sqlite/run-workspace-connection-readiness-test.sh
+
+bash \
   tests/integration/sqlite/run-saved-preset-run-reservation-test.sh
 
 bash \

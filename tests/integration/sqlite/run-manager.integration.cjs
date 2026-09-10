@@ -69,7 +69,7 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 7);
+assert.equal(bootstrap.schema_version, 8);
 
 const queryConfig = {
   config_version: 1,

@@ -220,6 +220,8 @@ Source integration must prove:
 
 ## 11. UI and IPC tests
 
+Connection/readiness infrastructure is covered by deterministic v8 migration and Workspace readiness vertical-slice tests. They verify isolation, duplicate logical connection enforcement, credential availability states, unsupported-source fail-closed behavior, and secret-free persistence.
+
 The Workspace preset checkpoint is covered by deterministic schema-v7 migration and repository reservation vertical-slice tests, including Workspace isolation, preset immutability, atomic Last Run update/rollback, immutable resolved snapshots, and reopen persistence.
 
 Test safe source summaries, readiness/freshness distinction, selection/import input, start/cancel/resume/retry intent, progress and validation display, unsupported/manual/quota states, canonical file opening, export opening, and strict rejection of invalid renderer inputs.

@@ -92,8 +92,8 @@ v6.close();
 const bootstrap = initializeDatabase(directories);
 
 assert.equal(bootstrap.status, 'READY');
-assert.equal(bootstrap.schema_version, 7);
-assert.equal(bootstrap.migrations_applied, 7);
+assert.equal(bootstrap.schema_version, 8);
+assert.equal(bootstrap.migrations_applied, 8);
 
 const migrated = new DatabaseSync(databasePath);
 migrated.exec('PRAGMA foreign_keys = ON');

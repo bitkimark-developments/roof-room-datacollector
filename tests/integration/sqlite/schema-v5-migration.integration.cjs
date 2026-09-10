@@ -243,8 +243,8 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 7);
-assert.equal(bootstrap.migrations_applied, 7);
+assert.equal(bootstrap.schema_version, 8);
+assert.equal(bootstrap.migrations_applied, 8);
 
 const migrated = new DatabaseSync(databasePath);
 migrated.exec('PRAGMA foreign_keys = ON');

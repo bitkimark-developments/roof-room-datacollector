@@ -214,7 +214,7 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 7);
+assert.equal(bootstrap.schema_version, 8);
 
 const requestedConfiguration = {
   source_mode: 'FAKE_TEST',

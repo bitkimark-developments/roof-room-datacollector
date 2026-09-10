@@ -210,7 +210,7 @@ Freshness/readiness are separate from execution: freshness answers whether work 
 
 The desktop application should provide a non-technical workflow for seeing sources and their safe connection/readiness state; understanding freshness or import need; selecting configured work; starting explicit provider or import operations; viewing progress and operational stops; resuming or explicitly retrying eligible work; opening canonical evidence and accepted exports; and distinguishing raw technical archives from user-facing exports.
 
-Provider credentials and sensitive content must not cross into the renderer except through strictly limited safe state.
+Provider credentials and sensitive content must not cross into the renderer except through strictly limited safe state. Workspace-owned connection metadata persists only safe source fields and a credential reference; readiness is source-specific and reports configuration/connection/manual states without exposing secrets.
 
 Workspace selection and management UI and any new cancel/stop/resume workflow remain outside the Core persistence checkpoint. Schema v7 now provides Workspace-owned Saved Collection Presets, one logical Last Run Settings record, temporary non-persisted Run Drafts, and atomic start reservation that persists an immutable resolved Run Snapshot without storing credentials.
 
