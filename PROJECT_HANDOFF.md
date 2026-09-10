@@ -478,3 +478,48 @@ Next major MVP checkpoint: SerpApi source adapter for the locked BLOG-WEEK-2026-
 After SerpApi, the remaining major product checkpoint is generalized desktop multi-source Run Setup / Review / Progress / Result / Data Package integration before the full real acceptance run.
 
 The two historical untracked files remain intentionally untouched.
+
+## 18. SerpApi source checkpoint — 2026-09-11
+
+Technical implementation commit:
+
+`0e34032 feat: add serpapi source`
+
+Implemented and deterministically verified:
+
+- Workspace-scoped SerpApi connection and credential composition.
+- SerpApi Google Search acquisition for Türkiye / Turkish / Desktop scope.
+- Query-level Job planning for independently retryable SERP requests.
+- First 10 organic results normalization.
+- People Also Ask / related-question normalization when returned by the provider.
+- Canonical raw SerpApi JSON preservation before normalization.
+- Source-specific validation and readiness integration.
+- Missing configuration resolves fail-closed.
+- Missing credential resolves through the existing connection/readiness boundary.
+- Quota/provider failures do not trigger automatic retry.
+- Failed SERP Jobs remain independently retryable without recollecting successful sibling queries.
+- Guarded live SerpApi smoke command exists and rejects unconfirmed/unbounded execution before provider access.
+- Existing Workspace, credential, source-neutral Core, multi-source, Google Trends, Google API, İkas, and Bitkimark behavior remains compatible.
+
+Verification passed:
+
+- npm run test:m3:serpapi
+- npm run test:m3:live-serpapi-command
+- relevant Google/non-Google compatibility tests
+- npx tsc --noEmit
+- npm run lint
+- git diff --check
+- npm run test:release:gate
+- PASS SERPAPI-001
+- PASS SERPAPI-LIVE-CMD-001
+- PASS RELEASE-GATE-001
+
+No live SerpApi request was executed during this checkpoint.
+
+Live acceptance still requires the real Workspace SerpApi credential and explicit guarded execution.
+
+The next and final major MVP implementation checkpoint is generalized Desktop multi-source Run Setup / Review / Progress / Result / Data Package integration for the locked BLOG-WEEK-2026-09-10 acceptance scope.
+
+After that checkpoint, remaining work should move primarily to real provider setup, live acceptance, current İkas workbook mapping, Bitkimark live smoke, and targeted bug fixes rather than further Core architecture expansion.
+
+The two historical untracked files remain intentionally untouched.
