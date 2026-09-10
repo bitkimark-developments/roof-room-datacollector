@@ -80,17 +80,21 @@ The deterministic Core suite covers:
 - run creation, transition, aggregation, completion, cancellation, and manual action;
 - job ordering, independent failure, validation state, and accepted artifact references;
 - immutable attempt creation and retry history;
+- schema-v6 Workspace migration and required Run ownership;
+- database-backed one-active-Run enforcement across repository connections and restart;
 - SQLite migrations, foreign keys, strict status values, and integrity checks;
 - collision-safe raw storage, SHA-256/byte size, path containment, and immutability;
 - metadata and validation persistence;
 - sequential orchestration with fake sources;
 - reconciliation and resume behavior;
 - explicit retry limits;
+- atomic Workspace retry reacquisition, Job transition, and Attempt creation with rollback on conflict;
+- Workspace-scoped incomplete-Run discovery and cross-Workspace fail-closed resume planning;
 - structured log redaction;
 - renderer/main/preload privilege boundaries;
 - export eligibility and provenance.
 
-Multi-source Core tests include jobs that do not naturally have a Google Trends query group. Schema-v4 migration preservation, nullable `query_group_id`, persisted source context, and the fake JSON source lifecycle are deterministic release-gate coverage; no placeholder query group is used.
+Multi-source Core tests include jobs that do not naturally have a Google Trends query group. Chained schema-v4/v5/v6 migration preservation, nullable `query_group_id`, persisted source context, Workspace ownership, and the fake JSON source lifecycle are deterministic release-gate coverage; no placeholder query group is used.
 
 The deterministic multi-source Run gate uses two independently registered fake sources and validators in one persisted Run. It proves truthful selected-source membership, per-Job collector/validator dispatch, same-key cross-source identity, continuation after a middle Job failure, restart/reconciliation, failed-only attempt-2 retry, immutable rejected evidence, and source/job/attempt-correct provenance. The validator-registry gate separately proves invalid and duplicate registrations, and unknown lookups, fail closed.
 

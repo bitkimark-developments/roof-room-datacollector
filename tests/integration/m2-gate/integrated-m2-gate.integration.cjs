@@ -214,7 +214,7 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 5);
+assert.equal(bootstrap.schema_version, 6);
 
 const requestedConfiguration = {
   source_mode: 'FAKE_TEST',
@@ -475,6 +475,9 @@ const main = async () => {
     new StateRepository(
       databasePath,
     );
+  const workspace = repositoryA.createWorkspace({
+    workspace_name: 'Integrated M2 Gate Workspace',
+  });
 
   const runManagerA =
     new RunManager(repositoryA);
@@ -516,6 +519,7 @@ const main = async () => {
 
   const created =
     repositoryA.createRunFromQueryConfig({
+      workspace_id: workspace.workspace_id,
       query_config: queryConfig,
       application_version: '1.0.0',
       requested_configuration:
@@ -669,6 +673,7 @@ const main = async () => {
 
   const resumePlan =
     resumePlanner.planRun(
+      workspace.workspace_id,
       runId,
     );
 

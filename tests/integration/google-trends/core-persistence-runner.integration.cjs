@@ -39,6 +39,7 @@ const {
 
 const {
   getDatabasePath,
+  initializeDatabase,
 } = require(
   path.join(
     buildRoot,
@@ -72,6 +73,27 @@ const {
     'metadata-manager.js',
   ),
 );
+
+let workspaceNumber = 0;
+
+const createWorkspaceId = () => {
+  const bootstrap = initializeDatabase(directories);
+
+  assert.equal(bootstrap.status, 'READY');
+
+  const repository = new StateRepository(
+    getDatabasePath(directories),
+  );
+
+  try {
+    workspaceNumber += 1;
+    return repository.createWorkspace({
+      workspace_name: `GT Core Fixture ${workspaceNumber}`,
+    }).workspace_id;
+  } finally {
+    repository.close();
+  }
+};
 
 const appDataRoot =
   path.join(
@@ -268,6 +290,7 @@ const main = async () => {
   const result =
     await runGoogleTrendsThroughCore({
       directories,
+      workspace_id: createWorkspaceId(),
       query_config:
         queryConfig,
       requested_configuration:
@@ -594,6 +617,7 @@ const main = async () => {
     () =>
       runGoogleTrendsThroughCore({
         directories,
+        workspace_id: createWorkspaceId(),
         query_config: {
           ...queryConfig,
           groups: [
@@ -631,6 +655,7 @@ const main = async () => {
   const failed =
     await runGoogleTrendsThroughCore({
       directories,
+      workspace_id: createWorkspaceId(),
       query_config:
         queryConfig,
       requested_configuration:
@@ -649,7 +674,7 @@ const main = async () => {
 
   assert.equal(
     failed.run.run_status,
-    'RUNNING',
+    'RETRY_REQUIRED',
   );
 
   assert.equal(
@@ -686,6 +711,7 @@ const main = async () => {
   const manual =
     await runGoogleTrendsThroughCore({
       directories,
+      workspace_id: createWorkspaceId(),
       query_config:
         queryConfig,
       requested_configuration:
@@ -746,6 +772,7 @@ const main = async () => {
   const rejected =
     await runGoogleTrendsThroughCore({
       directories,
+      workspace_id: createWorkspaceId(),
       query_config:
         queryConfig,
       requested_configuration:

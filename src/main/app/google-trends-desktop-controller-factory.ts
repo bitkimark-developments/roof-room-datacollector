@@ -45,6 +45,7 @@ import {
 export interface CreateGoogleTrendsDesktopControllerInput {
   directories:
     ApplicationDirectories;
+  workspace_id: string;
   query_config:
     QueryConfig;
   source:
@@ -153,6 +154,7 @@ const selectQueryGroups = (
 const discoverRecovery = (
   directories:
     ApplicationDirectories,
+  workspaceId: string,
 ): DesktopRecoveryState => {
   const repository =
     new StateRepository(
@@ -165,7 +167,9 @@ const discoverRecovery = (
     const plans =
       new ResumePlanner(
         repository,
-      ).discoverIncompleteRuns();
+      ).discoverIncompleteRuns(
+        workspaceId,
+      );
 
     const latest =
       plans.at(-1);
@@ -260,6 +264,8 @@ export const createGoogleTrendsDesktopController = (
         runGoogleTrendsBatchThroughCore({
           directories:
             input.directories,
+          workspace_id:
+            input.workspace_id,
           query_config:
             selectQueryGroups(
               input.query_config,
@@ -298,6 +304,7 @@ export const createGoogleTrendsDesktopController = (
       () =>
         discoverRecovery(
           input.directories,
+          input.workspace_id,
         ),
     cancel_run:
       (runId) =>

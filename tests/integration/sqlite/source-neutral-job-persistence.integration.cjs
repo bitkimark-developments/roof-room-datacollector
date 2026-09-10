@@ -66,7 +66,11 @@ const configurationSnapshot = {
 };
 
 const repositoryA = new StateRepository(databasePath);
+const createWorkspace = (name) =>
+  repositoryA.createWorkspace({ workspace_name: name });
+const primaryWorkspace = createWorkspace('Primary Fixture');
 const created = repositoryA.createRunFromJobPlans({
+  workspace_id: primaryWorkspace.workspace_id,
   application_version: '1.0.0',
   configuration_snapshot: configurationSnapshot,
   job_plans: [
@@ -92,6 +96,7 @@ assert.deepEqual(created.jobs[0].source_context, sourceContext);
 assert.throws(
   () =>
     repositoryA.createRunFromJobPlans({
+      workspace_id: createWorkspace('Duplicate Fixture').workspace_id,
       application_version: '1.0.0',
       configuration_snapshot: configurationSnapshot,
       job_plans: [
@@ -115,6 +120,7 @@ assert.throws(
 assert.throws(
   () =>
     repositoryA.createRunFromJobPlans({
+      workspace_id: createWorkspace('Unsafe Fixture').workspace_id,
       application_version: '1.0.0',
       configuration_snapshot: configurationSnapshot,
       job_plans: [
@@ -149,6 +155,7 @@ const multiSourceSnapshot = {
 
 const mixedSourceRun =
   repositoryA.createRunFromJobPlans({
+    workspace_id: createWorkspace('Mixed Sources').workspace_id,
     application_version: '1.0.0',
     configuration_snapshot:
       multiSourceSnapshot,
@@ -215,6 +222,7 @@ const arbitrarySnapshotWithLegacyKey = {
 };
 
 const genericSnapshotRun = repositoryA.createRunFromJobPlans({
+  workspace_id: createWorkspace('Generic Snapshot').workspace_id,
   application_version: '1.0.0',
   configuration_snapshot: arbitrarySnapshotWithLegacyKey,
   job_plans: [

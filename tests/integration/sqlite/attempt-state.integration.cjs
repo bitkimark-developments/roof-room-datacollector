@@ -58,8 +58,8 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 5);
-assert.equal(bootstrap.migrations_applied, 5);
+assert.equal(bootstrap.schema_version, 6);
+assert.equal(bootstrap.migrations_applied, 6);
 
 const queryConfig = {
   config_version: 1,
@@ -93,8 +93,12 @@ const requestedConfiguration = {
 
 const databasePath = getDatabasePath(directories);
 const repositoryA = new StateRepository(databasePath);
+const workspace = repositoryA.createWorkspace({
+  workspace_name: 'Attempt State Workspace',
+});
 
 const created = repositoryA.createRunFromQueryConfig({
+  workspace_id: workspace.workspace_id,
   query_config: queryConfig,
   application_version: '1.0.0',
   requested_configuration: requestedConfiguration,

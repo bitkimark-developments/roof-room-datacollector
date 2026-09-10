@@ -69,7 +69,7 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 5);
+assert.equal(bootstrap.schema_version, 6);
 
 const queryConfig = {
   config_version: 1,
@@ -101,12 +101,21 @@ const requestedConfiguration = {
   dataset_type: 'INTEREST_OVER_TIME',
 };
 
-const createRun = (repository) =>
-  repository.createRunFromQueryConfig({
+let workspaceNumber = 0;
+
+const createRun = (repository) => {
+  workspaceNumber += 1;
+  const workspace = repository.createWorkspace({
+    workspace_name: `Run Manager ${workspaceNumber}`,
+  });
+
+  return repository.createRunFromQueryConfig({
+    workspace_id: workspace.workspace_id,
     query_config: queryConfig,
     application_version: '1.0.0',
     requested_configuration: requestedConfiguration,
   });
+};
 
 const completeJob = (
   repository,
@@ -287,12 +296,30 @@ repositoryA.transitionJobExecution(
   },
 );
 
+completeJob(
+  repositoryA,
+  retryableRun.jobs[1].job_id,
+  'VALID',
+);
+
 const retryableResult =
   managerA.refreshRunStatus(
     retryableRun.run.run_id,
   );
 
-assert.equal(retryableResult.run_status, 'RUNNING');
+assert.equal(
+  retryableResult.run_status,
+  'RETRY_REQUIRED',
+);
+assert.equal(retryableResult.completed_at, null);
+assert.equal(
+  repositoryA.listIncompleteRuns(
+    retryableRun.run.workspace_id,
+  ).some(
+    (run) => run.run_id === retryableRun.run.run_id,
+  ),
+  true,
+);
 
 // Hard validation outcome also remains non-terminal until
 // retry/final-failure policy is explicitly decided later.

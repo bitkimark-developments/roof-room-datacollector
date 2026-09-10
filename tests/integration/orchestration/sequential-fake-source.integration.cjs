@@ -175,7 +175,7 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 5);
+assert.equal(bootstrap.schema_version, 6);
 
 const requestedConfiguration = {
   source_mode: 'FAKE_TEST',
@@ -443,6 +443,9 @@ const databasePath =
 
 const repositoryA =
   new StateRepository(databasePath);
+const mainWorkspace = repositoryA.createWorkspace({
+  workspace_name: 'Sequential Main Workspace',
+});
 const storage =
   new StorageManager(directories);
 const validator =
@@ -467,6 +470,7 @@ const orchestratorA =
 // GT03 continues, then GT02 retries explicitly.
 const mainRun =
   repositoryA.createRunFromQueryConfig({
+    workspace_id: mainWorkspace.workspace_id,
     query_config:
       makeQueryConfig(3),
     application_version: '1.0.0',
@@ -554,6 +558,7 @@ const resumePlannerA =
 
 const retryPlan =
   resumePlannerA.planRun(
+    mainWorkspace.workspace_id,
     mainRun.run.run_id,
   );
 
@@ -780,6 +785,9 @@ fakeSource.resetEvents();
 
 const resumeRun =
   repositoryA.createRunFromQueryConfig({
+    workspace_id: repositoryA.createWorkspace({
+      workspace_name: 'Sequential Resume Workspace',
+    }).workspace_id,
     query_config:
       makeQueryConfig(2),
     application_version: '1.0.0',
@@ -832,6 +840,7 @@ const resumePlannerB =
 
 const reconstructed =
   resumePlannerB.planRun(
+    resumeRun.run.workspace_id,
     resumeRunId,
   );
 
@@ -948,6 +957,9 @@ const invalidMetadataValidator = {
 
 const invalidMetadataRun =
   repositoryB.createRunFromQueryConfig({
+    workspace_id: repositoryB.createWorkspace({
+      workspace_name: 'Invalid Metadata Workspace',
+    }).workspace_id,
     query_config:
       makeQueryConfig(1),
     application_version:

@@ -144,7 +144,7 @@ const main = async () => {
     initializeDatabase(directories);
 
   assert.equal(bootstrap.status, 'READY');
-  assert.equal(bootstrap.schema_version, 5);
+  assert.equal(bootstrap.schema_version, 6);
 
   if (bootstrap.status !== 'READY') {
     throw new Error(bootstrap.error);
@@ -355,6 +355,9 @@ const main = async () => {
     new StorageManager(directories);
   const repositoryA =
     new StateRepository(databasePath);
+  const workspace = repositoryA.createWorkspace({
+    workspace_name: 'Multi Source Run Workspace',
+  });
   const orchestratorA =
     new CollectionOrchestrator(
       repositoryA,
@@ -382,6 +385,7 @@ const main = async () => {
   };
   const created =
     repositoryA.createRunFromJobPlans({
+      workspace_id: workspace.workspace_id,
       application_version: '1.0.0',
       configuration_snapshot:
         configurationSnapshot,
@@ -664,6 +668,7 @@ const main = async () => {
   const reopenedRun = repositoryB.getRun(runId);
   const resumePlan =
     new ResumePlanner(repositoryB).planRun(
+      workspace.workspace_id,
       runId,
     );
 

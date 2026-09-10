@@ -2,6 +2,7 @@ export const RUN_STATUSES = [
   'PENDING',
   'RUNNING',
   'MANUAL_ACTION_REQUIRED',
+  'RETRY_REQUIRED',
   'COMPLETED',
   'COMPLETED_WITH_WARNINGS',
   'FAILED',
@@ -83,6 +84,7 @@ export type RunConfigurationSnapshot =
 
 export interface RunRecord {
   run_id: string;
+  workspace_id: string;
   run_status: RunStatus;
   created_at: string;
   started_at: string | null;

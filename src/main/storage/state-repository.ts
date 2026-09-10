@@ -31,22 +31,30 @@ import {
   type ValidationStatus,
 } from '../../shared/run-job';
 import type { ValidationSummaryRecord } from '../../shared/validation-summary';
+import type {
+  CreateWorkspaceInput,
+  WorkspaceRecord,
+} from '../../shared/workspace';
 
-const REQUIRED_SCHEMA_VERSION = 5;
+const REQUIRED_SCHEMA_VERSION = 6;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DOCUMENT_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const RUN_ID_PATTERN =
   /^rr_\d{8}T\d{9}Z_[0-9a-f]{6}$/;
+const WORKSPACE_ID_PATTERN =
+  /^ws_\d{8}T\d{9}Z_[0-9a-f]{6}$/;
 
 type SqliteRow = Record<string, unknown>;
 
 export interface CreateRunInput {
+  workspace_id: string;
   query_config: QueryConfig;
   application_version: string;
   requested_configuration: RequestedCollectionConfiguration;
 }
 
 export interface CreateRunFromJobPlansInput {
+  workspace_id: string;
   application_version: string;
   configuration_snapshot: JsonObject;
   job_plans: JobPlan[];
@@ -60,6 +68,25 @@ export interface StateCounts {
 export interface TransitionJobExecutionOptions {
   validation_status?: ValidationStatus;
   error_code?: string | null;
+}
+
+export interface StartRetryAttemptInput {
+  job_id: string;
+  max_attempts: number;
+}
+
+export class WorkspaceActiveRunError extends Error {
+  readonly code = 'WORKSPACE_ACTIVE_RUN_EXISTS' as const;
+
+  constructor(
+    public readonly workspace_id: string,
+    public readonly active_run_id: string,
+  ) {
+    super(
+      `Workspace ${workspace_id} already has active Run ${active_run_id}.`,
+    );
+    this.name = 'WorkspaceActiveRunError';
+  }
 }
 
 export interface RegisterCandidateArtifactInput {
@@ -568,6 +595,11 @@ const mapRunRow = (rawRow: unknown): RunRecord => {
 
   return {
     run_id: requireString(row, 'run_id', 'run'),
+    workspace_id: requireString(
+      row,
+      'workspace_id',
+      'run',
+    ),
     run_status: runStatus,
     created_at: requireUtcTimestamp(
       requireString(row, 'created_at', 'run'),
@@ -611,6 +643,29 @@ const mapRunRow = (rawRow: unknown): RunRecord => {
       parsedSnapshot.requested_configuration,
     configuration_snapshot:
       parsedSnapshot.snapshot,
+  };
+};
+
+const mapWorkspaceRow = (
+  rawRow: unknown,
+): WorkspaceRecord => {
+  const row = requireRecord(rawRow, 'workspace');
+
+  return {
+    workspace_id: requireString(
+      row,
+      'workspace_id',
+      'workspace',
+    ),
+    workspace_name: requireString(
+      row,
+      'workspace_name',
+      'workspace',
+    ),
+    created_at: requireUtcTimestamp(
+      requireString(row, 'created_at', 'workspace'),
+      'workspace.created_at',
+    ),
   };
 };
 
@@ -998,6 +1053,22 @@ export const createRunId = (): string => {
   return runId;
 };
 
+const createWorkspaceId = (): string => {
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[-:.]/g, '');
+  const suffix = randomBytes(3).toString('hex');
+  const workspaceId = `ws_${timestamp}_${suffix}`;
+
+  if (!WORKSPACE_ID_PATTERN.test(workspaceId)) {
+    throw new Error(
+      `Generated workspace_id does not match canonical pattern: ${workspaceId}`,
+    );
+  }
+
+  return workspaceId;
+};
+
 const createJobId = (
   runId: string,
   sourceId: string,
@@ -1014,6 +1085,8 @@ const createAttemptId = (
 const validateCreateRunInput = (
   input: CreateRunInput,
 ): void => {
+  requireNonEmpty(input.workspace_id, 'workspace_id');
+
   requireNonEmpty(
     input.application_version,
     'application_version',
@@ -1078,6 +1151,10 @@ const buildSnapshot = (
 const normalizeCreateRunFromJobPlansInput = (
   input: CreateRunFromJobPlansInput,
 ): CreateRunFromJobPlansInput => {
+  const workspaceId = requireNonEmpty(
+    input.workspace_id,
+    'workspace_id',
+  );
   const applicationVersion = requireNonEmpty(
     input.application_version,
     'application_version',
@@ -1147,6 +1224,7 @@ const normalizeCreateRunFromJobPlansInput = (
   );
 
   return {
+    workspace_id: workspaceId,
     application_version: applicationVersion,
     configuration_snapshot: configurationSnapshot,
     job_plans: normalizedPlans,
@@ -1204,6 +1282,86 @@ export class StateRepository {
     }
   }
 
+  createWorkspace(
+    input: CreateWorkspaceInput,
+  ): WorkspaceRecord {
+    const workspaceName = requireNonEmpty(
+      input.workspace_name,
+      'workspace_name',
+    ).trim();
+    const workspaceId = createWorkspaceId();
+    const createdAt = new Date().toISOString();
+
+    this.database.exec('BEGIN IMMEDIATE');
+
+    try {
+      this.database
+        .prepare(`
+          INSERT INTO workspaces (
+            workspace_id,
+            workspace_name,
+            created_at
+          ) VALUES (?, ?, ?)
+        `)
+        .run(workspaceId, workspaceName, createdAt);
+
+      this.database.exec('COMMIT');
+    } catch (error: unknown) {
+      try {
+        this.database.exec('ROLLBACK');
+      } catch {
+        // Preserve the original persistence failure.
+      }
+
+      throw error;
+    }
+
+    const workspace = this.getWorkspace(workspaceId);
+
+    if (!workspace) {
+      throw new Error(
+        `Workspace ${workspaceId} was not readable after creation.`,
+      );
+    }
+
+    return workspace;
+  }
+
+  getWorkspace(
+    workspaceId: string,
+  ): WorkspaceRecord | null {
+    requireNonEmpty(workspaceId, 'workspace_id');
+
+    const row = this.database
+      .prepare(`
+        SELECT
+          workspace_id,
+          workspace_name,
+          created_at
+        FROM workspaces
+        WHERE workspace_id = ?
+      `)
+      .get(workspaceId);
+
+    return row === undefined
+      ? null
+      : mapWorkspaceRow(row);
+  }
+
+  listWorkspaces(): WorkspaceRecord[] {
+    return this.database
+      .prepare(`
+        SELECT
+          workspace_id,
+          workspace_name,
+          created_at
+        FROM workspaces
+        ORDER BY created_at ASC, workspace_id ASC
+      `)
+      .all()
+      .map(mapWorkspaceRow);
+  }
+
   createRunFromQueryConfig(
     input: CreateRunInput,
   ): {
@@ -1213,6 +1371,7 @@ export class StateRepository {
     validateCreateRunInput(input);
 
     return this.createRunFromJobPlans({
+      workspace_id: input.workspace_id,
       application_version:
         input.application_version,
       configuration_snapshot:
@@ -1265,10 +1424,42 @@ export class StateRepository {
     this.database.exec('BEGIN IMMEDIATE');
 
     try {
+      const activeRun = this.database
+        .prepare(`
+          SELECT run_id
+          FROM runs
+          WHERE workspace_id = ?
+            AND run_status IN (
+              'PENDING',
+              'RUNNING',
+              'MANUAL_ACTION_REQUIRED'
+            )
+          ORDER BY created_at ASC, run_id ASC
+          LIMIT 1
+        `)
+        .get(input.workspace_id);
+
+      if (activeRun !== undefined) {
+        const active = requireRecord(
+          activeRun,
+          'active Workspace Run',
+        );
+
+        throw new WorkspaceActiveRunError(
+          input.workspace_id,
+          requireString(
+            active,
+            'run_id',
+            'active Workspace Run',
+          ),
+        );
+      }
+
       this.database
         .prepare(`
           INSERT INTO runs (
             run_id,
+            workspace_id,
             run_status,
             created_at,
             started_at,
@@ -1276,10 +1467,11 @@ export class StateRepository {
             application_version,
             selected_sources_json,
             configuration_snapshot_json
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
         .run(
           runId,
+          input.workspace_id,
           'PENDING',
           createdAt,
           null,
@@ -1476,6 +1668,238 @@ export class StateRepository {
         this.database.exec('ROLLBACK');
       } catch {
         // Preserve the original persistence failure.
+      }
+
+      throw error;
+    }
+  }
+
+  reacquireRunAndStartRetryAttempt(
+    input: StartRetryAttemptInput,
+  ): AttemptRecord | null {
+    requireNonEmpty(input.job_id, 'job_id');
+
+    if (
+      !Number.isInteger(input.max_attempts) ||
+      input.max_attempts < 1
+    ) {
+      throw new Error(
+        'max_attempts must be an integer >= 1.',
+      );
+    }
+
+    this.database.exec('BEGIN IMMEDIATE');
+
+    try {
+      const rawContext = this.database
+        .prepare(`
+          SELECT
+            job.job_id,
+            job.run_id,
+            job.execution_status,
+            job.attempt_count,
+            run.workspace_id,
+            run.run_status,
+            run.started_at
+          FROM jobs AS job
+          INNER JOIN runs AS run
+            ON run.run_id = job.run_id
+          WHERE job.job_id = ?
+        `)
+        .get(input.job_id);
+
+      if (rawContext === undefined) {
+        throw new Error(`Unknown job: ${input.job_id}`);
+      }
+
+      const context = requireRecord(
+        rawContext,
+        'retry attempt context',
+      );
+      const runId = requireString(
+        context,
+        'run_id',
+        'retry attempt context',
+      );
+      const workspaceId = requireString(
+        context,
+        'workspace_id',
+        'retry attempt context',
+      );
+      const runStatus = context.run_status;
+      const jobStatus = context.execution_status;
+
+      if (!isRunStatus(runStatus)) {
+        throw new Error(
+          `Persisted run_status is invalid: ${String(runStatus)}`,
+        );
+      }
+
+      if (runStatus !== 'RETRY_REQUIRED') {
+        throw new Error(
+          `Run ${runId} cannot reacquire retry ownership from ${runStatus}.`,
+        );
+      }
+
+      if (!isExecutionStatus(jobStatus)) {
+        throw new Error(
+          `Persisted execution_status is invalid: ${String(jobStatus)}`,
+        );
+      }
+
+      if (
+        jobStatus !== 'FAILED' &&
+        jobStatus !== 'RETRY_PENDING'
+      ) {
+        throw new Error(
+          `Job ${input.job_id} cannot start a retry from ${jobStatus}.`,
+        );
+      }
+
+      const attemptCount = requireInteger(
+        context,
+        'attempt_count',
+        'retry attempt context',
+      );
+
+      if (attemptCount >= input.max_attempts) {
+        this.database.exec('COMMIT');
+        return null;
+      }
+
+      const rawActiveRun = this.database
+        .prepare(`
+          SELECT run_id
+          FROM runs
+          WHERE workspace_id = ?
+            AND run_id <> ?
+            AND run_status IN (
+              'PENDING',
+              'RUNNING',
+              'MANUAL_ACTION_REQUIRED'
+            )
+          ORDER BY created_at ASC, run_id ASC
+          LIMIT 1
+        `)
+        .get(workspaceId, runId);
+
+      if (rawActiveRun !== undefined) {
+        const activeRun = requireRecord(
+          rawActiveRun,
+          'active Workspace Run',
+        );
+
+        throw new WorkspaceActiveRunError(
+          workspaceId,
+          requireString(
+            activeRun,
+            'run_id',
+            'active Workspace Run',
+          ),
+        );
+      }
+
+      assertRunStatusTransition(
+        runStatus,
+        'RUNNING',
+      );
+
+      const now = new Date().toISOString();
+
+      this.database
+        .prepare(`
+          UPDATE runs
+          SET
+            run_status = 'RUNNING',
+            started_at = COALESCE(started_at, ?),
+            completed_at = NULL
+          WHERE run_id = ?
+        `)
+        .run(now, runId);
+
+      if (jobStatus === 'FAILED') {
+        assertJobExecutionTransition(
+          jobStatus,
+          'RETRY_PENDING',
+        );
+
+        this.database
+          .prepare(`
+            UPDATE jobs
+            SET
+              execution_status = 'RETRY_PENDING',
+              completed_at = NULL
+            WHERE job_id = ?
+          `)
+          .run(input.job_id);
+      }
+
+      assertJobExecutionTransition(
+        'RETRY_PENDING',
+        'RUNNING',
+      );
+
+      const attemptNumber = attemptCount + 1;
+      const attemptId = createAttemptId(
+        input.job_id,
+        attemptNumber,
+      );
+
+      this.database
+        .prepare(`
+          INSERT INTO attempts (
+            attempt_id,
+            job_id,
+            attempt_number,
+            execution_status,
+            candidate_artifact_id,
+            validation_id,
+            error_code,
+            started_at,
+            completed_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          attemptId,
+          input.job_id,
+          attemptNumber,
+          'RUNNING',
+          null,
+          null,
+          null,
+          now,
+          null,
+        );
+
+      this.database
+        .prepare(`
+          UPDATE jobs
+          SET
+            execution_status = 'RUNNING',
+            validation_status = 'NOT_RUN',
+            attempt_count = ?,
+            started_at = COALESCE(started_at, ?),
+            completed_at = NULL
+          WHERE job_id = ?
+        `)
+        .run(attemptNumber, now, input.job_id);
+
+      this.database.exec('COMMIT');
+
+      const attempt = this.getAttempt(attemptId);
+
+      if (!attempt) {
+        throw new Error(
+          `Attempt ${attemptId} was not readable after retry creation.`,
+        );
+      }
+
+      return attempt;
+    } catch (error: unknown) {
+      try {
+        this.database.exec('ROLLBACK');
+      } catch {
+        // Preserve the original retry failure.
       }
 
       throw error;
@@ -2443,11 +2867,14 @@ export class StateRepository {
     }
   }
 
-  listIncompleteRuns(): RunRecord[] {
+  listIncompleteRuns(workspaceId: string): RunRecord[] {
+    requireNonEmpty(workspaceId, 'workspace_id');
+
     return this.database
       .prepare(`
         SELECT
           run_id,
+          workspace_id,
           run_status,
           created_at,
           started_at,
@@ -2456,14 +2883,16 @@ export class StateRepository {
           selected_sources_json,
           configuration_snapshot_json
         FROM runs
-        WHERE run_status IN (
+        WHERE workspace_id = ?
+          AND run_status IN (
           'PENDING',
           'RUNNING',
-          'MANUAL_ACTION_REQUIRED'
+          'MANUAL_ACTION_REQUIRED',
+          'RETRY_REQUIRED'
         )
         ORDER BY created_at ASC, run_id ASC
       `)
-      .all()
+      .all(workspaceId)
       .map(mapRunRow);
   }
 
@@ -2472,6 +2901,7 @@ export class StateRepository {
       .prepare(`
         SELECT
           run_id,
+          workspace_id,
           run_status,
           created_at,
           started_at,

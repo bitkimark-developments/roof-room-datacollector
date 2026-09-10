@@ -243,8 +243,8 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 5);
-assert.equal(bootstrap.migrations_applied, 5);
+assert.equal(bootstrap.schema_version, 6);
+assert.equal(bootstrap.migrations_applied, 6);
 
 const migrated = new DatabaseSync(databasePath);
 migrated.exec('PRAGMA foreign_keys = ON');
@@ -273,6 +273,64 @@ assert.equal(
 assert.equal(
   migrated.prepare('SELECT COUNT(*) AS count FROM validations').get().count,
   1,
+);
+
+assert.deepEqual(
+  migrated.prepare(`
+    SELECT workspace_id, workspace_name, created_at
+    FROM workspaces
+    ORDER BY workspace_id
+  `).all().map((workspace) => ({ ...workspace })),
+  [
+    {
+      workspace_id: 'ws_development_migration',
+      workspace_name: 'Development migration workspace',
+      created_at: '1970-01-01T00:00:00.000Z',
+    },
+  ],
+);
+
+const migratedRun = migrated.prepare(`
+  SELECT workspace_id, run_status
+  FROM runs
+  WHERE run_id = 'rr_20260818T000000000Z_abcdef'
+`).get();
+
+assert.equal(
+  migratedRun.workspace_id,
+  'ws_development_migration',
+);
+assert.equal(migratedRun.run_status, 'COMPLETED');
+
+const workspaceColumn = migrated.prepare(`
+  SELECT "notnull" AS is_not_null
+  FROM pragma_table_info('runs')
+  WHERE name = 'workspace_id'
+`).get();
+
+assert.equal(workspaceColumn.is_not_null, 1);
+
+const workspaceForeignKey = migrated.prepare(`
+  SELECT "table", "from", "to", on_update, on_delete
+  FROM pragma_foreign_key_list('runs')
+  WHERE "from" = 'workspace_id'
+`).get();
+
+assert.deepEqual({ ...workspaceForeignKey }, {
+  table: 'workspaces',
+  from: 'workspace_id',
+  to: 'workspace_id',
+  on_update: 'RESTRICT',
+  on_delete: 'RESTRICT',
+});
+
+assert.ok(
+  migrated.prepare(`
+    SELECT name
+    FROM sqlite_master
+    WHERE type = 'index'
+      AND name = 'ux_runs_one_active_per_workspace'
+  `).get(),
 );
 
 const job = migrated.prepare(`
@@ -369,5 +427,5 @@ assert.equal(queryGroupColumn.is_not_null, 0);
 migrated.close();
 
 console.log(
-  'PASS DB-MIGRATION-005: schema-v4 GT lifecycle data and relationships survive schema-v5 migration',
+  'PASS DB-MIGRATION-005/006: schema-v4 GT lifecycle data survives chained schema-v5 and schema-v6 migrations',
 );

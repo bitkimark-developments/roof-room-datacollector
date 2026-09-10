@@ -1831,6 +1831,27 @@ A failed Job does not erase or recollect successful siblings. Explicit retry cre
 
 ---
 
+# ADR-058 — Workspace Owns Runs and the Database Enforces the Active Slot
+
+**Status:** ACCEPTED
+**Date:** 2026-09-10
+
+## Decision
+
+Workspace is the first-class brand/business identity that owns Runs. Every Run has one required Workspace foreign key. SQLite schema v6 enforces at most one active Run per Workspace with a partial unique index over exactly `PENDING`, `RUNNING`, and `MANUAL_ACTION_REQUIRED`.
+
+`RETRY_REQUIRED` is a non-terminal, inactive Run state. Explicit retry reacquires the Workspace slot, transitions the eligible Job, and creates the next Attempt atomically in one repository transaction. Restart discovery and reconciliation are explicitly Workspace-scoped.
+
+## Context
+
+Run ownership and concurrency must remain correct across repository instances, process restart, and retry races. An application-only precheck cannot provide that guarantee. Pre-Workspace records require deterministic migration compatibility without creating optional ownership or a permanent legacy product mode.
+
+## Consequences
+
+Schema-v6 migration creates one deterministic development Workspace and assigns pre-v6 Runs to it. That row is technical migration/runtime compatibility only, not a customer-facing default. New Run APIs require explicit ownership. Workspace UI/lifecycle management, Presets, Last Run Settings, credentials, provider changes, and new cancel/stop/resume workflows remain outside this decision's implementation slice.
+
+---
+
 # 4. Deferred Decisions
 
 The following decisions are intentionally not locked in M0.
@@ -2241,6 +2262,7 @@ Validation is mandatory.
 | ADR-055 | Freshness is separate from readiness/execution | ACCEPTED |
 | ADR-056 | Acquisition modes share one Core lifecycle | ACCEPTED |
 | ADR-057 | One collection operation is one multi-source Run | ACCEPTED |
+| ADR-058 | Workspace owns Runs and database enforces active slot | ACCEPTED |
 
 ---
 

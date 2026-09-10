@@ -51,6 +51,17 @@ const {
     'google-trends-core-runner.js',
   ),
 );
+const {
+  MIGRATION_COMPATIBILITY_WORKSPACE_ID,
+} = require(
+  path.join(
+    buildRoot,
+    'src',
+    'main',
+    'storage',
+    'database.js',
+  ),
+);
 
 const appDataRoot =
   path.join(
@@ -285,6 +296,8 @@ const main = async () => {
   const collected =
     await runGoogleTrendsBatchThroughCore({
       directories,
+      workspace_id:
+        MIGRATION_COMPATIBILITY_WORKSPACE_ID,
       query_config:
         queryConfig,
       requested_configuration:

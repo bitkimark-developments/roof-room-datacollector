@@ -27,7 +27,10 @@ import {
   createGoogleTrendsRuntime,
   type GoogleTrendsRuntime,
 } from './main/sources/google-trends/google-trends-runtime';
-import { initializeDatabase } from './main/storage/database';
+import {
+  initializeDatabase,
+  MIGRATION_COMPATIBILITY_WORKSPACE_ID,
+} from './main/storage/database';
 import {
   IPC_CHANNELS,
   type ApplicationInfo,
@@ -367,6 +370,8 @@ const initializeBootstrapStatus =
       googleTrendsController =
         createGoogleTrendsDesktopController({
           directories,
+          workspace_id:
+            MIGRATION_COMPATIBILITY_WORKSPACE_ID,
           query_config:
             queryConfig.config,
           source:

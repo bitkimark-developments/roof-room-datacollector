@@ -13,12 +13,7 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 
 npx tsc \
   src/main/storage/database.ts \
-  src/main/storage/state-repository.ts \
   src/shared/bootstrap-status.ts \
-  src/shared/query-config.ts \
-  src/shared/run-job.ts \
-  src/shared/source.ts \
-  src/shared/workspace.ts \
   --rootDir src \
   --outDir "$TMP_ROOT/build" \
   --module commonjs \
@@ -27,6 +22,6 @@ npx tsc \
   --skipLibCheck
 
 node \
-  tests/integration/sqlite/state-repository.integration.cjs \
+  tests/integration/sqlite/schema-v6-migration.integration.cjs \
   "$TMP_ROOT/build" \
   "$TMP_ROOT/work"

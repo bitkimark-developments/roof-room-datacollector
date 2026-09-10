@@ -1,6 +1,6 @@
 # RoofRoom Data Collector — Data Contracts
 
-**Status:** Canonical contracts reconciled with SQLite schema version 5 and current TypeScript interfaces
+**Status:** Canonical contracts reconciled with SQLite schema version 6 and current TypeScript interfaces
 **Rule:** Conceptual multi-source additions do not silently rename implemented persisted values
 
 ---
@@ -43,11 +43,17 @@ Current run IDs use:
 rr_<UTC timestamp>_<6 lowercase hexadecimal characters>
 ```
 
+Current Workspace IDs use:
+
+```text
+ws_<UTC timestamp>_<6 lowercase hexadecimal characters>
+```
+
 Exact future source IDs, dataset IDs, and source-mode strings must be introduced through source-contract implementation work. Architectural examples in this document are not persisted enums until code/schema/tests adopt them.
 
 ## 4. Current implemented status contracts
 
-These values match `src/shared/run-job.ts` and SQLite schema version 5 and must not be renamed without an explicit migration.
+These values match `src/shared/run-job.ts` and SQLite schema version 6 and must not be renamed without an explicit migration.
 
 ### Run status
 
@@ -55,6 +61,7 @@ These values match `src/shared/run-job.ts` and SQLite schema version 5 and must 
 PENDING
 RUNNING
 MANUAL_ACTION_REQUIRED
+RETRY_REQUIRED
 COMPLETED
 COMPLETED_WITH_WARNINGS
 FAILED
@@ -120,16 +127,23 @@ Future credential/access work may need richer safe states, but existing values a
 ## 6. Run, job, and attempt
 
 ```text
-Run
-└── Job
-    ├── Attempt 1
-    ├── Attempt 2
-    └── Attempt N
+Workspace
+└── Run
+    └── Job
+        ├── Attempt 1
+        ├── Attempt 2
+        └── Attempt N
 ```
+
+### Workspace
+
+A Workspace records `workspace_id`, a non-empty human `workspace_name`, and `created_at`. It is the first-class brand/business ownership boundary for Runs. The deterministic development Workspace created by migration is technical compatibility only and is not a user-facing default or legacy product type.
 
 ### Run
 
-A run records one coordinated operation, application version, ordered selected-source membership, timestamps, status, and an immutable requested/configuration snapshot. One Run may contain Jobs from multiple source IDs.
+A run records one coordinated operation, required `workspace_id`, application version, ordered selected-source membership, timestamps, status, and an immutable requested/configuration snapshot. One Run belongs to exactly one Workspace and may contain Jobs from multiple source IDs.
+
+The active Run set is exactly `PENDING`, `RUNNING`, and `MANUAL_ACTION_REQUIRED`; SQLite permits no more than one member of that set per Workspace. `RETRY_REQUIRED` is non-terminal and retry-eligible but does not occupy the active slot. Retry reacquisition, eligible Job transition, and next-Attempt creation are atomic. Incomplete-Run discovery and resume planning require Workspace scope.
 
 Legacy Google Trends snapshots keep their query-group shape. Existing generic single-source snapshots remain readable as arbitrary JSON objects. A new generic multi-source snapshot represents actual membership through a `sources` array and must not use the first Job's source or a fabricated `multi-source` value as a singular Run-level source identity.
 
@@ -172,12 +186,13 @@ Raw provider evidence begins as a candidate, remains preserved after validation 
 
 ## 8. SQLite boundary
 
-Current database schema version: `5`.
+Current database schema version: `6`.
 
 Implemented tables:
 
 ```text
 schema_migrations
+workspaces
 runs
 jobs
 attempts
@@ -187,7 +202,7 @@ validations
 
 There is no implemented `errors`, credentials, freshness, dataset-instance, or source catalog table. Documentation may define their semantics, but must not claim they exist.
 
-Schema v5 already supports multi-source Runs through `selected_sources_json`, per-Job `source_id`, composite Job uniqueness, and source-scoped artifact relationships. The multi-source Run contract therefore requires no schema v6 migration and does not rewrite existing records.
+Schema v5 introduced multi-source Runs through `selected_sources_json`, per-Job `source_id`, composite Job uniqueness, and source-scoped artifact relationships. Schema v6 preserves those snapshots and adds required Workspace ownership, `RETRY_REQUIRED`, and the partial unique active-Run index. Pre-v6 Runs migrate to the deterministic technical development Workspace; the compatibility row does not create a nullable or implicit ownership path for new Run APIs.
 
 SQLite stores operational records and references; filesystem artifacts store raw bytes and detailed documents. Foreign keys, strict tables, schema migrations, and existing status checks remain authoritative.
 

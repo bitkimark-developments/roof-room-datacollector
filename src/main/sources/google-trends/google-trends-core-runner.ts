@@ -95,6 +95,7 @@ const createGoogleTrendsValidatorRegistry = (
 export interface RunGoogleTrendsThroughCoreInput {
   directories:
     ApplicationDirectories;
+  workspace_id: string;
   query_config:
     QueryConfig;
   requested_configuration:
@@ -442,6 +443,8 @@ export const runGoogleTrendsBatchThroughCore =
 
       const created =
         repository.createRunFromQueryConfig({
+          workspace_id:
+            input.workspace_id,
           query_config:
             input.query_config,
           application_version:
@@ -570,8 +573,19 @@ export const resumeGoogleTrendsThroughCore =
           repository,
         );
 
+      const persistedRun = repository.getRun(
+        input.run_id,
+      );
+
+      if (persistedRun === null) {
+        throw new Error(
+          `Google Trends run is not available for resume: ${input.run_id}`,
+        );
+      }
+
       const plan =
         planner.planRun(
+          persistedRun.workspace_id,
           input.run_id,
         );
 

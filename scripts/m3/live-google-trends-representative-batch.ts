@@ -11,6 +11,9 @@ import {
   loadQueryConfig,
 } from '../../src/main/config/query-config-loader';
 import {
+  MIGRATION_COMPATIBILITY_WORKSPACE_ID,
+} from '../../src/main/storage/database';
+import {
   runGoogleTrendsBatchThroughCore,
   type GoogleTrendsCoreBatchRunResult,
   type GoogleTrendsCoreJobResult,
@@ -478,6 +481,8 @@ const main = async (): Promise<void> => {
   try {
     const result =
       await runGoogleTrendsBatchThroughCore({
+        workspace_id:
+          MIGRATION_COMPATIBILITY_WORKSPACE_ID,
         directories,
         query_config: {
           config_version:

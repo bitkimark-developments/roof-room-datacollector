@@ -165,8 +165,8 @@ if (upgraded.status !== 'READY') {
   throw new Error(upgraded.error);
 }
 
-assert.equal(upgraded.schema_version, 5);
-assert.equal(upgraded.migrations_applied, 5);
+assert.equal(upgraded.schema_version, 6);
+assert.equal(upgraded.migrations_applied, 6);
 
 // DB-001 fresh database path
 const directories = makeDirectories('state-repository');
@@ -178,21 +178,72 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 5);
-assert.equal(bootstrap.migrations_applied, 5);
+assert.equal(bootstrap.schema_version, 6);
+assert.equal(bootstrap.migrations_applied, 6);
 
 const databasePath = getDatabasePath(directories);
 
 // DB-002 / DB-003
 const repositoryA = new StateRepository(databasePath);
 
+assertRejected(
+  () => repositoryA.createWorkspace({ workspace_name: '   ' }),
+  'empty workspace_name',
+);
+
+const workspace = repositoryA.createWorkspace({
+  workspace_name: '  Brand A  ',
+});
+
+assert.match(
+  workspace.workspace_id,
+  /^ws_\d{8}T\d{9}Z_[0-9a-f]{6}$/,
+);
+assert.equal(workspace.workspace_name, 'Brand A');
+assert.deepEqual(
+  repositoryA.getWorkspace(workspace.workspace_id),
+  workspace,
+);
+assert.equal(repositoryA.listWorkspaces().length, 2);
+
+assertRejected(
+  () => repositoryA.createRunFromQueryConfig({
+    query_config: queryConfig,
+    application_version: '1.0.0',
+    requested_configuration: requestedConfiguration,
+  }),
+  'missing workspace_id',
+);
+
+const countsBeforeUnknownWorkspace = repositoryA.getCounts();
+
+assertRejected(
+  () => repositoryA.createRunFromQueryConfig({
+    workspace_id: 'ws_missing',
+    query_config: queryConfig,
+    application_version: '1.0.0',
+    requested_configuration: requestedConfiguration,
+  }),
+  'unknown workspace_id',
+);
+
+assert.deepEqual(
+  repositoryA.getCounts(),
+  countsBeforeUnknownWorkspace,
+);
+
 const created = repositoryA.createRunFromQueryConfig({
+  workspace_id: workspace.workspace_id,
   query_config: queryConfig,
   application_version: '1.0.0',
   requested_configuration: requestedConfiguration,
 });
 
 assert.equal(created.run.run_status, 'PENDING');
+assert.equal(
+  created.run.workspace_id,
+  workspace.workspace_id,
+);
 assert.deepEqual(
   created.run.selected_sources,
   ['google-trends'],
@@ -245,6 +296,10 @@ const reloadedJobs = repositoryB.listJobs(runId);
 assert.ok(reloadedRun);
 assert.equal(reloadedRun.run_id, runId);
 assert.equal(reloadedRun.run_status, 'PENDING');
+assert.equal(
+  reloadedRun.workspace_id,
+  workspace.workspace_id,
+);
 
 assert.deepEqual(
   reloadedRun.configuration_snapshot
@@ -341,6 +396,7 @@ assert.deepEqual(
     [3, 'attempt_persistence'],
     [4, 'artifact_validation_persistence'],
     [5, 'source_neutral_job_context'],
+    [6, 'workspace_run_ownership'],
   ],
 );
 
@@ -353,7 +409,10 @@ console.log(
   'PASS ID-002: rapid run_id generation remained unique',
 );
 console.log(
-  'PASS DB-001: legacy schema v1 upgrades to v5',
+  'PASS DB-001: legacy schema v1 upgrades to v6',
+);
+console.log(
+  'PASS WORKSPACE-001: minimal Workspace identity owns every new Run',
 );
 console.log(
   'PASS DB-002: run persisted as PENDING',

@@ -14,7 +14,10 @@ const INTERRUPTED_ATTEMPT_ERROR_CODE =
 
 export interface ReconciliationStateStore {
   getJob(jobId: string): JobRecord | null;
-  startAttempt(jobId: string): AttemptRecord;
+  reacquireRunAndStartRetryAttempt(input: {
+    job_id: string;
+    max_attempts: number;
+  }): AttemptRecord | null;
   transitionJobExecution(
     jobId: string,
     nextStatus: ExecutionStatus,
@@ -140,28 +143,20 @@ export class ReconciliationCoordinator {
       );
     }
 
-    if (
-      !this.retryPolicy.canStartAnotherAttempt(
-        current,
-      )
-    ) {
+    const attempt = this.store
+      .reacquireRunAndStartRetryAttempt({
+        job_id: current.job_id,
+        max_attempts:
+          this.retryPolicy.max_attempts,
+      });
+
+    if (attempt === null) {
       return result(
         'RETRY_EXHAUSTED',
         current.job_id,
         `Retry limit ${this.retryPolicy.max_attempts} has been reached; no new attempt was created.`,
       );
     }
-
-    if (current.execution_status === 'FAILED') {
-      this.store.transitionJobExecution(
-        current.job_id,
-        'RETRY_PENDING',
-      );
-    }
-
-    const attempt = this.store.startAttempt(
-      current.job_id,
-    );
 
     return result(
       'RETRY_STARTED',

@@ -22,6 +22,7 @@ npx tsc \
   src/shared/query-config.ts \
   src/shared/run-job.ts \
   src/shared/source.ts \
+  src/shared/workspace.ts \
   --rootDir src \
   --outDir "$TMP_ROOT/build" \
   --module commonjs \

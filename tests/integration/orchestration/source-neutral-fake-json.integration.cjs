@@ -239,6 +239,9 @@ const main = async () => {
   validators.register(source.id, validator);
 
   const repositoryA = new StateRepository(databasePath);
+  const workspace = repositoryA.createWorkspace({
+    workspace_name: 'Source Neutral Core Workspace',
+  });
   const runManagerA = new RunManager(repositoryA);
   const orchestratorA = new CollectionOrchestrator(
     repositoryA,
@@ -248,6 +251,7 @@ const main = async () => {
     runManagerA,
   );
   const created = repositoryA.createRunFromJobPlans({
+    workspace_id: workspace.workspace_id,
     application_version: '1.0.0',
     configuration_snapshot: {
       schema_version: 1,
@@ -350,7 +354,10 @@ const main = async () => {
   repositoryA.close();
 
   const repositoryB = new StateRepository(databasePath);
-  const resumePlan = new ResumePlanner(repositoryB).planRun(runId);
+  const resumePlan = new ResumePlanner(repositoryB).planRun(
+    workspace.workspace_id,
+    runId,
+  );
 
   assert.ok(resumePlan);
 

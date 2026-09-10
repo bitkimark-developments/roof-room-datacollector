@@ -7,7 +7,16 @@ import type {
 } from '../../shared/bootstrap-status';
 
 const DATABASE_FILENAME = 'roofroom.sqlite';
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
+
+export const MIGRATION_COMPATIBILITY_WORKSPACE_ID =
+  'ws_development_migration';
+
+const MIGRATION_COMPATIBILITY_WORKSPACE_NAME =
+  'Development migration workspace';
+
+const MIGRATION_COMPATIBILITY_WORKSPACE_CREATED_AT =
+  '1970-01-01T00:00:00.000Z';
 
 type SqliteRow = Record<string, unknown>;
 
@@ -615,6 +624,198 @@ const migrateToVersion5 = (database: DatabaseSync): void => {
   }
 };
 
+const migrateToVersion6 = (database: DatabaseSync): void => {
+  database.exec('PRAGMA foreign_keys = OFF');
+  database.exec('BEGIN IMMEDIATE');
+
+  try {
+    database.exec(`
+      CREATE TABLE workspaces (
+        workspace_id TEXT PRIMARY KEY,
+        workspace_name TEXT NOT NULL
+          CHECK (length(trim(workspace_name)) > 0),
+        created_at TEXT NOT NULL
+      ) STRICT;
+    `);
+
+    database
+      .prepare(`
+        INSERT INTO workspaces (
+          workspace_id,
+          workspace_name,
+          created_at
+        ) VALUES (?, ?, ?)
+      `)
+      .run(
+        MIGRATION_COMPATIBILITY_WORKSPACE_ID,
+        MIGRATION_COMPATIBILITY_WORKSPACE_NAME,
+        MIGRATION_COMPATIBILITY_WORKSPACE_CREATED_AT,
+      );
+
+    database.exec(`
+      CREATE TABLE runs_v6 (
+        run_id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        run_status TEXT NOT NULL
+          CHECK (
+            run_status IN (
+              'PENDING',
+              'RUNNING',
+              'MANUAL_ACTION_REQUIRED',
+              'RETRY_REQUIRED',
+              'COMPLETED',
+              'COMPLETED_WITH_WARNINGS',
+              'FAILED',
+              'CANCELLED'
+            )
+          ),
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT,
+        application_version TEXT NOT NULL,
+        selected_sources_json TEXT NOT NULL
+          CHECK (json_valid(selected_sources_json))
+          CHECK (json_type(selected_sources_json) = 'array'),
+        configuration_snapshot_json TEXT NOT NULL
+          CHECK (json_valid(configuration_snapshot_json))
+          CHECK (json_type(configuration_snapshot_json) = 'object'),
+        FOREIGN KEY (workspace_id)
+          REFERENCES workspaces(workspace_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT
+      ) STRICT;
+
+      INSERT INTO runs_v6 (
+        run_id,
+        workspace_id,
+        run_status,
+        created_at,
+        started_at,
+        completed_at,
+        application_version,
+        selected_sources_json,
+        configuration_snapshot_json
+      )
+      SELECT
+        run.run_id,
+        '${MIGRATION_COMPATIBILITY_WORKSPACE_ID}',
+        CASE
+          WHEN run.run_status = 'RUNNING'
+            AND EXISTS (
+              SELECT 1
+              FROM jobs AS retry_job
+              WHERE retry_job.run_id = run.run_id
+                AND retry_job.execution_status IN (
+                  'FAILED',
+                  'RETRY_PENDING'
+                )
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM jobs AS active_job
+              WHERE active_job.run_id = run.run_id
+                AND active_job.execution_status IN (
+                  'PENDING',
+                  'RUNNING',
+                  'VALIDATING',
+                  'MANUAL_ACTION_REQUIRED'
+                )
+            )
+          THEN 'RETRY_REQUIRED'
+          ELSE run.run_status
+        END,
+        run.created_at,
+        run.started_at,
+        run.completed_at,
+        run.application_version,
+        run.selected_sources_json,
+        run.configuration_snapshot_json
+      FROM runs AS run;
+
+      DROP TABLE runs;
+      ALTER TABLE runs_v6 RENAME TO runs;
+    `);
+
+    const conflictingActiveRun = database
+      .prepare(`
+        SELECT workspace_id, COUNT(*) AS active_count
+        FROM runs
+        WHERE run_status IN (
+          'PENDING',
+          'RUNNING',
+          'MANUAL_ACTION_REQUIRED'
+        )
+        GROUP BY workspace_id
+        HAVING COUNT(*) > 1
+        LIMIT 1
+      `)
+      .get();
+
+    if (conflictingActiveRun !== undefined) {
+      const conflict = requireRow(
+        conflictingActiveRun,
+        'schema-v6 active Run preflight',
+      );
+      const activeCount = requireNumber(
+        conflict,
+        'active_count',
+        'schema-v6 active Run preflight',
+      );
+
+      throw new Error(
+        `Schema-v6 migration found ${activeCount} conflicting active development Runs; rebuild the development database before retrying.`,
+      );
+    }
+
+    database.exec(`
+      CREATE UNIQUE INDEX ux_runs_one_active_per_workspace
+        ON runs(workspace_id)
+        WHERE run_status IN (
+          'PENDING',
+          'RUNNING',
+          'MANUAL_ACTION_REQUIRED'
+        );
+    `);
+
+    const foreignKeyProblems = database
+      .prepare('PRAGMA foreign_key_check')
+      .all();
+
+    if (foreignKeyProblems.length !== 0) {
+      throw new Error(
+        'Schema-v6 migration would leave invalid foreign-key relationships.',
+      );
+    }
+
+    database
+      .prepare(`
+        INSERT INTO schema_migrations (
+          version,
+          name,
+          applied_at
+        ) VALUES (?, ?, ?)
+      `)
+      .run(
+        6,
+        'workspace_run_ownership',
+        new Date().toISOString(),
+      );
+
+    database.exec('PRAGMA user_version = 6');
+    database.exec('COMMIT');
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK');
+    } catch {
+      // Preserve the original migration failure.
+    }
+
+    throw error;
+  } finally {
+    database.exec('PRAGMA foreign_keys = ON');
+  }
+};
+
 const applyMigrations = (database: DatabaseSync): number => {
   let schemaVersion = readUserVersion(database);
 
@@ -646,6 +847,11 @@ const applyMigrations = (database: DatabaseSync): number => {
 
   if (schemaVersion < 5) {
     migrateToVersion5(database);
+    schemaVersion = readUserVersion(database);
+  }
+
+  if (schemaVersion < 6) {
+    migrateToVersion6(database);
     schemaVersion = readUserVersion(database);
   }
 

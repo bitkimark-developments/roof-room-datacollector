@@ -32,6 +32,7 @@ The application should:
 8. support safe resume and job-level retry without erasing attempt history;
 9. preserve source-native meaning and missing-value semantics;
 10. export structured data suitable for downstream analysis.
+11. isolate each Run under exactly one first-class Workspace identity.
 
 Reliability, auditability, and recoverability take priority over collection speed.
 
@@ -199,7 +200,9 @@ Plan job
 → export eligible data
 ```
 
-Run, job, and attempt remain separate concepts. A job is the independent resume/retry unit. A retry creates a new attempt and does not overwrite prior evidence.
+Workspace, run, job, and attempt remain separate concepts. A Workspace identifies the brand/business boundary that owns a Run; every Run belongs to exactly one Workspace. A job is the independent resume/retry unit. A retry creates a new attempt and does not overwrite prior evidence. At most one Run may actively occupy a Workspace at a time.
+
+`RETRY_REQUIRED` is a non-terminal Run state that releases the Workspace's active slot while preserving explicit retry eligibility. Reacquiring that slot, moving the eligible Job into execution, and creating the next Attempt must be one atomic operation. Restart discovery and reconciliation are scoped to an explicit Workspace.
 
 Freshness/readiness are separate from execution: freshness answers whether work is due, stale, fresh, needed, or on demand; readiness answers whether access, credentials, input, and source prerequisites permit work; execution answers what happened during a job; validation answers whether the resulting dataset can be trusted.
 
@@ -208,6 +211,8 @@ Freshness/readiness are separate from execution: freshness answers whether work 
 The desktop application should provide a non-technical workflow for seeing sources and their safe connection/readiness state; understanding freshness or import need; selecting configured work; starting explicit provider or import operations; viewing progress and operational stops; resuming or explicitly retrying eligible work; opening canonical evidence and accepted exports; and distinguishing raw technical archives from user-facing exports.
 
 Provider credentials and sensitive content must not cross into the renderer except through strictly limited safe state.
+
+Workspace selection and management UI, Presets, Last Run Settings, and any new cancel/stop/resume workflow are not part of the currently implemented Workspace ownership slice.
 
 ## 11. Storage and provenance
 

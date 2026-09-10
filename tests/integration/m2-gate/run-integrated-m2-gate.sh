@@ -59,6 +59,12 @@ bash \
   tests/integration/sqlite/run-schema-v5-migration-test.sh
 
 bash \
+  tests/integration/sqlite/run-schema-v6-migration-test.sh
+
+bash \
+  tests/integration/sqlite/run-workspace-run-ownership-test.sh
+
+bash \
   tests/integration/sqlite/run-source-neutral-job-persistence-test.sh
 
 bash \

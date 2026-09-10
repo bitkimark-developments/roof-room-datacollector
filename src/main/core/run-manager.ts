@@ -66,10 +66,29 @@ export const deriveRunStatusFromJobs = (
     }
   }
 
-  // Failed jobs, hard validation outcomes, pending work,
-  // active work, and retry-pending work remain non-terminal
-  // here. Retry/final-failure policy is a later orchestration
-  // responsibility and must not be inferred prematurely.
+  const hasPendingOrActiveWork = jobs.some(
+    (job) =>
+      job.execution_status === 'PENDING' ||
+      job.execution_status === 'RUNNING' ||
+      job.execution_status === 'VALIDATING',
+  );
+
+  if (hasPendingOrActiveWork) {
+    return 'RUNNING';
+  }
+
+  const requiresRetryChoice = jobs.some(
+    (job) =>
+      job.execution_status === 'FAILED' ||
+      job.execution_status === 'RETRY_PENDING',
+  );
+
+  if (requiresRetryChoice) {
+    return 'RETRY_REQUIRED';
+  }
+
+  // Unexpected non-terminal combinations remain fail-closed and retain
+  // active ownership until reconciliation or explicit termination.
   return 'RUNNING';
 };
 

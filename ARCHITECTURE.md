@@ -29,7 +29,7 @@ The live repository currently uses:
 - TypeScript and Vite through Electron Forge;
 - a `SourceRegistry`, a source-keyed `CollectionValidatorRegistry`, and `DataSourceModule`/`CollectingDataSourceModule` contracts;
 - `CollectionOrchestrator`, run/job/attempt state machines, resume, reconciliation, and retry policy;
-- `StateRepository` backed by `node:sqlite` schema version 5;
+- `StateRepository` backed by `node:sqlite` schema version 6;
 - `StorageManager` for application-owned run-scoped evidence;
 - source-specific Google Trends collection, parsing, validation, and export;
 - Playwright with an application-owned persistent browser profile.
@@ -57,6 +57,7 @@ Core owns reusable lifecycle behavior:
 | Responsibility | Boundary |
 |---|---|
 | Run management | creates and aggregates user-initiated operations |
+| Workspace ownership | isolates Runs by brand/business and enforces one active Run per Workspace |
 | Job management | creates independent work and resume/retry units |
 | Attempt history | preserves every execution attempt |
 | Reconciliation/resume | resolves interrupted state before recollection |
@@ -137,9 +138,12 @@ An acquisition success is not a validation success. Operational errors are recor
 
 ## 8. Run, job, and attempt
 
+- A Workspace is the first-class brand/business identity that owns Runs.
 - A run is one coordinated user/Core operation and may contain independently executable Jobs from multiple sources.
 - A job is the independent execution, resume, and retry unit.
 - An attempt is one immutable execution history item for a job.
+
+Every Run has one required Workspace foreign key. The database permits at most one active Run (`PENDING`, `RUNNING`, or `MANUAL_ACTION_REQUIRED`) per Workspace. `RETRY_REQUIRED` is non-terminal but inactive, so explicit retry must atomically reacquire the Workspace slot, transition the Job, and create the new Attempt in one repository transaction. Restart discovery and reconciliation require an explicit Workspace scope.
 
 Collection and validation dispatch both resolve from each persisted Job's `source_id`. A normal Job failure does not reset completed siblings, and explicit retry creates a new attempt only for an eligible failed Job. Current SQLite and TypeScript statuses are persisted contracts and must not be renamed casually.
 
@@ -151,7 +155,9 @@ Current canonical application state is under the Electron `userData/app-data` bo
 
 Raw writes are collision-safe and run-scoped. Derived files do not replace raw evidence. Downloads is reserved for intentional user-visible copies and is not canonical application state.
 
-Current schema version 5 includes `runs`, `jobs`, `attempts`, `artifacts`, and `validations`. Runs persist an ordered array of selected source IDs. Jobs use `source_id + job_key` as their identity within a Run, persist JSON-compatible source context, and allow `query_group_id = NULL` for non-Google-Trends work. The same `job_key` may therefore exist under different source IDs. Existing Google Trends jobs retain `job_key === query_group_id`. The schema still has no implemented freshness or credential tables.
+Current schema version 6 includes `workspaces`, `runs`, `jobs`, `attempts`, `artifacts`, and `validations`. Runs require `workspace_id`, persist an ordered array of selected source IDs, and use a partial unique index for the exact active status set. Jobs use `source_id + job_key` as their identity within a Run, persist JSON-compatible source context, and allow `query_group_id = NULL` for non-Google-Trends work. The same `job_key` may therefore exist under different source IDs. Existing Google Trends jobs retain `job_key === query_group_id`. The schema still has no implemented freshness or credential tables.
+
+Migration from pre-Workspace schemas creates one deterministic development Workspace and attaches historical Runs to it. That row is migration/runtime compatibility only; it is not a customer-facing default, legacy mode, or product taxonomy. Workspace UI/lifecycle management, Presets, Last Run Settings, and credential work remain outside this slice.
 
 Legacy Google Trends snapshots and committed generic single-source snapshots remain readable without migration. New generic multi-source snapshots describe real source membership with a `sources` array; they do not copy the first Job's source to a singular Run-level `source_id` or invent a synthetic provider identity.
 

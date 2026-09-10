@@ -101,6 +101,7 @@ const phaseFromRun = (
       return 'FAILED';
     case 'PENDING':
     case 'RUNNING':
+    case 'RETRY_REQUIRED':
       return 'FAILED';
   }
 };

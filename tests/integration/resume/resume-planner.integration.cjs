@@ -79,7 +79,7 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 5);
+assert.equal(bootstrap.schema_version, 6);
 
 const requestedConfiguration = {
   source_mode: 'GOOGLE_TRENDS_UI',
@@ -113,10 +113,12 @@ const makeConfig = (groupCount, prefix) => ({
 
 const createRun = (
   repository,
+  workspaceId,
   groupCount,
   prefix,
 ) =>
   repository.createRunFromQueryConfig({
+    workspace_id: workspaceId,
     query_config: makeConfig(
       groupCount,
       prefix,
@@ -186,9 +188,20 @@ const repositoryA =
   new StateRepository(databasePath);
 const runManagerA = new RunManager(repositoryA);
 
+const workspaceA = repositoryA.createWorkspace({
+  workspace_name: 'Resume Workspace A',
+});
+const workspaceB = repositoryA.createWorkspace({
+  workspace_name: 'Resume Workspace B',
+});
+const workspaceC = repositoryA.createWorkspace({
+  workspace_name: 'Resume Workspace C',
+});
+
 // One incomplete run containing every resume classification.
 const interrupted = createRun(
   repositoryA,
+  workspaceA.workspace_id,
   6,
   'RX',
 );
@@ -255,6 +268,7 @@ runManagerA.refreshRunStatus(
 // A second incomplete run proves multiple-run discovery.
 const secondIncomplete = createRun(
   repositoryA,
+  workspaceB.workspace_id,
   1,
   'RY',
 );
@@ -262,6 +276,7 @@ const secondIncomplete = createRun(
 // A fully completed run must not appear in discovery.
 const completed = createRun(
   repositoryA,
+  workspaceC.workspace_id,
   1,
   'RZ',
 );
@@ -278,22 +293,17 @@ assert.equal(
 
 const plannerA = new ResumePlanner(repositoryA);
 const initialPlans =
-  plannerA.discoverIncompleteRuns();
+  plannerA.discoverIncompleteRuns(
+    workspaceA.workspace_id,
+  );
 
-assert.equal(initialPlans.length, 2);
+assert.equal(initialPlans.length, 1);
 
 const interruptedPlan = initialPlans.find(
   (plan) =>
     plan.run.run_id === interrupted.run.run_id,
 );
-const secondPlan = initialPlans.find(
-  (plan) =>
-    plan.run.run_id ===
-    secondIncomplete.run.run_id,
-);
-
 assert.ok(interruptedPlan);
-assert.ok(secondPlan);
 assert.equal(
   initialPlans.some(
     (plan) =>
@@ -383,11 +393,27 @@ assert.equal(
   'BLOCKED_MANUAL_ACTION',
 );
 
-// Second incomplete run has its untouched pending job.
-assert.equal(secondPlan.jobs.length, 1);
+// Another Workspace discovers only its own incomplete Run.
+const secondWorkspacePlans =
+  plannerA.discoverIncompleteRuns(
+    workspaceB.workspace_id,
+  );
+
+assert.equal(secondWorkspacePlans.length, 1);
 assert.equal(
-  secondPlan.jobs[0].action,
+  secondWorkspacePlans[0].run.run_id,
+  secondIncomplete.run.run_id,
+);
+assert.equal(
+  secondWorkspacePlans[0].jobs[0].action,
   'PENDING',
+);
+assert.equal(
+  plannerA.planRun(
+    workspaceA.workspace_id,
+    secondIncomplete.run.run_id,
+  ),
+  null,
 );
 
 const interruptedRunId =
@@ -405,12 +431,17 @@ const repositoryB =
 const plannerB = new ResumePlanner(repositoryB);
 
 const restartedPlans =
-  plannerB.discoverIncompleteRuns();
+  plannerB.discoverIncompleteRuns(
+    workspaceA.workspace_id,
+  );
 
-assert.equal(restartedPlans.length, 2);
+assert.equal(restartedPlans.length, 1);
 
 const restartedInterrupted =
-  plannerB.planRun(interruptedRunId);
+  plannerB.planRun(
+    workspaceA.workspace_id,
+    interruptedRunId,
+  );
 
 assert.ok(restartedInterrupted);
 
@@ -484,7 +515,7 @@ assert.equal(
 repositoryB.close();
 
 console.log(
-  'PASS DB-009: multiple incomplete runs are discovered while completed runs are excluded',
+  'PASS DB-009: incomplete Run discovery is scoped to one Workspace',
 );
 console.log(
   'PASS RESUME-001/JOB-007: completed accepted job is classified SKIP_ACCEPTED',
@@ -499,7 +530,10 @@ console.log(
   'PASS RESUME-004: accepted artifact reference survives repository restart',
 );
 console.log(
-  'PASS RESUME-005: multiple interrupted runs reconstruct independently',
+  'PASS RESUME-005: interrupted Runs reconstruct independently within their Workspace',
+);
+console.log(
+  'PASS WORKSPACE-003: cross-Workspace resume planning fails closed',
 );
 console.log(
   'PASS: FAILED/RETRY_PENDING policy is represented as RETRY_CANDIDATE without auto-retry',

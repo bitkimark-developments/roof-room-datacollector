@@ -112,7 +112,7 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 5);
+assert.equal(bootstrap.schema_version, 6);
 
 const requestedConfiguration = {
   source_mode: 'GOOGLE_TRENDS_UI',
@@ -152,8 +152,13 @@ const repositoryA =
     getDatabasePath(directories),
   );
 
+const workspace = repositoryA.createWorkspace({
+  workspace_name: 'Reconciliation Workspace',
+});
+
 const created =
   repositoryA.createRunFromQueryConfig({
+    workspace_id: workspace.workspace_id,
     query_config: queryConfig,
     application_version: '1.0.0',
     requested_configuration:
@@ -285,6 +290,7 @@ const planner =
 
 const buildPlans = () => {
   const plan = planner.planRun(
+    workspace.workspace_id,
     created.run.run_id,
   );
 
@@ -478,135 +484,185 @@ assert.throws(
   /stale/,
 );
 
-// RETRY_PENDING now becomes an explicit retry candidate.
-const retryPlans = buildPlans();
+const createSingleJobRun = (
+  workspaceId,
+  key,
+) => {
+  const single = repositoryA.createRunFromQueryConfig({
+    workspace_id: workspaceId,
+    query_config: {
+      ...queryConfig,
+      groups: [
+        {
+          query_group_id: key,
+          query_group_name: key.toLowerCase(),
+          queries: [`query ${key}`],
+        },
+      ],
+    },
+    application_version: '1.0.0',
+    requested_configuration: requestedConfiguration,
+  });
 
-assert.equal(
-  retryPlans.get(
-    interruptedNoArtifactJob.job_id,
-  ).action,
-  'RETRY_CANDIDATE',
+  runManager.startRun(single.run.run_id);
+  return single;
+};
+
+const retryPendingWorkspace = repositoryA.createWorkspace({
+  workspace_name: 'Retry Pending Workspace',
+});
+const retryPendingRun = createSingleJobRun(
+  retryPendingWorkspace.workspace_id,
+  'RP01',
 );
+repositoryA.startAttempt(retryPendingRun.jobs[0].job_id);
 
-const retryResult =
-  coordinator.apply(
-    retryPlans.get(
-      interruptedNoArtifactJob.job_id,
-    ),
+const interruptedRetryPlan = new ResumePlanner(repositoryA)
+  .planRun(
+    retryPendingWorkspace.workspace_id,
+    retryPendingRun.run.run_id,
   );
-
+assert.ok(interruptedRetryPlan);
 assert.equal(
-  retryResult.outcome,
-  'RETRY_STARTED',
+  coordinator.apply(interruptedRetryPlan.jobs[0]).outcome,
+  'RETRY_PENDING',
 );
 assert.equal(
-  retryResult.attempt.attempt_number,
-  2,
+  runManager.refreshRunStatus(retryPendingRun.run.run_id).run_status,
+  'RETRY_REQUIRED',
 );
 
-const afterRetry =
-  repositoryA.getJob(
-    interruptedNoArtifactJob.job_id,
+const retryPendingPlan = new ResumePlanner(repositoryA)
+  .planRun(
+    retryPendingWorkspace.workspace_id,
+    retryPendingRun.run.run_id,
   );
+assert.ok(retryPendingPlan);
+const retryPendingResult = coordinator.apply(
+  retryPendingPlan.jobs[0],
+);
+assert.equal(retryPendingResult.outcome, 'RETRY_STARTED');
+assert.equal(retryPendingResult.attempt.attempt_number, 2);
 
-assert.equal(
-  afterRetry.execution_status,
-  'RUNNING',
+const atomicWorkspace = repositoryA.createWorkspace({
+  workspace_name: 'Atomic Retry Workspace',
+});
+const atomicRun = createSingleJobRun(
+  atomicWorkspace.workspace_id,
+  'AR01',
+);
+const atomicJob = atomicRun.jobs[0];
+repositoryA.startAttempt(atomicJob.job_id);
+repositoryA.transitionJobExecution(
+  atomicJob.job_id,
+  'FAILED',
+  { error_code: 'DOWNLOAD_FAILED' },
 );
 assert.equal(
-  afterRetry.attempt_count,
-  2,
+  runManager.refreshRunStatus(atomicRun.run.run_id).run_status,
+  'RETRY_REQUIRED',
 );
 
-const retryHistory =
-  repositoryA.listAttempts(
-    interruptedNoArtifactJob.job_id,
+const atomicRetryPlan = new ResumePlanner(repositoryA)
+  .planRun(
+    atomicWorkspace.workspace_id,
+    atomicRun.run.run_id,
   );
+assert.ok(atomicRetryPlan);
 
-assert.equal(retryHistory.length, 2);
+const competingRun = repositoryA.createRunFromQueryConfig({
+  workspace_id: atomicWorkspace.workspace_id,
+  query_config: {
+    ...queryConfig,
+    groups: [queryConfig.groups[0]],
+  },
+  application_version: '1.0.0',
+  requested_configuration: requestedConfiguration,
+});
+
+assert.throws(
+  () => coordinator.apply(atomicRetryPlan.jobs[0]),
+  (error) =>
+    error.code === 'WORKSPACE_ACTIVE_RUN_EXISTS' &&
+    error.workspace_id === atomicWorkspace.workspace_id &&
+    error.active_run_id === competingRun.run.run_id,
+);
 assert.equal(
-  retryHistory[0].execution_status,
+  repositoryA.getRun(atomicRun.run.run_id).run_status,
+  'RETRY_REQUIRED',
+);
+assert.equal(
+  repositoryA.getJob(atomicJob.job_id).execution_status,
   'FAILED',
 );
 assert.equal(
-  retryHistory[0].error_code,
-  'INTERRUPTED_ATTEMPT',
-);
-assert.equal(
-  retryHistory[1].execution_status,
-  'RUNNING',
-);
-
-// FAILED can also be explicitly retried.
-const failedPlans = buildPlans();
-
-assert.equal(
-  failedPlans.get(
-    failedRetryJob.job_id,
-  ).action,
-  'RETRY_CANDIDATE',
-);
-
-const failedRetryResult =
-  coordinator.apply(
-    failedPlans.get(
-      failedRetryJob.job_id,
-    ),
-  );
-
-assert.equal(
-  failedRetryResult.outcome,
-  'RETRY_STARTED',
-);
-assert.equal(
-  failedRetryResult.attempt.attempt_number,
-  2,
-);
-assert.equal(
-  repositoryA.getJob(
-    failedRetryJob.job_id,
-  ).execution_status,
-  'RUNNING',
-);
-
-// Explicit max-attempt policy can deny a retry without creating history.
-const exhaustedPlans = buildPlans();
-
-const strictCoordinator =
-  new ReconciliationCoordinator(
-    repositoryA,
-    new RetryPolicy({
-      max_attempts: 1,
-    }),
-  );
-
-const exhaustedResult =
-  strictCoordinator.apply(
-    exhaustedPlans.get(
-      exhaustedJob.job_id,
-    ),
-  );
-
-assert.equal(
-  exhaustedResult.outcome,
-  'RETRY_EXHAUSTED',
-);
-assert.equal(
-  repositoryA.getJob(
-    exhaustedJob.job_id,
-  ).execution_status,
-  'FAILED',
-);
-assert.equal(
-  repositoryA.getJob(
-    exhaustedJob.job_id,
-  ).attempt_count,
+  repositoryA.getJob(atomicJob.job_id).attempt_count,
   1,
 );
 assert.equal(
-  repositoryA.listAttempts(
-    exhaustedJob.job_id,
-  ).length,
+  repositoryA.listAttempts(atomicJob.job_id).length,
+  1,
+);
+
+runManager.cancelRun(competingRun.run.run_id);
+
+const atomicRetryResult = coordinator.apply(
+  atomicRetryPlan.jobs[0],
+);
+assert.equal(atomicRetryResult.outcome, 'RETRY_STARTED');
+assert.equal(
+  repositoryA.getRun(atomicRun.run.run_id).run_status,
+  'RUNNING',
+);
+assert.equal(
+  repositoryA.getJob(atomicJob.job_id).execution_status,
+  'RUNNING',
+);
+assert.equal(
+  repositoryA.getJob(atomicJob.job_id).attempt_count,
+  2,
+);
+assert.equal(
+  repositoryA.listAttempts(atomicJob.job_id).length,
+  2,
+);
+
+const exhaustedWorkspace = repositoryA.createWorkspace({
+  workspace_name: 'Exhausted Retry Workspace',
+});
+const exhaustedRun = createSingleJobRun(
+  exhaustedWorkspace.workspace_id,
+  'ER01',
+);
+const exhaustedRetryJob = exhaustedRun.jobs[0];
+repositoryA.startAttempt(exhaustedRetryJob.job_id);
+repositoryA.transitionJobExecution(
+  exhaustedRetryJob.job_id,
+  'FAILED',
+  { error_code: 'DOWNLOAD_FAILED' },
+);
+runManager.refreshRunStatus(exhaustedRun.run.run_id);
+
+const exhaustedPlan = new ResumePlanner(repositoryA)
+  .planRun(
+    exhaustedWorkspace.workspace_id,
+    exhaustedRun.run.run_id,
+  );
+assert.ok(exhaustedPlan);
+const strictCoordinator = new ReconciliationCoordinator(
+  repositoryA,
+  new RetryPolicy({ max_attempts: 1 }),
+);
+const exhaustedResult = strictCoordinator.apply(
+  exhaustedPlan.jobs[0],
+);
+assert.equal(exhaustedResult.outcome, 'RETRY_EXHAUSTED');
+assert.equal(
+  repositoryA.getRun(exhaustedRun.run.run_id).run_status,
+  'RETRY_REQUIRED',
+);
+assert.equal(
+  repositoryA.listAttempts(exhaustedRetryJob.job_id).length,
   1,
 );
 
@@ -643,7 +699,7 @@ const restartedHistory =
     interruptedNoArtifactJob.job_id,
   );
 
-assert.equal(restartedHistory.length, 2);
+assert.equal(restartedHistory.length, 1);
 assert.equal(
   restartedHistory[0].execution_status,
   'FAILED',
@@ -652,16 +708,22 @@ assert.equal(
   restartedHistory[0].error_code,
   'INTERRUPTED_ATTEMPT',
 );
-assert.equal(
-  restartedHistory[1].execution_status,
-  'RUNNING',
+
+const restartedAtomicHistory = repositoryB.listAttempts(
+  atomicJob.job_id,
 );
+assert.equal(restartedAtomicHistory.length, 2);
+assert.equal(restartedAtomicHistory[0].execution_status, 'FAILED');
+assert.equal(restartedAtomicHistory[1].execution_status, 'RUNNING');
 
 const restartedPlanner =
   new ResumePlanner(repositoryB);
 
 assert.ok(
-  restartedPlanner.planRun(runId),
+  restartedPlanner.planRun(
+    workspace.workspace_id,
+    runId,
+  ),
 );
 
 repositoryB.close();
@@ -689,6 +751,9 @@ console.log(
 );
 console.log(
   'PASS RETRY-005: max-attempt policy denies exhausted retry without creating history',
+);
+console.log(
+  'PASS RETRY-006: Workspace reacquisition, Job transition, and Attempt creation are atomic',
 );
 console.log(
   'PASS RECONCILE-006: stale resume plans fail closed before mutation',

@@ -10,7 +10,7 @@ import type {
 } from '../../shared/resume';
 
 export interface ResumeStateStore {
-  listIncompleteRuns(): RunRecord[];
+  listIncompleteRuns(workspaceId: string): RunRecord[];
   listJobs(runId: string): JobRecord[];
   listAttempts(jobId: string): AttemptRecord[];
   getArtifact(artifactId: string): ArtifactRecord | null;
@@ -211,9 +211,11 @@ const planJob = (
 export class ResumePlanner {
   constructor(private readonly store: ResumeStateStore) {}
 
-  discoverIncompleteRuns(): ResumeRunPlan[] {
+  discoverIncompleteRuns(
+    workspaceId: string,
+  ): ResumeRunPlan[] {
     return this.store
-      .listIncompleteRuns()
+      .listIncompleteRuns(workspaceId)
       .map((run) => ({
         run,
         jobs: this.store
@@ -222,9 +224,12 @@ export class ResumePlanner {
       }));
   }
 
-  planRun(runId: string): ResumeRunPlan | null {
+  planRun(
+    workspaceId: string,
+    runId: string,
+  ): ResumeRunPlan | null {
     return (
-      this.discoverIncompleteRuns().find(
+      this.discoverIncompleteRuns(workspaceId).find(
         (plan) => plan.run.run_id === runId,
       ) ?? null
     );
