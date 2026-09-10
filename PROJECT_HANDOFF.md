@@ -310,3 +310,43 @@ Next major MVP checkpoint: Workspace-owned Connection / Credential / Readiness b
 After that, implementation priority is driven by the locked BLOG-WEEK-2026-09-10 collection scope.
 
 The two historical untracked files remain intentionally untouched.
+
+## 14. Schema-v8 Workspace Connection / Readiness checkpoint — 2026-09-10
+
+Technical implementation commit:
+
+`03cee0b feat: add workspace source readiness`
+
+Implemented and verified:
+
+- SQLite schema v8 with Workspace-owned `workspace_source_connections`.
+- One logical connection per Workspace/source pair.
+- Required Workspace ownership and cross-Workspace isolation.
+- Persisted connection metadata contains safe metadata and `credential_ref`, not credential secret values.
+- Credential-store interface added with deterministic in-memory implementation for tests.
+- Source-keyed readiness registry added.
+- Supported readiness states:
+  - READY
+  - CONFIGURATION_REQUIRED
+  - CONNECTION_REQUIRED
+  - MANUAL_ACTION_REQUIRED
+- Unsupported sources fail closed.
+- Secret-like metadata is rejected at the new connection boundary.
+- Existing Workspace ownership, Saved Presets, Last Run Settings, source-neutral Core, multi-source Runs, and Google Trends deterministic behavior remain compatible.
+
+Verification passed:
+
+- npm run lint
+- focused migration/readiness/Core/Google Trends deterministic tests
+- npm run test:m2:gate
+- npm run test:release:gate
+- git diff --check
+- PASS RELEASE-GATE-001
+
+No provider adapters, provider calls, OAuth flows, API-key flows, or new desktop UI were added.
+
+No live-provider calls ran and no provider quota was consumed.
+
+Next major MVP checkpoint: implement the first real non-Google provider/source slices required by the locked BLOG-WEEK-2026-09-10 acceptance scope, beginning with the lowest-risk file/HTTP sources before the Google API adapters.
+
+The two historical untracked files remain intentionally untouched.
