@@ -2266,6 +2266,7 @@ Validation is mandatory.
 | ADR-059 | Workspace-owned Saved Presets and atomic Last Run Settings reservation | ACCEPTED |
 | ADR-060 | Workspace-owned connection metadata with credential boundary and source-keyed readiness | ACCEPTED |
 | ADR-061 | İkas XLSX and Bitkimark Sitemap enter shared Core as bounded source slices | ACCEPTED |
+| ADR-062 | Google API credentials use Electron safeStorage plus desktop PKCE OAuth composition | ACCEPTED |
 
 ---
 
