@@ -27,7 +27,7 @@ The live repository currently uses:
 
 - Electron main, preload, and React renderer boundaries;
 - TypeScript and Vite through Electron Forge;
-- a `SourceRegistry` and `DataSourceModule`/`CollectingDataSourceModule` contracts;
+- a `SourceRegistry`, a source-keyed `CollectionValidatorRegistry`, and `DataSourceModule`/`CollectingDataSourceModule` contracts;
 - `CollectionOrchestrator`, run/job/attempt state machines, resume, reconciliation, and retry policy;
 - `StateRepository` backed by `node:sqlite` schema version 5;
 - `StorageManager` for application-owned run-scoped evidence;
@@ -68,7 +68,7 @@ Core owns reusable lifecycle behavior:
 | Artifact lifecycle | tracks candidate, accepted, warned, rejected, superseded, and derived evidence |
 | Storage | owns canonical application paths and collision-safe writes |
 | Metadata/provenance | links request, observation, source, and raw artifact |
-| Validation coordination | invokes generic and source-specific checks before acceptance |
+| Validation coordination | resolves the validator from each Job's source identity and invokes checks before acceptance |
 | Logging | produces structured, redacted operational evidence |
 | Export | produces user-facing representations from eligible accepted data |
 | Desktop coordination | maps user intent and Core state through trusted IPC |
@@ -137,11 +137,11 @@ An acquisition success is not a validation success. Operational errors are recor
 
 ## 8. Run, job, and attempt
 
-- A run is one coordinated user/Core operation and may eventually contain multiple sources.
+- A run is one coordinated user/Core operation and may contain independently executable Jobs from multiple sources.
 - A job is the independent execution, resume, and retry unit.
 - An attempt is one immutable execution history item for a job.
 
-Current SQLite and TypeScript statuses are persisted contracts and must not be renamed casually. Multi-source work must adapt to or migrate them explicitly, never by documentation-only implication.
+Collection and validation dispatch both resolve from each persisted Job's `source_id`. A normal Job failure does not reset completed siblings, and explicit retry creates a new attempt only for an eligible failed Job. Current SQLite and TypeScript statuses are persisted contracts and must not be renamed casually.
 
 ## 9. Persistence and storage
 
@@ -151,7 +151,9 @@ Current canonical application state is under the Electron `userData/app-data` bo
 
 Raw writes are collision-safe and run-scoped. Derived files do not replace raw evidence. Downloads is reserved for intentional user-visible copies and is not canonical application state.
 
-Current schema version 5 includes `runs`, `jobs`, `attempts`, `artifacts`, and `validations`. Jobs use `job_key` as their generic identity, persist JSON-compatible source context, and allow `query_group_id = NULL` for non-Google-Trends work. Existing Google Trends jobs retain `job_key === query_group_id`. The schema still has no implemented freshness or credential tables.
+Current schema version 5 includes `runs`, `jobs`, `attempts`, `artifacts`, and `validations`. Runs persist an ordered array of selected source IDs. Jobs use `source_id + job_key` as their identity within a Run, persist JSON-compatible source context, and allow `query_group_id = NULL` for non-Google-Trends work. The same `job_key` may therefore exist under different source IDs. Existing Google Trends jobs retain `job_key === query_group_id`. The schema still has no implemented freshness or credential tables.
+
+Legacy Google Trends snapshots and committed generic single-source snapshots remain readable without migration. New generic multi-source snapshots describe real source membership with a `sources` array; they do not copy the first Job's source to a singular Run-level `source_id` or invent a synthetic provider identity.
 
 ## 10. Credential/access architecture
 
@@ -181,7 +183,7 @@ Examples:
 
 ## 12. Validation architecture
 
-`ValidationCoordinator`/Core lifecycle owns validation invocation and artifact state transition. Each source validator owns semantic checks.
+`ValidationCoordinator`/Core lifecycle owns validation invocation and artifact state transition. `CollectionValidatorRegistry` fails closed for invalid, duplicate, or unknown source IDs, and `CollectionOrchestrator` resolves a validator for each Job from `job.source_id`. Each source validator owns semantic checks.
 
 Generic checks cover existence, readability, content signature, parseability, required provenance, and structural safety. Source checks cover dimensions, identifiers, date/context, metric domains, expected schema, completeness limitations, and source-mode semantics.
 
@@ -191,7 +193,7 @@ Validation findings carry structured detail. New operational failures should not
 
 ### Google Trends
 
-Current flow uses externally configured query groups, one sequential job per group, an app-owned Playwright profile, supported CSV capture, run-scoped storage, parser/validator, SQLite state, and structured export. Current desktop factory and export implementation are source-specific.
+Current flow uses externally configured query groups, one sequential job per group, an app-owned Playwright profile, supported CSV capture, run-scoped storage, parser/validator, SQLite state, and structured export. Current production runner, desktop factory, and export implementation remain source-specific even though the shared Core now supports multi-source Runs.
 
 ### Google Search Console
 

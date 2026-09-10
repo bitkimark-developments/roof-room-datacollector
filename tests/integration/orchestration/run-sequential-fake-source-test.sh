@@ -13,6 +13,7 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 
 npx tsc \
   src/main/core/collection-orchestrator.ts \
+  src/main/core/collection-validator-registry.ts \
   src/main/core/job-execution-state-machine.ts \
   src/main/core/reconciliation-coordinator.ts \
   src/main/core/resume-planner.ts \

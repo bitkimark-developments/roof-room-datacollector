@@ -61,9 +61,10 @@ The current live repository defines:
 - `CollectingDataSourceModule` for `collect(context)`;
 - `CollectionValidator` for source validation;
 - `SourceRegistry` for lowercase-hyphenated IDs;
+- `CollectionValidatorRegistry` for fail-closed source-keyed validator lookup;
 - `CollectionOrchestrator` for current run/job/attempt/artifact lifecycle.
 
-The shared collection and validation contexts now carry persisted JSON-compatible `source_context` without requiring a `QueryGroup`. SQLite schema version 5 allows `query_group_id = NULL`, while the Google Trends adapter reconstructs and validates its own query-group semantics from source context. Run configuration and desktop composition remain Google-Trends-shaped in places; new sources must not fill unrelated fields with invented values.
+The shared collection and validation contexts carry persisted JSON-compatible `source_context` without requiring a `QueryGroup`. SQLite schema version 5 allows `query_group_id = NULL` and one Run may contain Jobs from multiple source IDs. Collection and validator lookup both use each persisted Job's source identity. The Google Trends adapter reconstructs and validates its own query-group semantics from source context. Production Run configuration and desktop composition remain Google-Trends-shaped in places; new sources must not fill unrelated fields with invented values.
 
 ## 6. Required source responsibilities
 
@@ -92,7 +93,7 @@ A source module must not:
 
 ## 7. Core integration responsibilities
 
-Use existing Core for run/job/attempt state, reconciliation, resume/retry, source registration, storage, metadata/provenance, validation coordination, logging, export, and desktop/IPC coordination.
+Use existing Core for run/job/attempt state, reconciliation, resume/retry, source registration, storage, metadata/provenance, validation coordination, logging, export, and desktop/IPC coordination. Register each collecting module in `SourceRegistry` and its validator under the identical source ID in `CollectionValidatorRegistry`; missing, duplicate, and invalid mappings fail closed.
 
 Credential/access and freshness/due are locked Core responsibilities. Their exact implementation may use compatible components rather than mandatory class names. A source declares needs and consumes safe services; it does not build its own secret store or scheduler.
 
@@ -200,7 +201,7 @@ Requirements:
 
 ## 15. Validation integration
 
-The source validator receives the candidate artifact and trusted Core context, then returns deterministic status plus structured findings.
+The source validator receives the candidate artifact and trusted Core context, then returns deterministic status plus structured findings. `CollectionOrchestrator` resolves that validator from `job.source_id` for every attempt; shared Core must not select validators through provider-specific branches or one Run-wide default.
 
 Generic checks remain reusable. Source checks use stable namespaced IDs. Unsupported schema/mode fails visibly. Requested fields cannot be copied into observed fields without provider evidence.
 

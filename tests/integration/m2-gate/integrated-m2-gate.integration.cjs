@@ -84,6 +84,17 @@ const {
 );
 
 const {
+  CollectionValidatorRegistry,
+} = require(
+  path.join(
+    buildRoot,
+    'main',
+    'core',
+    'collection-validator-registry.js',
+  ),
+);
+
+const {
   RunManager,
 } = require(
   path.join(
@@ -419,6 +430,20 @@ const createRegistry = (
   return registry;
 };
 
+const createValidatorRegistry = (
+  validator,
+) => {
+  const registry =
+    new CollectionValidatorRegistry();
+
+  registry.register(
+    'fake-source',
+    validator,
+  );
+
+  return registry;
+};
+
 const readJsonl = async (
   filePath,
 ) => {
@@ -481,7 +506,9 @@ const main = async () => {
       createRegistry(
         fakeSourceA,
       ),
-      new GateValidator(),
+      createValidatorRegistry(
+        new GateValidator(),
+      ),
       runManagerA,
       new MetadataManager(),
       loggerA,
@@ -627,7 +654,9 @@ const main = async () => {
       createRegistry(
         fakeSourceB,
       ),
-      new GateValidator(),
+      createValidatorRegistry(
+        new GateValidator(),
+      ),
       runManagerB,
       new MetadataManager(),
       loggerB,

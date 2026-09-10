@@ -40,6 +40,9 @@ import {
   CollectionOrchestrator,
 } from '../../core/collection-orchestrator';
 import {
+  CollectionValidatorRegistry,
+} from '../../core/collection-validator-registry';
+import {
   ReconciliationCoordinator,
 } from '../../core/reconciliation-coordinator';
 import {
@@ -74,6 +77,20 @@ import {
 
 const GOOGLE_TRENDS_SOURCE_ID =
   'google-trends';
+
+const createGoogleTrendsValidatorRegistry = (
+  validator: CollectionValidator,
+): CollectionValidatorRegistry => {
+  const validators =
+    new CollectionValidatorRegistry();
+
+  validators.register(
+    GOOGLE_TRENDS_SOURCE_ID,
+    validator,
+  );
+
+  return validators;
+};
 
 export interface RunGoogleTrendsThroughCoreInput {
   directories:
@@ -459,8 +476,10 @@ export const runGoogleTrendsBatchThroughCore =
             input.directories,
           ),
           registry,
-          input.validator ??
-            new GoogleTrendsCollectionValidator(),
+          createGoogleTrendsValidatorRegistry(
+            input.validator ??
+              new GoogleTrendsCollectionValidator(),
+          ),
           runManager,
           undefined,
           input.logger === undefined
@@ -592,8 +611,10 @@ export const resumeGoogleTrendsThroughCore =
             input.directories,
           ),
           registry,
-          input.validator ??
-            new GoogleTrendsCollectionValidator(),
+          createGoogleTrendsValidatorRegistry(
+            input.validator ??
+              new GoogleTrendsCollectionValidator(),
+          ),
           runManager,
           undefined,
           input.logger === undefined

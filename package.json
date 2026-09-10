@@ -25,6 +25,8 @@
     "test:m2:schema-v5": "bash tests/integration/sqlite/run-schema-v5-migration-test.sh",
     "test:m2:source-neutral-state": "bash tests/integration/sqlite/run-source-neutral-job-persistence-test.sh",
     "test:m2:source-neutral-core": "bash tests/integration/orchestration/run-source-neutral-fake-json-test.sh",
+    "test:m2:validator-registry": "bash tests/integration/orchestration/run-collection-validator-registry-test.sh",
+    "test:m2:multi-source-run": "bash tests/integration/orchestration/run-multi-source-run-test.sh",
     "test:m2:gate": "bash tests/integration/m2-gate/run-integrated-m2-gate.sh",
     "test:m3:provider-state": "bash tests/integration/google-trends/run-provider-state-detector-test.sh",
     "test:m3:provider-probe": "bash tests/integration/google-trends/run-provider-probe-test.sh",

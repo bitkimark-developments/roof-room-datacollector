@@ -1137,16 +1137,6 @@ const normalizeCreateRunFromJobPlansInput = (
     },
   );
 
-  const sourceIds = new Set(
-    normalizedPlans.map((plan) => plan.source_id),
-  );
-
-  if (sourceIds.size !== 1) {
-    throw new Error(
-      'job_plans must contain jobs from exactly one source_id in this release.',
-    );
-  }
-
   const configurationSnapshot = requireJsonObject(
     input.configuration_snapshot,
     'configuration_snapshot',

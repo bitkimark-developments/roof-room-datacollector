@@ -129,27 +129,84 @@ assert.throws(
   /filesystem-safe/u,
 );
 
-assert.throws(
-  () =>
-    repositoryA.createRunFromJobPlans({
-      application_version: '1.0.0',
-      configuration_snapshot: configurationSnapshot,
-      job_plans: [
-        {
-          source_id: 'fake-json',
-          job_key: 'one',
-          query_group_id: null,
-          source_context: {},
+const multiSourceSnapshot = {
+  schema_version: 1,
+  sources: [
+    {
+      source_id: 'fake-source-a',
+      requested_context: {
+        batch_label: 'primary',
+      },
+    },
+    {
+      source_id: 'fake-source-b',
+      requested_context: {
+        batch_label: 'secondary',
+      },
+    },
+  ],
+};
+
+const mixedSourceRun =
+  repositoryA.createRunFromJobPlans({
+    application_version: '1.0.0',
+    configuration_snapshot:
+      multiSourceSnapshot,
+    job_plans: [
+      {
+        source_id: 'fake-source-a',
+        job_key: 'same-key',
+        query_group_id: null,
+        source_context: {
+          fixture_id: 'alpha',
         },
-        {
-          source_id: 'other-source',
-          job_key: 'two',
-          query_group_id: null,
-          source_context: {},
+      },
+      {
+        source_id: 'fake-source-b',
+        job_key: 'same-key',
+        query_group_id: null,
+        source_context: {
+          fixture_id: 'gamma',
         },
-      ],
-    }),
-  /exactly one source_id/u,
+      },
+    ],
+  });
+
+assert.deepEqual(
+  mixedSourceRun.run.selected_sources,
+  ['fake-source-a', 'fake-source-b'],
+);
+assert.deepEqual(
+  mixedSourceRun.run.configuration_snapshot,
+  multiSourceSnapshot,
+);
+assert.equal(mixedSourceRun.jobs.length, 2);
+assert.notEqual(
+  mixedSourceRun.jobs[0].job_id,
+  mixedSourceRun.jobs[1].job_id,
+);
+assert.deepEqual(
+  mixedSourceRun.jobs.map((job) => ({
+    source_id: job.source_id,
+    job_key: job.job_key,
+    source_context: job.source_context,
+  })),
+  [
+    {
+      source_id: 'fake-source-a',
+      job_key: 'same-key',
+      source_context: {
+        fixture_id: 'alpha',
+      },
+    },
+    {
+      source_id: 'fake-source-b',
+      job_key: 'same-key',
+      source_context: {
+        fixture_id: 'gamma',
+      },
+    },
+  ],
 );
 
 const arbitrarySnapshotWithLegacyKey = {
@@ -177,12 +234,22 @@ assert.deepEqual(
 
 const runId = created.run.run_id;
 const jobId = created.jobs[0].job_id;
+const mixedRunId = mixedSourceRun.run.run_id;
+const mixedJobIds = mixedSourceRun.jobs.map(
+  (job) => job.job_id,
+);
 
 repositoryA.close();
 
 const repositoryB = new StateRepository(databasePath);
 const reopenedRun = repositoryB.getRun(runId);
 const reopenedJob = repositoryB.getJob(jobId);
+const reopenedMixedRun =
+  repositoryB.getRun(mixedRunId);
+const reopenedMixedJobs = mixedJobIds.map(
+  (mixedJobId) =>
+    repositoryB.getJob(mixedJobId),
+);
 
 assert.ok(reopenedRun);
 assert.deepEqual(
@@ -193,6 +260,44 @@ assert.ok(reopenedJob);
 assert.equal(reopenedJob.query_group_id, null);
 assert.equal(reopenedJob.job_key, 'fixture-import-001');
 assert.deepEqual(reopenedJob.source_context, sourceContext);
+assert.ok(reopenedMixedRun);
+assert.deepEqual(
+  reopenedMixedRun.selected_sources,
+  ['fake-source-a', 'fake-source-b'],
+);
+assert.deepEqual(
+  reopenedMixedRun.configuration_snapshot,
+  multiSourceSnapshot,
+);
+assert.equal(
+  reopenedMixedJobs.every(
+    (job) => job !== null,
+  ),
+  true,
+);
+assert.deepEqual(
+  reopenedMixedJobs.map((job) => ({
+    source_id: job.source_id,
+    job_key: job.job_key,
+    source_context: job.source_context,
+  })),
+  [
+    {
+      source_id: 'fake-source-a',
+      job_key: 'same-key',
+      source_context: {
+        fixture_id: 'alpha',
+      },
+    },
+    {
+      source_id: 'fake-source-b',
+      job_key: 'same-key',
+      source_context: {
+        fixture_id: 'gamma',
+      },
+    },
+  ],
+);
 
 repositoryB.close();
 

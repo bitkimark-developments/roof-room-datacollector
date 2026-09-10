@@ -129,11 +129,13 @@ Run
 
 ### Run
 
-A run records one coordinated operation, application version, selected sources, timestamps, status, and an immutable requested/configuration snapshot.
+A run records one coordinated operation, application version, ordered selected-source membership, timestamps, status, and an immutable requested/configuration snapshot. One Run may contain Jobs from multiple source IDs.
+
+Legacy Google Trends snapshots keep their query-group shape. Existing generic single-source snapshots remain readable as arbitrary JSON objects. A new generic multi-source snapshot represents actual membership through a `sources` array and must not use the first Job's source or a fabricated `multi-source` value as a singular Run-level source identity.
 
 ### Job
 
-A job is the independent execution, resume, and retry unit. It records source identity, stable `job_key`, JSON-compatible source context, order, execution/validation states, attempt count, and accepted artifact reference.
+A job is the independent execution, resume, and retry unit. It records source identity, stable `job_key`, JSON-compatible source context, order, execution/validation states, attempt count, and accepted artifact reference. Its identity within a Run is `source_id + job_key`; the same `job_key` is valid under two different sources, while a duplicate pair remains invalid.
 
 `query_group_id` is nullable and Google-Trends/legacy-specific. Non-Google-Trends jobs use `NULL`; they never fabricate a query group or sentinel. Google Trends jobs retain `job_key === query_group_id` and persist their real query-group context.
 
@@ -185,6 +187,8 @@ validations
 
 There is no implemented `errors`, credentials, freshness, dataset-instance, or source catalog table. Documentation may define their semantics, but must not claim they exist.
 
+Schema v5 already supports multi-source Runs through `selected_sources_json`, per-Job `source_id`, composite Job uniqueness, and source-scoped artifact relationships. The multi-source Run contract therefore requires no schema v6 migration and does not rewrite existing records.
+
 SQLite stores operational records and references; filesystem artifacts store raw bytes and detailed documents. Foreign keys, strict tables, schema migrations, and existing status checks remain authoritative.
 
 ## 9. Raw, candidate, accepted, and derived lifecycle
@@ -219,6 +223,8 @@ validation_status
 requested context
 observed context where proven
 ```
+
+Collection and validation are both selected from the persisted Job's `source_id`. Source-specific validators fail closed when Job or artifact source identity does not match their registered source.
 
 Where supported, raw artifacts carry byte size and SHA-256. Dataset schema version and application version are separate concepts.
 

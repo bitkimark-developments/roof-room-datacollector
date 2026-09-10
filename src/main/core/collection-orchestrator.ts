@@ -6,7 +6,6 @@ import type {
 } from '../../shared/attempt';
 import {
   isCollectingDataSourceModule,
-  type CollectionValidator,
 } from '../../shared/collection';
 import type {
   OrchestrationRunResult,
@@ -32,6 +31,9 @@ import {
 import {
   MetadataManager,
 } from './metadata-manager';
+import type {
+  CollectionValidatorRegistry,
+} from './collection-validator-registry';
 import type {
   SourceRegistry,
 } from './source-registry';
@@ -174,8 +176,8 @@ export class CollectionOrchestrator {
     private readonly storage:
       CollectionOrchestratorStorage,
     private readonly registry: SourceRegistry,
-    private readonly validator:
-      CollectionValidator,
+    private readonly validators:
+      CollectionValidatorRegistry,
     private readonly runManager: RunManager,
     private readonly metadataManager =
       new MetadataManager(),
@@ -659,8 +661,12 @@ export class CollectionOrchestrator {
       );
     }
 
+    const validator = this.validators.get(
+      validatingJob.source_id,
+    );
+
     const validation =
-      await this.validator.validate({
+      await validator.validate({
         run,
         job: validatingJob,
         attempt,

@@ -58,6 +58,17 @@ const {
 );
 
 const {
+  CollectionValidatorRegistry,
+} = require(
+  path.join(
+    buildRoot,
+    'main',
+    'core',
+    'collection-validator-registry.js',
+  ),
+);
+
+const {
   RunManager,
 } = require(
   path.join(
@@ -379,6 +390,21 @@ class DeterministicValidator {
   }
 }
 
+const createValidatorRegistry = (
+  sourceId,
+  validator,
+) => {
+  const validators =
+    new CollectionValidatorRegistry();
+
+  validators.register(
+    sourceId,
+    validator,
+  );
+
+  return validators;
+};
+
 const registry =
   new SourceRegistry();
 const fakeSource =
@@ -421,6 +447,11 @@ const storage =
   new StorageManager(directories);
 const validator =
   new DeterministicValidator();
+const validators =
+  createValidatorRegistry(
+    fakeSource.id,
+    validator,
+  );
 const runManagerA =
   new RunManager(repositoryA);
 const orchestratorA =
@@ -428,7 +459,7 @@ const orchestratorA =
     repositoryA,
     storage,
     registry,
-    validator,
+    validators,
     runManagerA,
   );
 
@@ -783,12 +814,17 @@ const runManagerB =
   new RunManager(repositoryB);
 const validatorB =
   new DeterministicValidator();
+const validatorsB =
+  createValidatorRegistry(
+    fakeSource.id,
+    validatorB,
+  );
 const orchestratorB =
   new CollectionOrchestrator(
     repositoryB,
     storage,
     registry,
-    validatorB,
+    validatorsB,
     runManagerB,
   );
 const resumePlannerB =
@@ -925,7 +961,10 @@ const invalidMetadataOrchestrator =
     repositoryB,
     storage,
     registry,
-    invalidMetadataValidator,
+    createValidatorRegistry(
+      fakeSource.id,
+      invalidMetadataValidator,
+    ),
     runManagerB,
   );
 

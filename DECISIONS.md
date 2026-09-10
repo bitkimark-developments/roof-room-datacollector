@@ -1810,6 +1810,27 @@ Core is generalized through tested compatible slices. Source-specific selectors,
 
 ---
 
+# ADR-057 — One Collection Operation Is One Multi-Source Run
+
+**Status:** ACCEPTED
+**Date:** 2026-09-10
+
+## Decision
+
+One user collection operation is represented by one persisted Run containing independently source-keyed Jobs. Jobs in that Run may have different `source_id` values. Collection and validation dispatch both resolve from each Job's persisted source identity; validation uses a fail-closed source-keyed registry rather than one Run-wide validator.
+
+Run membership records the real selected sources. Generic multi-source configuration snapshots describe those sources explicitly and do not copy the first Job's source or invent a synthetic provider identity. Existing Google Trends and generic single-source snapshots remain compatible.
+
+## Context
+
+The approved desktop journey treats one Start Collection action as one auditable collection operation and future data package. Schema v5 already persists selected-source arrays, per-Job source identity/context, composite Job identity, attempts, artifacts, and validation evidence, so no schema migration is needed for this contract.
+
+## Consequences
+
+A failed Job does not erase or recollect successful siblings. Explicit retry creates a new attempt only for an eligible failed Job. This is package-level coordination of source-native datasets, not a row-level join or cross-source analysis. Google Trends production UI/export/runtime composition remains source-specific until a separate approved application slice generalizes it.
+
+---
+
 # 4. Deferred Decisions
 
 The following decisions are intentionally not locked in M0.
@@ -2219,6 +2240,7 @@ Validation is mandatory.
 | ADR-054 | Credentials use a Core security boundary | ACCEPTED |
 | ADR-055 | Freshness is separate from readiness/execution | ACCEPTED |
 | ADR-056 | Acquisition modes share one Core lifecycle | ACCEPTED |
+| ADR-057 | One collection operation is one multi-source Run | ACCEPTED |
 
 ---
 

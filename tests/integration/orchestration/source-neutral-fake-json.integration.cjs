@@ -58,6 +58,16 @@ const {
   ),
 );
 const {
+  CollectionValidatorRegistry,
+} = require(
+  path.join(
+    buildRoot,
+    'main',
+    'core',
+    'collection-validator-registry.js',
+  ),
+);
+const {
   ResumePlanner,
 } = require(
   path.join(buildRoot, 'main', 'core', 'resume-planner.js'),
@@ -222,8 +232,11 @@ const main = async () => {
   const storage = new StorageManager(directories);
   const registry = new SourceRegistry();
   const source = new FakeJsonSource();
+  const validators =
+    new CollectionValidatorRegistry();
 
   registry.register(source);
+  validators.register(source.id, validator);
 
   const repositoryA = new StateRepository(databasePath);
   const runManagerA = new RunManager(repositoryA);
@@ -231,7 +244,7 @@ const main = async () => {
     repositoryA,
     storage,
     registry,
-    validator,
+    validators,
     runManagerA,
   );
   const created = repositoryA.createRunFromJobPlans({
@@ -361,7 +374,7 @@ const main = async () => {
     repositoryB,
     storage,
     registry,
-    validator,
+    validators,
     new RunManager(repositoryB),
   ).executeStartedAttempt(runId, retryJobId, retry.attempt);
 

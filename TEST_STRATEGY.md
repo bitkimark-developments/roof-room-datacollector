@@ -92,6 +92,8 @@ The deterministic Core suite covers:
 
 Multi-source Core tests include jobs that do not naturally have a Google Trends query group. Schema-v4 migration preservation, nullable `query_group_id`, persisted source context, and the fake JSON source lifecycle are deterministic release-gate coverage; no placeholder query group is used.
 
+The deterministic multi-source Run gate uses two independently registered fake sources and validators in one persisted Run. It proves truthful selected-source membership, per-Job collector/validator dispatch, same-key cross-source identity, continuation after a middle Job failure, restart/reconciliation, failed-only attempt-2 retry, immutable rejected evidence, and source/job/attempt-correct provenance. The validator-registry gate separately proves invalid and duplicate registrations, and unknown lookups, fail closed.
+
 ## 6. Acquisition-mode suites
 
 ### Browser export
@@ -210,6 +212,7 @@ Source integration must prove:
 - rate-limited/quota-exhausted sources do not loop;
 - file-import retry does not overwrite the original artifact;
 - multi-source runs can make safe progress without corrupting another source's state.
+- a source-specific validator is never reused for another source merely because both Jobs belong to one Run.
 
 ## 11. UI and IPC tests
 
@@ -243,6 +246,8 @@ Every future source adds:
 - UI/IPC tests where exposed;
 - its deterministic script to the relevant release gate;
 - a separately guarded live smoke command, if live evidence is required.
+
+Every source composition used by `CollectionOrchestrator` also registers its validator under the same source ID. A missing validator is a fail-closed composition error.
 
 No ordinary gate may invoke that live command.
 
