@@ -350,3 +350,46 @@ No live-provider calls ran and no provider quota was consumed.
 Next major MVP checkpoint: implement the first real non-Google provider/source slices required by the locked BLOG-WEEK-2026-09-10 acceptance scope, beginning with the lowest-risk file/HTTP sources before the Google API adapters.
 
 The two historical untracked files remain intentionally untouched.
+
+## 15. İkas Products + Bitkimark Sitemap/XML checkpoint — 2026-09-10
+
+Technical implementation commit:
+
+`1671e75 feat: add ikas and sitemap sources`
+
+Implemented and deterministically verified:
+
+- İkas Products XLSX source/parser/validator.
+- Canonical raw XLSX byte preservation before parsing.
+- Fail-closed unsupported/malformed workbook handling.
+- Evidence-backed generic İkas mappings only; missing values remain missing.
+- Bitkimark Sitemap/XML source/parser/validator.
+- Canonical raw XML byte preservation.
+- Full URL inventory preservation.
+- Deterministic URL annotations for the approved blog-match strings without filtering the canonical inventory.
+- Source-specific identities, validation, and Core-compatible artifact/provenance behavior.
+- Release-gate integration and deterministic source tests.
+- Existing Workspace, readiness, source-neutral Core, multi-source, and Google Trends contracts remain compatible.
+
+Verification passed:
+
+- TypeScript/typecheck
+- npm run lint
+- focused source tests
+- relevant compatibility/Core gates
+- npm run test:release:gate
+- git diff --check
+- PASS RELEASE-GATE-001
+
+No live-provider calls ran.
+
+Remaining acceptance work:
+
+- Exact İkas production column mapping must be verified against the current real Products XLSX. No invented mapping is accepted.
+- The old 2026-08-23 Products workbook must not be used for the BLOG-WEEK-2026-09-10 acceptance run.
+- Bitkimark live sitemap acquisition smoke remains unexecuted and requires explicit live execution.
+- Google API sources and SerpApi remain unimplemented.
+
+Next major MVP checkpoint: Google API source integration for GSC, Google Ads Search Terms, and Keyword Planner, using the existing Workspace connection/readiness boundary.
+
+The two historical untracked files remain intentionally untouched.
