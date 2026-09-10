@@ -4,9 +4,9 @@
 
 **Current milestone:** Release 1.0 multi-source foundation and source-adapter rollout
 
-**Current stage:** Multi-Source Run Core contract implemented, deterministically verified, and technically committed
+**Current stage:** Workspace identity and Run ownership Core slice implemented, deterministically verified, and technically committed
 
-**Current goal:** Preserve the verified multi-source Core checkpoint; choose and approve the next bounded application-foundation slice before further implementation
+**Current goal:** Preserve the verified schema-v6 ownership checkpoint and require explicit approval before the next bounded implementation slice
 
 ---
 
@@ -21,35 +21,28 @@ Authoritative repository:
 Current branch:
 
 ```text
-feat/google-trends-period-presets
+main
 ```
 
 Technical HEAD recorded before this separate handoff documentation commit:
 
 ```text
-be081b6e56f52e8bb2cebdee839d4d9c1c5625f8
-be081b6 feat: support multi-source jobs within one run
+26278fe09a1a609264e17c42165c94b16834cf4f
+26278fe feat: add workspace run ownership
 ```
 
-Observed branch relationship before this handoff commit:
-
-```text
-main: 0 commits ahead of feature branch
-feature branch: 12 commits ahead of main
-```
-
-The technical checkpoint contains the plan/design, implementation, deterministic tests, gate wiring, and stable contract documentation. This handoff edit is intentionally separate.
+The technical checkpoint contains the approved plan, implementation, deterministic tests, gate wiring, and stable contract documentation. This handoff edit is intentionally separate.
 
 ## 2. Working tree and protected historical files
 
-Immediately after technical commit `be081b6`, the tracked working tree was clean and only these pre-existing historical files remained untracked:
+Immediately after technical commit `26278fe`, the tracked working tree was clean and only these pre-existing historical files remained untracked:
 
 ```text
 ?? CODEX_HANDOFF_CURRENT.md
 ?? PROJECT_HANDOFF.pre-20260820.md
 ```
 
-Neither file was read as current authority, moved, deleted, staged, or rewritten during this slice.
+Neither file was moved, deleted, staged, or rewritten during this slice.
 
 Relevant closed checkpoints:
 
@@ -57,9 +50,11 @@ Relevant closed checkpoints:
 9eb4595 feat: add source-neutral core job lifecycle
 4384912 docs: close source-neutral core checkpoint
 be081b6 feat: support multi-source jobs within one run
+5a8edf0 docs: close multi-source run checkpoint
+26278fe feat: add workspace run ownership
 ```
 
-## 3. Product and Release 1.0 boundary
+## 3. Product and scope boundary
 
 RoofRoom Data Collector remains a local-first modular desktop collector:
 
@@ -67,215 +62,213 @@ RoofRoom Data Collector remains a local-first modular desktop collector:
 Collect → Preserve → Validate → Document → Export
 ```
 
-One user collection operation can now be represented truthfully in Core as one persisted Run containing independently source-keyed Jobs. This is package-level coordination of source-native datasets, not cross-source analysis or row-level joining.
+Workspace is now a first-class Core identity for brand/business isolation. Every Run belongs to exactly one Workspace, while one Run may still contain independently source-keyed Jobs from multiple sources.
 
-Google Trends remains the only implemented production source. GSC, Google Ads Search Terms, Keyword Planner, İkas, Bitkimark XML, and SERP have approved feasibility paths but no source implementation. Semrush is not active Release 1.0 scope.
+This checkpoint does not add Workspace UI or lifecycle screens, Presets, Last Run Settings, credential management, provider changes, multi-source application composition, generalized export, source-specific timeout work, or a new Cancel/Stop/Resume workflow.
 
-Workspace, Connection Profile, credentials, Saved Presets, Last Run Settings, Run Setup/Review/Result UI, source-specific timeout policy, freshness, multi-source export, package retention, and additional provider adapters remain outside this checkpoint.
+Google Trends remains the only implemented production source. GSC, Google Ads Search Terms, Keyword Planner, İkas, Bitkimark XML, and SERP retain approved feasibility paths but no source implementation. Semrush is not active Release 1.0 scope.
 
-## 4. Implemented Core contract
+## 4. Implemented Workspace and Run contract
 
-Status labels describe committed code at `be081b6`, not intended future architecture.
+Status labels describe committed code at `26278fe`, not intended future architecture.
 
-| Area | State | Evidence |
+| Area | State | Verified contract |
 |---|---|---|
-| Schema-v5 Run/Job/Attempt persistence | COMPLETE for mixed-source Core Runs | one Run persists Jobs from two source IDs and reopens without migration |
-| Selected-source membership | COMPLETE | ordered unique membership is derived from real Job plans |
-| Job identity | COMPLETE | identity remains `run_id + source_id + job_key`; the same key is valid across distinct sources |
-| Collection dispatch | COMPLETE | `SourceRegistry` resolves from each persisted Job's `source_id` |
-| Validation dispatch | COMPLETE | source-keyed `CollectionValidatorRegistry` resolves from each persisted Job's `source_id` |
-| Validator composition failures | COMPLETE | invalid/duplicate registrations and unknown lookups fail closed with typed codes |
-| Independent execution/failure | COMPLETE for sequential Core orchestration | a rejected middle Job does not prevent a later sibling Job from completing |
-| Retry/reconciliation | COMPLETE for explicit eligible Job retry | only the failed Job receives attempt 2; accepted siblings are not recollected |
-| Restart safety | COMPLETE for the deterministic mixed-source lifecycle | selected sources, contexts, attempts, artifacts, findings, and resume actions survive reopen |
-| Storage and provenance | COMPLETE for the tested source-neutral contract | evidence remains run/source/job/attempt-correct and rejected attempt-1 evidence is immutable |
-| Source-neutral metadata | COMPLETE for generic metadata schema v2 | non-GT Jobs require no fabricated QueryGroup |
-| Google Trends compatibility | COMPLETE for existing behavior | GT production runner registers its existing validator; Core/batch/desktop/export regressions pass |
-| Multi-source production application composition | NOT IMPLEMENTED | production runner, desktop controller/UI, and exporter remain GT-specific |
-| Multi-source package export | NOT IMPLEMENTED | current structured exporter remains Google-Trends-specific |
-| Credential/access lifecycle | PARTIAL | app-owned GT browser session exists; OAuth/API-key Core lifecycle is not implemented |
-| Freshness/due lifecycle | NOT IMPLEMENTED | no freshness persistence, scheduler, or UI state exists |
+| SQLite schema | COMPLETE | schema version 6 |
+| Workspace identity | COMPLETE for Core persistence | `workspace_id`, non-empty `workspace_name`, and `created_at` |
+| Run ownership | COMPLETE | every new and migrated Run has required `runs.workspace_id` with restricted Workspace FK |
+| One-active-Run rule | COMPLETE | database partial unique index covers exactly `PENDING`, `RUNNING`, and `MANUAL_ACTION_REQUIRED` |
+| Repository conflict mapping | COMPLETE | conflicts surface as `WorkspaceActiveRunError` / `WORKSPACE_ACTIVE_RUN_EXISTS` with Workspace and active Run identity |
+| Retry-required state | COMPLETE | failed-but-retryable idle Runs aggregate to non-terminal, inactive `RETRY_REQUIRED` |
+| Atomic retry | COMPLETE | Workspace reacquisition, Run transition, Job transition, and Attempt creation share one `BEGIN IMMEDIATE` transaction |
+| Retry conflict rollback | COMPLETE | ownership conflict leaves Run, Job, attempt count, and history unchanged |
+| Restart/reconciliation scope | COMPLETE | incomplete discovery and `planRun` require Workspace identity and cross-Workspace lookup fails closed |
+| Multi-source Core compatibility | COMPLETE | source-keyed collection/validation, snapshots, sibling independence, and failed-only retry remain verified |
+| Google Trends compatibility | COMPLETE | current Core/batch/controller/export and deterministic provider-boundary suites pass |
+| Workspace product UI | NOT IMPLEMENTED | no selector, manager, settings, or renderer contract was added |
+| Presets / Last Run Settings | NOT IMPLEMENTED | no persistence or UI was added |
+| Credential/freshness lifecycle | NOT IMPLEMENTED | no credential, connection, freshness, or scheduler tables/workflows were added |
 
 Current persisted contract facts:
 
 ```text
-SQLite schema version: 5 (unchanged)
-tables: schema_migrations, runs, jobs, attempts, artifacts, validations
-runs.selected_sources_json: ordered non-empty source membership array
-jobs.query_group_id: nullable; Google-Trends/legacy-specific
-jobs.source_context_json: required JSON object
+SQLite schema version: 6
+tables: schema_migrations, workspaces, runs, jobs, attempts, artifacts, validations
+runs.workspace_id: required FK to workspaces.workspace_id
+active Run statuses: PENDING, RUNNING, MANUAL_ACTION_REQUIRED
+inactive non-terminal retry status: RETRY_REQUIRED
+active-slot index: ux_runs_one_active_per_workspace
 job uniqueness: run_id + source_id + job_key
+jobs.query_group_id: nullable; Google-Trends/legacy-specific
 errors table: not implemented
 credential/freshness tables: not implemented
 ```
 
-## 5. Snapshot and migration compatibility decision
+## 5. Schema-v6 migration and compatibility
 
-No schema v6 migration was added. Existing schema v5 already carries selected-source membership, per-Job source identity/context, composite Job uniqueness, source-scoped artifact relationships, and immutable attempts/validations.
+Schema v6 preserves schema-v5 multi-source data and adds Workspace ownership without changing legacy snapshot shapes.
 
-Snapshot compatibility is deliberately additive:
+Migration behavior proven by deterministic fixtures:
 
-```text
-legacy Google Trends snapshot
-→ unchanged and still parsed through its existing GT contract
+- creates strict `workspaces` storage;
+- creates one deterministic `ws_development_migration` row;
+- attaches every pre-v6 Run to that technical Workspace;
+- preserves existing Run, Job, Attempt, Artifact, Validation, source, context, and snapshot evidence;
+- maps an idle schema-v5 `RUNNING` Run with retry-eligible failed work to `RETRY_REQUIRED`;
+- leaves genuinely pending, active, or manual work active;
+- rejects multiple migrated active Runs before installing the unique index;
+- rolls the entire migration back to schema v5 on that conflict;
+- re-enables and verifies foreign-key integrity.
 
-legacy generic single-source snapshot
-→ unchanged and still read as an opaque JSON object
+`ws_development_migration` is migration/runtime technical compatibility only. It is not a customer-facing default, a legacy mode, a nullable ownership exception, or a permanent product concept. New repository Run APIs require an explicit `workspace_id`.
 
-new generic multi-source snapshot
-→ real `sources` array
-→ no copied first-source root `source_id`
-→ no fabricated `multi-source` provider identity
-```
+Legacy Google Trends snapshots, generic single-source snapshots, and the schema-v5 multi-source `sources` snapshot remain readable unchanged.
 
-`runs.selected_sources_json` remains the canonical Run membership field. The generic configuration snapshot preserves the resolved request evidence supplied by its caller; this slice does not introduce a universal snapshot schema or rewrite old records.
+## 6. Retry ownership and recovery behavior
 
-Schema-v4 Google Trends lifecycle data still migrates to schema v5 with IDs, relationships, and query-group context preserved. `PASS DB-MIGRATION-005` was observed after this change.
-
-## 6. Deterministic multi-source lifecycle proven
-
-The new vertical slice uses two independent fake sources and validators in one real schema-v5 repository/storage lifecycle:
+The implemented lifecycle is:
 
 ```text
-fake-source-a / alpha / attempt 1 → VALID
-fake-source-b / gamma / attempt 1 → INVALID_SCHEMA
-fake-source-a / beta  / attempt 1 → VALID
-restart
-fake-source-b / gamma / attempt 2 → VALID
+active Run completes all immediately executable work
+→ retry-eligible failed Job remains
+→ Run becomes RETRY_REQUIRED and releases the Workspace active slot
+→ explicit retry begins one repository transaction
+→ verify Run/Job eligibility and attempt limit
+→ verify no other active Run owns the Workspace
+→ Run becomes RUNNING
+→ Job moves through RETRY_PENDING to RUNNING
+→ next immutable Attempt is inserted
+→ commit all changes together
 ```
 
-Proven behavior:
+If another Run owns the Workspace, the transaction rolls back without changing retry evidence. If the attempt limit is exhausted, no Attempt is created and the Run remains `RETRY_REQUIRED`.
 
-- selected sources persist as `fake-source-a`, then `fake-source-b`;
-- each Job retains its own `source_id`, `job_key`, and `source_context`;
-- collector and validator event order follows the persisted Jobs;
-- gamma attempt 1 does not stop beta;
-- alpha and beta remain accepted with one attempt and one source call;
-- only gamma becomes `RETRY_CANDIDATE` and receives attempt 2;
-- gamma's rejected artifact, failed attempt, validation status, and literal finding remain readable after retry;
-- attempt-2 evidence is distinct and accepted;
-- metadata documents retain correct Run, Job, Attempt, source, mode, context, and raw-artifact links;
-- validation documents retain correct Run, Job, artifact, validation status, and findings;
-- the final Run reaches `COMPLETED` after explicit retry.
+Restart discovery is no longer global. `listIncompleteRuns(workspace_id)`, `discoverIncompleteRuns(workspace_id)`, and `planRun(workspace_id, run_id)` enforce the same ownership boundary. The Google Trends resume adapter loads the persisted Run first and scopes planning with its recorded Workspace.
 
 ## 7. Verification status
 
-RED-first evidence was observed before implementation:
+Focused RED evidence was observed before implementation, including:
 
 ```text
-source-neutral persistence RED:
-job_plans must contain jobs from exactly one source_id in this release.
-
-validator registry RED:
-collection-validator-registry.ts not found
-
-multi-source orchestration RED:
-TypeError: this.validator.validate is not a function
+schema-v6 migration: expected schema 6, observed schema 5
+Workspace persistence: shared Workspace contract missing
+one-active-Run mapping: raw SQLite unique-constraint error instead of typed ownership error
+Run lifecycle: retryable idle Run remained RUNNING instead of RETRY_REQUIRED
+atomic retry: retry incorrectly started while another Run owned the Workspace
+Workspace recovery: global discovery returned another Workspace's Run
 ```
 
-Focused deterministic verification on the completed technical tree:
+Focused closure verification passed:
 
 ```text
-PASS DB-011
-PASS VALIDATOR-REGISTRY-001
+npx tsc --noEmit
+npm run lint
+git diff --check
+npm run test:m2:schema-v6
+npm run test:m2:workspace-ownership
+npm run test:m2:runs
+npm run test:m2:reconcile
+npm run test:m2:resume
+npm run test:m2:multi-source-run
+npm run test:m2:gate
+```
+
+Observed focused evidence includes:
+
+```text
+PASS DB-MIGRATION-006
+PASS WORKSPACE-RUN-001
+PASS RETRY-006: Workspace reacquisition, Job transition, and Attempt creation are atomic
+PASS WORKSPACE-003: cross-Workspace resume planning fails closed
 PASS MULTI-SOURCE-RUN-001
-PASS SOURCE-NEUTRAL-001
-PASS DB-MIGRATION-005
-PASS orchestration/source-gate/pipeline/retry/resume suites
-PASS reconciliation suite
-PASS GT Core suite
-PASS GT-BATCH-CORE-001..005
-PASS DESKTOP-CTRL-001..004
-PASS EXPORT-001..006
-PASS M2-GATE-001..008 and added source-neutral/multi-source checks
-npx tsc --noEmit: exit 0
-npm run lint: exit 0
-git diff --check: exit 0
+PASS M2-GATE-001..008 plus schema-v6, ownership, source-neutral, validator-registry, and multi-source checks
 ```
 
 Full deterministic release gate:
 
 ```text
 npm run test:release:gate
-PASS RELEASE-GATE-001
+PASS RELEASE-GATE-001: deterministic Core, Google Trends, desktop file access, configuration, validation, and export gates completed
 ```
 
-The first sandboxed release-gate attempt reached a deterministic localhost-server test and failed with `listen EPERM 127.0.0.1`. The identical gate was rerun with loopback binding permission; it exited 0 and emitted the final release-gate PASS line. This was an execution-environment permission issue, not a test assertion failure.
+The first sandboxed release-gate attempt reached its deterministic localhost-server test and was denied with `listen EPERM 127.0.0.1`. The identical gate was rerun with local-loopback permission; it exited 0 and emitted the required final PASS line. This was an execution-environment permission boundary, not a product assertion failure.
 
-No live-provider command ran. No provider quota was consumed. `LIVE PROVIDER VERIFIED` is therefore not claimed for this slice.
+No live-provider command ran and no provider quota was consumed. Live-provider verification is not claimed.
 
 Not run or claimed:
 
 ```text
 npm run package
 npm run make
-any m3:live-* command
+any confirmed m3:live-* command
 any GSC/Google Ads/Keyword Planner/SerpApi/provider request
 ```
 
-## 8. Remaining single-source/source-specific assumptions
+## 8. Remaining application/source boundaries
 
-No known Core persistence or `CollectionOrchestrator` restriction still requires one Run to contain only one source. The remaining limitations are application/source boundaries intentionally excluded from this slice:
+The following remain intentionally outside this checkpoint:
 
-1. Google Trends production run creation builds GT query-group Jobs and a singular GT snapshot.
-2. Google Trends source-context reconstruction and validation require GT requested configuration and QueryGroup semantics; they do not consume the new generic `sources` snapshot.
-3. Google Trends metadata schema v1 remains query-group-specific; generic non-query-group Jobs use metadata schema v2.
-4. The production source composition registers only Google Trends and its validator.
-5. The desktop controller/factory and typed UI bridge remain Google-Trends/query-group-specific.
-6. The current exporter requires a Google Trends snapshot and treats exportable Jobs as GT datasets.
-7. The GT resume wrapper remains a GT-specific compatibility API even though Core retry/reconciliation is Job-scoped.
-8. Readiness has not been generalized into the approved future all-included-sources final readiness gate.
-9. No multi-source package/result/export policy exists yet.
-10. Existing single-source APIs and snapshots remain intentionally supported compatibility surfaces, not Core restrictions.
+1. Workspace creation/selection/management in the desktop UI.
+2. Saved Presets and Last Run Settings.
+3. Connection profiles, credentials, OAuth/API-key lifecycle, and freshness.
+4. Production composition of sources beyond Google Trends.
+5. Generalized multi-source Run Setup, Review, Results, and export/package behavior.
+6. Source-specific timeout policy, scheduling, and retention.
+7. New user-facing Cancel/Stop/Resume behavior.
+8. New provider adapters or live acceptance.
+
+The current Google Trends desktop/runtime composition receives the technical compatibility Workspace internally. That wiring exposes no Workspace product behavior and must not be treated as the final Workspace selection model.
 
 ## 9. Completed areas that remain closed
 
-Unless new failing evidence appears, do not reopen or rewrite:
+Unless new failing evidence or explicit scope approval appears, do not reopen or rewrite:
 
-- schema v5 or persisted status values;
+- schema-v6 Workspace/Run ownership and the exact active status set;
+- the partial unique active-Run index and typed repository conflict;
+- `RETRY_REQUIRED` as non-terminal and inactive;
+- atomic retry reacquisition and immutable Attempt history;
+- Workspace-scoped restart discovery and reconciliation;
+- source-keyed collection and fail-closed validator dispatch;
 - generic `job_key`, nullable GT-specific `query_group_id`, and persisted `source_context`;
-- source-keyed collection/validator dispatch;
-- explicit Job-scoped retry and immutable attempt evidence;
-- raw-evidence immutability and missing-not-zero behavior;
-- execution status versus validation status separation;
-- source-neutral metadata schema v2 and backward-compatible GT metadata schema v1;
-- Google Trends QueryGroup adaptation at the GT source boundary;
+- raw-evidence immutability, missing-not-zero, and execution/validation separation;
+- schema-v1/v2 metadata and legacy snapshot compatibility;
 - Google Trends relative-interest and comparison-group semantics;
-- application-owned Playwright profile and provider-safety policy;
-- current GT selector/wait/retry/refresh/navigation behavior;
-- current GT desktop/export/runtime behavior until a separate slice explicitly generalizes it.
+- current provider selector, wait, refresh/retry, navigation, browser-profile, and security behavior.
 
 ## 10. Exact recommended next action
 
 No next implementation slice is approved by this checkpoint.
 
-First review commits `be081b6` and this handoff checkpoint. Then open a separate read-only design/audit task for the next application-foundation boundary: determine how Workspace identity and one active Run ownership should compose with the now-verified multi-source Run contract, without implementing Workspace, presets, credentials, frontend screens, provider adapters, timeouts, or export behavior during the audit.
+First review technical commit `26278fe` and this handoff commit. Then choose one bounded Release 1.0 application or source-adapter slice and perform a fresh read-only audit against `PROJECT_SPEC.md` and current repository evidence. Require explicit scope approval and a RED-first plan before changing code.
 
-Require an explicit scope approval and a new RED-first vertical-slice plan before editing code. Do not start additional provider or frontend work from this handoff alone.
+Do not infer authorization for Workspace UI, Presets, Last Run Settings, credentials, provider work, export generalization, or additional hardening from this checkpoint.
 
 ## 11. Epistemic checkpoint
 
 ### PROVEN FACT
 
-- Technical commit `be081b6` implements one schema-v5 Run with Jobs from multiple source IDs.
-- Collection and validator lookup both use the persisted Job's source identity.
-- Schema v5 and legacy snapshots remain compatible; no migration was added.
-- The two-source deterministic lifecycle proves middle-Job failure independence, failed-only retry, restart, immutable rejected evidence, and source-correct provenance.
-- Focused tests, TypeScript, lint, diff check, M2 gate, GT regressions, desktop/export regressions, and the full deterministic release gate passed.
-- The final release-gate line `PASS RELEASE-GATE-001` was observed after allowing its deterministic loopback test server.
+- Technical commit `26278fe` implements schema-v6 first-class Workspace ownership.
+- Every Run has a required Workspace FK.
+- SQLite and repository transactions enforce one active Run per Workspace.
+- `RETRY_REQUIRED` releases the active slot without becoming terminal.
+- Explicit retry atomically reacquires ownership, transitions the Job, and creates the next Attempt.
+- Retry conflicts roll back without partial state changes.
+- Restart discovery and resume planning are Workspace-scoped and cross-Workspace lookup fails closed.
+- Existing source-neutral, multi-source, Google Trends, desktop, and export deterministic contracts pass.
+- TypeScript, lint, diff checks, focused gates, the integrated M2 gate, and the full deterministic release gate passed.
 - No live-provider command ran.
 - The two historical untracked files remain untouched.
 
 ### INFERENCE
 
-- Workspace identity/Run ownership is the smallest likely next application-foundation question because the approved journey scopes settings, history, credentials, and one active Run to a Workspace. This is a recommendation, not an approved implementation task.
+- A future user-facing Workspace flow can build on this ownership contract without weakening the database invariant. This is architectural direction, not an implemented or approved slice.
 
 ### UNTESTED HYPOTHESIS
 
-- The current multi-source Core contract will require no further change when a future source-neutral desktop composition creates real mixed-source Runs.
-- A future Workspace contract can be added without changing existing Run identity or schema-v5 lifecycle semantics.
-- Unimplemented sources and the current supported Google Trends configurations work against live providers; no such live acceptance was performed here.
+- The current technical compatibility Workspace can be retired cleanly when an explicitly designed Workspace selection/lifecycle flow exists.
+- Future source adapters and generalized multi-source desktop/export composition will require no changes to the schema-v6 ownership contract.
+- Unimplemented sources and live Google Trends configurations work against providers; no live acceptance was performed here.
 
 ## 12. Handoff discipline
 
-Keep implementation, targeted deterministic verification, full release-gate verification, live-provider verification, and committed state as separate claims. This handoff authorizes no live calls, provider adapter, Workspace/Preset/UI, timeout, credential, freshness, or multi-source export implementation.
+Keep implementation, targeted deterministic verification, full release-gate verification, live-provider verification, and committed state as separate claims. This handoff authorizes no additional implementation or live call.
