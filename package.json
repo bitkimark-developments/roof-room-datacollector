@@ -28,6 +28,7 @@
     "test:m2:schema-v8": "bash tests/integration/sqlite/run-schema-v8-migration-test.sh",
     "test:m2:connection-readiness": "bash tests/integration/sqlite/run-workspace-connection-readiness-test.sh",
     "test:m3:non-google-sources": "bash tests/integration/sources/run-non-google-source-slices-test.sh",
+    "test:m3:google-api-adapters": "bash tests/integration/google-api/run-google-api-adapters-test.sh",
     "test:m2:preset-reservation": "bash tests/integration/sqlite/run-saved-preset-run-reservation-test.sh",
     "test:m2:workspace-ownership": "bash tests/integration/sqlite/run-workspace-run-ownership-test.sh",
     "test:m2:source-neutral-state": "bash tests/integration/sqlite/run-source-neutral-job-persistence-test.sh",
