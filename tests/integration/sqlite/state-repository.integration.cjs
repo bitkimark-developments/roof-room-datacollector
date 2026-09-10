@@ -165,8 +165,8 @@ if (upgraded.status !== 'READY') {
   throw new Error(upgraded.error);
 }
 
-assert.equal(upgraded.schema_version, 6);
-assert.equal(upgraded.migrations_applied, 6);
+assert.equal(upgraded.schema_version, 7);
+assert.equal(upgraded.migrations_applied, 7);
 
 // DB-001 fresh database path
 const directories = makeDirectories('state-repository');
@@ -178,8 +178,8 @@ if (bootstrap.status !== 'READY') {
   throw new Error(bootstrap.error);
 }
 
-assert.equal(bootstrap.schema_version, 6);
-assert.equal(bootstrap.migrations_applied, 6);
+assert.equal(bootstrap.schema_version, 7);
+assert.equal(bootstrap.migrations_applied, 7);
 
 const databasePath = getDatabasePath(directories);
 
@@ -397,6 +397,7 @@ assert.deepEqual(
     [4, 'artifact_validation_persistence'],
     [5, 'source_neutral_job_context'],
     [6, 'workspace_run_ownership'],
+    [7, 'workspace_collection_settings'],
   ],
 );
 
@@ -409,7 +410,7 @@ console.log(
   'PASS ID-002: rapid run_id generation remained unique',
 );
 console.log(
-  'PASS DB-001: legacy schema v1 upgrades to v6',
+  'PASS DB-001: legacy schema v1 upgrades to current schema',
 );
 console.log(
   'PASS WORKSPACE-001: minimal Workspace identity owns every new Run',

@@ -220,6 +220,8 @@ Source integration must prove:
 
 ## 11. UI and IPC tests
 
+The Workspace preset checkpoint is covered by deterministic schema-v7 migration and repository reservation vertical-slice tests, including Workspace isolation, preset immutability, atomic Last Run update/rollback, immutable resolved snapshots, and reopen persistence.
+
 Test safe source summaries, readiness/freshness distinction, selection/import input, start/cancel/resume/retry intent, progress and validation display, unsupported/manual/quota states, canonical file opening, export opening, and strict rejection of invalid renderer inputs.
 
 The renderer must not receive tokens, API keys, unrestricted paths, raw account payloads, or browser objects.

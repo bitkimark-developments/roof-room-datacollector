@@ -275,6 +275,15 @@ export const createGoogleTrendsDesktopController = (
             makeRequestedConfiguration(
               periodSelection,
             ),
+          reusable_configuration: {
+            source_id: 'google-trends',
+            query_group_ids: [...selectedGroupIds],
+            period: {
+              period_preset: periodSelection.period_preset,
+              reference_date: periodSelection.reference_date,
+            },
+          },
+          reference_date: periodSelection.reference_date,
           application_version:
             input.application_version,
           source:

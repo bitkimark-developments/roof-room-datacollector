@@ -17,6 +17,7 @@ import type {
   QueryConfig,
 } from '../../../shared/query-config';
 import type {
+  JsonObject,
   JobRecord,
   RequestedCollectionConfiguration,
   RunRecord,
@@ -100,6 +101,8 @@ export interface RunGoogleTrendsThroughCoreInput {
     QueryConfig;
   requested_configuration:
     RequestedCollectionConfiguration;
+  reusable_configuration?: JsonObject;
+  reference_date?: string;
   application_version: string;
   source:
     CollectingDataSourceModule;
@@ -442,7 +445,7 @@ export const runGoogleTrendsBatchThroughCore =
       );
 
       const created =
-        repository.createRunFromQueryConfig({
+        repository.reserveRunFromQueryConfig({
           workspace_id:
             input.workspace_id,
           query_config:
@@ -451,6 +454,15 @@ export const runGoogleTrendsBatchThroughCore =
             applicationVersion,
           requested_configuration:
             input.requested_configuration,
+          reusable_configuration:
+            input.reusable_configuration ?? {
+              source_id: input.query_config.source_id,
+              query_group_ids: input.query_config.groups.map((group) => group.query_group_id),
+              requested_date_start: input.requested_configuration.requested_date_start,
+              requested_date_end: input.requested_configuration.requested_date_end,
+            },
+          reference_date:
+            input.reference_date ?? input.requested_configuration.requested_date_end,
         });
 
       notifyRunAvailable(

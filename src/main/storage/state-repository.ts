@@ -35,14 +35,21 @@ import type {
   CreateWorkspaceInput,
   WorkspaceRecord,
 } from '../../shared/workspace';
+import type {
+  LastRunSettingsRecord,
+  ReusableCollectionConfiguration,
+  SavedCollectionPresetRecord,
+} from '../../shared/collection-configuration';
 
-const REQUIRED_SCHEMA_VERSION = 6;
+const REQUIRED_SCHEMA_VERSION = 7;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DOCUMENT_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const RUN_ID_PATTERN =
   /^rr_\d{8}T\d{9}Z_[0-9a-f]{6}$/;
 const WORKSPACE_ID_PATTERN =
   /^ws_\d{8}T\d{9}Z_[0-9a-f]{6}$/;
+const PRESET_ID_PATTERN =
+  /^sp_\d{8}T\d{9}Z_[0-9a-f]{6}$/;
 
 type SqliteRow = Record<string, unknown>;
 
@@ -53,11 +60,33 @@ export interface CreateRunInput {
   requested_configuration: RequestedCollectionConfiguration;
 }
 
+export interface ReserveRunFromQueryConfigInput extends CreateRunInput {
+  reusable_configuration: ReusableCollectionConfiguration;
+  reference_date?: string;
+}
+
 export interface CreateRunFromJobPlansInput {
   workspace_id: string;
   application_version: string;
   configuration_snapshot: JsonObject;
   job_plans: JobPlan[];
+}
+
+export interface ReserveRunFromJobPlansInput extends CreateRunFromJobPlansInput {
+  reusable_configuration: ReusableCollectionConfiguration;
+}
+
+export interface CreateSavedCollectionPresetInput {
+  workspace_id: string;
+  preset_name: string;
+  reusable_configuration: ReusableCollectionConfiguration;
+}
+
+export interface UpdateSavedCollectionPresetInput {
+  workspace_id: string;
+  preset_id: string;
+  preset_name: string;
+  reusable_configuration: ReusableCollectionConfiguration;
 }
 
 export interface StateCounts {
@@ -451,6 +480,13 @@ const parseQueryGroupConfigurationSnapshot = (
     'configuration_snapshot.category_id',
   );
 
+  const referenceDate = parsed.reference_date === undefined
+    ? undefined
+    : requireDateOnly(
+        requireString(parsed, 'reference_date', 'configuration_snapshot'),
+        'configuration_snapshot.reference_date',
+      );
+
   return {
     config_version: configVersion,
     source_id: requireString(
@@ -458,6 +494,7 @@ const parseQueryGroupConfigurationSnapshot = (
       'source_id',
       'configuration_snapshot',
     ),
+    ...(referenceDate === undefined ? {} : { reference_date: referenceDate }),
     source_mode: requireString(
       parsed,
       'source_mode',
@@ -666,6 +703,39 @@ const mapWorkspaceRow = (
       requireString(row, 'created_at', 'workspace'),
       'workspace.created_at',
     ),
+  };
+};
+
+const mapSavedCollectionPresetRow = (
+  rawRow: unknown,
+): SavedCollectionPresetRecord => {
+  const row = requireRecord(rawRow, 'saved collection preset');
+  const presetId = requireString(row, 'preset_id', 'saved collection preset');
+  if (!PRESET_ID_PATTERN.test(presetId)) {
+    throw new Error(`Persisted preset_id is invalid: ${presetId}`);
+  }
+  return {
+    preset_id: presetId,
+    workspace_id: requireString(row, 'workspace_id', 'saved collection preset'),
+    preset_name: requireString(row, 'preset_name', 'saved collection preset'),
+    reusable_configuration: requireJsonObject(
+      parseJson(requireString(row, 'reusable_configuration_json', 'saved collection preset'), 'reusable_configuration_json'),
+      'saved_collection_preset.reusable_configuration',
+    ),
+    created_at: requireUtcTimestamp(requireString(row, 'created_at', 'saved collection preset'), 'saved_collection_preset.created_at'),
+    updated_at: requireUtcTimestamp(requireString(row, 'updated_at', 'saved collection preset'), 'saved_collection_preset.updated_at'),
+  };
+};
+
+const mapLastRunSettingsRow = (rawRow: unknown): LastRunSettingsRecord => {
+  const row = requireRecord(rawRow, 'last run settings');
+  return {
+    workspace_id: requireString(row, 'workspace_id', 'last run settings'),
+    reusable_configuration: requireJsonObject(
+      parseJson(requireString(row, 'reusable_configuration_json', 'last run settings'), 'reusable_configuration_json'),
+      'last_run_settings.reusable_configuration',
+    ),
+    updated_at: requireUtcTimestamp(requireString(row, 'updated_at', 'last run settings'), 'last_run_settings.updated_at'),
   };
 };
 
@@ -1069,6 +1139,15 @@ const createWorkspaceId = (): string => {
   return workspaceId;
 };
 
+const createPresetId = (): string => {
+  const timestamp = new Date().toISOString().replace(/[-:.]/g, '');
+  const presetId = `sp_${timestamp}_${randomBytes(3).toString('hex')}`;
+  if (!PRESET_ID_PATTERN.test(presetId)) {
+    throw new Error(`Generated preset_id does not match canonical pattern: ${presetId}`);
+  }
+  return presetId;
+};
+
 const createJobId = (
   runId: string,
   sourceId: string,
@@ -1135,9 +1214,11 @@ const validateCreateRunInput = (
 
 const buildSnapshot = (
   input: CreateRunInput,
+  referenceDate?: string,
 ): QueryGroupRunConfigurationSnapshot => ({
   config_version: input.query_config.config_version,
   source_id: input.query_config.source_id,
+  ...(referenceDate === undefined ? {} : { reference_date: requireDateOnly(referenceDate, 'reference_date') }),
   ...input.requested_configuration,
   selected_query_groups: input.query_config.groups.map(
     (group) => ({
@@ -1362,6 +1443,81 @@ export class StateRepository {
       .map(mapWorkspaceRow);
   }
 
+  createSavedCollectionPreset(
+    input: CreateSavedCollectionPresetInput,
+  ): SavedCollectionPresetRecord {
+    const workspaceId = requireNonEmpty(input.workspace_id, 'workspace_id');
+    const presetName = requireNonEmpty(input.preset_name, 'preset_name').trim();
+    const configuration = requireJsonObject(input.reusable_configuration, 'reusable_configuration');
+    const presetId = createPresetId();
+    const timestamp = new Date().toISOString();
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      this.database.prepare(`
+        INSERT INTO saved_collection_presets (
+          preset_id, workspace_id, preset_name,
+          reusable_configuration_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `).run(presetId, workspaceId, presetName, JSON.stringify(configuration), timestamp, timestamp);
+      this.database.exec('COMMIT');
+    } catch (error: unknown) {
+      try { this.database.exec('ROLLBACK'); } catch { /* preserve original */ }
+      throw error;
+    }
+    const preset = this.getSavedCollectionPreset(workspaceId, presetId);
+    if (!preset) throw new Error(`Saved Collection Preset ${presetId} was not readable after creation.`);
+    return preset;
+  }
+
+  getSavedCollectionPreset(workspaceId: string, presetId: string): SavedCollectionPresetRecord | null {
+    requireNonEmpty(workspaceId, 'workspace_id');
+    requireNonEmpty(presetId, 'preset_id');
+    const row = this.database.prepare(`
+      SELECT preset_id, workspace_id, preset_name, reusable_configuration_json, created_at, updated_at
+      FROM saved_collection_presets WHERE workspace_id = ? AND preset_id = ?
+    `).get(workspaceId, presetId);
+    return row === undefined ? null : mapSavedCollectionPresetRow(row);
+  }
+
+  listSavedCollectionPresets(workspaceId: string): SavedCollectionPresetRecord[] {
+    requireNonEmpty(workspaceId, 'workspace_id');
+    return this.database.prepare(`
+      SELECT preset_id, workspace_id, preset_name, reusable_configuration_json, created_at, updated_at
+      FROM saved_collection_presets WHERE workspace_id = ?
+      ORDER BY created_at ASC, preset_id ASC
+    `).all(workspaceId).map(mapSavedCollectionPresetRow);
+  }
+
+  updateSavedCollectionPreset(
+    input: UpdateSavedCollectionPresetInput,
+  ): SavedCollectionPresetRecord {
+    const workspaceId = requireNonEmpty(input.workspace_id, 'workspace_id');
+    const presetId = requireNonEmpty(input.preset_id, 'preset_id');
+    const presetName = requireNonEmpty(input.preset_name, 'preset_name').trim();
+    const configuration = requireJsonObject(input.reusable_configuration, 'reusable_configuration');
+    const updatedAt = new Date().toISOString();
+    const result = this.database.prepare(`
+      UPDATE saved_collection_presets
+      SET preset_name = ?, reusable_configuration_json = ?, updated_at = ?
+      WHERE workspace_id = ? AND preset_id = ?
+    `).run(presetName, JSON.stringify(configuration), updatedAt, workspaceId, presetId);
+    if (Number(result.changes) !== 1) {
+      throw new Error(`Saved Collection Preset ${presetId} was not found in Workspace ${workspaceId}.`);
+    }
+    const preset = this.getSavedCollectionPreset(workspaceId, presetId);
+    if (!preset) throw new Error(`Saved Collection Preset ${presetId} was not readable after update.`);
+    return preset;
+  }
+
+  getLastRunSettings(workspaceId: string): LastRunSettingsRecord | null {
+    requireNonEmpty(workspaceId, 'workspace_id');
+    const row = this.database.prepare(`
+      SELECT workspace_id, reusable_configuration_json, updated_at
+      FROM workspace_last_run_settings WHERE workspace_id = ?
+    `).get(workspaceId);
+    return row === undefined ? null : mapLastRunSettingsRow(row);
+  }
+
   createRunFromQueryConfig(
     input: CreateRunInput,
   ): {
@@ -1402,8 +1558,70 @@ export class StateRepository {
     });
   }
 
+  reserveRunFromQueryConfig(
+    input: ReserveRunFromQueryConfigInput,
+  ): { run: RunRecord; jobs: JobRecord[] } {
+    validateCreateRunInput(input);
+    const reusableConfiguration = requireJsonObject(
+      input.reusable_configuration,
+      'reusable_configuration',
+    );
+    return this.reserveRunFromJobPlans({
+      workspace_id: input.workspace_id,
+      application_version: input.application_version,
+      reusable_configuration: reusableConfiguration,
+      configuration_snapshot: requireJsonObject(
+        buildSnapshot(input, input.reference_date),
+        'configuration_snapshot',
+      ),
+      job_plans: input.query_config.groups.map((group) => ({
+        source_id: input.query_config.source_id,
+        job_key: group.query_group_id,
+        query_group_id: group.query_group_id,
+        source_context: {
+          query_group: {
+            query_group_id: group.query_group_id,
+            query_group_name: group.query_group_name,
+            queries: [...group.queries],
+          },
+        },
+      })),
+    });
+  }
+
   createRunFromJobPlans(
     rawInput: CreateRunFromJobPlansInput,
+  ): {
+    run: RunRecord;
+    jobs: JobRecord[];
+  } {
+    return this.persistRunAndJobs(rawInput, null);
+  }
+
+  reserveRunFromJobPlans(
+    rawInput: ReserveRunFromJobPlansInput,
+  ): {
+    run: RunRecord;
+    jobs: JobRecord[];
+  } {
+    const reusableConfiguration = requireJsonObject(
+      rawInput.reusable_configuration,
+      'reusable_configuration',
+    );
+    return this.persistRunAndJobs(
+      {
+        workspace_id: rawInput.workspace_id,
+        application_version: rawInput.application_version,
+        configuration_snapshot: rawInput.configuration_snapshot,
+        job_plans: rawInput.job_plans,
+      },
+      reusableConfiguration,
+    );
+  }
+
+  private persistRunAndJobs(
+    rawInput: CreateRunFromJobPlansInput,
+    lastRunSettings: ReusableCollectionConfiguration | null,
   ): {
     run: RunRecord;
     jobs: JobRecord[];
@@ -1528,6 +1746,21 @@ export class StateRepository {
           );
         },
       );
+
+      if (lastRunSettings !== null) {
+        this.database.prepare(`
+          INSERT INTO workspace_last_run_settings (
+            workspace_id, reusable_configuration_json, updated_at
+          ) VALUES (?, ?, ?)
+          ON CONFLICT(workspace_id) DO UPDATE SET
+            reusable_configuration_json = excluded.reusable_configuration_json,
+            updated_at = excluded.updated_at
+        `).run(
+          input.workspace_id,
+          JSON.stringify(lastRunSettings),
+          new Date().toISOString(),
+        );
+      }
 
       this.database.exec('COMMIT');
     } catch (error: unknown) {

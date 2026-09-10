@@ -71,6 +71,7 @@ export interface QueryGroupRunConfigurationSnapshot
   extends RequestedCollectionConfiguration {
   config_version: number;
   source_id: string;
+  reference_date?: string;
   selected_query_groups: Array<{
     query_group_id: string;
     query_group_name: string;

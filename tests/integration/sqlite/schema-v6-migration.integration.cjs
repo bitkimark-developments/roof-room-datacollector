@@ -146,7 +146,7 @@ const retryDatabasePath = createV5Database(
 
 const retryBootstrap = initializeDatabase(retryDirectories);
 assert.equal(retryBootstrap.status, 'READY');
-assert.equal(retryBootstrap.schema_version, 6);
+assert.equal(retryBootstrap.schema_version, 7);
 
 const retryDatabase = new DatabaseSync(retryDatabasePath);
 retryDatabase.exec('PRAGMA foreign_keys = ON');

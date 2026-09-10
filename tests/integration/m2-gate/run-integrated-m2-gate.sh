@@ -33,6 +33,7 @@ npx tsc \
   src/shared/bootstrap-status.ts \
   src/shared/browser.ts \
   src/shared/collection.ts \
+  src/shared/collection-configuration.ts \
   src/shared/logging.ts \
   src/shared/metadata.ts \
   src/shared/orchestration.ts \
@@ -60,6 +61,12 @@ bash \
 
 bash \
   tests/integration/sqlite/run-schema-v6-migration-test.sh
+
+bash \
+  tests/integration/sqlite/run-schema-v7-migration-test.sh
+
+bash \
+  tests/integration/sqlite/run-saved-preset-run-reservation-test.sh
 
 bash \
   tests/integration/sqlite/run-workspace-run-ownership-test.sh

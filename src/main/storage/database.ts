@@ -7,7 +7,7 @@ import type {
 } from '../../shared/bootstrap-status';
 
 const DATABASE_FILENAME = 'roofroom.sqlite';
-const CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 7;
 
 export const MIGRATION_COMPATIBILITY_WORKSPACE_ID =
   'ws_development_migration';
@@ -816,6 +816,74 @@ const migrateToVersion6 = (database: DatabaseSync): void => {
   }
 };
 
+const migrateToVersion7 = (database: DatabaseSync): void => {
+  database.exec('BEGIN IMMEDIATE');
+
+  try {
+    database.exec(`
+      CREATE TABLE saved_collection_presets (
+        preset_id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        preset_name TEXT NOT NULL
+          CHECK (length(trim(preset_name)) > 0),
+        reusable_configuration_json TEXT NOT NULL
+          CHECK (json_valid(reusable_configuration_json))
+          CHECK (json_type(reusable_configuration_json) = 'object'),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (workspace_id)
+          REFERENCES workspaces(workspace_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT
+      ) STRICT;
+
+      CREATE INDEX ix_saved_collection_presets_workspace
+        ON saved_collection_presets(
+          workspace_id,
+          created_at,
+          preset_id
+        );
+
+      CREATE TABLE workspace_last_run_settings (
+        workspace_id TEXT PRIMARY KEY,
+        reusable_configuration_json TEXT NOT NULL
+          CHECK (json_valid(reusable_configuration_json))
+          CHECK (json_type(reusable_configuration_json) = 'object'),
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (workspace_id)
+          REFERENCES workspaces(workspace_id)
+          ON UPDATE RESTRICT
+          ON DELETE RESTRICT
+      ) STRICT;
+    `);
+
+    database
+      .prepare(`
+        INSERT INTO schema_migrations (
+          version,
+          name,
+          applied_at
+        ) VALUES (?, ?, ?)
+      `)
+      .run(
+        7,
+        'workspace_collection_settings',
+        new Date().toISOString(),
+      );
+
+    database.exec('PRAGMA user_version = 7');
+    database.exec('COMMIT');
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK');
+    } catch {
+      // Preserve the original migration failure.
+    }
+
+    throw error;
+  }
+};
+
 const applyMigrations = (database: DatabaseSync): number => {
   let schemaVersion = readUserVersion(database);
 
@@ -852,6 +920,11 @@ const applyMigrations = (database: DatabaseSync): number => {
 
   if (schemaVersion < 6) {
     migrateToVersion6(database);
+    schemaVersion = readUserVersion(database);
+  }
+
+  if (schemaVersion < 7) {
+    migrateToVersion7(database);
     schemaVersion = readUserVersion(database);
   }
 

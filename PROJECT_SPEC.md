@@ -212,7 +212,7 @@ The desktop application should provide a non-technical workflow for seeing sourc
 
 Provider credentials and sensitive content must not cross into the renderer except through strictly limited safe state.
 
-Workspace selection and management UI, Presets, Last Run Settings, and any new cancel/stop/resume workflow are not part of the currently implemented Workspace ownership slice.
+Workspace selection and management UI and any new cancel/stop/resume workflow remain outside the Core persistence checkpoint. Schema v7 now provides Workspace-owned Saved Collection Presets, one logical Last Run Settings record, temporary non-persisted Run Drafts, and atomic start reservation that persists an immutable resolved Run Snapshot without storing credentials.
 
 ## 11. Storage and provenance
 

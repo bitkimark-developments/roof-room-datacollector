@@ -302,6 +302,8 @@ An implementation must preserve acquisition mode in provenance. Adding these str
 
 ## 15. Freshness contract
 
+Schema v7 adds `saved_collection_presets` (Workspace-owned durable reusable JSON objects) and `workspace_last_run_settings` (one system-managed JSON object per Workspace). Presets may retain relative source rules; each reserved Run Snapshot stores resolved absolute dates and reference date. Drafts are TypeScript-only and do not persist automatically. Last Run Settings records the last attempted configuration after successful Run reservation.
+
 Freshness is a separate conceptual domain from readiness, execution, and validation.
 
 It must eventually support facts such as:

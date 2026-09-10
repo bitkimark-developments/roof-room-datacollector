@@ -144,7 +144,7 @@ const main = async () => {
     initializeDatabase(directories);
 
   assert.equal(bootstrap.status, 'READY');
-  assert.equal(bootstrap.schema_version, 6);
+  assert.equal(bootstrap.schema_version, 7);
 
   if (bootstrap.status !== 'READY') {
     throw new Error(bootstrap.error);

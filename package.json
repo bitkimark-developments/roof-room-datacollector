@@ -24,6 +24,8 @@
     "test:m2:browser": "bash tests/integration/browser/run-browser-manager-test.sh",
     "test:m2:schema-v5": "bash tests/integration/sqlite/run-schema-v5-migration-test.sh",
     "test:m2:schema-v6": "bash tests/integration/sqlite/run-schema-v6-migration-test.sh",
+    "test:m2:schema-v7": "bash tests/integration/sqlite/run-schema-v7-migration-test.sh",
+    "test:m2:preset-reservation": "bash tests/integration/sqlite/run-saved-preset-run-reservation-test.sh",
     "test:m2:workspace-ownership": "bash tests/integration/sqlite/run-workspace-run-ownership-test.sh",
     "test:m2:source-neutral-state": "bash tests/integration/sqlite/run-source-neutral-job-persistence-test.sh",
     "test:m2:source-neutral-core": "bash tests/integration/orchestration/run-source-neutral-fake-json-test.sh",
