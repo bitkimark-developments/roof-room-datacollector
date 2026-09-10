@@ -272,3 +272,41 @@ Do not infer authorization for Workspace UI, Presets, Last Run Settings, credent
 ## 12. Handoff discipline
 
 Keep implementation, targeted deterministic verification, full release-gate verification, live-provider verification, and committed state as separate claims. This handoff authorizes no additional implementation or live call.
+
+## 13. Schema-v7 Saved Presets / Last Run Settings checkpoint — 2026-09-10
+
+Technical implementation commit:
+
+`f954f57 feat: add workspace collection presets`
+
+Implemented and verified:
+
+- SQLite schema v7.
+- Workspace-owned Saved Collection Presets.
+- One Last Run Settings record per Workspace.
+- Workspace-isolated preset/settings persistence.
+- Temporary TypeScript-only RunDraft contract.
+- Run-only overrides do not mutate Saved Presets.
+- Effective reusable configuration is persisted as Last Run Settings.
+- Immutable resolved Run Snapshot remains separate and supports reference_date.
+- Run, Jobs, and Last Run Settings use the atomic reservation boundary with rollback on failed reservation.
+- Google Trends remains compatible with reusable relative-period settings and resolved absolute Run dates.
+- Repository reopen preserves the new relationships.
+- Existing Workspace ownership, source-neutral Core, multi-source behavior, and Google Trends deterministic contracts remain compatible.
+
+Verification passed:
+
+- npm run lint
+- focused M2/Core/Google Trends deterministic tests
+- npm run test:m2:gate
+- npm run test:release:gate
+- git diff --check
+- PASS RELEASE-GATE-001
+
+No live-provider calls ran.
+
+Next major MVP checkpoint: Workspace-owned Connection / Credential / Readiness boundary.
+
+After that, implementation priority is driven by the locked BLOG-WEEK-2026-09-10 collection scope.
+
+The two historical untracked files remain intentionally untouched.
