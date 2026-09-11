@@ -60,6 +60,9 @@ bash \
   tests/integration/serpapi/run-live-serpapi-command-test.sh
 
 bash \
+  tests/integration/bitkimark/run-live-bitkimark-command-test.sh
+
+bash \
   tests/integration/app/run-desktop-ui-smoke-test.sh
 
 echo 'PASS RELEASE-GATE-001: deterministic Core, Google Trends, desktop file access, configuration, validation, and export gates completed'

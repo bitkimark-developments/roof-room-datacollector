@@ -240,6 +240,8 @@ The renderer must not receive tokens, API keys, unrestricted paths, raw account 
 
 Deterministic non-Google source coverage includes one İkas XLSX raw-preservation/parser/validator slice covering the production 40-column mapping, label-based variant attributes, nullable sale price/stock, URL-vs-image separation, and source-native availability, plus one Bitkimark XML inventory/annotation/validator slice; live provider requests remain excluded from routine gates.
 
+The guarded Bitkimark live-sitemap command has a deterministic `BITKIMARK-LIVE-CMD-001` test. It proves exact confirmation and HTTPS URL validation before fetch, one-request/no-retry behavior, raw-byte hash/size preservation, parser/validator acceptance and annotation counts, safe summary output, and controlled HTTP failure handling. The command itself is acceptance-only and is never run by deterministic gates.
+
 Exports must:
 
 - include only eligible accepted/accepted-with-warning data;
