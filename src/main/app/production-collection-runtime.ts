@@ -70,8 +70,8 @@ class GoogleApiCollectionValidator implements CollectionValidator {
       const body = JSON.parse(new TextDecoder().decode(await fs.readFile(context.absolute_path))) as unknown;
       let count = 0;
       if (this.sourceId === GSC_QUERY_PAGE_SOURCE_ID) {
-        if (typeof body !== 'object' || body === null || !Array.isArray((body as { raw_pages?: unknown }).raw_pages)) throw new Error('GSC artifact raw_pages is required.');
-        for (const page of (body as { raw_pages: unknown[] }).raw_pages) count += normalizeGscRows(page).length;
+        if (!Array.isArray(body)) throw new Error('GSC artifact must contain the raw pages array.');
+        for (const page of body) count += normalizeGscRows(page).length;
       } else if (this.sourceId === GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID) count = normalizeSearchTerms(body).length;
       else count = normalizeKeywordPlanner(body, 'production', Array.isArray((context.source_context as { keywords?: unknown }).keywords) ? ((context.source_context as { keywords: unknown[] }).keywords.filter((v): v is string => typeof v === 'string')) : []).length;
       return { validation_status: count > 0 ? 'VALID' as const : 'NO_DATA' as const, checks_total: 1, checks_passed: 1, checks_warning: 0, checks_failed: 0, findings: [] };

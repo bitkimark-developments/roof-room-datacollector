@@ -81,5 +81,45 @@ const ikasResult = await runtime.source_registry.get('ikas-products').collect({ 
 assert.equal(trendsDispatches, 1);
 assert.equal(ikasResult.result_type, 'ARTIFACT_PRODUCED');
 fs.unlinkSync(fixture);
+
+const gscArtifact = '/tmp/production-composition-gsc.json';
+fs.writeFileSync(gscArtifact, JSON.stringify([
+  {
+    rows: [
+      {
+        keys: ['ficus', 'https://bitkimark.com/ficus'],
+        clicks: 1,
+        impressions: 2,
+        ctr: 0.5,
+        position: 3,
+      },
+    ],
+  },
+]));
+
+const gscValidation = await runtime.validator_registry
+  .get('google-search-console-query-page')
+  .validate({
+    job: {
+      source_id: 'google-search-console-query-page',
+    },
+    artifact: {
+      source_id: 'google-search-console-query-page',
+    },
+    absolute_path: gscArtifact,
+    source_context: {
+      start_date: '2026-06-12',
+      end_date: '2026-09-09',
+    },
+  });
+
+assert.equal(
+  gscValidation.validation_status,
+  'VALID',
+  'GSC validator must accept the raw_pages array artifact emitted by GoogleSearchConsoleSource',
+);
+
+fs.unlinkSync(gscArtifact);
+
 console.log('PASS PRODUCTION-SOURCE-COMPOSITION-001');
 })().catch((error) => { console.error(error); process.exitCode = 1; });
