@@ -523,3 +523,83 @@ The next and final major MVP implementation checkpoint is generalized Desktop mu
 After that checkpoint, remaining work should move primarily to real provider setup, live acceptance, current İkas workbook mapping, Bitkimark live smoke, and targeted bug fixes rather than further Core architecture expansion.
 
 The two historical untracked files remain intentionally untouched.
+
+## 19. Generalized Desktop multi-source + Data Package checkpoint — 2026-09-11
+
+Technical implementation commit:
+
+`3ef48e9 feat: add multi-source desktop run flow`
+
+Implemented and verified:
+
+- Generalized Workspace-scoped desktop Run flow.
+- HOME → SETUP → REVIEW → PROGRESS → RESULT workflow.
+- Saved Preset / Last Run / Blank draft origins.
+- Final readiness gating before Start.
+- Immutable Run reservation with source-specific Job planning.
+- Production shared-Core execution through `DesktopExecutionService` and `CollectionOrchestrator.runUntilBlocked(run_id)`.
+- Production SourceRegistry composition for all seven R1 source modules:
+  - google-trends
+  - google-search-console-query-page
+  - google-ads-search-terms
+  - google-keyword-planner
+  - ikas-products
+  - bitkimark-sitemap
+  - serpapi
+- Source-specific validators registered in the production execution runtime.
+- Asynchronous Run execution with per-run in-process duplicate-dispatch protection.
+- Explicit Retry Failed through existing reconciliation/retry machinery, preserving accepted sibling Jobs.
+- Physical Export All and Export Successful Only through main-process filesystem boundaries.
+- Source-separated Data Package output with safe failure context and NULL preservation.
+- Workspace-scoped Run history and minimal Preset/Workspace management surfaces.
+- Typed preload/IPC boundaries with fail-closed payload validation.
+- Credential-like configuration fields sanitized from renderer-facing and persisted snapshot/export boundaries.
+- Existing Google Trends browser/runtime shutdown behavior preserved.
+- No renderer-owned collection or retry loop.
+- No cross-source row-level data joining.
+
+Supported R1 source set is now production-composed for generalized desktop execution:
+
+- Google Trends
+- Google Search Console
+- Google Ads Search Terms
+- Google Ads Keyword Planner
+- İkas Products XLSX
+- Bitkimark Sitemap/XML
+- SerpApi Google SERP
+
+Verification passed:
+
+- PASS PRODUCTION-SOURCE-COMPOSITION-001
+- PASS DESKTOP-MULTISOURCE-001
+- PASS DESKTOP-RETRY-EXPORT-001
+- PASS DATA-PACKAGE-001
+- existing source-neutral/multi-source Run lifecycle gates
+- existing readiness and credential-boundary gates
+- desktop UI smoke gates
+- npx tsc --noEmit
+- npm run lint
+- git diff --check
+- npm run test:release:gate
+- PASS RELEASE-GATE-001
+
+No live provider collection was executed during this checkpoint.
+
+The major deterministic implementation phase is now complete enough to move into manual/live BLOG-WEEK-2026-09-10 acceptance.
+
+Remaining work is acceptance/configuration focused rather than another Core architecture checkpoint:
+
+- configure real Workspace source connections/credentials;
+- provide and inspect the current İkas Products XLSX and lock its real production mapping;
+- run Bitkimark live sitemap smoke;
+- configure/authorize Google access as required;
+- load the locked BLOG-WEEK Google Trends groups/date range;
+- run guarded Google Trends acceptance;
+- run GSC, Ads Search Terms, and Keyword Planner acceptance;
+- configure SerpApi credential and run the locked 27-query acceptance;
+- validate provenance/raw evidence/package exports;
+- fix only concrete issues found during live acceptance.
+
+All provider authentication, CAPTCHA, 2FA, quota, and rate-limit conditions remain fail-closed/manual-action boundaries.
+
+The two historical untracked files remain intentionally untouched.
