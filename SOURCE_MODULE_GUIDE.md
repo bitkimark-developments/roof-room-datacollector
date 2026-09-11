@@ -247,7 +247,7 @@ Official API is primary; UTF-16 tab-separated manual CSV is fallback. Both norma
 
 ### İkas Products
 
-Map exact fields only from a sanitized real workbook. Preserve blank stock as null.
+Map exact fields only from the sanitized production shape (`Ikas Excel File`, 40 columns). `Ürün Grup ID` and `Varyant ID` are the source identifiers; `İsim`, `Kategoriler`, `Tip`, `Satış Fiyatı`, `İndirimli Fiyatı`, `Açıklama`, and `Slug` retain their source semantics. Product URL is unavailable in this export, and `Resim URL` remains image-only evidence. Match `Bitki Boyu (Saksı Dahil)` and `Saksı Tipi` by label across all three variant type/value pairs. Preserve blank stock/sale price and absent attributes as null; preserve both case-distinct sales-channel columns.
 
 ### Bitkimark public site
 

@@ -198,6 +198,8 @@ Required validator families:
 - corrupt workbook, missing required field, or unsupported schema fails visibly;
 - normalized rows remain traceable to the original workbook and row/sheet context where practical.
 
+The accepted production mapping is the observed `Ikas Excel File` sheet with exact identity headers `Ürün Grup ID`, `Varyant ID`, and `İsim`, plus `Satış Fiyatı` and `İndirimli Fiyatı`. Variant attributes are paired structurally and matched by exact labels, not slot position. `Resim URL` must never satisfy a product URL field. Missing sale price, stock, plant height, and pot type remain nullable. IDs are source identifiers and must be non-empty; present numeric price/stock cells must parse successfully.
+
 ## 12. Bitkimark public site HTTP/XML
 
 Validate:

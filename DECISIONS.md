@@ -2269,6 +2269,7 @@ Validation is mandatory.
 | ADR-062 | Google API credentials use Electron safeStorage plus desktop PKCE OAuth composition | ACCEPTED |
 | ADR-063 | SerpApi uses one Workspace-scoped query Job with raw JSON plus organic/PAA normalization | ACCEPTED |
 | ADR-064 | Generalized desktop flow delegates Workspace drafts, readiness, reservation, retry, and source-separated packages to existing Core contracts | ACCEPTED |
+| ADR-065 | İkas production XLSX mapping uses exact identity/price headers and label-based variant attributes; storefront URL is unavailable without explicit evidence | ACCEPTED |
 
 ---
 

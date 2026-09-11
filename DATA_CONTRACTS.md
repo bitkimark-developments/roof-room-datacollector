@@ -366,7 +366,7 @@ Preserve keyword, average monthly searches, competition, competition index, mont
 
 ### İkas Products
 
-Preserve the original XLSX. Normalize only fields actually observed in the real file, including provider-native identifiers and variant/product values. Blank stock remains `NULL`. Exact worksheet/column mapping is locked from an evidence-based fixture during implementation.
+Preserve the original XLSX. The verified production export uses sheet `Ikas Excel File`, 40 columns, and 856 variant rows (88 product groups). Product identity maps to `Ürün Grup ID` and `Varyant ID`; title, categories, type, prices, description, and slug map to their exact Turkish source headers. `Resim URL` is image evidence only: `url` remains `NULL` unless an explicit storefront URL column/configuration exists. `Bitki Boyu (Saksı Dahil)` and `Saksı Tipi` are extracted by label across the three variant type/value pairs. Blank sale price and stock remain `NULL`; source-native stock/activity evidence is preserved and availability is derived deterministically without replacing missing values with zero.
 
 ### Bitkimark public site
 
