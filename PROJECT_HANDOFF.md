@@ -4,9 +4,9 @@
 
 **Current milestone:** Release 1.0 multi-source foundation and source-adapter rollout
 
-**Current stage:** Workspace identity and Run ownership Core slice implemented, deterministically verified, and technically committed
+**Current stage:** İkas Products production XLSX mapping implemented and deterministically verified; commit pending filesystem permission recovery
 
-**Current goal:** Preserve the verified schema-v6 ownership checkpoint and require explicit approval before the next bounded implementation slice
+**Current goal:** Preserve the verified İkas production mapping checkpoint and require explicit approval before guarded live acceptance
 
 ---
 
@@ -66,7 +66,7 @@ Workspace is now a first-class Core identity for brand/business isolation. Every
 
 This checkpoint does not add Workspace UI or lifecycle screens, Presets, Last Run Settings, credential management, provider changes, multi-source application composition, generalized export, source-specific timeout work, or a new Cancel/Stop/Resume workflow.
 
-Google Trends remains the only implemented production source. GSC, Google Ads Search Terms, Keyword Planner, İkas, Bitkimark XML, and SERP retain approved feasibility paths but no source implementation. Semrush is not active Release 1.0 scope.
+Google Trends remains the reference browser source. GSC, Google Ads Search Terms, Keyword Planner, İkas, Bitkimark XML, and SERP retain approved feasibility paths; the İkas Products parser/validator now accepts and locks the verified production XLSX mapping. Semrush is not active Release 1.0 scope.
 
 ## 4. Implemented Workspace and Run contract
 
@@ -603,3 +603,11 @@ Remaining work is acceptance/configuration focused rather than another Core arch
 All provider authentication, CAPTCHA, 2FA, quota, and rate-limit conditions remain fail-closed/manual-action boundaries.
 
 The two historical untracked files remain intentionally untouched.
+
+## 17. İkas production mapping checkpoint — 2026-09-11
+
+The real read-only workbook `/Users/furkan/Downloads/ikas-urunler (1).xlsx` was verified as sheet `Ikas Excel File`, 40 headers, and 856 variant rows across 88 product groups. The parser now maps `Ürün Grup ID` → product ID, `Varyant ID` → variant ID, exact title/category/type/price/description/slug fields, keeps product URL `NULL`, and extracts plant height/pot type by label across all three variant slots. Blank sale price/stock and absent attributes remain nullable; image URL is never treated as product URL. Source-native activity/stock evidence is preserved with deterministic availability states.
+
+Verification passed: `PASS NON-GOOGLE-SOURCES-001`, `npx tsc --noEmit`, `npm run lint`, and `git diff --check`. One `npm run test:release:gate` run was started, but the captured worker output was truncated before its final status line; `PASS RELEASE-GATE-001` is therefore not claimed. No live provider traffic ran and the real workbook is not stored in Git.
+
+The technical commit and separate documentation commit could not be created because Git could not create `.git/index.lock` (`Operation not permitted`). Changes remain in the working tree for manual staging/commit. The two historical untracked files remain untouched.
