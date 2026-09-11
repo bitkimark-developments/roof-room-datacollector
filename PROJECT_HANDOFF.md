@@ -311,6 +311,12 @@ After that, implementation priority is driven by the locked BLOG-WEEK-2026-09-10
 
 The two historical untracked files remain intentionally untouched.
 
+## 18. Guarded Bitkimark sitemap live smoke — 2026-09-11
+
+Added `scripts/m3/live-bitkimark-sitemap-smoke.ts` and `scripts/m3/run-live-bitkimark-sitemap-smoke.sh`, exposed as `npm run m3:live-bitkimark-sitemap-smoke`. The command requires `--confirm-live-collection --sitemap-url <https-url>`, rejects credentials/fragments/non-HTTPS and unsupported arguments before fetch, performs exactly one `BitkimarkSitemapSource` request with no retry, then uses the existing parser/validator and reports only status, byte size/hash, validation status, URL count, approved annotation counts, and raw-persistence state. The real live command was not executed.
+
+`PASS BITKIMARK-LIVE-CMD-001`, `PASS NON-GOOGLE-SOURCES-001`, typecheck, lint, and diff checks passed. After wiring the Bitkimark live-command test into the release gate, the full gate was rerun and visibly completed with both `PASS BITKIMARK-LIVE-CMD-001` and `PASS RELEASE-GATE-001`. Technical implementation was committed as `917b7c6 feat: add bitkimark live sitemap smoke`. The real live Bitkimark request has still not been executed. Historical untracked files remain untouched.
+
 ## 14. Schema-v8 Workspace Connection / Readiness checkpoint — 2026-09-10
 
 Technical implementation commit:
