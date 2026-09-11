@@ -44,11 +44,178 @@ import type {
 export const LIVE_GSC_CURRENT_CONFIRMATION_FLAG =
   '--confirm-live-gsc';
 
-export const LIVE_GSC_CURRENT_START_DATE =
-  '2026-06-12';
+export type LiveGscPeriod =
+  | 'current'
+  | 'long';
 
-export const LIVE_GSC_CURRENT_END_DATE =
-  '2026-09-09';
+export type LiveGscDatePolicy =
+  | 'LAST_90_COMPLETE_DAYS'
+  | 'LAST_16_MONTHS_TO_YESTERDAY';
+
+export interface LiveGscResolvedDateRange {
+  period: LiveGscPeriod;
+  date_policy: LiveGscDatePolicy;
+  reference_date: string;
+  start_date: string;
+  end_date: string;
+  job_key: 'GSC-CURRENT-001' | 'GSC-LONG-001';
+}
+
+const ISO_DATE_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})$/u;
+
+const parseIsoDate = (
+  value: string,
+): {
+  year: number;
+  month: number;
+  day: number;
+} => {
+  const match = ISO_DATE_PATTERN.exec(value);
+
+  if (!match) {
+    throw new Error(`Invalid ISO date: ${value}`);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const candidate = new Date(
+    Date.UTC(year, month - 1, day),
+  );
+
+  if (
+    candidate.getUTCFullYear() !== year ||
+    candidate.getUTCMonth() !== month - 1 ||
+    candidate.getUTCDate() !== day
+  ) {
+    throw new Error(`Invalid ISO date: ${value}`);
+  }
+
+  return { year, month, day };
+};
+
+const formatIsoDate = (
+  year: number,
+  month: number,
+  day: number,
+): string =>
+  [
+    String(year).padStart(4, '0'),
+    String(month).padStart(2, '0'),
+    String(day).padStart(2, '0'),
+  ].join('-');
+
+const subtractDays = (
+  value: string,
+  days: number,
+): string => {
+  const parsed = parseIsoDate(value);
+
+  const date = new Date(
+    Date.UTC(
+      parsed.year,
+      parsed.month - 1,
+      parsed.day,
+    ),
+  );
+
+  date.setUTCDate(
+    date.getUTCDate() - days,
+  );
+
+  return formatIsoDate(
+    date.getUTCFullYear(),
+    date.getUTCMonth() + 1,
+    date.getUTCDate(),
+  );
+};
+
+const subtractCalendarMonthsClamped = (
+  value: string,
+  months: number,
+): string => {
+  const parsed = parseIsoDate(value);
+
+  const absoluteMonth =
+    parsed.year * 12 +
+    (parsed.month - 1) -
+    months;
+
+  const targetYear =
+    Math.floor(absoluteMonth / 12);
+
+  const targetMonthIndex =
+    ((absoluteMonth % 12) + 12) % 12;
+
+  const lastDay =
+    new Date(
+      Date.UTC(
+        targetYear,
+        targetMonthIndex + 1,
+        0,
+      ),
+    ).getUTCDate();
+
+  return formatIsoDate(
+    targetYear,
+    targetMonthIndex + 1,
+    Math.min(parsed.day, lastDay),
+  );
+};
+
+export const resolveLiveGscReferenceDate = (
+  now: Date = new Date(),
+): string =>
+  formatIsoDate(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    now.getDate(),
+  );
+
+export const resolveLiveGscDateRange = (
+  period: LiveGscPeriod,
+  referenceDate: string,
+): LiveGscResolvedDateRange => {
+  parseIsoDate(referenceDate);
+
+  const endDate =
+    subtractDays(referenceDate, 1);
+
+  if (period === 'current') {
+    return {
+      period,
+      date_policy:
+        'LAST_90_COMPLETE_DAYS',
+      reference_date:
+        referenceDate,
+      start_date:
+        subtractDays(referenceDate, 90),
+      end_date:
+        endDate,
+      job_key:
+          'GSC-CURRENT-001',
+    };
+  }
+
+  return {
+    period,
+    date_policy:
+      'LAST_16_MONTHS_TO_YESTERDAY',
+    reference_date:
+      referenceDate,
+    start_date:
+      subtractCalendarMonthsClamped(
+        referenceDate,
+        16,
+      ),
+    end_date:
+      endDate,
+    job_key:
+      'GSC-LONG-001',
+  };
+};
 
 export const resolveLiveGscApplicationVersion = (): string => {
   const packageJsonPath = path.join(
@@ -73,47 +240,83 @@ export const resolveLiveGscApplicationVersion = (): string => {
 };
 
 const HELP_FLAG = '--help';
-const WORKSPACE_NAME_PREFIX = '--workspace-name=';
+const WORKSPACE_NAME_PREFIX =
+  '--workspace-name=';
+const PERIOD_PREFIX =
+  '--period=';
+const REFERENCE_DATE_PREFIX =
+  '--reference-date=';
 
 export interface LiveGscCurrentArguments {
   help: boolean;
   confirmed: boolean;
   workspace_name: string;
+  period: LiveGscPeriod | null;
+  reference_date: string | null;
 }
 
 export const parseLiveGscCurrentArguments = (
   args: readonly string[],
 ): LiveGscCurrentArguments => {
-  const workspaceArguments = args.filter(
-    (argument) =>
-      argument.startsWith(WORKSPACE_NAME_PREFIX),
-  );
+  const workspaceArguments =
+    args.filter(
+      (argument) =>
+        argument.startsWith(
+          WORKSPACE_NAME_PREFIX,
+        ),
+    );
+
+  const periodArguments =
+    args.filter(
+      (argument) =>
+        argument.startsWith(
+          PERIOD_PREFIX,
+        ),
+    );
+
+  const referenceDateArguments =
+    args.filter(
+      (argument) =>
+        argument.startsWith(
+          REFERENCE_DATE_PREFIX,
+        ),
+    );
 
   const allowed = new Set([
     HELP_FLAG,
     LIVE_GSC_CURRENT_CONFIRMATION_FLAG,
     ...workspaceArguments,
+    ...periodArguments,
+    ...referenceDateArguments,
   ]);
 
-  const unexpected = args.filter(
-    (argument) => !allowed.has(argument),
-  );
+  const unexpected =
+    args.filter(
+      (argument) =>
+        !allowed.has(argument),
+    );
 
   if (
     unexpected.length > 0 ||
-    workspaceArguments.length > 1
+    workspaceArguments.length > 1 ||
+    periodArguments.length > 1 ||
+    referenceDateArguments.length > 1
   ) {
     throw new Error(
       `Unsupported argument(s): ${[
         ...unexpected,
         ...workspaceArguments.slice(1),
+        ...periodArguments.slice(1),
+        ...referenceDateArguments.slice(1),
       ].join(', ')}`,
     );
   }
 
   const workspaceName =
     workspaceArguments[0]
-      ?.slice(WORKSPACE_NAME_PREFIX.length)
+      ?.slice(
+        WORKSPACE_NAME_PREFIX.length,
+      )
       .trim() ?? '';
 
   if (
@@ -121,22 +324,59 @@ export const parseLiveGscCurrentArguments = (
     !workspaceName
   ) {
     throw new Error(
-      'GSC live CURRENT workspace name must be non-empty.',
+      'GSC live workspace name must be non-empty.',
     );
   }
 
+  const rawPeriod =
+    periodArguments[0]
+      ?.slice(PERIOD_PREFIX.length)
+      .trim() ?? '';
+
+  if (
+    rawPeriod &&
+    rawPeriod !== 'current' &&
+    rawPeriod !== 'long'
+  ) {
+    throw new Error(
+      `Unsupported GSC period: ${rawPeriod}`,
+    );
+  }
+
+  const referenceDate =
+    referenceDateArguments[0]
+      ?.slice(
+        REFERENCE_DATE_PREFIX.length,
+      )
+      .trim() ?? '';
+
+  if (referenceDate) {
+    parseIsoDate(referenceDate);
+  }
+
   return {
-    help: args.includes(HELP_FLAG),
+    help:
+      args.includes(HELP_FLAG),
     confirmed:
-      args.includes(LIVE_GSC_CURRENT_CONFIRMATION_FLAG),
-    workspace_name: workspaceName,
+      args.includes(
+        LIVE_GSC_CURRENT_CONFIRMATION_FLAG,
+      ),
+    workspace_name:
+      workspaceName,
+    period:
+      rawPeriod
+        ? rawPeriod as LiveGscPeriod
+        : null,
+    reference_date:
+      referenceDate || null,
   };
 };
 
 export const requireLiveGscCurrentConfirmation = (
   args: readonly string[],
 ): LiveGscCurrentArguments => {
-  const parsed = parseLiveGscCurrentArguments(args);
+  const parsed =
+    parseLiveGscCurrentArguments(args);
 
   if (parsed.help) return parsed;
 
@@ -148,7 +388,13 @@ export const requireLiveGscCurrentConfirmation = (
 
   if (!parsed.workspace_name) {
     throw new Error(
-      'GSC live CURRENT requires --workspace-name=<name>.',
+      'GSC live request requires --workspace-name=<name>.',
+    );
+  }
+
+  if (!parsed.period) {
+    throw new Error(
+      'GSC live request requires --period=current|long.',
     );
   }
 
@@ -159,13 +405,17 @@ const usage = (): string => [
   'Usage:',
   '  bash scripts/m3/run-live-google-gsc-current.sh \\',
   `    ${LIVE_GSC_CURRENT_CONFIRMATION_FLAG} \\`,
-  '    --workspace-name="Bitkimark Production"',
+  '    --workspace-name="Bitkimark Production" \\',
+  '    --period=current|long \\',
+  '    [--reference-date=YYYY-MM-DD]',
   '',
-  'Fixed acceptance scope:',
-  `  start_date: ${LIVE_GSC_CURRENT_START_DATE}`,
-  `  end_date:   ${LIVE_GSC_CURRENT_END_DATE}`,
-  '  dataset:    Query × Page',
-  '  source:     Google Search Console official API',
+  'Dynamic date policies:',
+  '  current: last 90 complete days ending yesterday',
+  '  long: reference date minus 16 calendar months through yesterday',
+  '  reference date defaults to the local execution date',
+  '',
+  'Dataset: Query × Page',
+  'Source: Google Search Console official API',
   '',
   'Safety:',
   '  - uses the existing encrypted Workspace credential',
@@ -233,6 +483,22 @@ const main = async (): Promise<void> => {
     console.log(usage());
     process.exit(0);
   }
+
+  if (parsed.period === null) {
+    throw new Error(
+      'GSC period is unavailable after confirmation.',
+    );
+  }
+
+  const referenceDate =
+    parsed.reference_date ??
+    resolveLiveGscReferenceDate();
+
+  const dateRange =
+    resolveLiveGscDateRange(
+      parsed.period,
+      referenceDate,
+    );
 
   const { app } = await import('electron');
 
@@ -359,9 +625,9 @@ const main = async (): Promise<void> => {
       googleApi.createLiveSearchConsoleSmokeSource({
         workspace_id: workspace.workspace_id,
         start_date:
-          LIVE_GSC_CURRENT_START_DATE,
+          dateRange.start_date,
         end_date:
-          LIVE_GSC_CURRENT_END_DATE,
+          dateRange.end_date,
         confirmation:
           GOOGLE_LIVE_ACCEPTANCE_CONFIRMATION,
       });
@@ -390,11 +656,17 @@ const main = async (): Promise<void> => {
             GSC_QUERY_PAGE_SOURCE_ID,
           source_mode: 'OFFICIAL_API',
           dataset_type: 'QUERY_PAGE',
-          site_url: siteUrl,
+      period:
+        dateRange.period,
+      date_policy:
+        dateRange.date_policy,
+      reference_date:
+        dateRange.reference_date,
+      site_url: siteUrl,
           start_date:
-            LIVE_GSC_CURRENT_START_DATE,
+          dateRange.start_date,
           end_date:
-            LIVE_GSC_CURRENT_END_DATE,
+          dateRange.end_date,
           dimensions: [
             'query',
             'page',
@@ -405,13 +677,19 @@ const main = async (): Promise<void> => {
             source_id:
               GSC_QUERY_PAGE_SOURCE_ID,
             job_key:
-              'GSC-CURRENT-001',
+              dateRange.job_key,
             query_group_id: null,
             source_context: {
-              start_date:
-                LIVE_GSC_CURRENT_START_DATE,
+          period:
+            dateRange.period,
+          date_policy:
+            dateRange.date_policy,
+          reference_date:
+            dateRange.reference_date,
+          start_date:
+          dateRange.start_date,
               end_date:
-                LIVE_GSC_CURRENT_END_DATE,
+          dateRange.end_date,
             },
           },
         ],
@@ -439,11 +717,17 @@ const main = async (): Promise<void> => {
       source_id:
         GSC_QUERY_PAGE_SOURCE_ID,
       site_url:
-        siteUrl,
-      start_date:
-        LIVE_GSC_CURRENT_START_DATE,
+    siteUrl,
+  period:
+    dateRange.period,
+  date_policy:
+    dateRange.date_policy,
+  reference_date:
+    dateRange.reference_date,
+  start_date:
+          dateRange.start_date,
       end_date:
-        LIVE_GSC_CURRENT_END_DATE,
+          dateRange.end_date,
       run_id:
         planned.run.run_id,
       job_id:
