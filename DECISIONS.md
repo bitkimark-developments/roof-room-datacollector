@@ -2268,6 +2268,7 @@ Validation is mandatory.
 | ADR-061 | İkas XLSX and Bitkimark Sitemap enter shared Core as bounded source slices | ACCEPTED |
 | ADR-062 | Google API credentials use Electron safeStorage plus desktop PKCE OAuth composition | ACCEPTED |
 | ADR-063 | SerpApi uses one Workspace-scoped query Job with raw JSON plus organic/PAA normalization | ACCEPTED |
+| ADR-064 | Generalized desktop flow delegates Workspace drafts, readiness, reservation, retry, and source-separated packages to existing Core contracts | ACCEPTED |
 
 ---
 

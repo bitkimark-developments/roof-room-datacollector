@@ -45,6 +45,15 @@ bash \
   tests/integration/google-api/run-google-credential-composition-test.sh
 
 bash \
+  tests/integration/app/run-desktop-multisource-flow-test.sh
+
+bash \
+  tests/integration/app/run-desktop-retry-export-test.sh
+
+bash \
+  tests/integration/export/run-data-package-exporter-test.sh
+
+bash \
   tests/integration/serpapi/run-serpapi-source-test.sh
 
 bash \

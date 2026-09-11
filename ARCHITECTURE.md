@@ -199,6 +199,10 @@ The later manual smoke entry point is `npm run m3:live-serpapi -- --confirm-live
 
 Workspace-owned reusable configuration is persisted as Saved Collection Presets and system-managed Last Run Settings. A temporary Run Draft resolves effective source-owned configuration without mutating its origin. New starts use one atomic repository reservation transaction that persists the immutable resolved Run Snapshot and updates Last Run Settings together; credentials remain outside all three stores.
 
+The desktop surface now has a generalized multi-source facade. `DesktopMultiSourceController` builds sanitized Workspace-scoped drafts and review summaries, gates included-source readiness before reservation, and delegates Run creation to the existing `reserveRunFromJobPlans` path. The renderer exposes compact HOME/RUNS/PRESETS/WORKSPACE navigation and source cards without credentials or raw provider payloads; backend recovery remains available without normal Pause/Stop/Resume controls.
+
+`DataPackage` exports keep source datasets separate and include a run manifest. Export All may include safe failure context; Successful Only contains accepted datasets and provenance only. Raw artifacts remain immutable and no cross-source row join is performed.
+
 `ValidationCoordinator`/Core lifecycle owns validation invocation and artifact state transition. `CollectionValidatorRegistry` fails closed for invalid, duplicate, or unknown source IDs, and `CollectionOrchestrator` resolves a validator for each Job from `job.source_id`. Each source validator owns semantic checks.
 
 Generic checks cover existence, readability, content signature, parseability, required provenance, and structural safety. Source checks cover dimensions, identifiers, date/context, metric domains, expected schema, completeness limitations, and source-mode semantics.

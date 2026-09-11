@@ -30,7 +30,16 @@ import {
 import {
   initializeDatabase,
   MIGRATION_COMPATIBILITY_WORKSPACE_ID,
+  getDatabasePath,
 } from './main/storage/database';
+import { StateRepository } from './main/storage/state-repository';
+import { ElectronSafeStorageCredentialStore } from './main/core/electron-safe-storage-credential-store';
+import { ReadinessRegistry } from './main/core/readiness-registry';
+import { DesktopExecutionService } from './main/app/desktop-execution-service';
+import { createProductionCollectionRuntime } from './main/app/production-collection-runtime';
+import { StructuredLogger } from './main/logging/structured-logger';
+import { DesktopMultiSourceController } from './main/app/desktop-multisource-controller';
+import { SUPPORTED_DESKTOP_SOURCE_IDS } from './shared/desktop-multisource';
 import {
   IPC_CHANNELS,
   type ApplicationInfo,
@@ -42,6 +51,8 @@ import type {
 import {
   normalizeGoogleTrendsCollectionStartRequest,
 } from './shared/google-trends-period';
+import { isDesktopRunDraft, type DesktopRunDraft } from './shared/desktop-multisource';
+import type { RunDraftOrigin } from './shared/collection-configuration';
 
 if (started) {
   app.quit();
@@ -58,6 +69,10 @@ let googleTrendsController:
 let googleTrendsShutdownPromise:
   Promise<void> | null =
     null;
+
+let desktopMultiSourceController: DesktopMultiSourceController | null = null;
+let desktopRepository: StateRepository | null = null;
+let desktopExecutionService: DesktopExecutionService | null = null;
 
 const isTrustedIpcSender = (event: IpcMainInvokeEvent): boolean => {
   const frame = event.senderFrame;
@@ -102,6 +117,7 @@ const registerIpcHandlers = (
   bootstrapStatus: BootstrapStatus,
   controller:
     GoogleTrendsDesktopController | null,
+  desktopController: DesktopMultiSourceController | null = desktopMultiSourceController,
 ): void => {
   const requireController =
     (): GoogleTrendsDesktopController => {
@@ -278,6 +294,55 @@ const registerIpcHandlers = (
       }
     },
   );
+
+  const requireDesktopController = (): DesktopMultiSourceController => {
+    if (desktopController === null) throw new Error('Generalized desktop collection is unavailable because application bootstrap is not ready.');
+    return desktopController;
+  };
+
+  ipcMain.handle(IPC_CHANNELS.DESKTOP_WORKSPACES, (event) => {
+    assertTrustedIpcSender(event);
+    return requireDesktopController().getWorkspaceView();
+  });
+  ipcMain.handle(IPC_CHANNELS.DESKTOP_PRESETS, (event, workspaceId: unknown) => {
+    assertTrustedIpcSender(event);
+    if (typeof workspaceId !== 'string' || workspaceId.trim().length === 0) throw new Error('workspace_id must be a non-empty string.');
+    return requireDesktopController().listPresets(workspaceId);
+  });
+  ipcMain.handle(IPC_CHANNELS.DESKTOP_CREATE_DRAFT, (event, input: unknown) => {
+    assertTrustedIpcSender(event);
+    if (typeof input !== 'object' || input === null) throw new Error('Desktop draft input must be an object.');
+    const value = input as { workspace_id?: unknown; origin?: unknown };
+    if (typeof value.workspace_id !== 'string' || typeof value.origin !== 'object' || value.origin === null) throw new Error('Desktop draft input is invalid.');
+    return requireDesktopController().createDraft({ workspace_id: value.workspace_id, origin: value.origin as RunDraftOrigin });
+  });
+  ipcMain.handle(IPC_CHANNELS.DESKTOP_REVIEW_DRAFT, (event, draft: unknown) => {
+    assertTrustedIpcSender(event);
+    if (!isDesktopRunDraft(draft)) throw new Error('Desktop draft payload is invalid.');
+    return requireDesktopController().reviewDraft(draft as DesktopRunDraft);
+  });
+  ipcMain.handle(IPC_CHANNELS.DESKTOP_START_DRAFT, (event, draft: unknown) => {
+    assertTrustedIpcSender(event);
+    if (!isDesktopRunDraft(draft)) throw new Error('Desktop draft payload is invalid.');
+    return requireDesktopController().startDraft(draft as DesktopRunDraft);
+  });
+  ipcMain.handle(IPC_CHANNELS.DESKTOP_RUN_STATE, (event, runId: unknown) => {
+    assertTrustedIpcSender(event);
+    if (typeof runId !== 'string' || runId.trim().length === 0) throw new Error('run_id must be a non-empty string.');
+    return requireDesktopController().getRunState(runId);
+  });
+  ipcMain.handle(IPC_CHANNELS.DESKTOP_RETRY_FAILED, (event, runId: unknown) => {
+    assertTrustedIpcSender(event);
+    if (typeof runId !== 'string' || runId.trim().length === 0) throw new Error('run_id must be a non-empty string.');
+    return requireDesktopController().retryFailed(runId);
+  });
+  ipcMain.handle(IPC_CHANNELS.DESKTOP_EXPORT, (event, input: unknown) => {
+    assertTrustedIpcSender(event);
+    if (typeof input !== 'object' || input === null) throw new Error('Export input must be an object.');
+    const value = input as { run_id?: unknown; mode?: unknown };
+    if (typeof value.run_id !== 'string' || (value.mode !== 'ALL' && value.mode !== 'SUCCESSFUL_ONLY')) throw new Error('Export input is invalid.');
+    return requireDesktopController().exportRun(value.run_id, value.mode);
+  });
 };
 
 const createWindow = (): void => {
@@ -361,6 +426,41 @@ const initializeBootstrapStatus =
 
     const database = initializeDatabase(directories);
 
+    if (database.status === 'READY') {
+      desktopRepository = new StateRepository(getDatabasePath(directories));
+      const credentialStore = new ElectronSafeStorageCredentialStore(
+        `${directories.app_data_root}/credentials`,
+      );
+      const readinessRegistry = new ReadinessRegistry(desktopRepository, credentialStore);
+      for (const sourceId of SUPPORTED_DESKTOP_SOURCE_IDS) {
+        readinessRegistry.register(sourceId, ({ connection, credential_available }) => {
+          if (!connection) return 'CONFIGURATION_REQUIRED';
+          if (connection.credential_ref && !credential_available) return 'CONNECTION_REQUIRED';
+          if (sourceId === 'ikas-products' && typeof connection.safe_metadata.file_path !== 'string') return 'CONNECTION_REQUIRED';
+          if (sourceId === 'bitkimark-sitemap' && typeof connection.safe_metadata.sitemap_url !== 'string') return 'CONFIGURATION_REQUIRED';
+          return 'READY';
+        });
+      }
+      desktopMultiSourceController = new DesktopMultiSourceController({
+        repository: desktopRepository,
+        readiness: { getReadiness: async (workspace_id, source_id) => readinessRegistry.getReadiness(workspace_id, source_id) },
+        application_version: app.getVersion(),
+        package_directory: directories.runs,
+        execute_run: async (run_id) => {
+          if (!desktopExecutionService) throw new Error('Core execution is unavailable.');
+          await desktopExecutionService.execute(run_id);
+        },
+      });
+      const productionRuntime = createProductionCollectionRuntime({
+        repository: desktopRepository,
+        credentialStore,
+        directories,
+        googleTrendsSource: runtime.source,
+        logger: new StructuredLogger(directories),
+      });
+      desktopExecutionService = new DesktopExecutionService(productionRuntime.orchestrator);
+    }
+
     if (
       queryConfig.status ===
         'READY' &&
@@ -402,6 +502,7 @@ app.whenReady().then(async () => {
   registerIpcHandlers(
     bootstrapStatus,
     googleTrendsController,
+    desktopMultiSourceController,
   );
   createWindow();
 
@@ -428,6 +529,7 @@ app.on('before-quit', (event) => {
     googleTrendsController;
 
   if (runtime === null) {
+    desktopRepository?.close();
     return;
   }
 
@@ -461,6 +563,7 @@ app.on('before-quit', (event) => {
 
       await runtime.browser_manager
         .close();
+      desktopRepository?.close();
     })()
       .catch(
         (): void => {

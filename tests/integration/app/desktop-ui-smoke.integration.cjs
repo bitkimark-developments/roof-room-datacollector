@@ -277,6 +277,22 @@ const main = async () => {
             async () => {},
           openConfigFolder:
             async () => {},
+          getDesktopWorkspaces:
+            async () => ({
+              workspaces: [{ workspace_id: 'ws_fixture', workspace_name: 'Acceptance Workspace', created_at: '2026-09-11T00:00:00.000Z' }],
+              selected_workspace_id: 'ws_fixture',
+              connections: [],
+            }),
+          getDesktopPresets:
+            async () => [],
+          createDesktopDraft:
+            async () => { throw new Error('fixture draft'); },
+          reviewDesktopDraft:
+            async () => { throw new Error('fixture review'); },
+          startDesktopDraft:
+            async () => { throw new Error('fixture start'); },
+          getDesktopRunState:
+            async () => { throw new Error('fixture state'); },
         };
       },
       {
@@ -294,9 +310,14 @@ const main = async () => {
       'heading',
       {
         name:
-          /Güvenilir veriyi topla/,
+          /Birden fazla kaynaktan tek Run/,
       },
     ).waitFor();
+
+    assert.equal(await page.getByRole('button', { name: 'HOME' }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'RUNS' }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'PRESETS' }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'WORKSPACE' }).count(), 1);
 
     assert.equal(
       await page.getByText(

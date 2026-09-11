@@ -797,3 +797,23 @@ footer {
     animation-iteration-count: 1 !important;
   }
 }
+
+.multisource-shell {
+  margin: 0 0 24px;
+  padding: 16px 18px;
+  border: 1px solid #d8dfda;
+  border-radius: 14px;
+  background: #f7faf8;
+}
+
+.multisource-nav { display: flex; gap: 8px; margin-bottom: 16px; }
+.multisource-nav button { border: 0; background: transparent; color: #59635d; padding: 8px 12px; border-radius: 8px; font-weight: 700; letter-spacing: .08em; font-size: 11px; cursor: pointer; }
+.multisource-nav button.active { background: #173d2b; color: #fff; }
+.multisource-home { display: grid; gap: 14px; grid-template-columns: 1.6fr 1fr; align-items: end; }
+.multisource-home h2 { margin: 4px 0; }
+.multisource-home p { margin: 0; color: #65726a; }
+.multisource-home label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; }
+.multisource-home select { border: 1px solid #c7d1ca; border-radius: 8px; padding: 9px; background: #fff; }
+.base-choice { grid-column: 1 / -1; display: flex; gap: 8px; }
+.base-choice button { border: 1px solid #aac0b1; border-radius: 8px; background: #fff; padding: 8px 12px; cursor: pointer; }
+.multisource-placeholder { margin: 0; color: #65726a; }

@@ -15,6 +15,7 @@ import type {
   DesktopCollectionJobSummary,
   DesktopCollectionState,
 } from './shared/collection-control';
+import { DesktopMultiSourceView } from './DesktopMultiSourceView';
 import {
   deriveGoogleTrendsRequestedDateRange,
   GOOGLE_TRENDS_PERIOD_PRESETS,
@@ -519,6 +520,8 @@ export function App() {
         </div>
       </header>
 
+      <DesktopMultiSourceView />
+
       <section className="hero-grid">
         <div className="hero-copy">
           <p className="eyebrow">
@@ -793,51 +796,9 @@ export function App() {
                 ? 'Başlatılıyor…'
                 : 'Toplamayı Başlat'}
             </button>
-            <button
-              type="button"
-              className="danger-button"
-              disabled={
-                !isActive ||
-                collection.phase ===
-                  'CANCELLING' ||
-                pendingAction !== null
-              }
-              onClick={() =>
-                void runAction(
-                  'CANCEL',
-                  () =>
-                    window.roofroom
-                      .cancelCollection(),
-                )
-              }
-            >
-              {pendingAction === 'CANCEL'
-                ? 'İptal ediliyor…'
-                : 'İptal Et'}
-            </button>
           </div>
 
           <div className="secondary-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={
-                !collection.recovery
-                  .can_resume ||
-                isActive ||
-                pendingAction !== null
-              }
-              onClick={() =>
-                void runAction(
-                  'RESUME',
-                  () =>
-                    window.roofroom
-                      .resumeCollection(),
-                )
-              }
-            >
-              Önceki Çalışmaya Devam Et
-            </button>
             <button
               type="button"
               className="secondary-button"

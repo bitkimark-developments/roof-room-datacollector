@@ -1547,6 +1547,18 @@ export class StateRepository {
     return preset;
   }
 
+  deleteSavedCollectionPreset(workspaceId: string, presetId: string): void {
+    requireNonEmpty(workspaceId, 'workspace_id');
+    requireNonEmpty(presetId, 'preset_id');
+    const result = this.database.prepare(`
+      DELETE FROM saved_collection_presets
+      WHERE workspace_id = ? AND preset_id = ?
+    `).run(workspaceId, presetId);
+    if (Number(result.changes) !== 1) {
+      throw new Error(`Saved Collection Preset ${presetId} was not found in Workspace ${workspaceId}.`);
+    }
+  }
+
   getLastRunSettings(workspaceId: string): LastRunSettingsRecord | null {
     requireNonEmpty(workspaceId, 'workspace_id');
     const row = this.database.prepare(`
@@ -3221,6 +3233,17 @@ export class StateRepository {
       `)
       .all(workspaceId)
       .map(mapRunRow);
+  }
+
+  listRuns(workspaceId: string): RunRecord[] {
+    requireNonEmpty(workspaceId, 'workspace_id');
+    return this.database.prepare(`
+      SELECT run_id, workspace_id, run_status, created_at, started_at,
+        completed_at, application_version, selected_sources_json,
+        configuration_snapshot_json
+      FROM runs WHERE workspace_id = ?
+      ORDER BY created_at DESC, run_id DESC
+    `).all(workspaceId).map(mapRunRow);
   }
 
   getRun(runId: string): RunRecord | null {

@@ -53,6 +53,15 @@ const roofroomApi: RoofRoomApi = {
     ipcRenderer.invoke(
       IPC_CHANNELS.OPEN_CONFIG_FOLDER,
     ),
+
+  getDesktopWorkspaces: () => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_WORKSPACES),
+  getDesktopPresets: (workspace_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_PRESETS, workspace_id),
+  createDesktopDraft: (input) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_CREATE_DRAFT, input),
+  reviewDesktopDraft: (draft) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_REVIEW_DRAFT, draft),
+  startDesktopDraft: (draft) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_START_DRAFT, draft),
+  getDesktopRunState: (run_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_RUN_STATE, run_id),
+  retryDesktopFailed: (run_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_RETRY_FAILED, run_id),
+  exportDesktopRun: (input) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_EXPORT, input),
 };
 
 contextBridge.exposeInMainWorld('roofroom', roofroomApi);

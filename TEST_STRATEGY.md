@@ -230,6 +230,8 @@ The guarded `m3:live-serpapi` command has a deterministic argument test proving 
 
 The Workspace preset checkpoint is covered by deterministic schema-v7 migration and repository reservation vertical-slice tests, including Workspace isolation, preset immutability, atomic Last Run update/rollback, immutable resolved snapshots, and reopen persistence.
 
+Generalized desktop coverage uses a compact controller integration test for heterogeneous source planning, readiness blocking, Workspace-scoped draft sanitization, and reservation, plus a package test for separate datasets, manifest/failure evidence, Successful Only filtering, and NULL preservation. Existing UI smoke remains a localhost-only renderer check; no provider requests are part of these tests.
+
 Test safe source summaries, readiness/freshness distinction, selection/import input, start/cancel/resume/retry intent, progress and validation display, unsupported/manual/quota states, canonical file opening, export opening, and strict rejection of invalid renderer inputs.
 
 The renderer must not receive tokens, API keys, unrestricted paths, raw account payloads, or browser objects.
