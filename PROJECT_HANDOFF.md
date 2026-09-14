@@ -695,3 +695,38 @@ Exact next UI work must be chosen from current repository evidence rather than i
 Historical untracked files remain intentionally untouched:
 - CODEX_HANDOFF_CURRENT.md
 - PROJECT_HANDOFF.pre-20260820.md
+
+
+---
+
+## 22. Run job progress / Retry Failed checkpoint — 2026-09-14
+
+Technical implementation commit:
+
+38fa0ee feat: add run job progress and retry
+
+Implemented and verified:
+
+- Run Detail renders persisted Job records from DesktopRunState.
+- Each Job exposes source, job key, execution status, validation status, and attempt count.
+- Run Detail exposes completed / total / failed progress.
+- Run status is visually distinct from Job execution status.
+- RETRY_REQUIRED with failed Jobs exposes an explicit Retry Failed action.
+- Retry Failed calls the existing Core-backed retryDesktopFailed(run_id) boundary.
+- The persisted DesktopRunState returned by retry becomes the authoritative active Run state.
+- Existing heartbeat behavior resumes automatically when retry returns an active Run state.
+- No renderer-owned retry or collection loop was added.
+
+Verification passed:
+
+- npm run test:m5:desktop-ui
+- npx tsc --noEmit
+- git diff --check
+
+No live provider request was executed.
+
+Next likely bounded UI slice: persisted Run History -> select Run -> existing Run Detail. Confirm the typed IPC/API seam before implementation.
+
+Historical untracked files remain intentionally untouched:
+- CODEX_HANDOFF_CURRENT.md
+- PROJECT_HANDOFF.pre-20260820.md
