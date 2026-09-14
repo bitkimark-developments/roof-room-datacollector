@@ -730,3 +730,40 @@ Next likely bounded UI slice: persisted Run History -> select Run -> existing Ru
 Historical untracked files remain intentionally untouched:
 - CODEX_HANDOFF_CURRENT.md
 - PROJECT_HANDOFF.pre-20260820.md
+
+
+---
+
+## 23. Run export actions checkpoint — 2026-09-14
+
+Technical implementation commit:
+
+4783303 feat: add run export actions
+
+Implemented and verified:
+
+- Terminal Run Detail exposes Export All and Export Successful Only.
+- Export actions use the exact persisted run_id.
+- Export modes remain explicit: ALL and SUCCESSFUL_ONLY.
+- Renderer calls the existing exportDesktopRun boundary only.
+- Data Package construction remains outside the renderer.
+- Completed export directory is shown in Run Detail.
+- Dataset and failure counts returned by the export boundary are shown.
+- Non-terminal Runs do not expose export actions.
+
+Verification passed:
+
+- npm run test:m5:desktop-ui
+- npx tsc --noEmit
+- git diff --check
+
+No live provider request was executed.
+
+The redesigned Run lifecycle now covers:
+Review -> explicit Start -> persisted Run Detail -> heartbeat progress -> Job progress -> Retry Failed -> persisted Run History -> historical Run Detail -> terminal export actions.
+
+The next major product gap is task configuration beyond the current İkas standalone Quick Run. Before enabling Google Trends, GSC, Ads Search Terms, Keyword Planner, Sitemap, or SerpApi Quick Runs, inspect and lock task-specific defaults, relative-date resolution, and Review snapshot semantics.
+
+Historical untracked files remain intentionally untouched:
+- CODEX_HANDOFF_CURRENT.md
+- PROJECT_HANDOFF.pre-20260820.md
