@@ -726,6 +726,48 @@ export function DesktopMultiSourceView() {
       }
     };
 
+  const retryActiveRun =
+    async () => {
+      if (
+        activeRunState === null
+        || activeRunState.run.run_status !== 'RETRY_REQUIRED'
+        || activeRunState.failed_jobs === 0
+        || busy === true
+      ) {
+        return;
+      }
+
+      setBusy(
+        true,
+      );
+
+      setMessage(
+        null,
+      );
+
+      try {
+        const nextState =
+          await window.roofroom
+            .retryDesktopFailed(
+              activeRunState.run.run_id,
+            );
+
+        setActiveRunState(
+          nextState,
+        );
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Failed Jobs yeniden başlatılamadı.',
+        );
+      } finally {
+        setBusy(
+          false,
+        );
+      }
+    };
+
   const createPreset =
     async () => {
       const presetName =
@@ -1633,8 +1675,71 @@ export function DesktopMultiSourceView() {
                 </p>
 
                 <p>
-                  {activeRunState.run.run_status}
+                  Run Status: {activeRunState.run.run_status}
                 </p>
+
+                <p>
+                  {activeRunState.completed_jobs}
+                  {' / '}
+                  {activeRunState.jobs.length}
+                  {' completed · '}
+                  {activeRunState.failed_jobs}
+                  {' failed'}
+                </p>
+
+                <h2>
+                  Jobs
+                </h2>
+
+                <div>
+                  {activeRunState.jobs.map(
+                    (job) => (
+                      <article
+                        key={job.job_id}
+                      >
+                        <strong>
+                          {job.job_key}
+                        </strong>
+
+                        <p>
+                          {job.source_id}
+                        </p>
+
+                        <p>
+                          {job.execution_status}
+                        </p>
+
+                        <p>
+                          {job.validation_status}
+                        </p>
+
+                        <p>
+                          Attempts: {job.attempt_count}
+                        </p>
+                      </article>
+                    ),
+                  )}
+                </div>
+
+                {
+                  activeRunState.run.run_status === 'RETRY_REQUIRED'
+                  && activeRunState.failed_jobs > 0
+                  && (
+                    <button
+                      type="button"
+                      className="rr-primary-action"
+                      disabled={
+                        busy
+                      }
+                      onClick={
+                        () =>
+                          void retryActiveRun()
+                      }
+                    >
+                      Retry Failed
+                    </button>
+                  )
+                }
               </section>
             )}
 

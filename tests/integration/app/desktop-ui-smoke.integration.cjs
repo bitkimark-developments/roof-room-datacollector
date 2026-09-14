@@ -409,8 +409,52 @@ const main = async () => {
             };
           },
 
-          retryDesktopFailed: async () => {
-            throw new Error('Not exercised by shell smoke test.');
+          retryDesktopFailed: async (runId) => {
+            window.__retryDesktopFailedCalls =
+              (
+                window.__retryDesktopFailedCalls
+                ?? 0
+              ) + 1;
+
+            window.__retriedDesktopRunId =
+              runId;
+
+            return {
+              run: {
+                run_id: 'rr_fixture_ikas_001',
+                workspace_id: 'ws_fixture',
+                run_status: 'RUNNING',
+                created_at: '2026-09-14T17:00:00.000Z',
+                started_at: '2026-09-14T17:00:01.000Z',
+                completed_at: null,
+                application_version: '1.0.0',
+                selected_sources: [
+                  'ikas-products',
+                ],
+                requested_configuration: null,
+                configuration_snapshot: {},
+              },
+              jobs: [
+                {
+                  job_id: 'job_fixture_ikas_001',
+                  run_id: 'rr_fixture_ikas_001',
+                  source_id: 'ikas-products',
+                  job_key: 'ikas-products-current',
+                  query_group_id: null,
+                  source_context: {},
+                  job_order: 1,
+                  execution_status: 'RETRY_PENDING',
+                  validation_status: 'ERROR_NOT_DATA',
+                  attempt_count: 2,
+                  accepted_artifact_id: null,
+                  created_at: '2026-09-14T17:00:00.000Z',
+                  started_at: '2026-09-14T17:00:01.000Z',
+                  completed_at: null,
+                },
+              ],
+              completed_jobs: 0,
+              failed_jobs: 0,
+            };
           },
 
           exportDesktopRun: async () => {
@@ -796,6 +840,51 @@ const main = async () => {
     );
 
     assert.equal(
+      await page.getByRole(
+        'heading',
+        {
+          name: 'Jobs',
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Run Detail must expose persisted Job progress.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'ikas-products-current',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Run Detail must expose the persisted Job key.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'NOT_RUN',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Run Detail must expose each Job validation status.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Attempts: 0',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Run Detail must expose each Job attempt count.',
+    );
+
+    assert.equal(
       await page.evaluate(
         () =>
           window.__getDesktopRunStateCalls
@@ -827,7 +916,7 @@ const main = async () => {
 
     assert.equal(
       await page.getByText(
-        'MANUAL_ACTION_REQUIRED',
+        'Run Status: MANUAL_ACTION_REQUIRED',
         {
           exact: true,
         },
@@ -864,7 +953,7 @@ const main = async () => {
 
     assert.equal(
       await page.getByText(
-        'RETRY_REQUIRED',
+        'Run Status: RETRY_REQUIRED',
         {
           exact: true,
         },
@@ -885,6 +974,42 @@ const main = async () => {
       ),
       2,
       'RETRY_REQUIRED must stop Run state heartbeat polling.',
+    );
+
+    const retryFailedButton =
+      page.getByRole(
+        'button',
+        {
+          name: 'Retry Failed',
+          exact: true,
+        },
+      );
+
+    assert.equal(
+      await retryFailedButton.count(),
+      1,
+      'RETRY_REQUIRED with failed Jobs must expose explicit Retry Failed.',
+    );
+
+    await retryFailedButton.click();
+
+    assert.equal(
+      await page.evaluate(
+        () => window.__retriedDesktopRunId,
+      ),
+      'rr_fixture_ikas_001',
+      'Retry Failed must execute against the persisted Run identity.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Run Status: RUNNING',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Run Detail must apply the persisted state returned by Retry Failed.',
     );
 
     console.log(
