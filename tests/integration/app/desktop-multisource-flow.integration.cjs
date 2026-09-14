@@ -5,6 +5,28 @@ const {
 } = require(`${process.argv[2]}/main/app/desktop-multisource-controller.js`);
 const { DesktopExecutionService } = require(`${process.argv[2]}/main/app/desktop-execution-service.js`);
 
+let resolveDesktopDatePolicy =
+  () => null;
+
+let formatLocalReferenceDate =
+  null;
+
+try {
+  ({
+    resolveDesktopDatePolicy,
+    formatLocalReferenceDate,
+  } = require(
+    `${process.argv[2]}/shared/desktop-run-resolution.js`,
+  ));
+} catch (error) {
+  if (
+    !error
+    || error.code !== 'MODULE_NOT_FOUND'
+  ) {
+    throw error;
+  }
+}
+
 const READY = (workspace_id, source_id) => ({ workspace_id, source_id, readiness_status: 'READY', checked_at: '2026-09-11T00:00:00.000Z', message: null });
 
 const createFixture = () => {
@@ -66,6 +88,58 @@ const createFixture = () => {
 };
 
 async function main() {
+  const resolvedGscCurrent =
+    resolveDesktopDatePolicy(
+      'TODAY_MINUS_90_TO_YESTERDAY',
+      '2026-09-14',
+    );
+
+  assert.deepEqual(
+    resolvedGscCurrent,
+    {
+      reference_date:
+        '2026-09-14',
+      date_policy:
+        'TODAY_MINUS_90_TO_YESTERDAY',
+      requested_date_start:
+        '2026-06-16',
+      requested_date_end:
+        '2026-09-13',
+    },
+    'TODAY_MINUS_90_TO_YESTERDAY must resolve the exact GSC Current calendar range.',
+  );
+
+  assert.equal(
+    typeof formatLocalReferenceDate,
+    'function',
+    'Local reference-date formatter must be exported.',
+  );
+
+  const previousTimezone =
+    process.env.TZ;
+
+  process.env.TZ =
+    'Europe/Istanbul';
+
+  try {
+    assert.equal(
+      formatLocalReferenceDate(
+        new Date(
+          '2026-09-13T22:30:00.000Z',
+        ),
+      ),
+      '2026-09-14',
+      'Local reference date must use local calendar fields instead of UTC date truncation.',
+    );
+  } finally {
+    if (previousTimezone === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ =
+        previousTimezone;
+    }
+  }
+
   const { controller, reservations, executions } = createFixture();
   const createdPreset = controller.createPreset({
     workspace_id: 'ws_b',
