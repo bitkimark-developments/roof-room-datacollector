@@ -1,12 +1,12 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Checkpoint date:** 2026-09-10
+**Checkpoint date:** 2026-09-14
 
-**Current milestone:** Release 1.0 multi-source foundation and source-adapter rollout
+**Current milestone:** M5 — Desktop UX / Release 1.0 source-neutral operations workflow
 
-**Current stage:** İkas Products production XLSX mapping implemented and deterministically verified; commit pending filesystem permission recovery
+**Current stage:** Source-neutral operations shell, Task Detail, native İkas XLSX input, run-specific readiness, and mandatory Quick Run Review implemented and committed
 
-**Current goal:** Preserve the verified İkas production mapping checkpoint and require explicit approval before guarded live acceptance
+**Current goal:** Continue the approved UI redesign with explicit Review → Start Run → persisted Run Detail / Progress
 
 ---
 
@@ -617,3 +617,45 @@ The real read-only workbook `/Users/furkan/Downloads/ikas-urunler (1).xlsx` was 
 Verification passed: `PASS NON-GOOGLE-SOURCES-001`, `npx tsc --noEmit`, `npm run lint`, and `git diff --check`. One `npm run test:release:gate` run was started, but the captured worker output was truncated before its final status line; `PASS RELEASE-GATE-001` is therefore not claimed. No live provider traffic ran and the real workbook is not stored in Git.
 
 The technical commit and separate documentation commit could not be created because Git could not create `.git/index.lock` (`Operation not permitted`). Changes remain in the working tree for manual staging/commit. The two historical untracked files remain untouched.
+
+
+---
+
+## 20. UI redesign checkpoint — 2026-09-14
+
+This section is the authoritative current-state update for the active UI redesign. Earlier next-action sections are historical.
+
+Current technical checkpoints:
+- 085d5a7 fix: complete desktop preset management
+- 92f3298 feat: add source-neutral operations shell
+- e3477cb feat: add task quick run review flow
+
+Implemented:
+- Source-neutral HOME / TASKS / RUNS / PRESETS / WORKSPACE shell.
+- Dedicated Task Detail surfaces.
+- Native trusted-IPC İkas Products XLSX selection.
+- Run-specific source configuration participates in readiness.
+- FILE_REQUIRED is a first-class readiness status.
+- Selected İkas file is carried into the reviewed Run draft.
+- Mandatory Quick Run Review exposes the exact selected input before execution.
+- Opening Review does not start provider execution.
+- Non-İkas Quick Runs remain disabled until their exact task-specific configuration builders exist.
+- Existing Core/runtime/provider architecture remains unchanged.
+
+Latest focused verification:
+- npm run test:m5:desktop-ui — PASS
+- npm run test:m5:desktop-multisource — PASS
+- npm run test:m2:connection-readiness — PASS
+- npx tsc --noEmit — PASS
+- git diff --check — PASS
+
+No live provider request was executed during these UI slices.
+
+Exact next slice:
+Review → explicit Start Run → startDesktopDraft(reviewed draft) → persisted run_id → dedicated Run Detail / Progress.
+
+The renderer must not own collection execution loops. Run state must continue to come from the existing Core persistence/controller boundary.
+
+Historical untracked files remain intentionally untouched:
+- CODEX_HANDOFF_CURRENT.md
+- PROJECT_HANDOFF.pre-20260820.md
