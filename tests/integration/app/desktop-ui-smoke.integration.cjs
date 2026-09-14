@@ -522,8 +522,30 @@ const main = async () => {
             };
           },
 
-          exportDesktopRun: async () => {
-            throw new Error('Not exercised by shell smoke test.');
+          exportDesktopRun: async (input) => {
+            window.__exportDesktopRunInputs =
+              [
+                ...(
+                  window.__exportDesktopRunInputs
+                  ?? []
+                ),
+                input,
+              ];
+
+            return {
+              export_directory:
+                input.mode === 'ALL'
+                  ? '/fixture/exports/all'
+                  : '/fixture/exports/successful-only',
+              dataset_count:
+                input.mode === 'ALL'
+                  ? 1
+                  : 1,
+              failed_count:
+                input.mode === 'ALL'
+                  ? 1
+                  : 0,
+            };
           },
 
           selectDesktopInputFile: async (input) => {
@@ -662,6 +684,102 @@ const main = async () => {
       ).count(),
       1,
       'History selection must reuse the existing Run Detail Job surface.',
+    );
+
+    assert.equal(
+      await page.getByRole(
+        'button',
+        {
+          name: 'Export All',
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Terminal Run Detail must expose Export All.',
+    );
+
+    assert.equal(
+      await page.getByRole(
+        'button',
+        {
+          name: 'Export Successful Only',
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Terminal Run Detail must expose Export Successful Only.',
+    );
+
+    await page.getByRole(
+      'button',
+      {
+        name: 'Export All',
+        exact: true,
+      },
+    ).click();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () =>
+          window.__exportDesktopRunInputs
+          ?? [],
+      ),
+      [
+        {
+          run_id: 'rr_fixture_history_001',
+          mode: 'ALL',
+        },
+      ],
+      'Export All must use the exact persisted Run identity and ALL mode.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        '/fixture/exports/all',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Run Detail must expose the completed export directory.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Datasets: 1 · Failures: 1',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Run Detail must expose export result counts.',
+    );
+
+    await page.getByRole(
+      'button',
+      {
+        name: 'Export Successful Only',
+        exact: true,
+      },
+    ).click();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () =>
+          window.__exportDesktopRunInputs
+          ?? [],
+      ),
+      [
+        {
+          run_id: 'rr_fixture_history_001',
+          mode: 'ALL',
+        },
+        {
+          run_id: 'rr_fixture_history_001',
+          mode: 'SUCCESSFUL_ONLY',
+        },
+      ],
+      'Successful-only export must use the exact persisted Run identity and mode.',
     );
 
     await page.getByRole(

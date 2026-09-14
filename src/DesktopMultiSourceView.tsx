@@ -221,6 +221,20 @@ export function DesktopMultiSourceView() {
     );
 
   const [
+    exportResult,
+    setExportResult,
+  ] =
+    useState<
+      Awaited<
+        ReturnType<
+          typeof window.roofroom.exportDesktopRun
+        >
+      > | null
+    >(
+      null,
+    );
+
+  const [
     newPresetName,
     setNewPresetName,
   ] =
@@ -816,6 +830,50 @@ export function DesktopMultiSourceView() {
           error instanceof Error
             ? error.message
             : 'Run Detail yüklenemedi.',
+        );
+      } finally {
+        setBusy(
+          false,
+        );
+      }
+    };
+
+  const exportActiveRun =
+    async (
+      mode: 'ALL' | 'SUCCESSFUL_ONLY',
+    ) => {
+      if (
+        activeRunState === null
+        || busy === true
+      ) {
+        return;
+      }
+
+      setBusy(
+        true,
+      );
+
+      setMessage(
+        null,
+      );
+
+      try {
+        const result =
+          await window.roofroom
+            .exportDesktopRun({
+              run_id:
+                activeRunState.run.run_id,
+              mode,
+            });
+
+        setExportResult(
+          result,
+        );
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Run export oluşturulamadı.',
         );
       } finally {
         setBusy(
@@ -1838,6 +1896,66 @@ export function DesktopMultiSourceView() {
                     </button>
                   )
                 }
+
+                {
+                  (
+                    activeRunState.run.run_status === 'COMPLETED'
+                    || activeRunState.run.run_status === 'COMPLETED_WITH_WARNINGS'
+                    || activeRunState.run.run_status === 'FAILED'
+                    || activeRunState.run.run_status === 'CANCELLED'
+                  )
+                  && (
+                    <div
+                      className="rr-task-detail-actions"
+                    >
+                      <button
+                        type="button"
+                        className="rr-primary-action"
+                        disabled={
+                          busy
+                        }
+                        onClick={
+                          () =>
+                            void exportActiveRun(
+                              'ALL',
+                            )
+                        }
+                      >
+                        Export All
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={
+                          busy
+                        }
+                        onClick={
+                          () =>
+                            void exportActiveRun(
+                              'SUCCESSFUL_ONLY',
+                            )
+                        }
+                      >
+                        Export Successful Only
+                      </button>
+                    </div>
+                  )
+                }
+
+                {exportResult !== null
+                  && (
+                    <div>
+                      <p>
+                        {exportResult.export_directory}
+                      </p>
+
+                      <p>
+                        Datasets: {exportResult.dataset_count}
+                        {' · Failures: '}
+                        {exportResult.failed_count}
+                      </p>
+                    </div>
+                  )}
               </section>
             )}
 
