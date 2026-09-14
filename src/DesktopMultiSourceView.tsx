@@ -193,6 +193,20 @@ export function DesktopMultiSourceView() {
     );
 
   const [
+    activeRunState,
+    setActiveRunState,
+  ] =
+    useState<
+      Awaited<
+        ReturnType<
+          typeof window.roofroom.startDesktopDraft
+        >
+      > | null
+    >(
+      null,
+    );
+
+  const [
     newPresetName,
     setNewPresetName,
   ] =
@@ -212,6 +226,65 @@ export function DesktopMultiSourceView() {
       string
       | null
     >(null);
+
+  useEffect(() => {
+    if (activeRunState === null) {
+      return;
+    }
+
+    const runStatus =
+      activeRunState.run.run_status;
+
+    const heartbeatMs =
+      runStatus === 'PENDING'
+      || runStatus === 'RUNNING'
+        ? 2000
+        : runStatus === 'MANUAL_ACTION_REQUIRED'
+          ? 5000
+          : null;
+
+    if (heartbeatMs === null) {
+      return;
+    }
+
+    const runId =
+      activeRunState.run.run_id;
+
+    const timeoutId =
+      window.setTimeout(
+        () => {
+          void window.roofroom
+            .getDesktopRunState(
+              runId,
+            )
+            .then(
+              (nextState) => {
+                setActiveRunState(
+                  nextState,
+                );
+              },
+            )
+            .catch(
+              (error) => {
+                setMessage(
+                  error instanceof Error
+                    ? error.message
+                    : 'Run state yenilenemedi.',
+                );
+              },
+            );
+        },
+        heartbeatMs,
+      );
+
+    return () => {
+      window.clearTimeout(
+        timeoutId,
+      );
+    };
+  }, [
+    activeRunState,
+  ]);
 
   useEffect(() => {
     let mounted =
@@ -592,6 +665,59 @@ export function DesktopMultiSourceView() {
           error instanceof Error
             ? error.message
             : 'Quick Run Review oluşturulamadı.',
+        );
+      } finally {
+        setBusy(
+          false,
+        );
+      }
+    };
+
+  const startReviewedQuickRun =
+    async () => {
+      if (
+        quickRunReview === null
+        || quickRunReview.review.can_start === false
+        || busy
+      ) {
+        return;
+      }
+
+      setBusy(
+        true,
+      );
+
+      setMessage(
+        null,
+      );
+
+      try {
+        const startedState =
+          await window.roofroom
+            .startDesktopDraft(
+              quickRunReview.draft,
+            );
+
+        setActiveRunState(
+          startedState,
+        );
+
+        setQuickRunReview(
+          null,
+        );
+
+        setSelectedTask(
+          null,
+        );
+
+        setView(
+          'RUNS',
+        );
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Run başlatılamadı.',
         );
       } finally {
         setBusy(
@@ -1331,7 +1457,14 @@ export function DesktopMultiSourceView() {
                   <button
                     type="button"
                     className="rr-primary-action"
-                    disabled
+                    disabled={
+                      quickRunReview.review.can_start === false
+                      || busy
+                    }
+                    onClick={
+                      () =>
+                        void startReviewedQuickRun()
+                    }
                   >
                     Start Run
                   </button>
@@ -1479,8 +1612,35 @@ export function DesktopMultiSourceView() {
             )}
 
           {!selectedTask
-            && view ===
-            'RUNS'
+            && view === 'RUNS'
+            && activeRunState !== null
+            && (
+              <section
+                className="rr-panel"
+              >
+                <span
+                  className="rr-kicker"
+                >
+                  RUN
+                </span>
+
+                <h1>
+                  Run Detail
+                </h1>
+
+                <p>
+                  {activeRunState.run.run_id}
+                </p>
+
+                <p>
+                  {activeRunState.run.run_status}
+                </p>
+              </section>
+            )}
+
+          {!selectedTask
+            && view === 'RUNS'
+            && activeRunState === null
             && (
               <section
                 className="rr-panel"
@@ -1496,7 +1656,7 @@ export function DesktopMultiSourceView() {
                 </h1>
 
                 <p>
-                  Dedicated Run list and Run Detail are the next slice.
+                  No Run is selected.
                 </p>
               </section>
             )}
