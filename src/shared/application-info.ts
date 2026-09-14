@@ -42,7 +42,21 @@ export const IPC_CHANNELS = {
   DESKTOP_RUN_STATE: 'desktop:run-state',
   DESKTOP_RETRY_FAILED: 'desktop:retry-failed',
   DESKTOP_EXPORT: 'desktop:export',
+  DESKTOP_SELECT_INPUT_FILE: 'desktop:select-input-file',
 } as const;
+
+export type DesktopInputFileKind =
+  | 'IKAS_PRODUCTS_XLSX';
+
+export interface DesktopInputFileSelectionRequest {
+  input_kind: DesktopInputFileKind;
+}
+
+export interface DesktopInputFileSelectionResult {
+  canceled: boolean;
+  file_path: string | null;
+  file_name: string | null;
+}
 
 export interface ApplicationInfo {
   name: string;
@@ -88,4 +102,7 @@ export interface RoofRoomApi {
   getDesktopRunState: (run_id: string) => Promise<DesktopRunState>;
   retryDesktopFailed: (run_id: string) => Promise<DesktopRunState>;
   exportDesktopRun: (input: { run_id: string; mode: 'ALL' | 'SUCCESSFUL_ONLY' }) => Promise<{ export_directory: string; dataset_count: number; failed_count: number }>;
+  selectDesktopInputFile: (
+    input: DesktopInputFileSelectionRequest,
+  ) => Promise<DesktopInputFileSelectionResult>;
 }

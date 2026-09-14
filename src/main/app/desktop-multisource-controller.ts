@@ -25,7 +25,11 @@ import { ReconciliationCoordinator } from '../core/reconciliation-coordinator';
 import { RetryPolicy } from '../core/retry-policy';
 
 export interface DesktopReadinessReader {
-  getReadiness(workspace_id: string, source_id: string): Promise<{ readiness_status: DesktopReadinessStatus }>;
+  getReadiness(
+    workspace_id: string,
+    source_id: string,
+    source_config?: Record<string, unknown>,
+  ): Promise<{ readiness_status: DesktopReadinessStatus }>;
 }
 
 export interface DesktopMultiSourceControllerDependencies {
@@ -96,8 +100,16 @@ export class DesktopMultiSourceController {
     this.readinessEvaluator = dependencies.readiness;
   }
 
-  setReadinessEvaluator(evaluator: (workspace_id: string, source_id: string) => Promise<{ readiness_status: DesktopReadinessStatus }>): void {
-    this.readinessEvaluator = { getReadiness: evaluator };
+  setReadinessEvaluator(
+    evaluator: (
+      workspace_id: string,
+      source_id: string,
+      source_config?: Record<string, unknown>,
+    ) => Promise<{ readiness_status: DesktopReadinessStatus }>,
+  ): void {
+    this.readinessEvaluator = {
+      getReadiness: evaluator,
+    };
   }
 
   listWorkspaces() {
@@ -215,7 +227,16 @@ export class DesktopMultiSourceController {
     const statuses = await Promise.all(this.sourceOrder.map(async (source_id) => ({
       source_id,
       readiness_status: included(draft.reusable_configuration, source_id)
-        ? (await this.readinessEvaluator.getReadiness(draft.workspace_id, source_id)).readiness_status
+        ? (
+          await this.readinessEvaluator.getReadiness(
+            draft.workspace_id,
+            source_id,
+            sourceConfig(
+              draft.reusable_configuration,
+              source_id,
+            ),
+          )
+        ).readiness_status
         : 'READY' as DesktopReadinessStatus,
     })));
     const cards = this.buildCards(draft.reusable_configuration, statuses);

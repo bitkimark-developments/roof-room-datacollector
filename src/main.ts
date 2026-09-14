@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   shell,
 } from 'electron';
@@ -43,6 +44,7 @@ import { SUPPORTED_DESKTOP_SOURCE_IDS } from './shared/desktop-multisource';
 import {
   IPC_CHANNELS,
   type ApplicationInfo,
+  type DesktopInputFileSelectionResult,
 } from './shared/application-info';
 import type {
   BootstrapStatus,
@@ -300,6 +302,88 @@ const registerIpcHandlers = (
     return desktopController;
   };
 
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_SELECT_INPUT_FILE,
+    async (
+      event,
+      input: unknown,
+    ): Promise<DesktopInputFileSelectionResult> => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      if (
+        typeof input !== 'object'
+        || input === null
+        || Array.isArray(input)
+      ) {
+        throw new Error(
+          'Desktop input-file request must be an object.',
+        );
+      }
+
+      const value = input as {
+        input_kind?: unknown;
+      };
+
+      if (
+        value.input_kind !==
+        'IKAS_PRODUCTS_XLSX'
+      ) {
+        throw new Error(
+          'Desktop input-file kind is unsupported.',
+        );
+      }
+
+      const result =
+        await dialog.showOpenDialog({
+          title:
+            'Select İkas Products XLSX',
+          properties: [
+            'openFile',
+          ],
+          filters: [
+            {
+              name:
+                'Excel Workbook',
+              extensions: [
+                'xlsx',
+              ],
+            },
+          ],
+        });
+
+      if (
+        result.canceled
+        || result.filePaths.length
+          === 0
+      ) {
+        return {
+          canceled:
+            true,
+          file_path:
+            null,
+          file_name:
+            null,
+        };
+      }
+
+      const filePath =
+        result.filePaths[0];
+
+      return {
+        canceled:
+          false,
+        file_path:
+          filePath,
+        file_name:
+          path.basename(
+            filePath,
+          ),
+      };
+    },
+  );
+
   ipcMain.handle(IPC_CHANNELS.DESKTOP_WORKSPACES, (event) => {
     assertTrustedIpcSender(event);
     return requireDesktopController().getWorkspaceView();
@@ -504,17 +588,63 @@ const initializeBootstrapStatus =
       );
       const readinessRegistry = new ReadinessRegistry(desktopRepository, credentialStore);
       for (const sourceId of SUPPORTED_DESKTOP_SOURCE_IDS) {
-        readinessRegistry.register(sourceId, ({ connection, credential_available }) => {
-          if (!connection) return 'CONFIGURATION_REQUIRED';
-          if (connection.credential_ref && !credential_available) return 'CONNECTION_REQUIRED';
-          if (sourceId === 'ikas-products' && typeof connection.safe_metadata.file_path !== 'string') return 'CONNECTION_REQUIRED';
-          if (sourceId === 'bitkimark-sitemap' && typeof connection.safe_metadata.sitemap_url !== 'string') return 'CONFIGURATION_REQUIRED';
-          return 'READY';
-        });
+        readinessRegistry.register(
+          sourceId,
+          ({
+            connection,
+            credential_available,
+            source_config,
+          }) => {
+            if (sourceId === 'ikas-products') {
+              const runFilePath =
+                typeof source_config.file_path === 'string'
+                && source_config.file_path.trim().length > 0;
+
+              const workspaceFilePath =
+                typeof connection?.safe_metadata.file_path === 'string'
+                && connection.safe_metadata.file_path.trim().length > 0;
+
+              return runFilePath || workspaceFilePath
+                ? 'READY'
+                : 'FILE_REQUIRED';
+            }
+
+            if (!connection) {
+              return 'CONFIGURATION_REQUIRED';
+            }
+
+            if (
+              connection.credential_ref
+              && !credential_available
+            ) {
+              return 'CONNECTION_REQUIRED';
+            }
+
+            if (
+              sourceId === 'bitkimark-sitemap'
+              && typeof connection.safe_metadata.sitemap_url !== 'string'
+            ) {
+              return 'CONFIGURATION_REQUIRED';
+            }
+
+            return 'READY';
+          },
+        );
       }
       desktopMultiSourceController = new DesktopMultiSourceController({
         repository: desktopRepository,
-        readiness: { getReadiness: async (workspace_id, source_id) => readinessRegistry.getReadiness(workspace_id, source_id) },
+        readiness: {
+          getReadiness: async (
+            workspace_id,
+            source_id,
+            source_config,
+          ) =>
+            readinessRegistry.getReadiness(
+              workspace_id,
+              source_id,
+              source_config,
+            ),
+        },
         application_version: app.getVersion(),
         package_directory: directories.runs,
         execute_run: async (run_id) => {

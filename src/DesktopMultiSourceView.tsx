@@ -105,6 +105,9 @@ function TaskCard({
   );
 }
 
+import type { DesktopReview } from './shared/desktop-multisource';
+import type { JsonObject } from './shared/run-job';
+
 export function DesktopMultiSourceView() {
   const [
     view,
@@ -113,6 +116,15 @@ export function DesktopMultiSourceView() {
     useState<View>(
       'HOME',
     );
+
+  const [
+    selectedTask,
+    setSelectedTask,
+  ] =
+    useState<
+      DesktopTaskDefinition
+      | null
+    >(null);
 
   const [
     workspaceView,
@@ -157,6 +169,28 @@ export function DesktopMultiSourceView() {
     setVersion,
   ] =
     useState('');
+
+  const [
+    selectedIkasFile,
+    setSelectedIkasFile,
+  ] =
+    useState<{
+      file_path: string;
+      file_name: string;
+    } | null>(
+      null,
+    );
+
+  const [
+    quickRunReview,
+    setQuickRunReview,
+  ] =
+    useState<{
+      draft: DesktopRunDraft;
+      review: DesktopReview;
+    } | null>(
+      null,
+    );
 
   const [
     newPresetName,
@@ -413,10 +447,19 @@ export function DesktopMultiSourceView() {
                           ?? 'NOT_YET_AVAILABLE'
                         }
                         onOpen={
-                          () =>
+                          () => {
+                            setQuickRunReview(
+                              null,
+                            );
+
+                            setSelectedTask(
+                              task,
+                            );
+
                             setView(
                               'TASKS',
-                            )
+                            );
+                          }
                         }
                       />
                     ),
@@ -428,6 +471,134 @@ export function DesktopMultiSourceView() {
         )}
       </div>
     );
+
+  const selectIkasProductsFile =
+    async () => {
+      setMessage(
+        null,
+      );
+
+      try {
+        const result =
+          await window
+            .roofroom
+            .selectDesktopInputFile({
+              input_kind:
+                'IKAS_PRODUCTS_XLSX',
+            });
+
+        if (
+          result.canceled
+          || result.file_path
+            === null
+          || result.file_name
+            === null
+        ) {
+          return;
+        }
+
+        setSelectedIkasFile({
+          file_path:
+            result.file_path,
+          file_name:
+            result.file_name,
+        });
+      } catch (error) {
+        setMessage(
+          error
+            instanceof Error
+            ? error.message
+            : 'Products XLSX seçilemedi.',
+        );
+      }
+    };
+
+  const reviewSelectedTaskQuickRun =
+    async () => {
+      if (
+        selectedTask === null
+        || !workspaceId
+      ) {
+        return;
+      }
+
+      if (
+        selectedTask.source_id === 'ikas-products'
+        && selectedIkasFile === null
+      ) {
+        setMessage(
+          'Select a current Products XLSX before Review.',
+        );
+        return;
+      }
+
+      setBusy(
+        true,
+      );
+
+      setMessage(
+        null,
+      );
+
+      try {
+        const baseDraft =
+          await window.roofroom
+            .createDesktopDraft({
+              workspace_id:
+                workspaceId,
+              origin: {
+                kind: 'BLANK',
+              },
+            });
+
+        const sourceConfiguration:
+          JsonObject =
+            selectedTask.source_id === 'ikas-products'
+            && selectedIkasFile !== null
+              ? {
+                  included: true,
+                  file_path:
+                    selectedIkasFile.file_path,
+                }
+              : {
+                  included: true,
+                };
+
+        const nextDraft:
+          DesktopRunDraft = {
+            ...baseDraft,
+            reusable_configuration: {
+              ...baseDraft.reusable_configuration,
+              sources: {
+                [selectedTask.source_id]:
+                  sourceConfiguration,
+              },
+            },
+          };
+
+        const review =
+          await window.roofroom
+            .reviewDesktopDraft(
+              nextDraft,
+            );
+
+        setQuickRunReview({
+          draft:
+            nextDraft,
+          review,
+        });
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Quick Run Review oluşturulamadı.',
+        );
+      } finally {
+        setBusy(
+          false,
+        );
+      }
+    };
 
   const createPreset =
     async () => {
@@ -608,10 +779,19 @@ export function DesktopMultiSourceView() {
                     : ''
                 }
                 onClick={
-                  () =>
+                  () => {
+                    setSelectedTask(
+                      null,
+                    );
+
+                    setQuickRunReview(
+                      null,
+                    );
+
                     setView(
                       item,
-                    )
+                    );
+                  }
                 }
               >
                 {item}
@@ -658,6 +838,18 @@ export function DesktopMultiSourceView() {
                       event
                         .target
                         .value,
+                    );
+
+                    setSelectedTask(
+                      null,
+                    );
+
+                    setSelectedIkasFile(
+                      null,
+                    );
+
+                    setQuickRunReview(
+                      null,
                     );
 
                     setView(
@@ -717,7 +909,438 @@ export function DesktopMultiSourceView() {
             </p>
           )}
 
-          {view ===
+          {selectedTask
+            && quickRunReview === null
+            && (() => {
+            const readiness =
+              readinessBySource.get(
+                selectedTask.source_id,
+              )
+              ?? 'NOT_YET_AVAILABLE';
+
+            const effectiveReadiness =
+              selectedTask.source_id === 'ikas-products'
+              && selectedIkasFile !== null
+                ? 'READY'
+                : readiness;
+
+            const hasReviewableQuickRunConfiguration =
+              selectedTask.source_id === 'ikas-products'
+              && selectedIkasFile !== null;
+
+            const canReview =
+              effectiveReadiness === 'READY'
+              && hasReviewableQuickRunConfiguration;
+
+            return (
+              <section
+                className="rr-task-detail"
+              >
+                <button
+                  type="button"
+                  className="rr-back-button"
+                  onClick={() => {
+                    setSelectedTask(
+                      null,
+                    );
+                    setView(
+                      'TASKS',
+                    );
+                  }}
+                >
+                  Back to Tasks
+                </button>
+
+                <header
+                  className="rr-task-detail-head"
+                >
+                  <div>
+                    <span
+                      className="rr-kicker"
+                    >
+                      DATASET TASK
+                    </span>
+
+                    <h1>
+                      {selectedTask.task_name}
+                    </h1>
+
+                    <p>
+                      {selectedTask.description}
+                    </p>
+                  </div>
+
+                  <span
+                    className={
+                      `rr-status rr-status-${effectiveReadiness.toLowerCase()}`
+                    }
+                  >
+                    {effectiveReadiness.replaceAll(
+                      '_',
+                      ' ',
+                    )}
+                  </span>
+                </header>
+
+                <div
+                  className="rr-detail-sections"
+                >
+                  <section
+                    className="rr-panel rr-detail-panel"
+                  >
+                    <span
+                      className="rr-kicker"
+                    >
+                      SYSTEM STATE
+                    </span>
+
+                    <h2>
+                      Readiness
+                    </h2>
+
+                    <dl
+                      className="rr-detail-list"
+                    >
+                      <div>
+                        <dt>
+                          Status
+                        </dt>
+                        <dd>
+                          {effectiveReadiness.replaceAll(
+                            '_',
+                            ' ',
+                          )}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>
+                          Source
+                        </dt>
+                        <dd>
+                          {selectedTask.source_id}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section
+                    className="rr-panel rr-detail-panel"
+                  >
+                    <span
+                      className="rr-kicker"
+                    >
+                      WORKSPACE DEFAULT
+                    </span>
+
+                    <h2>
+                      Default Configuration
+                    </h2>
+
+                    <p>
+                      {selectedTask.default_summary}
+                    </p>
+                  </section>
+
+                  <section
+                    className="rr-panel rr-detail-panel"
+                  >
+                    <span
+                      className="rr-kicker"
+                    >
+                      PROVIDER INPUT
+                    </span>
+
+                    <h2>
+                      Input / Connection
+                    </h2>
+
+                    {selectedTask.source_id === 'ikas-products'
+                      ? (
+                        <div
+                          className="rr-file-input"
+                        >
+                          <p>
+                            Products XLSX input is required for this task.
+                          </p>
+
+                          <button
+                            type="button"
+                            className="rr-secondary-action"
+                            onClick={
+                              () =>
+                                void selectIkasProductsFile()
+                            }
+                          >
+                            Select Products XLSX
+                          </button>
+
+                          {selectedIkasFile && (
+                            <div
+                              className="rr-selected-file"
+                            >
+                              <strong>
+                                {selectedIkasFile.file_name}
+                              </strong>
+
+                              <code>
+                                {selectedIkasFile.file_path}
+                              </code>
+                            </div>
+                          )}
+                        </div>
+                      )
+                      : (
+                        <p>
+                          Provider input and connection state are managed through the source-neutral collection boundary.
+                        </p>
+                      )}
+                  </section>
+
+                  <section
+                    className="rr-panel rr-detail-panel"
+                  >
+                    <span
+                      className="rr-kicker"
+                    >
+                      HISTORY
+                    </span>
+
+                    <h2>
+                      Recent Runs
+                    </h2>
+
+                    <p>
+                      Run history for this task will appear here from persisted Core state.
+                    </p>
+                  </section>
+                </div>
+
+                <div
+                  className="rr-task-detail-actions"
+                >
+                  {!canReview && (
+                    <p>
+                      {effectiveReadiness !== 'READY'
+                        ? 'Resolve the current readiness requirement before reviewing a Quick Run.'
+                        : 'Complete the task-specific Quick Run configuration before Review.'}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    className="rr-primary-action"
+                    disabled={
+                      !canReview
+                      || busy
+                    }
+                    onClick={
+                      () =>
+                        void reviewSelectedTaskQuickRun()
+                    }
+                  >
+                    Review Quick Run
+                  </button>
+                </div>
+              </section>
+            );
+          })()}
+
+          {selectedTask
+            && quickRunReview !== null
+            && (
+              <section
+                className="rr-review-page"
+              >
+                <button
+                  type="button"
+                  className="rr-back-button"
+                  onClick={
+                    () =>
+                      setQuickRunReview(
+                        null,
+                      )
+                  }
+                >
+                  Back to Task
+                </button>
+
+                <header
+                  className="rr-task-detail-head"
+                >
+                  <div>
+                    <span
+                      className="rr-kicker"
+                    >
+                      QUICK RUN
+                    </span>
+
+                    <h1>
+                      Review Quick Run
+                    </h1>
+
+                    <p>
+                      Confirm the exact Run input before any provider execution begins.
+                    </p>
+                  </div>
+
+                  <span
+                    className={
+                      quickRunReview.review.can_start
+                        ? 'rr-status rr-status-ready'
+                        : 'rr-status rr-status-file_required'
+                    }
+                  >
+                    {
+                      quickRunReview.review.can_start
+                        ? 'READY'
+                        : 'BLOCKED'
+                    }
+                  </span>
+                </header>
+
+                <div
+                  className="rr-detail-sections"
+                >
+                  <section
+                    className="rr-panel rr-detail-panel"
+                  >
+                    <span
+                      className="rr-kicker"
+                    >
+                      TASK
+                    </span>
+
+                    <h2>
+                      {selectedTask.task_name}
+                    </h2>
+
+                    <dl
+                      className="rr-detail-list"
+                    >
+                      <div>
+                        <dt>
+                          Workspace
+                        </dt>
+                        <dd>
+                          {
+                            quickRunReview
+                              .review
+                              .workspace
+                              .workspace_name
+                          }
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>
+                          Jobs
+                        </dt>
+                        <dd>
+                          {
+                            quickRunReview
+                              .review
+                              .job_count
+                          }
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>
+                          Readiness
+                        </dt>
+                        <dd>
+                          {
+                            quickRunReview
+                              .review
+                              .can_start
+                              ? 'READY'
+                              : 'BLOCKED'
+                          }
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section
+                    className="rr-panel rr-detail-panel"
+                  >
+                    <span
+                      className="rr-kicker"
+                    >
+                      EXACT INPUT
+                    </span>
+
+                    <h2>
+                      Input / Connection
+                    </h2>
+
+                    {
+                      selectedTask.source_id === 'ikas-products'
+                      && selectedIkasFile !== null
+                        ? (
+                          <div
+                            className="rr-selected-file"
+                          >
+                            <strong>
+                              {selectedIkasFile.file_name}
+                            </strong>
+
+                            <code>
+                              {selectedIkasFile.file_path}
+                            </code>
+                          </div>
+                        )
+                        : (
+                          <p>
+                            Configuration is captured in the reviewed Run draft.
+                          </p>
+                        )
+                    }
+                  </section>
+                </div>
+
+                {
+                  quickRunReview
+                    .review
+                    .blocking_sources
+                    .length > 0
+                  && (
+                    <p
+                      className="rr-alert"
+                    >
+                      Blocking sources:
+                      {' '}
+                      {
+                        quickRunReview
+                          .review
+                          .blocking_sources
+                          .join(', ')
+                      }
+                    </p>
+                  )
+                }
+
+                <div
+                  className="rr-task-detail-actions"
+                >
+                  <p>
+                    Provider execution has not started.
+                  </p>
+
+                  <button
+                    type="button"
+                    className="rr-primary-action"
+                    disabled
+                  >
+                    Start Run
+                  </button>
+                </div>
+              </section>
+            )}
+
+          {!selectedTask
+            && view ===
             'HOME'
             && (
               <>
@@ -824,7 +1447,8 @@ export function DesktopMultiSourceView() {
               </>
             )}
 
-          {view ===
+          {!selectedTask
+            && view ===
             'TASKS'
             && (
               <>
@@ -854,7 +1478,8 @@ export function DesktopMultiSourceView() {
               </>
             )}
 
-          {view ===
+          {!selectedTask
+            && view ===
             'RUNS'
             && (
               <section
@@ -876,7 +1501,8 @@ export function DesktopMultiSourceView() {
               </section>
             )}
 
-          {view ===
+          {!selectedTask
+            && view ===
             'PRESETS'
             && (
               <>
@@ -1007,7 +1633,8 @@ export function DesktopMultiSourceView() {
               </>
             )}
 
-          {view ===
+          {!selectedTask
+            && view ===
             'WORKSPACE'
             && (
               <section

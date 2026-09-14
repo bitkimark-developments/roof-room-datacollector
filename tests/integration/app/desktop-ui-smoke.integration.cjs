@@ -238,12 +238,46 @@ const main = async () => {
             throw new Error('Not exercised by shell smoke test.');
           },
 
-          reviewDesktopDraft: async () => {
-            throw new Error('Not exercised by shell smoke test.');
+          reviewDesktopDraft: async (reviewDraft) => {
+            window.__reviewedDesktopDraft =
+              reviewDraft;
+
+            return {
+              workspace: {
+                workspace_id: 'ws_fixture',
+                workspace_name: 'Acceptance Workspace',
+                created_at: '2026-09-11T00:00:00.000Z',
+              },
+              origin:
+                reviewDraft.origin,
+              included_sources: [
+                'ikas-products',
+              ],
+              source_cards: [
+                {
+                  source_id: 'ikas-products',
+                  source_name: 'İkas Products',
+                  included: true,
+                  readiness_status: 'READY',
+                  configuration_summary: 'Products XLSX',
+                },
+              ],
+              job_count: 1,
+              can_start: true,
+              blocking_sources: [],
+            };
           },
 
           startDesktopDraft: async () => {
-            throw new Error('Not exercised by shell smoke test.');
+            window.__startDesktopDraftCalls =
+              (
+                window.__startDesktopDraftCalls
+                ?? 0
+              ) + 1;
+
+            throw new Error(
+              'Start must not be exercised by Review acceptance.',
+            );
           },
 
           getDesktopRunState: async () => {
@@ -256,6 +290,16 @@ const main = async () => {
 
           exportDesktopRun: async () => {
             throw new Error('Not exercised by shell smoke test.');
+          },
+
+          selectDesktopInputFile: async (input) => {
+            window.__selectedDesktopInputRequest = input;
+
+            return {
+              canceled: false,
+              file_path: '/fixture/imports/ikas-products.xlsx',
+              file_name: 'ikas-products.xlsx',
+            };
           },
         };
       },
@@ -356,6 +400,212 @@ const main = async () => {
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
       8,
+    );
+
+    await page.getByText(
+      'İkas — Products Import',
+      {
+        exact: true,
+      },
+    ).click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name: 'İkas — Products Import',
+        exact: true,
+      },
+    ).waitFor();
+
+    assert.equal(
+      await page.getByText(
+        'Readiness',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Expected dedicated İkas Task Detail Readiness section.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Default Configuration',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Input / Connection',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Recent Runs',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+    );
+
+    assert.ok(
+      await page.getByText(
+        'FILE REQUIRED',
+        {
+          exact: true,
+        },
+      ).count() >= 1,
+      'Expected İkas Task Detail to expose FILE REQUIRED readiness.',
+    );
+
+    assert.equal(
+      await page.getByRole(
+        'button',
+        {
+          name: 'Review Quick Run',
+        },
+      ).count(),
+      1,
+    );
+
+    const selectProductsFileButton =
+      page.getByRole(
+        'button',
+        {
+          name: 'Select Products XLSX',
+        },
+      );
+
+    assert.equal(
+      await selectProductsFileButton.count(),
+      1,
+      'Expected İkas Task Detail to expose native Products XLSX selection.',
+    );
+
+    await selectProductsFileButton.click();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () => window.__selectedDesktopInputRequest,
+      ),
+      {
+        input_kind: 'IKAS_PRODUCTS_XLSX',
+      },
+    );
+
+    assert.equal(
+      await page.getByText(
+        'ikas-products.xlsx',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Expected selected Products XLSX filename to be visible.',
+    );
+
+    const reviewQuickRunButton =
+      page.getByRole(
+        'button',
+        {
+          name: 'Review Quick Run',
+        },
+      );
+
+    assert.equal(
+      await reviewQuickRunButton.isEnabled(),
+      true,
+      'Selecting a current Products XLSX must make the İkas Quick Run reviewable.',
+    );
+
+    await reviewQuickRunButton.click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name: 'Review Quick Run',
+        exact: true,
+      },
+    ).waitFor();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () => {
+          const reviewed =
+            window.__reviewedDesktopDraft;
+
+          return reviewed
+            ?.reusable_configuration
+            ?.sources
+            ?.['ikas-products'];
+        },
+      ),
+      {
+        included: true,
+        file_path:
+          '/fixture/imports/ikas-products.xlsx',
+      },
+      'Review must receive the exact selected İkas file as Run-specific configuration.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'ikas-products.xlsx',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Review must expose the exact selected input file.',
+    );
+
+    assert.equal(
+      await page.evaluate(
+        () =>
+          window.__startDesktopDraftCalls
+          ?? 0,
+      ),
+      0,
+      'Opening Review must not start a provider Run.',
+    );
+
+    const backToTaskButton =
+      page.getByRole(
+        'button',
+        {
+          name: 'Back to Task',
+          exact: true,
+        },
+      );
+
+    assert.equal(
+      await backToTaskButton.count(),
+      1,
+      'Quick Run Review must provide a return path to Task Detail.',
+    );
+
+    await backToTaskButton.click();
+
+    assert.equal(
+      await page.getByRole(
+        'button',
+        {
+          name: 'Back to Tasks',
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Returning from Review must restore the Task Detail page.',
     );
 
     console.log(

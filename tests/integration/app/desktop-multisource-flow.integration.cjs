@@ -109,6 +109,69 @@ async function main() {
   assert.equal(blockedReview.can_start, false);
   await assert.rejects(() => blockedController.startDraft(blockedDraft), /not ready/i);
 
+  const runInputController = createFixture().controller;
+
+  runInputController.setReadinessEvaluator(
+    async (
+      workspace_id,
+      source_id,
+      source_config,
+    ) => {
+      if (source_id !== 'ikas-products') {
+        return READY(
+          workspace_id,
+          source_id,
+        );
+      }
+
+      return {
+        ...READY(
+          workspace_id,
+          source_id,
+        ),
+        readiness_status:
+          source_config
+          && typeof source_config.file_path === 'string'
+          && source_config.file_path.length > 0
+            ? 'READY'
+            : 'FILE_REQUIRED',
+      };
+    },
+  );
+
+  const runInputDraft =
+    runInputController.createDraft({
+      workspace_id: 'ws_a',
+      origin: {
+        kind: 'BLANK',
+      },
+    });
+
+  runInputDraft.reusable_configuration.sources = {
+    'ikas-products': {
+      included: true,
+      file_path: '/tmp/current-products.xlsx',
+    },
+  };
+
+  const runInputReview =
+    await runInputController.reviewDraft(
+      runInputDraft,
+    );
+
+  assert.deepEqual(
+    runInputReview.included_sources,
+    [
+      'ikas-products',
+    ],
+  );
+
+  assert.equal(
+    runInputReview.can_start,
+    true,
+    'Run-specific İkas file_path must participate in readiness evaluation.',
+  );
+
   console.log('PASS DESKTOP-MULTISOURCE-001: Workspace-scoped draft/review/start plans heterogeneous sources and blocks non-ready included sources');
   let dispatched = null;
   let dispatchCount = 0;
