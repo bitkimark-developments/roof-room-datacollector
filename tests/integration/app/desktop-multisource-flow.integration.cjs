@@ -24,6 +24,28 @@ const createFixture = () => {
     listSavedCollectionPresets: (workspace_id) => presets.get(workspace_id) || [],
     getSavedCollectionPreset: (workspace_id, preset_id) => (presets.get(workspace_id) || []).find((p) => p.preset_id === preset_id) || null,
     getLastRunSettings: () => null,
+    createSavedCollectionPreset: (input) => {
+      const collection = presets.get(input.workspace_id) || [];
+      const preset = {
+        preset_id: `sp_${collection.length + 1}`,
+        workspace_id: input.workspace_id,
+        preset_name: input.preset_name,
+        reusable_configuration: input.reusable_configuration,
+        created_at: '2026-09-11T00:00:02.000Z',
+        updated_at: '2026-09-11T00:00:02.000Z',
+      };
+      collection.push(preset);
+      presets.set(input.workspace_id, collection);
+      return preset;
+    },
+    deleteSavedCollectionPreset: (workspace_id, preset_id) => {
+      const collection = presets.get(workspace_id) || [];
+      const next = collection.filter((preset) => preset.preset_id !== preset_id);
+      if (next.length === collection.length) {
+        throw new Error(`Preset ${preset_id} not found`);
+      }
+      presets.set(workspace_id, next);
+    },
     reserveRunFromJobPlans: (input) => {
       reservations.push(input);
       return { run: { run_id: 'rr_1', workspace_id: input.workspace_id, run_status: 'PENDING' }, jobs: input.job_plans.map((plan, i) => ({ job_id: `job_${i}`, ...plan, execution_status: 'PENDING' })) };
@@ -45,6 +67,20 @@ const createFixture = () => {
 
 async function main() {
   const { controller, reservations, executions } = createFixture();
+  const createdPreset = controller.createPreset({
+    workspace_id: 'ws_b',
+    preset_name: 'Blog-Agentic-Beklentisi',
+    reusable_configuration: {
+      sources: {},
+    },
+  });
+  assert.equal(createdPreset.workspace_id, 'ws_b');
+  assert.equal(createdPreset.preset_name, 'Blog-Agentic-Beklentisi');
+  assert.equal(controller.listPresets('ws_b').length, 1);
+
+  controller.deletePreset('ws_b', createdPreset.preset_id);
+  assert.equal(controller.listPresets('ws_b').length, 0);
+
   const draft = controller.createDraft({ workspace_id: 'ws_a', origin: { kind: 'SAVED_PRESET', preset_id: 'sp_a' } });
   assert.equal(draft.workspace_id, 'ws_a');
   draft.reusable_configuration.sources.serpapi = { included: false };
@@ -57,6 +93,14 @@ async function main() {
   assert.equal(reservations.length, 1);
   assert.deepEqual(executions, ['rr_1']);
   assert.deepEqual(reservations[0].job_plans.map((p) => p.source_id), ['google-trends', 'ikas-products']);
+
+  assert.throws(
+    () => controller.createDraft({
+      workspace_id: 'ws_a',
+      origin: { kind: 'LAST_RUN_SETTINGS' },
+    }),
+    /Last Run Settings.*not available/i,
+  );
 
   const blockedController = createFixture().controller;
   blockedController.setReadinessEvaluator(async (_workspace_id, source_id) => source_id === 'ikas-products' ? { ...READY('ws_a', source_id), readiness_status: 'FILE_REQUIRED' } : READY('ws_a', source_id));

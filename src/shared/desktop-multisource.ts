@@ -84,6 +84,15 @@ export interface DesktopMultiSourceRepository {
   getWorkspace(workspace_id: string): WorkspaceRecord | null;
   listSavedCollectionPresets(workspace_id: string): SavedCollectionPresetRecord[];
   getSavedCollectionPreset(workspace_id: string, preset_id: string): SavedCollectionPresetRecord | null;
+  createSavedCollectionPreset(input: {
+    workspace_id: string;
+    preset_name: string;
+    reusable_configuration: ReusableCollectionConfiguration;
+  }): SavedCollectionPresetRecord;
+  deleteSavedCollectionPreset(
+    workspace_id: string,
+    preset_id: string,
+  ): void;
   getLastRunSettings(workspace_id: string): LastRunSettingsRecord | null;
   listSourceConnections(workspace_id: string): Array<{ source_id: string; credential_ref: string | null }>;
   reserveRunFromJobPlans(input: {

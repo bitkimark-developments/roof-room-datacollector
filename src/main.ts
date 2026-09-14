@@ -309,6 +309,77 @@ const registerIpcHandlers = (
     if (typeof workspaceId !== 'string' || workspaceId.trim().length === 0) throw new Error('workspace_id must be a non-empty string.');
     return requireDesktopController().listPresets(workspaceId);
   });
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_CREATE_PRESET,
+    (event, input: unknown) => {
+      assertTrustedIpcSender(event);
+
+      if (
+        typeof input !== 'object'
+        || input === null
+      ) {
+        throw new Error(
+          'Desktop preset input must be an object.',
+        );
+      }
+
+      const value = input as {
+        workspace_id?: unknown;
+        preset_name?: unknown;
+        reusable_configuration?: unknown;
+      };
+
+      if (
+        typeof value.workspace_id !== 'string'
+        || typeof value.preset_name !== 'string'
+        || typeof value.reusable_configuration !== 'object'
+        || value.reusable_configuration === null
+        || Array.isArray(value.reusable_configuration)
+      ) {
+        throw new Error(
+          'Desktop preset input is invalid.',
+        );
+      }
+
+      return requireDesktopController().createPreset({
+        workspace_id: value.workspace_id,
+        preset_name: value.preset_name,
+        reusable_configuration:
+          value.reusable_configuration as import('./shared/collection-configuration').ReusableCollectionConfiguration,
+      });
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_DELETE_PRESET,
+    (event, input: unknown) => {
+      assertTrustedIpcSender(event);
+
+      if (typeof input !== 'object' || input === null) {
+        throw new Error('Desktop preset delete input must be an object.');
+      }
+
+      const value = input as {
+        workspace_id?: unknown;
+        preset_id?: unknown;
+      };
+
+      if (
+        typeof value.workspace_id !== 'string'
+        || typeof value.preset_id !== 'string'
+        || !value.workspace_id.trim()
+        || !value.preset_id.trim()
+      ) {
+        throw new Error('Desktop preset delete input is invalid.');
+      }
+
+      requireDesktopController().deletePreset(
+        value.workspace_id,
+        value.preset_id,
+      );
+    },
+  );
+
   ipcMain.handle(IPC_CHANNELS.DESKTOP_CREATE_DRAFT, (event, input: unknown) => {
     assertTrustedIpcSender(event);
     if (typeof input !== 'object' || input === null) throw new Error('Desktop draft input must be an object.');

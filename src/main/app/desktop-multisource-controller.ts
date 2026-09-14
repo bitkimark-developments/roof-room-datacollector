@@ -119,6 +119,55 @@ export class DesktopMultiSourceController {
     return this.dependencies.repository.listSavedCollectionPresets(workspace_id);
   }
 
+  createPreset(input: {
+    workspace_id: string;
+    preset_name: string;
+    reusable_configuration: ReusableCollectionConfiguration;
+  }) {
+    const workspace =
+      this.dependencies.repository.getWorkspace(
+        input.workspace_id,
+      );
+
+    if (!workspace) {
+      throw new Error(
+        `Unknown Workspace: ${input.workspace_id}`,
+      );
+    }
+
+    return this.dependencies.repository.createSavedCollectionPreset({
+      workspace_id: input.workspace_id,
+      preset_name: input.preset_name,
+      reusable_configuration:
+        cloneConfiguration(
+          input.reusable_configuration,
+        ),
+    });
+  }
+
+  deletePreset(
+    workspace_id: string,
+    preset_id: string,
+  ): void {
+    const workspace =
+      this.dependencies.repository.getWorkspace(
+        workspace_id,
+      );
+
+    if (!workspace) {
+      throw new Error(
+        `Unknown Workspace: ${workspace_id}`,
+      );
+    }
+
+    this.dependencies.repository
+      .deleteSavedCollectionPreset(
+        workspace_id,
+        preset_id,
+      );
+  }
+
+
   getLastRunSettings(workspace_id: string) {
     return this.dependencies.repository.getLastRunSettings(workspace_id);
   }
@@ -136,7 +185,21 @@ export class DesktopMultiSourceController {
       if (!preset) throw new Error(`Saved Preset ${input.origin.preset_id} is not available in Workspace ${input.workspace_id}.`);
       configuration = cloneConfiguration(preset.reusable_configuration);
     } else if (input.origin.kind === 'LAST_RUN_SETTINGS') {
-      configuration = cloneConfiguration(this.dependencies.repository.getLastRunSettings(input.workspace_id)?.reusable_configuration ?? {});
+      const lastRunSettings =
+        this.dependencies.repository.getLastRunSettings(
+          input.workspace_id,
+        );
+
+      if (!lastRunSettings) {
+        throw new Error(
+          `Last Run Settings are not available in Workspace ${input.workspace_id}.`,
+        );
+      }
+
+      configuration =
+        cloneConfiguration(
+          lastRunSettings.reusable_configuration,
+        );
     }
     return {
       workspace_id: input.workspace_id,
