@@ -659,3 +659,39 @@ The renderer must not own collection execution loops. Run state must continue to
 Historical untracked files remain intentionally untouched:
 - CODEX_HANDOFF_CURRENT.md
 - PROJECT_HANDOFF.pre-20260820.md
+
+
+---
+
+## 21. Run Detail / Progress heartbeat checkpoint — 2026-09-14
+
+Technical implementation commit:
+
+f1de3e7 feat: add run detail progress heartbeat
+
+Implemented and verified:
+
+- Mandatory Review remains separate from provider execution.
+- Start Run is an explicit user action.
+- Start executes the exact reviewed DesktopRunDraft.
+- The persisted run_id returned by startDesktopDraft becomes the Run Detail identity.
+- Renderer does not execute collection work.
+- Persisted Run state is refreshed through getDesktopRunState.
+- PENDING and RUNNING use a 2-second local-state heartbeat.
+- MANUAL_ACTION_REQUIRED uses a 5-second local-state heartbeat.
+- RETRY_REQUIRED, COMPLETED, COMPLETED_WITH_WARNINGS, FAILED, and CANCELLED do not continue polling.
+- Polling reads local persisted Core state only; it does not issue provider requests.
+
+Verification passed:
+
+- npm run test:m5:desktop-ui
+- npx tsc --noEmit
+- git diff --check
+
+No live provider request was executed.
+
+Exact next UI work must be chosen from current repository evidence rather than inferred. Likely boundaries are Run history / Run Detail job-level progress / explicit Retry Failed / result actions.
+
+Historical untracked files remain intentionally untouched:
+- CODEX_HANDOFF_CURRENT.md
+- PROJECT_HANDOFF.pre-20260820.md
