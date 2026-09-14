@@ -1,433 +1,1035 @@
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+
+import {
+  DESKTOP_TASK_CATALOG,
+  type DesktopTaskDefinition,
+  type DesktopTaskGroup,
+} from './desktop-task-catalog';
 import type {
-  DesktopReview,
+  DesktopReadinessStatus,
   DesktopRunDraft,
-  DesktopRunState,
   DesktopWorkspaceView,
 } from './shared/desktop-multisource';
 import type {
   SavedCollectionPresetRecord,
 } from './shared/collection-configuration';
 
-const NAV_ITEMS = ['HOME', 'RUNS', 'PRESETS', 'WORKSPACE'] as const;
-type View = (typeof NAV_ITEMS)[number] | 'SETUP' | 'REVIEW' | 'PROGRESS' | 'RESULT';
+const NAV_ITEMS = [
+  'HOME',
+  'TASKS',
+  'RUNS',
+  'PRESETS',
+  'WORKSPACE',
+] as const;
+
+type View =
+  (typeof NAV_ITEMS)[number];
+
+type UiReadiness =
+  | DesktopReadinessStatus
+  | 'NOT_YET_AVAILABLE';
+
+const GROUPS:
+  readonly DesktopTaskGroup[] = [
+    'GOOGLE',
+    'COMMERCE_SITE',
+    'SEARCH_INTELLIGENCE',
+  ];
+
+const GROUP_LABELS:
+  Record<DesktopTaskGroup, string> = {
+    GOOGLE:
+      'GOOGLE',
+    COMMERCE_SITE:
+      'COMMERCE / SITE',
+    SEARCH_INTELLIGENCE:
+      'SEARCH INTELLIGENCE',
+  };
+
+function TaskCard({
+  task,
+  readiness,
+  onOpen,
+}: {
+  task:
+    DesktopTaskDefinition;
+  readiness:
+    UiReadiness;
+  onOpen:
+    () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="rr-task-card"
+      data-testid="task-card"
+      onClick={onOpen}
+    >
+      <span
+        className="rr-task-card-head"
+      >
+        <span
+          className="rr-kicker"
+        >
+          DATASET TASK
+        </span>
+
+        <span
+          className={
+            `rr-status rr-status-${readiness.toLowerCase()}`
+          }
+        >
+          {readiness.replaceAll(
+            '_',
+            ' ',
+          )}
+        </span>
+      </span>
+
+      <strong>
+        {task.task_name}
+      </strong>
+
+      <span>
+        {task.description}
+      </span>
+
+      <small>
+        {task.default_summary}
+      </small>
+    </button>
+  );
+}
 
 export function DesktopMultiSourceView() {
-  const [section, setSection] = useState<View>('HOME');
-  const [workspace, setWorkspace] = useState<DesktopWorkspaceView | null>(null);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('');
-  const [presets, setPresets] = useState<SavedCollectionPresetRecord[]>([]);
-  const [selectedPresetId, setSelectedPresetId] = useState('');
-  const [draft, setDraft] = useState<DesktopRunDraft | null>(null);
-  const [review, setReview] = useState<DesktopReview | null>(null);
-  const [runState, setRunState] = useState<DesktopRunState | null>(null);
-  const [message, setMessageValue] = useState<string | null>(null);
-  const [messageTone, setMessageTone] =
-    useState<'danger' | 'success'>('danger');
+  const [
+    view,
+    setView,
+  ] =
+    useState<View>(
+      'HOME',
+    );
 
-  const setMessage = (
-    value: string | null,
-    tone: 'danger' | 'success' = 'danger',
-  ) => {
-    setMessageTone(tone);
-    setMessageValue(value);
-  };
-  const [busy, setBusy] = useState(false);
-  const [newPresetName, setNewPresetName] =
-    useState('Blog-Agentic-Beklentisi');
+  const [
+    workspaceView,
+    setWorkspaceView,
+  ] =
+    useState<
+      DesktopWorkspaceView
+      | null
+    >(null);
+
+  const [
+    workspaceId,
+    setWorkspaceId,
+  ] =
+    useState('');
+
+  const [
+    presets,
+    setPresets,
+  ] =
+    useState<
+      SavedCollectionPresetRecord[]
+    >([]);
+
+  const [
+    presetId,
+    setPresetId,
+  ] =
+    useState('');
+
+  const [
+    draft,
+    setDraft,
+  ] =
+    useState<
+      DesktopRunDraft
+      | null
+    >(null);
+
+  const [
+    version,
+    setVersion,
+  ] =
+    useState('');
+
+  const [
+    newPresetName,
+    setNewPresetName,
+  ] =
+    useState('');
+
+  const [
+    busy,
+    setBusy,
+  ] =
+    useState(false);
+
+  const [
+    message,
+    setMessage,
+  ] =
+    useState<
+      string
+      | null
+    >(null);
 
   useEffect(() => {
-    let mounted = true;
+    let mounted =
+      true;
 
-    window.roofroom.getDesktopWorkspaces()
-      .then((value) => {
-        if (!mounted) return;
-        setWorkspace(value);
-        setSelectedWorkspaceId(
-          value.selected_workspace_id
-          ?? value.workspaces[0]?.workspace_id
-          ?? '',
-        );
-      })
-      .catch((error) => {
-        if (!mounted) return;
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : 'Workspace bilgisi okunamadı.',
-        );
-      });
+    Promise.all([
+      window.roofroom
+        .getDesktopWorkspaces(),
+      window.roofroom
+        .getApplicationInfo(),
+    ])
+      .then(
+        ([
+          next,
+          info,
+        ]) => {
+          if (!mounted) {
+            return;
+          }
 
-    return () => { mounted = false; };
+          setWorkspaceView(
+            next,
+          );
+
+          setWorkspaceId(
+            next
+              .selected_workspace_id
+            ?? next
+              .workspaces[0]
+              ?.workspace_id
+            ?? '',
+          );
+
+          setVersion(
+            info.version,
+          );
+        },
+      )
+      .catch(
+        (error) => {
+          if (!mounted) {
+            return;
+          }
+
+          setMessage(
+            error
+              instanceof Error
+              ? error.message
+              : 'Workspace bilgisi okunamadı.',
+          );
+        },
+      );
+
+    return () => {
+      mounted =
+        false;
+    };
   }, []);
 
   useEffect(() => {
-    let mounted = true;
+    let mounted =
+      true;
 
-    if (!selectedWorkspaceId) {
+    if (!workspaceId) {
       setPresets([]);
-      setSelectedPresetId('');
-      return () => { mounted = false; };
+      setPresetId('');
+      setDraft(null);
+
+      return () => {
+        mounted =
+          false;
+      };
     }
 
-    window.roofroom.getDesktopPresets(selectedWorkspaceId)
-      .then((value) => {
-        if (!mounted) return;
-        setPresets(value);
-        setSelectedPresetId(value[0]?.preset_id ?? '');
+    window.roofroom
+      .getDesktopPresets(
+        workspaceId,
+      )
+      .then(
+        (next) => {
+          if (!mounted) {
+            return;
+          }
+
+          setPresets(
+            next,
+          );
+
+          setPresetId(
+            (current) =>
+              next.some(
+                (preset) =>
+                  preset
+                    .preset_id
+                  === current,
+              )
+                ? current
+                : next[0]
+                  ?.preset_id
+                  ?? '',
+          );
+        },
+      )
+      .catch(
+        (error) => {
+          if (!mounted) {
+            return;
+          }
+
+          setMessage(
+            error
+              instanceof Error
+              ? error.message
+              : 'Preset listesi okunamadı.',
+          );
+        },
+      );
+
+    window.roofroom
+      .createDesktopDraft({
+        workspace_id:
+          workspaceId,
+        origin: {
+          kind:
+            'BLANK',
+        },
       })
-      .catch((error) => {
-        if (!mounted) return;
-        setPresets([]);
-        setSelectedPresetId('');
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : 'Preset listesi okunamadı.',
-        );
-      });
-
-    return () => { mounted = false; };
-  }, [selectedWorkspaceId]);
-
-  useEffect(() => {
-    const runId = runState?.run.run_id;
-
-    if (section !== 'PROGRESS' || !runId) {
-      return;
-    }
-
-    let mounted = true;
-
-    const refresh = async () => {
-      try {
-        const next = await window.roofroom.getDesktopRunState(runId);
-        if (!mounted) return;
-
-        setRunState(next);
-
-        if (
-          next.jobs.length > 0
-          && next.completed_jobs + next.failed_jobs >= next.jobs.length
-        ) {
-          setSection('RESULT');
-        }
-      } catch (error) {
-        if (!mounted) return;
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : 'Run durumu okunamadı.',
-        );
-      }
-    };
-
-    void refresh();
-
-    const timer = window.setInterval(
-      () => { void refresh(); },
-      1000,
-    );
+      .then(
+        (next) => {
+          if (mounted) {
+            setDraft(
+              next,
+            );
+          }
+        },
+      )
+      .catch(
+        () => {
+          if (mounted) {
+            setDraft(
+              null,
+            );
+          }
+        },
+      );
 
     return () => {
-      mounted = false;
-      window.clearInterval(timer);
+      mounted =
+        false;
     };
-  }, [section, runState?.run.run_id]);
+  }, [
+    workspaceId,
+  ]);
 
-  const selectBase = async (kind: 'BLANK' | 'LAST_RUN_SETTINGS' | 'SAVED_PRESET') => {
-    const workspaceId = selectedWorkspaceId;
-    if (!workspaceId) { setMessage('Önce bir Workspace seçin.'); return; }
-    try {
-      let origin: import('./shared/collection-configuration').RunDraftOrigin = kind === 'BLANK'
-        ? { kind: 'BLANK' }
-        : { kind: 'LAST_RUN_SETTINGS' };
-      if (kind === 'SAVED_PRESET') {
-        if (!selectedPresetId) {
-          setMessage('Bu Workspace için seçilebilir Saved Preset yok.');
-          return;
-        }
-        origin = { kind, preset_id: selectedPresetId };
-      }
-      const next = await window.roofroom.createDesktopDraft({ workspace_id: workspaceId, origin });
-      setDraft(next); setReview(null); setSection('SETUP');
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Draft oluşturulamadı.'); }
-  };
-
-  const createPreset = async () => {
-    if (!selectedWorkspaceId || busy) return;
-
-    const presetName = newPresetName.trim();
-
-    if (!presetName) {
-      setMessage('Preset adı boş olamaz.');
-      return;
-    }
-
-    setBusy(true);
-    setMessage(null);
-
-    try {
-      const created =
-        await window.roofroom.createDesktopPreset({
-          workspace_id: selectedWorkspaceId,
-          preset_name: presetName,
-          reusable_configuration: {
-            sources: {},
-          },
-        });
-
-      const next =
-        await window.roofroom.getDesktopPresets(
-          selectedWorkspaceId,
-        );
-
-      setPresets(next);
-      setSelectedPresetId(created.preset_id);
-      setMessage(
-        `Preset kaydedildi: ${created.preset_name}`,
-        'success',
-      );
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : 'Preset kaydedilemedi.',
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const deletePreset = async (
-    preset: SavedCollectionPresetRecord,
-  ) => {
-    if (busy) return;
-
-    const confirmed = window.confirm(
-      `"${preset.preset_name}" presetini silmek istiyor musunuz?`,
+  const readinessBySource =
+    useMemo(
+      () =>
+        new Map(
+          (
+            draft
+              ?.source_cards
+            ?? []
+          ).map(
+            (card) => [
+              card.source_id,
+              card
+                .readiness_status,
+            ],
+          ),
+        ),
+      [
+        draft,
+      ],
     );
 
-    if (!confirmed) return;
+  const renderTaskCatalog =
+    () => (
+      <div
+        className="rr-task-groups"
+      >
+        {GROUPS.map(
+          (group) => {
+            const tasks =
+              DESKTOP_TASK_CATALOG
+                .filter(
+                  (task) =>
+                    task.group
+                    === group,
+                );
 
-    setBusy(true);
-    setMessage(null);
+            return (
+              <section
+                className="rr-task-group"
+                key={group}
+              >
+                <div
+                  className="rr-section-head"
+                >
+                  <strong>
+                    {
+                      GROUP_LABELS[
+                        group
+                      ]
+                    }
+                  </strong>
 
-    try {
-      await window.roofroom.deleteDesktopPreset({
-        workspace_id: preset.workspace_id,
-        preset_id: preset.preset_id,
-      });
+                  <span>
+                    {tasks.length}
+                    {' '}
+                    tasks
+                  </span>
+                </div>
 
-      const next =
-        await window.roofroom.getDesktopPresets(
-          preset.workspace_id,
-        );
+                <div
+                  className="rr-task-grid"
+                >
+                  {tasks.map(
+                    (task) => (
+                      <TaskCard
+                        key={
+                          task
+                            .task_id
+                        }
+                        task={
+                          task
+                        }
+                        readiness={
+                          readinessBySource
+                            .get(
+                              task
+                                .source_id,
+                            )
+                          ?? 'NOT_YET_AVAILABLE'
+                        }
+                        onOpen={
+                          () =>
+                            setView(
+                              'TASKS',
+                            )
+                        }
+                      />
+                    ),
+                  )}
+                </div>
+              </section>
+            );
+          },
+        )}
+      </div>
+    );
 
-      setPresets(next);
+  const createPreset =
+    async () => {
+      const presetName =
+        newPresetName
+          .trim();
 
-      if (selectedPresetId === preset.preset_id) {
-        setSelectedPresetId(
-          next[0]?.preset_id ?? '',
-        );
+      if (
+        !workspaceId
+        || !presetName
+        || busy
+      ) {
+        return;
       }
 
-      setMessage(
-        `Preset silindi: ${preset.preset_name}`,
-        'success',
+      setBusy(
+        true,
       );
-    } catch (error) {
       setMessage(
-        error instanceof Error
-          ? error.message
-          : 'Preset silinemedi.',
+        null,
       );
-    } finally {
-      setBusy(false);
-    }
-  };
 
-  const reviewDraft = async () => { if (!draft) return; try { setReview(await window.roofroom.reviewDesktopDraft(draft)); setSection('REVIEW'); } catch (error) { setMessage(error instanceof Error ? error.message : 'Review okunamadı.'); } };
-  const startDraft = async () => { if (!draft) return; try { const next = await window.roofroom.startDesktopDraft(draft); setRunState(next); setSection('PROGRESS'); } catch (error) { setMessage(error instanceof Error ? error.message : 'Run başlatılamadı.'); } };
-  const retryFailed = async () => { if (!runState || busy) return; setBusy(true); try { setRunState(await window.roofroom.retryDesktopFailed(runState.run.run_id)); } catch (error) { setMessage(error instanceof Error ? error.message : 'Retry başarısız.'); } finally { setBusy(false); } };
-  const exportRun = async (mode: 'ALL' | 'SUCCESSFUL_ONLY') => { if (!runState || busy) return; setBusy(true); try { const result = await window.roofroom.exportDesktopRun({ run_id: runState.run.run_id, mode }); setMessage(`Paket hazır: ${result.export_directory}`, 'success'); } catch (error) { setMessage(error instanceof Error ? error.message : 'Export başarısız.'); } finally { setBusy(false); } };
+      try {
+        const created =
+          await window
+            .roofroom
+            .createDesktopPreset({
+              workspace_id:
+                workspaceId,
+              preset_name:
+                presetName,
+              reusable_configuration: {
+                sources:
+                  {},
+              },
+            });
+
+        const next =
+          await window
+            .roofroom
+            .getDesktopPresets(
+              workspaceId,
+            );
+
+        setPresets(
+          next,
+        );
+
+        setPresetId(
+          created
+            .preset_id,
+        );
+
+        setNewPresetName(
+          '',
+        );
+
+        setMessage(
+          `Preset kaydedildi: ${created.preset_name}`,
+        );
+      } catch (error) {
+        setMessage(
+          error
+            instanceof Error
+            ? error.message
+            : 'Preset kaydedilemedi.',
+        );
+      } finally {
+        setBusy(
+          false,
+        );
+      }
+    };
+
+  const deletePreset =
+    async (
+      preset:
+        SavedCollectionPresetRecord,
+    ) => {
+      if (
+        busy
+        || !window.confirm(
+          `"${preset.preset_name}" presetini silmek istiyor musunuz?`,
+        )
+      ) {
+        return;
+      }
+
+      setBusy(
+        true,
+      );
+
+      setMessage(
+        null,
+      );
+
+      try {
+        await window
+          .roofroom
+          .deleteDesktopPreset({
+            workspace_id:
+              preset
+                .workspace_id,
+            preset_id:
+              preset
+                .preset_id,
+          });
+
+        const next =
+          await window
+            .roofroom
+            .getDesktopPresets(
+              preset
+                .workspace_id,
+            );
+
+        setPresets(
+          next,
+        );
+
+        setPresetId(
+          next[0]
+            ?.preset_id
+          ?? '',
+        );
+      } catch (error) {
+        setMessage(
+          error
+            instanceof Error
+            ? error.message
+            : 'Preset silinemedi.',
+        );
+      } finally {
+        setBusy(
+          false,
+        );
+      }
+    };
 
   return (
-    <section className="multisource-shell" aria-label="Multi-source collection">
-      <nav className="multisource-nav" aria-label="Main navigation">
-        {NAV_ITEMS.map((item) => (
-          <button key={item} type="button" className={section === item ? 'active' : ''} onClick={() => setSection(item)}>{item}</button>
-        ))}
-      </nav>
-      {message && (
-        <p
-          className={`inline-alert ${messageTone}`}
-          role="alert"
+    <main
+      className="rr-shell"
+    >
+      <aside
+        className="rr-sidebar"
+      >
+        <div
+          className="rr-brand"
         >
-          {message}
-        </p>
-      )}
-      {section === 'HOME' && (
-        <div className="multisource-home">
-          <div>
-            <p className="eyebrow">WORKSPACE COLLECTION</p>
-            <h2>Birden fazla kaynaktan tek Run</h2>
-            <p>Workspace seçin, kayıtlı bir Preset, Last Run veya Blank ile Setup’a geçin.</p>
-          </div>
-          <label>
-            Workspace
-            <select
-              aria-label="Workspace"
-              value={selectedWorkspaceId}
-              onChange={(event) => {
-                setSelectedWorkspaceId(event.target.value);
-                setDraft(null);
-                setReview(null);
-                setRunState(null);
-                setMessage(null);
-              }}
-            >
-              <option value="">Workspace seçin</option>
-              {workspace?.workspaces.map((item) => (
-                <option key={item.workspace_id} value={item.workspace_id}>
-                  {item.workspace_name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <span
+            className="rr-logo"
+          >
+            RR
+          </span>
 
-          <label>
-            Saved Preset
-            <select
-              aria-label="Saved Preset"
-              value={selectedPresetId}
-              disabled={presets.length === 0}
-              onChange={(event) => setSelectedPresetId(event.target.value)}
-            >
-              {presets.length === 0 && (
-                <option value="">Preset yok</option>
-              )}
-              {presets.map((preset) => (
-                <option key={preset.preset_id} value={preset.preset_id}>
-                  {preset.preset_name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <span>
+            <strong>
+              RoofRoom
+            </strong>
 
-          <div className="base-choice" role="group" aria-label="Starting configuration">
-            <button
-              type="button"
-              disabled={!selectedPresetId}
-              onClick={() => void selectBase('SAVED_PRESET')}
-            >
-              Saved Preset
-            </button>
-            <button type="button" onClick={() => void selectBase('LAST_RUN_SETTINGS')}>Last Run</button>
-            <button type="button" onClick={() => void selectBase('BLANK')}>Blank</button>
-          </div>
+            <small>
+              Data Collector
+            </small>
+          </span>
         </div>
-      )}
-      {section === 'SETUP' && draft && <div><h3>Run Setup</h3>{draft.source_cards.map((card) => <label key={card.source_id}><input type="checkbox" checked={card.included} readOnly /> {card.source_name} · {card.readiness_status} · {card.configuration_summary}</label>)}<button type="button" onClick={() => void reviewDraft()}>Review</button></div>}
-      {section === 'REVIEW' && review && <div><h3>Review</h3><p>Workspace: {review.workspace.workspace_name}</p><p>{review.included_sources.join(', ')} · {review.job_count} Jobs</p>{review.blocking_sources.length > 0 && <p role="alert">Hazır değil: {review.blocking_sources.join(', ')}</p>}<button type="button" disabled={!review.can_start} onClick={() => void startDraft()}>Start</button></div>}
-      {section === 'PROGRESS' && runState && <div><h3>Progress</h3><p>{runState.run.run_status} · {runState.completed_jobs}/{runState.jobs.length} Jobs · {runState.failed_jobs} failed</p><button type="button" onClick={() => setSection('RESULT')}>Result</button></div>}
-      {section === 'RESULT' && runState && <div><h3>Result</h3><p>{runState.failed_jobs > 0 ? 'Failed' : 'Success'}</p><p>Completed: {runState.completed_jobs} · Failed: {runState.failed_jobs}</p><button type="button" disabled={runState.failed_jobs === 0 || busy} onClick={() => void retryFailed()}>Retry Failed</button><button type="button" disabled={busy} onClick={() => void exportRun('ALL')}>Export All</button><button type="button" disabled={busy} onClick={() => void exportRun('SUCCESSFUL_ONLY')}>Export Successful Only</button></div>}
-      {section === 'PRESETS' && (
-        <div className="multisource-home">
+
+        <nav
+          aria-label="Main navigation"
+        >
+          {NAV_ITEMS.map(
+            (item) => (
+              <button
+                key={item}
+                type="button"
+                className={
+                  view === item
+                    ? 'active'
+                    : ''
+                }
+                onClick={
+                  () =>
+                    setView(
+                      item,
+                    )
+                }
+              >
+                {item}
+              </button>
+            ),
+          )}
+        </nav>
+      </aside>
+
+      <section
+        className="rr-main"
+      >
+        <header
+          className="rr-context"
+        >
           <div>
-            <p className="eyebrow">SAVED PRESETS</p>
-            <h2>Collection Presets</h2>
-            <p>
-              Presetler seçili Workspace içinde saklanır.
-            </p>
+            <span
+              className="rr-kicker"
+            >
+              ROOFROOM OPERATIONS
+            </span>
+
+            <strong>
+              Data Collection Console
+            </strong>
           </div>
 
-          <label>
-            Workspace
-            <select
-              aria-label="Preset Workspace"
-              value={selectedWorkspaceId}
-              onChange={(event) =>
-                setSelectedWorkspaceId(
-                  event.target.value,
-                )
-              }
-            >
-              <option value="">
-                Workspace seçin
-              </option>
-              {workspace?.workspaces.map((item) => (
-                <option
-                  key={item.workspace_id}
-                  value={item.workspace_id}
-                >
-                  {item.workspace_name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div
+            className="rr-context-right"
+          >
+            <label>
+              <span>
+                Workspace
+              </span>
 
-          <div>
-            <strong>Mevcut presetler</strong>
-            {presets.length === 0 ? (
-              <p>Henüz preset yok.</p>
-            ) : (
-              <ul>
-                {presets.map((preset) => (
-                  <li key={preset.preset_id}>
-                    <span>{preset.preset_name}</span>{' '}
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        void deletePreset(preset)
-                      }
-                    >
-                      Sil
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <select
+                aria-label="Active Workspace"
+                value={
+                  workspaceId
+                }
+                onChange={
+                  (event) => {
+                    setWorkspaceId(
+                      event
+                        .target
+                        .value,
+                    );
+
+                    setView(
+                      'HOME',
+                    );
+                  }
+                }
+              >
+                {workspaceView
+                  ?.workspaces
+                  .map(
+                    (
+                      workspace,
+                    ) => (
+                      <option
+                        key={
+                          workspace
+                            .workspace_id
+                        }
+                        value={
+                          workspace
+                            .workspace_id
+                        }
+                      >
+                        {
+                          workspace
+                            .workspace_name
+                        }
+                      </option>
+                    ),
+                  )}
+              </select>
+            </label>
+
+            <span
+              className="rr-system"
+            >
+              ● SYSTEM READY
+            </span>
+
+            {version && (
+              <code>
+                v{version}
+              </code>
             )}
           </div>
+        </header>
 
-          <label>
-            Yeni preset adı
-            <input
-              type="text"
-              value={newPresetName}
-              onChange={(event) =>
-                setNewPresetName(
-                  event.target.value,
-                )
-              }
-            />
-          </label>
+        <div
+          className="rr-content"
+        >
+          {message && (
+            <p
+              className="rr-alert"
+            >
+              {message}
+            </p>
+          )}
 
-          <button
-            type="button"
-            disabled={
-              !selectedWorkspaceId
-              || !newPresetName.trim()
-              || busy
-            }
-            onClick={() => void createPreset()}
-          >
-            {busy
-              ? 'Kaydediliyor…'
-              : 'Preset Oluştur'}
-          </button>
+          {view ===
+            'HOME'
+            && (
+              <>
+                <div
+                  className="rr-page-head"
+                >
+                  <div>
+                    <span
+                      className="rr-kicker"
+                    >
+                      HOME
+                    </span>
+
+                    <h1>
+                      Collection Operations
+                    </h1>
+
+                    <p>
+                      Inspect readiness and run traceable collection work from one Workspace.
+                    </p>
+                  </div>
+                </div>
+
+                <section
+                  className="rr-preset-run"
+                >
+                  <div>
+                    <span
+                      className="rr-kicker"
+                    >
+                      PRESET RUN
+                    </span>
+
+                    <h2>
+                      Reusable multi-task collection
+                    </h2>
+
+                    <p>
+                      Provider execution starts only after Review.
+                    </p>
+                  </div>
+
+                  <label>
+                    <span>
+                      Saved Preset
+                    </span>
+
+                    <select
+                      aria-label="Saved Preset"
+                      value={
+                        presetId
+                      }
+                      disabled={
+                        presets.length
+                        === 0
+                      }
+                      onChange={
+                        (event) =>
+                          setPresetId(
+                            event
+                              .target
+                              .value,
+                          )
+                      }
+                    >
+                      {presets.length
+                        === 0
+                        && (
+                          <option
+                            value=""
+                          >
+                            No saved preset
+                          </option>
+                        )}
+
+                      {presets.map(
+                        (
+                          preset,
+                        ) => (
+                          <option
+                            key={
+                              preset
+                                .preset_id
+                            }
+                            value={
+                              preset
+                                .preset_id
+                            }
+                          >
+                            {
+                              preset
+                                .preset_name
+                            }
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                </section>
+
+                {
+                  renderTaskCatalog()
+                }
+              </>
+            )}
+
+          {view ===
+            'TASKS'
+            && (
+              <>
+                <div
+                  className="rr-page-head"
+                >
+                  <div>
+                    <span
+                      className="rr-kicker"
+                    >
+                      TASK CATALOG
+                    </span>
+
+                    <h1>
+                      Tasks
+                    </h1>
+
+                    <p>
+                      Every dataset is an independent collection task.
+                    </p>
+                  </div>
+                </div>
+
+                {
+                  renderTaskCatalog()
+                }
+              </>
+            )}
+
+          {view ===
+            'RUNS'
+            && (
+              <section
+                className="rr-panel"
+              >
+                <span
+                  className="rr-kicker"
+                >
+                  RUN HISTORY
+                </span>
+
+                <h1>
+                  Runs
+                </h1>
+
+                <p>
+                  Dedicated Run list and Run Detail are the next slice.
+                </p>
+              </section>
+            )}
+
+          {view ===
+            'PRESETS'
+            && (
+              <>
+                <div
+                  className="rr-page-head"
+                >
+                  <div>
+                    <span
+                      className="rr-kicker"
+                    >
+                      REUSABLE CONFIGURATION
+                    </span>
+
+                    <h1>
+                      Presets
+                    </h1>
+                  </div>
+                </div>
+
+                <div
+                  className="rr-two-column"
+                >
+                  <section
+                    className="rr-panel"
+                  >
+                    <span
+                      className="rr-kicker"
+                    >
+                      SAVED PRESETS
+                    </span>
+
+                    <div
+                      className="rr-preset-list"
+                    >
+                      {presets.length
+                        === 0
+                        && (
+                          <p>
+                            No saved presets yet.
+                          </p>
+                        )}
+
+                      {presets.map(
+                        (
+                          preset,
+                        ) => (
+                          <div
+                            key={
+                              preset
+                                .preset_id
+                            }
+                          >
+                            <strong>
+                              {
+                                preset
+                                  .preset_name
+                              }
+                            </strong>
+
+                            <button
+                              type="button"
+                              disabled={
+                                busy
+                              }
+                              onClick={
+                                () =>
+                                  void deletePreset(
+                                    preset,
+                                  )
+                              }
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </section>
+
+                  <section
+                    className="rr-panel"
+                  >
+                    <span
+                      className="rr-kicker"
+                    >
+                      NEW PRESET
+                    </span>
+
+                    <label
+                      className="rr-field"
+                    >
+                      <span>
+                        Preset name
+                      </span>
+
+                      <input
+                        value={
+                          newPresetName
+                        }
+                        onChange={
+                          (event) =>
+                            setNewPresetName(
+                              event
+                                .target
+                                .value,
+                            )
+                        }
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      disabled={
+                        busy
+                        || !workspaceId
+                        || !newPresetName
+                          .trim()
+                      }
+                      onClick={
+                        () =>
+                          void createPreset()
+                      }
+                    >
+                      Create Preset
+                    </button>
+                  </section>
+                </div>
+              </>
+            )}
+
+          {view ===
+            'WORKSPACE'
+            && (
+              <section
+                className="rr-panel"
+              >
+                <span
+                  className="rr-kicker"
+                >
+                  SHARED INFRASTRUCTURE
+                </span>
+
+                <h1>
+                  Workspace
+                </h1>
+
+                <p>
+                  Connections and local data live here. Task configuration does not.
+                </p>
+              </section>
+            )}
         </div>
-      )}
-
-      {section !== 'HOME'
-        && section !== 'PRESETS'
-        && !['SETUP', 'REVIEW', 'PROGRESS', 'RESULT'].includes(section)
-        && (
-          <p className="multisource-placeholder">
-            {section} görünümü Workspace-scoped Core verilerini kullanır.
-          </p>
-        )}
-    </section>
+      </section>
+    </main>
   );
 }
