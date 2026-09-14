@@ -33,6 +33,7 @@ export const IPC_CHANNELS = {
   OPEN_CONFIG_FOLDER:
     'collection:open-config-folder',
   DESKTOP_WORKSPACES: 'desktop:workspaces',
+  DESKTOP_RUNS: 'desktop:runs',
   DESKTOP_PRESETS: 'desktop:presets',
   DESKTOP_CREATE_PRESET: 'desktop:create-preset',
   DESKTOP_DELETE_PRESET: 'desktop:delete-preset',
@@ -86,6 +87,9 @@ export interface RoofRoomApi {
   openLatestExport: () => Promise<void>;
   openConfigFolder: () => Promise<void>;
   getDesktopWorkspaces: () => Promise<DesktopWorkspaceView>;
+  listDesktopRuns: (
+    workspace_id: string,
+  ) => Promise<DesktopRunState['run'][]>;
   getDesktopPresets: (workspace_id: string) => Promise<import('./collection-configuration').SavedCollectionPresetRecord[]>;
   createDesktopPreset: (input: {
     workspace_id: string;

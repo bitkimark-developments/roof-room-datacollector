@@ -319,7 +319,72 @@ const main = async () => {
             };
           },
 
+          listDesktopRuns: async (workspaceId) => {
+            window.__listDesktopRunsWorkspaceId =
+              workspaceId;
+
+            return [
+              {
+                run_id: 'rr_fixture_history_001',
+                workspace_id: 'ws_fixture',
+                run_status: 'COMPLETED_WITH_WARNINGS',
+                created_at: '2026-09-13T12:00:00.000Z',
+                started_at: '2026-09-13T12:00:01.000Z',
+                completed_at: '2026-09-13T12:00:05.000Z',
+                application_version: '1.0.0',
+                selected_sources: [
+                  'ikas-products',
+                ],
+                requested_configuration: null,
+                configuration_snapshot: {},
+              },
+            ];
+          },
+
           getDesktopRunState: async (runId) => {
+            if (runId === 'rr_fixture_history_001') {
+              window.__openedHistoryRunId =
+                runId;
+
+              return {
+                run: {
+                  run_id: 'rr_fixture_history_001',
+                  workspace_id: 'ws_fixture',
+                  run_status: 'COMPLETED_WITH_WARNINGS',
+                  created_at: '2026-09-13T12:00:00.000Z',
+                  started_at: '2026-09-13T12:00:01.000Z',
+                  completed_at: '2026-09-13T12:00:05.000Z',
+                  application_version: '1.0.0',
+                  selected_sources: [
+                    'ikas-products',
+                  ],
+                  requested_configuration: null,
+                  configuration_snapshot: {},
+                },
+                jobs: [
+                  {
+                    job_id: 'job_fixture_history_001',
+                    run_id: 'rr_fixture_history_001',
+                    source_id: 'ikas-products',
+                    job_key: 'ikas-products-history',
+                    query_group_id: null,
+                    source_context: {},
+                    job_order: 1,
+                    execution_status: 'COMPLETED',
+                    validation_status: 'LOW_DATA',
+                    attempt_count: 1,
+                    accepted_artifact_id:
+                      'artifact_fixture_history_001',
+                    created_at: '2026-09-13T12:00:00.000Z',
+                    started_at: '2026-09-13T12:00:01.000Z',
+                    completed_at: '2026-09-13T12:00:05.000Z',
+                  },
+                ],
+                completed_jobs: 1,
+                failed_jobs: 0,
+              };
+            }
+
             window.__getDesktopRunStateCalls =
               (
                 window.__getDesktopRunStateCalls
@@ -509,6 +574,103 @@ const main = async () => {
       }).count(),
       1,
     );
+
+    await page.getByRole(
+      'button',
+      {
+        name: 'RUNS',
+        exact: true,
+      },
+    ).click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name: 'Runs',
+        exact: true,
+      },
+    ).waitFor();
+
+    assert.equal(
+      await page.evaluate(
+        () => window.__listDesktopRunsWorkspaceId,
+      ),
+      'ws_fixture',
+      'Run History must load persisted Runs for the selected Workspace.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'rr_fixture_history_001',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Run History must expose persisted Run identity.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'COMPLETED_WITH_WARNINGS',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Run History must expose persisted Run status.',
+    );
+
+    const historyRunButton =
+      page.getByRole(
+        'button',
+        {
+          name: /rr_fixture_history_001/,
+        },
+      );
+
+    assert.equal(
+      await historyRunButton.count(),
+      1,
+      'Persisted Run History rows must be selectable.',
+    );
+
+    await historyRunButton.click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name: 'Run Detail',
+        exact: true,
+      },
+    ).waitFor();
+
+    assert.equal(
+      await page.evaluate(
+        () => window.__openedHistoryRunId,
+      ),
+      'rr_fixture_history_001',
+      'Selecting history must load persisted state for the exact Run identity.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'ikas-products-history',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'History selection must reuse the existing Run Detail Job surface.',
+    );
+
+    await page.getByRole(
+      'button',
+      {
+        name: 'HOME',
+        exact: true,
+      },
+    ).click();
 
     const releaseOneTasks = [
       'Google Trends — Interest Over Time',

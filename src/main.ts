@@ -464,6 +464,27 @@ const registerIpcHandlers = (
     },
   );
 
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_RUNS,
+    (event, workspaceId: unknown) => {
+      assertTrustedIpcSender(event);
+
+      if (
+        typeof workspaceId !== 'string'
+        || workspaceId.trim().length === 0
+      ) {
+        throw new Error(
+          'workspace_id must be a non-empty string.',
+        );
+      }
+
+      return requireDesktopController()
+        .listRuns(
+          workspaceId,
+        );
+    },
+  );
+
   ipcMain.handle(IPC_CHANNELS.DESKTOP_CREATE_DRAFT, (event, input: unknown) => {
     assertTrustedIpcSender(event);
     if (typeof input !== 'object' || input === null) throw new Error('Desktop draft input must be an object.');

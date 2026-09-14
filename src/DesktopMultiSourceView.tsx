@@ -207,6 +207,20 @@ export function DesktopMultiSourceView() {
     );
 
   const [
+    runHistory,
+    setRunHistory,
+  ] =
+    useState<
+      Awaited<
+        ReturnType<
+          typeof window.roofroom.listDesktopRuns
+        >
+      >
+    >(
+      [],
+    );
+
+  const [
     newPresetName,
     setNewPresetName,
   ] =
@@ -226,6 +240,55 @@ export function DesktopMultiSourceView() {
       string
       | null
     >(null);
+
+  useEffect(() => {
+    if (
+      view !== 'RUNS'
+      || workspaceId.length === 0
+    ) {
+      return;
+    }
+
+    let mounted =
+      true;
+
+    setRunHistory(
+      [],
+    );
+
+    void window.roofroom
+      .listDesktopRuns(
+        workspaceId,
+      )
+      .then(
+        (nextRuns) => {
+          if (mounted === true) {
+            setRunHistory(
+              nextRuns,
+            );
+          }
+        },
+      )
+      .catch(
+        (error) => {
+          if (mounted === true) {
+            setMessage(
+              error instanceof Error
+                ? error.message
+                : 'Run History yüklenemedi.',
+            );
+          }
+        },
+      );
+
+    return () => {
+      mounted =
+        false;
+    };
+  }, [
+    view,
+    workspaceId,
+  ]);
 
   useEffect(() => {
     if (activeRunState === null) {
@@ -718,6 +781,41 @@ export function DesktopMultiSourceView() {
           error instanceof Error
             ? error.message
             : 'Run başlatılamadı.',
+        );
+      } finally {
+        setBusy(
+          false,
+        );
+      }
+    };
+
+  const openHistoryRun =
+    async (
+      runId: string,
+    ) => {
+      setBusy(
+        true,
+      );
+
+      setMessage(
+        null,
+      );
+
+      try {
+        const nextState =
+          await window.roofroom
+            .getDesktopRunState(
+              runId,
+            );
+
+        setActiveRunState(
+          nextState,
+        );
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Run Detail yüklenemedi.',
         );
       } finally {
         setBusy(
@@ -1760,9 +1858,50 @@ export function DesktopMultiSourceView() {
                   Runs
                 </h1>
 
-                <p>
-                  No Run is selected.
-                </p>
+                {runHistory.length === 0
+                  ? (
+                    <p>
+                      No persisted Runs yet.
+                    </p>
+                  )
+                  : (
+                    <div>
+                      {runHistory.map(
+                        (run) => (
+                          <article
+                            key={run.run_id}
+                          >
+                            <button
+                              type="button"
+                              disabled={
+                                busy
+                              }
+                              onClick={
+                                () =>
+                                  void openHistoryRun(
+                                    run.run_id,
+                                  )
+                              }
+                            >
+                              {run.run_id}
+                            </button>
+
+                            <p>
+                              {run.run_status}
+                            </p>
+
+                            <p>
+                              {run.created_at}
+                            </p>
+
+                            <p>
+                              Sources: {run.selected_sources.length}
+                            </p>
+                          </article>
+                        ),
+                      )}
+                    </div>
+                  )}
               </section>
             )}
 
