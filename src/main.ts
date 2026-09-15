@@ -598,6 +598,11 @@ const initializeBootstrapStatus =
 
     const queryConfig = await loadQueryConfigStatus(configPath);
 
+    const googleTrendsQueryGroups =
+      queryConfig.status === 'READY'
+        ? queryConfig.config.groups
+        : [];
+
     const sourceRegistry = new SourceRegistry();
 
     const runtime =
@@ -648,6 +653,14 @@ const initializeBootstrapStatus =
                 : 'FILE_REQUIRED';
             }
 
+            if (
+              sourceId === 'google-trends'
+            ) {
+              return googleTrendsQueryGroups.length > 0
+                ? 'READY'
+                : 'CONFIGURATION_REQUIRED';
+            }
+
             if (!connection) {
               return 'CONFIGURATION_REQUIRED';
             }
@@ -671,7 +684,10 @@ const initializeBootstrapStatus =
         );
       }
       desktopMultiSourceController = new DesktopMultiSourceController({
-        repository: desktopRepository,
+        google_trends_query_groups:
+          googleTrendsQueryGroups,
+        repository:
+          desktopRepository,
         readiness: {
           getReadiness: async (
             workspace_id,

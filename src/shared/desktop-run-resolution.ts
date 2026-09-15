@@ -1,6 +1,7 @@
 export type DesktopDatePolicy =
   | 'TODAY_MINUS_90_TO_YESTERDAY'
-  | 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY';
+  | 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY'
+  | 'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY';
 
 export interface DesktopResolvedDateRange {
   reference_date: string;
@@ -195,6 +196,32 @@ export const resolveDesktopDatePolicy = (
           subtractCalendarMonthsClamped(
             reference,
             16,
+          ),
+        ),
+      requested_date_end:
+        formatDateOnly(
+          addCalendarDays(
+            reference,
+            -1,
+          ),
+        ),
+    };
+  }
+
+  if (
+    policy
+    === 'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY'
+  ) {
+    return {
+      reference_date:
+        referenceDate,
+      date_policy:
+        policy,
+      requested_date_start:
+        formatDateOnly(
+          subtractCalendarMonthsClamped(
+            reference,
+            24,
           ),
         ),
       requested_date_end:

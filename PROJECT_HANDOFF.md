@@ -832,3 +832,43 @@ Exact next grouped interface candidate:
 - Preserve Search Term semantics, Turkey / All Categories / Web Search defaults, and independent comparison-group normalization.
 - Use the same interface-level RED → coherent GREEN batch → verification → commit workflow.
 - Do not execute a live Google Trends provider request as part of that deterministic implementation slice.
+
+## 25. Reviewed Google Trends Quick Run checkpoint — 2026-09-15
+
+Previous Git checkpoint: a1b7163 — feat: add reviewed GSC long quick run.
+
+Current checkpoint scope:
+
+- Google Trends — Interest Over Time now participates in the generic reviewed Quick Run flow.
+- Task identity remains google-trends-interest-over-time and source identity remains google-trends.
+- Reusable configuration stores the relative policy TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY.
+- reference_date is the computer local calendar date.
+- Review resolves the exact window once: reference date minus 24 calendar months through yesterday.
+- Calendar-month subtraction preserves day-of-month where possible and clamps invalid month-end dates.
+- External Google Trends query groups are loaded during application bootstrap and injected into the generic desktop controller.
+- Quick Run uses all configured Google Trends comparison groups; the renderer does not rebuild or hardcode query groups.
+- Reviewed configuration materializes the fixed MVP semantics: Turkey, All Categories, Web Search, Search Term, Interest Over Time.
+- selected_query_groups preserves group identity, group name, ordered queries, and duplicate query membership across independent comparison groups.
+- Generic planning creates one independent Job per configured comparison group.
+- Google Trends Job source context uses source_context.query_group, matching the production Google Trends source contract.
+- Start consumes the exact reviewed artifact and does not recalculate dates or query groups after Review.
+- Reviewed Start provenance supports direct source-level requested dates for Google Trends while retaining the existing GSC date_ranges fallback.
+- Google Trends readiness for this Quick Run path is based on a READY external query configuration with at least one configured group.
+- Existing GSC Current, GSC Long, legacy Google Trends desktop controller, and batch Core behavior remain covered by regression tests.
+- No live Google Trends provider request was executed as part of this deterministic interface slice.
+- Historical untracked files CODEX_HANDOFF_CURRENT.md and PROJECT_HANDOFF.pre-20260820.md remain untouched.
+
+Verification for this checkpoint:
+
+- test:m5:desktop-multisource
+- test:m5:desktop-ui
+- test:m3:gt-period
+- test:m3:desktop-controller
+- test:m3:gt-batch-core-runner
+- TypeScript no-emit typecheck
+- ESLint
+- git diff --check
+
+Next candidate interface:
+
+- Continue the Release 1.0 task catalog with the next source/task Quick Run interface only after a bounded audit of its existing production seam.

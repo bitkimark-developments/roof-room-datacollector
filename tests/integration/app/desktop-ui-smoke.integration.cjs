@@ -229,8 +229,12 @@ const main = async () => {
             ...blankDraft,
             source_cards: cards.map(
               (card) =>
-                card.source_id
-                  === 'google-search-console-query-page'
+                (
+                  card.source_id
+                    === 'google-search-console-query-page'
+                  || card.source_id
+                    === 'google-trends'
+                )
                   ? {
                       ...card,
                       readiness_status:
@@ -252,11 +256,156 @@ const main = async () => {
             window.__reviewedDesktopDraft =
               reviewDraft;
 
+            const googleTrendsConfig =
+              reviewDraft
+                ?.reusable_configuration
+                ?.sources
+                ?.['google-trends'];
+
             const gscConfig =
               reviewDraft
                 ?.reusable_configuration
                 ?.sources
                 ?.['google-search-console-query-page'];
+
+            if (
+              googleTrendsConfig
+              ?.task_id
+              === 'google-trends-interest-over-time'
+            ) {
+              const selectedGroups = [
+                {
+                  query_group_id:
+                    'GT01',
+                  query_group_name:
+                    'indoor_plants',
+                  queries: [
+                    'ficus',
+                    'monstera',
+                  ],
+                },
+                {
+                  query_group_id:
+                    'GT02',
+                  query_group_name:
+                    'plant_types',
+                  queries: [
+                    'ficus',
+                    'sukulent',
+                  ],
+                },
+              ];
+
+              const reviewedArtifact = {
+                workspace_id:
+                  'ws_fixture',
+                task_id:
+                  'google-trends-interest-over-time',
+                source_id:
+                  'google-trends',
+                reference_date:
+                  '2026-09-14',
+                resolved_at:
+                  '2026-09-14T09:30:00.000Z',
+                reusable_configuration: {
+                  sources: {
+                    'google-trends': {
+                      included:
+                        true,
+                      task_id:
+                        'google-trends-interest-over-time',
+                      date_policy:
+                        'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+                    },
+                  },
+                },
+                resolved_configuration: {
+                  config_version:
+                    1,
+                  source_id:
+                    'google-trends',
+                  source_mode:
+                    'GOOGLE_TRENDS_UI',
+                  country_code:
+                    'TR',
+                  language_code:
+                    null,
+                  requested_date_start:
+                    '2024-09-14',
+                  requested_date_end:
+                    '2026-09-13',
+                  category_id:
+                    null,
+                  category_name:
+                    'All Categories',
+                  search_type:
+                    'WEB_SEARCH',
+                  selection_type:
+                    'SEARCH_TERM',
+                  dataset_type:
+                    'INTEREST_OVER_TIME',
+                  selected_query_groups:
+                    selectedGroups,
+                  sources: {
+                    'google-trends': {
+                      included:
+                        true,
+                      task_id:
+                        'google-trends-interest-over-time',
+                      date_policy:
+                        'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+                      requested_date_start:
+                        '2024-09-14',
+                      requested_date_end:
+                        '2026-09-13',
+                      query_groups:
+                        selectedGroups,
+                    },
+                  },
+                },
+              };
+
+              window.__reviewedDesktopArtifact =
+                reviewedArtifact;
+
+              return {
+                workspace: {
+                  workspace_id:
+                    'ws_fixture',
+                  workspace_name:
+                    'Acceptance Workspace',
+                  created_at:
+                    '2026-09-11T00:00:00.000Z',
+                },
+                origin:
+                  reviewDraft.origin,
+                included_sources: [
+                  'google-trends',
+                ],
+                source_cards: [
+                  {
+                    source_id:
+                      'google-trends',
+                    source_name:
+                      'Google Trends',
+                    included:
+                      true,
+                    readiness_status:
+                      'READY',
+                    configuration_summary:
+                      'GT01, GT02 · 24 months',
+                  },
+                ],
+                job_count:
+                  2,
+                can_start:
+                  true,
+                blocking_sources:
+                  [],
+                reviewed_draft:
+                  reviewedArtifact,
+              };
+            }
 
             if (
               gscConfig
@@ -1792,8 +1941,182 @@ const main = async () => {
       'GSC Long Start must send the exact reviewed artifact.',
     );
 
+    await page.reload();
+
+    await page.getByRole(
+      'heading',
+      {
+        name:
+          'Collection Operations',
+        exact:
+          true,
+      },
+    ).waitFor();
+
+    const googleTrendsTaskCard =
+      page
+        .getByTestId(
+          'task-card',
+        )
+        .filter({
+          hasText:
+            'Google Trends — Interest Over Time',
+        });
+
+    await googleTrendsTaskCard
+      .getByText(
+        'READY',
+        {
+          exact:
+            true,
+        },
+      )
+      .waitFor();
+
+    await googleTrendsTaskCard.click();
+
+    const googleTrendsReviewButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            'Review Quick Run',
+          exact:
+            true,
+        },
+      );
+
+    assert.equal(
+      await googleTrendsReviewButton.isEnabled(),
+      true,
+      'Google Trends Quick Run must be reviewable from the configured external groups.',
+    );
+
+    await googleTrendsReviewButton.click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name:
+          'Review Quick Run',
+        exact:
+          true,
+      },
+    ).waitFor();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () =>
+          window
+            .__reviewedDesktopDraft
+            ?.reusable_configuration
+            ?.sources
+            ?.['google-trends'],
+      ),
+      {
+        included:
+          true,
+        task_id:
+          'google-trends-interest-over-time',
+        date_policy:
+          'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+      },
+      'Renderer must send task identity and relative date policy, not rebuild GT groups.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Reference date: 2026-09-14',
+        {
+          exact:
+            true,
+        },
+      ).count(),
+      1,
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Resolved range: 2024-09-14 → 2026-09-13',
+        {
+          exact:
+            true,
+        },
+      ).count(),
+      1,
+      'Google Trends Review must expose the exact resolved 24-month window.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Configured groups: 2',
+        {
+          exact:
+            true,
+        },
+      ).count(),
+      1,
+      'Google Trends Review must expose configured comparison-group count.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Query groups: GT01, GT02',
+        {
+          exact:
+            true,
+        },
+      ).count(),
+      1,
+      'Google Trends Review must preserve comparison-group identities.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Fixed scope: Turkey · All Categories · Web Search · Search Term',
+        {
+          exact:
+            true,
+        },
+      ).count(),
+      1,
+      'Google Trends Review must expose fixed provider semantics before Start.',
+    );
+
+    const googleTrendsStartButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            'Start Run',
+          exact:
+            true,
+        },
+      );
+
+    assert.equal(
+      await googleTrendsStartButton.isEnabled(),
+      true,
+    );
+
+    await googleTrendsStartButton.click();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () =>
+          window
+            .__startedDesktopDraft,
+      ),
+      await page.evaluate(
+        () =>
+          window
+            .__reviewedDesktopArtifact,
+      ),
+      'Google Trends Start must send the exact reviewed artifact without rebuilding dates or groups.',
+    );
+
     console.log(
-      'PASS DESKTOP-UI-001: source-neutral operations shell and reviewed GSC Current + Long Quick Run flows are verified',
+      'PASS DESKTOP-UI-001: source-neutral operations shell and reviewed GSC + Google Trends Quick Run flows are verified',
     );
   } finally {
     await browser.close();

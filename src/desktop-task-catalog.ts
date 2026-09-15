@@ -35,6 +35,8 @@ export const DESKTOP_TASK_CATALOG:
         'GOOGLE',
       default_summary:
         'Rolling 24 calendar months · Turkey · Web Search',
+      date_policy:
+        'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
     },
     {
       task_id:

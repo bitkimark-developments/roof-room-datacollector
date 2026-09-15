@@ -148,6 +148,28 @@ const getReviewedDateSummary = (
     return null;
   }
 
+  const directStart =
+    (source as JsonObject)
+      .requested_date_start;
+
+  const directEnd =
+    (source as JsonObject)
+      .requested_date_end;
+
+  if (
+    typeof directStart === 'string'
+    && typeof directEnd === 'string'
+  ) {
+    return {
+      referenceDate:
+        reviewed.reference_date,
+      start:
+        directStart,
+      end:
+        directEnd,
+    };
+  }
+
   const ranges =
     (source as JsonObject)
       .date_ranges;
@@ -191,6 +213,79 @@ const getReviewedDateSummary = (
       reviewed.reference_date,
     start,
     end,
+  };
+};
+
+const getReviewedGoogleTrendsSummary = (
+  review: DesktopReview,
+): {
+  groupIds: string[];
+} | null => {
+  const reviewed =
+    review.reviewed_draft;
+
+  if (
+    reviewed === null
+    || reviewed.source_id !== 'google-trends'
+  ) {
+    return null;
+  }
+
+  const configuration =
+    reviewed.resolved_configuration;
+
+  const groups =
+    configuration.selected_query_groups;
+
+  if (
+    !Array.isArray(groups)
+    || groups.length === 0
+  ) {
+    return null;
+  }
+
+  const groupIds:
+    string[] = [];
+
+  for (const rawGroup of groups) {
+    if (
+      typeof rawGroup !== 'object'
+      || rawGroup === null
+      || Array.isArray(rawGroup)
+    ) {
+      return null;
+    }
+
+    const groupId =
+      (rawGroup as JsonObject)
+        .query_group_id;
+
+    if (
+      typeof groupId !== 'string'
+      || groupId.length === 0
+    ) {
+      return null;
+    }
+
+    groupIds.push(
+      groupId,
+    );
+  }
+
+  if (
+    configuration.country_code !== 'TR'
+    || configuration.category_name
+      !== 'All Categories'
+    || configuration.search_type
+      !== 'WEB_SEARCH'
+    || configuration.selection_type
+      !== 'SEARCH_TERM'
+  ) {
+    return null;
+  }
+
+  return {
+    groupIds,
   };
 };
 
@@ -789,8 +884,12 @@ export function DesktopMultiSourceView() {
 
         const sourceConfiguration:
           JsonObject =
-            selectedTask.source_id
-              === 'google-search-console-query-page'
+            (
+              selectedTask.source_id
+                === 'google-search-console-query-page'
+              || selectedTask.source_id
+                === 'google-trends'
+            )
             && selectedTask.date_policy
               !== undefined
               ? {
@@ -1352,8 +1451,12 @@ export function DesktopMultiSourceView() {
                 && selectedIkasFile !== null
               )
               || (
-                selectedTask.source_id
-                  === 'google-search-console-query-page'
+                (
+                  selectedTask.source_id
+                    === 'google-search-console-query-page'
+                  || selectedTask.source_id
+                    === 'google-trends'
+                )
                 && selectedTask.date_policy
                   !== undefined
               );
@@ -1770,6 +1873,61 @@ export function DesktopMultiSourceView() {
                               summary.end,
                             ].join('')
                           }
+                        </p>
+                      </section>
+                    );
+                })()}
+
+                {(() => {
+                  const summary =
+                    getReviewedGoogleTrendsSummary(
+                      quickRunReview.review,
+                    );
+
+                  return summary === null
+                    ? null
+                    : (
+                      <section
+                        className={
+                          'rr-panel rr-detail-panel'
+                        }
+                      >
+                        <span
+                          className={
+                            'rr-kicker'
+                          }
+                        >
+                          COMPARISON CONTEXT
+                        </span>
+
+                        <h2>
+                          Google Trends Scope
+                        </h2>
+
+                        <p>
+                          {
+                            [
+                              'Configured groups: ',
+                              String(
+                                summary.groupIds.length,
+                              ),
+                            ].join('')
+                          }
+                        </p>
+
+                        <p>
+                          {
+                            [
+                              'Query groups: ',
+                              summary.groupIds.join(
+                                ', ',
+                              ),
+                            ].join('')
+                          }
+                        </p>
+
+                        <p>
+                          Fixed scope: Turkey · All Categories · Web Search · Search Term
                         </p>
                       </section>
                     );

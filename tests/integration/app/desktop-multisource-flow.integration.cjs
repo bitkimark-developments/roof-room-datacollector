@@ -159,6 +159,45 @@ async function main() {
     'GSC Long calendar-month policy must clamp month-end dates.',
   );
 
+  const resolvedGoogleTrends =
+    resolveDesktopDatePolicy(
+      'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+      '2026-09-14',
+    );
+
+  assert.deepEqual(
+    resolvedGoogleTrends,
+    {
+      reference_date:
+        '2026-09-14',
+      date_policy:
+        'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+      requested_date_start:
+        '2024-09-14',
+      requested_date_end:
+        '2026-09-13',
+    },
+    'Google Trends must resolve local today minus 24 calendar months through yesterday.',
+  );
+
+  assert.deepEqual(
+    resolveDesktopDatePolicy(
+      'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+      '2024-02-29',
+    ),
+    {
+      reference_date:
+        '2024-02-29',
+      date_policy:
+        'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+      requested_date_start:
+        '2022-02-28',
+      requested_date_end:
+        '2024-02-28',
+    },
+    'Google Trends 24-calendar-month policy must clamp leap-day month arithmetic.',
+  );
+
   assert.equal(
     typeof formatLocalReferenceDate,
     'function',
@@ -503,6 +542,343 @@ async function main() {
       },
     ],
     'GSC Long Start must build Jobs from the exact reviewed configuration.',
+  );
+
+  let googleTrendsClock =
+    new Date(
+      '2026-09-14T09:30:00.000Z',
+    );
+
+  const googleTrendsBase =
+    createFixture(
+      () => googleTrendsClock,
+    );
+
+  const googleTrendsController =
+    new DesktopMultiSourceController({
+      repository:
+        googleTrendsBase.repository,
+      readiness: {
+        getReadiness:
+          async (
+            workspace_id,
+            source_id,
+          ) =>
+            READY(
+              workspace_id,
+              source_id,
+            ),
+      },
+      application_version:
+        'test',
+      source_order: [
+        'google-trends',
+      ],
+      google_trends_query_groups: [
+        {
+          query_group_id:
+            'GT01',
+          query_group_name:
+            'indoor_plants',
+          queries: [
+            'ficus',
+            'monstera',
+          ],
+        },
+        {
+          query_group_id:
+            'GT02',
+          query_group_name:
+            'plant_types',
+          queries: [
+            'ficus',
+            'sukulent',
+          ],
+        },
+      ],
+      execute_run:
+        async (run_id) =>
+          googleTrendsBase
+            .executions
+            .push(run_id),
+      now:
+        () => googleTrendsClock,
+    });
+
+  const googleTrendsDraft =
+    googleTrendsController
+      .createDraft({
+        workspace_id:
+          'ws_a',
+        origin: {
+          kind:
+            'BLANK',
+        },
+      });
+
+  googleTrendsDraft
+    .reusable_configuration
+    .sources = {
+      'google-trends': {
+        included:
+          true,
+        task_id:
+          'google-trends-interest-over-time',
+        date_policy:
+          'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+      },
+    };
+
+  const googleTrendsReview =
+    await googleTrendsController
+      .reviewDraft(
+        googleTrendsDraft,
+      );
+
+  assert.ok(
+    googleTrendsReview.reviewed_draft,
+    'Google Trends Review must produce an exact reviewed artifact.',
+  );
+
+  assert.equal(
+    googleTrendsReview
+      .reviewed_draft
+      .task_id,
+    'google-trends-interest-over-time',
+  );
+
+  assert.equal(
+    googleTrendsReview
+      .reviewed_draft
+      .source_id,
+    'google-trends',
+  );
+
+  assert.equal(
+    googleTrendsReview
+      .reviewed_draft
+      .reference_date,
+    '2026-09-14',
+  );
+
+  const googleTrendsResolved =
+    googleTrendsReview
+      .reviewed_draft
+      .resolved_configuration;
+
+  assert.equal(
+    googleTrendsResolved
+      .source_mode,
+    'GOOGLE_TRENDS_UI',
+    'Reviewed configuration must retain Google Trends UI source mode.',
+  );
+
+  assert.equal(
+    googleTrendsResolved
+      .country_code,
+    'TR',
+  );
+
+  assert.equal(
+    googleTrendsResolved
+      .category_name,
+    'All Categories',
+  );
+
+  assert.equal(
+    googleTrendsResolved
+      .search_type,
+    'WEB_SEARCH',
+  );
+
+  assert.equal(
+    googleTrendsResolved
+      .selection_type,
+    'SEARCH_TERM',
+  );
+
+  assert.equal(
+    googleTrendsResolved
+      .dataset_type,
+    'INTEREST_OVER_TIME',
+  );
+
+  assert.equal(
+    googleTrendsResolved
+      .requested_date_start,
+    '2024-09-14',
+  );
+
+  assert.equal(
+    googleTrendsResolved
+      .requested_date_end,
+    '2026-09-13',
+  );
+
+  assert.deepEqual(
+    googleTrendsResolved
+      .selected_query_groups,
+    [
+      {
+        query_group_id:
+          'GT01',
+        query_group_name:
+          'indoor_plants',
+        queries: [
+          'ficus',
+          'monstera',
+        ],
+      },
+      {
+        query_group_id:
+          'GT02',
+        query_group_name:
+          'plant_types',
+        queries: [
+          'ficus',
+          'sukulent',
+        ],
+      },
+    ],
+    'Google Trends Review must materialize every configured comparison group.',
+  );
+
+  const resolvedGoogleTrendsSource =
+    googleTrendsResolved
+      .sources['google-trends'];
+
+  assert.equal(
+    resolvedGoogleTrendsSource
+      .requested_date_start,
+    '2024-09-14',
+  );
+
+  assert.equal(
+    resolvedGoogleTrendsSource
+      .requested_date_end,
+    '2026-09-13',
+  );
+
+  assert.deepEqual(
+    resolvedGoogleTrendsSource
+      .query_groups
+      .map(
+        (group) => ({
+          query_group_id:
+            group.query_group_id,
+          queries:
+            group.queries,
+        }),
+      ),
+    [
+      {
+        query_group_id:
+          'GT01',
+        queries: [
+          'ficus',
+          'monstera',
+        ],
+      },
+      {
+        query_group_id:
+          'GT02',
+        queries: [
+          'ficus',
+          'sukulent',
+        ],
+      },
+    ],
+    'Duplicate query text across comparison groups must remain in separate group contexts.',
+  );
+
+  assert.equal(
+    googleTrendsReview.job_count,
+    2,
+    'Google Trends Review must plan one independent Job per comparison group.',
+  );
+
+  assert.equal(
+    googleTrendsReview.can_start,
+    true,
+  );
+
+  googleTrendsClock =
+    new Date(
+      '2026-09-15T09:30:00.000Z',
+    );
+
+  await googleTrendsController
+    .startDraft(
+      googleTrendsReview
+        .reviewed_draft,
+    );
+
+  assert.equal(
+    googleTrendsBase
+      .reservations.length,
+    1,
+  );
+
+  const googleTrendsReservation =
+    googleTrendsBase
+      .reservations[0];
+
+  assert.equal(
+    googleTrendsReservation
+      .configuration_snapshot
+      .reference_date,
+    '2026-09-14',
+    'Google Trends Start must preserve the reviewed reference date after clock drift.',
+  );
+
+  assert.equal(
+    googleTrendsReservation
+      .configuration_snapshot
+      .requested_date_start,
+    '2024-09-14',
+  );
+
+  assert.equal(
+    googleTrendsReservation
+      .configuration_snapshot
+      .requested_date_end,
+    '2026-09-13',
+  );
+
+  assert.deepEqual(
+    googleTrendsReservation
+      .job_plans
+      .map(
+        (plan) =>
+          plan.query_group_id,
+      ),
+    [
+      'GT01',
+      'GT02',
+    ],
+    'Google Trends Start must persist one Job per configured comparison group.',
+  );
+
+  assert.deepEqual(
+    googleTrendsReservation
+      .job_plans
+      .map(
+        (plan) =>
+          plan.source_context
+            .query_group
+            .queries,
+      ),
+    [
+      [
+        'ficus',
+        'monstera',
+      ],
+      [
+        'ficus',
+        'sukulent',
+      ],
+    ],
+    'Google Trends Job context must preserve comparison-group query membership.',
   );
 
   const { controller, reservations, executions } = createFixture();

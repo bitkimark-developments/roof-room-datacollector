@@ -42,6 +42,12 @@ export interface DesktopMultiSourceControllerDependencies {
   repository: DesktopMultiSourceRepository;
   readiness: DesktopReadinessReader;
   application_version: string;
+  google_trends_query_groups?:
+    readonly {
+      query_group_id: string;
+      query_group_name: string;
+      queries: readonly string[];
+    }[];
   source_order?: readonly string[];
   source_names?: Record<string, string>;
   job_planner?: (source_id: string, source_config: Record<string, unknown>) => JobPlan[];
@@ -91,7 +97,38 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
     const value = asObject(item);
     return { source_id: sourceId, job_key: key(value, index), query_group_id: sourceId === 'google-trends' ? key(value, index) : null, source_context: value as JsonObject };
   });
-  if (sourceId === 'google-trends') return plans(Array.isArray(config.query_groups) ? config.query_groups : [], (item, index) => typeof item.query_group_id === 'string' ? item.query_group_id : `group-${index + 1}`);
+  if (sourceId === 'google-trends') {
+    const groups =
+      Array.isArray(config.query_groups)
+        ? config.query_groups
+        : [];
+
+    return groups.map(
+      (item, index) => {
+        const value =
+          asObject(item);
+
+        const jobKey =
+          typeof value.query_group_id
+            === 'string'
+            ? value.query_group_id
+            : 'group-' + String(index + 1);
+
+        return {
+          source_id:
+            sourceId,
+          job_key:
+            jobKey,
+          query_group_id:
+            jobKey,
+          source_context: {
+            query_group:
+              value as JsonObject,
+          },
+        };
+      },
+    );
+  }
   if (sourceId === 'google-search-console-query-page') return plans(Array.isArray(config.date_ranges) ? config.date_ranges : [], (item, index) => typeof item.job_key === 'string' ? item.job_key : `gsc-${index + 1}`);
   if (sourceId === 'serpapi') return plans(Array.isArray(config.queries) ? config.queries : [], (item, index) => typeof item.query === 'string' ? item.query : `query-${index + 1}`);
   if (sourceId === 'google-keyword-planner') return plans(Array.isArray(config.groups) ? config.groups : [], (item, index) => typeof item.group_id === 'string' ? item.group_id : `keyword-group-${index + 1}`);
@@ -451,6 +488,28 @@ export class DesktopMultiSourceController {
         dateRanges[0],
       );
 
+    const requestedDateStart =
+      typeof resolvedSource
+        .requested_date_start === 'string'
+        ? resolvedSource
+            .requested_date_start
+        : typeof firstDateRange
+            .requested_date_start === 'string'
+          ? firstDateRange
+              .requested_date_start
+          : null;
+
+    const requestedDateEnd =
+      typeof resolvedSource
+        .requested_date_end === 'string'
+        ? resolvedSource
+            .requested_date_end
+        : typeof firstDateRange
+            .requested_date_end === 'string'
+          ? firstDateRange
+              .requested_date_end
+          : null;
+
     const configurationSnapshot:
       JsonObject = {
         ...cloneConfiguration(
@@ -473,19 +532,9 @@ export class DesktopMultiSourceController {
             ? reusableSource.date_policy
             : null,
         requested_date_start:
-          typeof firstDateRange
-            .requested_date_start
-            === 'string'
-            ? firstDateRange
-                .requested_date_start
-            : null,
+          requestedDateStart,
         requested_date_end:
-          typeof firstDateRange
-            .requested_date_end
-            === 'string'
-            ? firstDateRange
-                .requested_date_end
-            : null,
+          requestedDateEnd,
       };
 
     const reserved =
@@ -584,20 +633,156 @@ export class DesktopMultiSourceController {
 
     if (
       includedSourceIds.length !== 1
-      || includedSourceIds[0]
-        !== 'google-search-console-query-page'
     ) {
       return null;
     }
 
     const sourceId =
-      'google-search-console-query-page';
+      includedSourceIds[0];
 
     const config =
       sourceConfig(
         draft.reusable_configuration,
         sourceId,
       );
+
+    if (
+      sourceId === 'google-trends'
+    ) {
+      if (
+        config.task_id
+          !== 'google-trends-interest-over-time'
+        || config.date_policy
+          !== 'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY'
+      ) {
+        return null;
+      }
+
+      const selectedQueryGroups =
+        (
+          this.dependencies
+            .google_trends_query_groups
+          ?? []
+        ).map(
+          (group) => ({
+            query_group_id:
+              group.query_group_id,
+            query_group_name:
+              group.query_group_name,
+            queries: [
+              ...group.queries,
+            ],
+          }),
+        );
+
+      if (
+        selectedQueryGroups.length === 0
+      ) {
+        return null;
+      }
+
+      const resolvedAt =
+        this.now();
+
+      const referenceDate =
+        formatLocalReferenceDate(
+          resolvedAt,
+        );
+
+      const range =
+        resolveDesktopDatePolicy(
+          'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+          referenceDate,
+        );
+
+      const reusableConfiguration =
+        cloneConfiguration(
+          draft.reusable_configuration,
+        );
+
+      const resolvedConfiguration =
+        cloneConfiguration(
+          draft.reusable_configuration,
+        );
+
+      const resolvedSources =
+        asJsonObjectValue(
+          resolvedConfiguration.sources,
+        );
+
+      const resolvedSource =
+        asJsonObjectValue(
+          resolvedSources[sourceId],
+        );
+
+      resolvedSources[sourceId] = {
+        ...resolvedSource,
+        requested_date_start:
+          range.requested_date_start,
+        requested_date_end:
+          range.requested_date_end,
+        query_groups:
+          selectedQueryGroups,
+      };
+
+      Object.assign(
+        resolvedConfiguration,
+        {
+          config_version:
+            1,
+          source_id:
+            sourceId,
+          source_mode:
+            'GOOGLE_TRENDS_UI',
+          country_code:
+            'TR',
+          language_code:
+            null,
+          requested_date_start:
+            range.requested_date_start,
+          requested_date_end:
+            range.requested_date_end,
+          category_id:
+            null,
+          category_name:
+            'All Categories',
+          search_type:
+            'WEB_SEARCH',
+          selection_type:
+            'SEARCH_TERM',
+          dataset_type:
+            'INTEREST_OVER_TIME',
+          selected_query_groups:
+            selectedQueryGroups,
+          sources:
+            resolvedSources,
+        },
+      );
+
+      return {
+        workspace_id:
+          draft.workspace_id,
+        task_id:
+          'google-trends-interest-over-time',
+        source_id:
+          sourceId,
+        reference_date:
+          range.reference_date,
+        resolved_at:
+          resolvedAt.toISOString(),
+        reusable_configuration:
+          reusableConfiguration,
+        resolved_configuration:
+          resolvedConfiguration,
+      };
+    }
+
+    if (
+      sourceId
+        !== 'google-search-console-query-page'
+    ) {
+      return null;
+    }
 
     const taskId =
       (
