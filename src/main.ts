@@ -706,6 +706,24 @@ const initializeBootstrapStatus =
           if (!desktopExecutionService) throw new Error('Core execution is unavailable.');
           await desktopExecutionService.execute(run_id);
         },
+        execute_retry: async (
+          run_id,
+          job_id,
+          attempt,
+        ) => {
+          if (!desktopExecutionService) {
+            throw new Error(
+              'Core execution is unavailable.',
+            );
+          }
+
+          await desktopExecutionService
+            .executeStartedAttemptAndContinue(
+              run_id,
+              job_id,
+              attempt,
+            );
+        },
       });
       const productionRuntime = createProductionCollectionRuntime({
         repository: desktopRepository,

@@ -7,6 +7,7 @@ import type {
   JsonObject,
   JsonValue,
 } from '../../shared/run-job';
+import type { AttemptRecord } from '../../shared/attempt';
 import type {
   DesktopMultiSourceRepository,
   DesktopReadinessStatus,
@@ -53,6 +54,11 @@ export interface DesktopMultiSourceControllerDependencies {
   job_planner?: (source_id: string, source_config: Record<string, unknown>) => JobPlan[];
   now?: () => Date;
   execute_run?: (run_id: string) => Promise<void>;
+  execute_retry?: (
+    run_id: string,
+    job_id: string,
+    attempt: AttemptRecord,
+  ) => Promise<void>;
   package_directory?: string;
   load_datasets?: (run_id: string) => Promise<Parameters<typeof buildDataPackage>[0]['datasets']>;
 }
@@ -606,17 +612,68 @@ export class DesktopMultiSourceController {
   async retryFailed(run_id: string): Promise<DesktopRunState> {
     const run = this.dependencies.repository.getRun(run_id);
     if (!run) throw new Error(`Unknown Run: ${run_id}`);
-    const plan = new ResumePlanner(this.dependencies.repository as never).planRun(run.workspace_id, run_id);
-    if (!plan) throw new Error(`Run ${run_id} is not retryable in its Workspace.`);
-    const coordinator = new ReconciliationCoordinator(this.dependencies.repository as never, new RetryPolicy({ max_attempts: 2 }));
-    for (const jobPlan of plan.jobs) {
-      if (jobPlan.action === 'RETRY_CANDIDATE') coordinator.apply(jobPlan);
+
+    const plan = new ResumePlanner(
+      this.dependencies.repository as never,
+    ).planRun(
+      run.workspace_id,
+      run_id,
+    );
+
+    if (!plan) {
+      throw new Error(
+        `Run ${run_id} is not retryable in its Workspace.`,
+      );
     }
-    if (this.dependencies.execute_run) {
-      void this.dependencies.execute_run(run_id).catch(() => {
-        // Core persistence remains authoritative; renderer reads persisted state.
-      });
+
+    if (!this.dependencies.execute_retry) {
+      throw new Error(
+        'Core retry execution is unavailable.',
+      );
     }
+
+    const retryCandidate = plan.jobs.find(
+      (jobPlan) =>
+        jobPlan.action === 'RETRY_CANDIDATE',
+    );
+
+    if (!retryCandidate) {
+      throw new Error(
+        `Run ${run_id} has no retry candidate.`,
+      );
+    }
+
+    const coordinator =
+      new ReconciliationCoordinator(
+        this.dependencies.repository as never,
+        new RetryPolicy({
+          max_attempts: 2,
+        }),
+      );
+
+    const retry =
+      coordinator.apply(
+        retryCandidate,
+      );
+
+    if (
+      retry.outcome !== 'RETRY_STARTED' ||
+      retry.attempt === null
+    ) {
+      throw new Error(
+        `Run ${run_id} retry could not start: ${retry.outcome}.`,
+      );
+    }
+
+    void this.dependencies.execute_retry(
+      run_id,
+      retryCandidate.job.job_id,
+      retry.attempt,
+    ).catch(() => {
+      // Core persistence remains authoritative;
+      // renderer reads persisted state.
+    });
+
     return this.getRunState(run_id);
   }
 

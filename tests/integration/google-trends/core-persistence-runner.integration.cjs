@@ -1160,6 +1160,389 @@ const main = async () => {
     }
   }
 
+
+  // ------------------------------------------------
+  // GT-QUICK-RUN-RETRY-001
+  // Partial failure must remain retryable through the
+  // reviewed desktop path without recollecting success.
+  // ------------------------------------------------
+
+  {
+    class RetryOnceGoogleTrendsSource
+      extends FixtureGoogleTrendsSource {
+      failedGt02Once =
+        false;
+
+      async collect(context) {
+        this.collectCalls.push(
+          context,
+        );
+
+        const groupId =
+          context.source_context
+            .query_group
+            .query_group_id;
+
+        if (
+          groupId === 'GT02'
+          && this.failedGt02Once === false
+        ) {
+          this.failedGt02Once =
+            true;
+
+          return {
+            result_type:
+              'FAILED',
+            error_code:
+              'DETERMINISTIC_GT02_FAILURE',
+            message:
+              'Safe deterministic first-attempt GT02 failure.',
+          };
+        }
+
+        return {
+          result_type:
+            'ARTIFACT_PRODUCED',
+          preferred_filename:
+            groupId
+            + '_TR_24M_interest_over_time.csv',
+          media_type:
+            'text/csv',
+          bytes:
+            fs.readFileSync(
+              fixturePath,
+            ),
+        };
+      }
+    }
+
+    const repository =
+      new StateRepository(
+        getDatabasePath(
+          directories,
+        ),
+      );
+
+    try {
+      const workspace =
+        repository.createWorkspace({
+          workspace_name:
+            'GT Quick Run Retry',
+        });
+
+      const fixtureSource =
+        new RetryOnceGoogleTrendsSource();
+
+      const productionRuntime =
+        createProductionCollectionRuntime({
+          repository,
+          credentialStore: {},
+          directories,
+          googleTrendsSource:
+            fixtureSource,
+        });
+
+      const executionService =
+        new DesktopExecutionService(
+          productionRuntime.orchestrator,
+        );
+
+      let executionPromise =
+        null;
+
+      const controller =
+        new DesktopMultiSourceController({
+          repository,
+          readiness: {
+            getReadiness:
+              async (
+                workspace_id,
+                source_id,
+              ) => ({
+                workspace_id,
+                source_id,
+                readiness_status:
+                  'READY',
+              }),
+          },
+          application_version:
+            'integration-test',
+          source_order: [
+            'google-trends',
+          ],
+          google_trends_query_groups: [
+            {
+              ...gt01,
+            },
+            {
+              ...gt01,
+              query_group_id:
+                'GT02',
+              query_group_name:
+                'retry-second-group',
+            },
+          ],
+          now:
+            () =>
+              new Date(
+                '2026-08-18T12:00:00.000Z',
+              ),
+          execute_run:
+            async (run_id) => {
+              executionPromise =
+                executionService.execute(
+                  run_id,
+                );
+
+              await executionPromise;
+            },
+          execute_retry:
+            async (
+              run_id,
+              job_id,
+              attempt,
+            ) => {
+              executionPromise =
+                executionService
+                  .executeStartedAttemptAndContinue(
+                    run_id,
+                    job_id,
+                    attempt,
+                  );
+
+              await executionPromise;
+            },
+        });
+
+      const draft =
+        controller.createDraft({
+          workspace_id:
+            workspace.workspace_id,
+          origin: {
+            kind:
+              'BLANK',
+          },
+        });
+
+      draft
+        .reusable_configuration
+        .sources = {
+          'google-trends': {
+            included:
+              true,
+            task_id:
+              'google-trends-interest-over-time',
+            date_policy:
+              'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+          },
+        };
+
+      const review =
+        await controller.reviewDraft(
+          draft,
+        );
+
+      assert.equal(
+        review.can_start,
+        true,
+      );
+
+      assert.ok(
+        review.reviewed_draft,
+      );
+
+      await controller.startDraft(
+        review.reviewed_draft,
+      );
+
+      assert.ok(
+        executionPromise,
+        'Start must dispatch the persisted Run to Core.',
+      );
+
+      await executionPromise;
+
+      const firstDetail =
+        controller.getRunState(
+          repository.listRuns(
+            workspace.workspace_id,
+          )[0].run_id,
+        );
+
+      assert.equal(
+        firstDetail.run.run_status,
+        'RETRY_REQUIRED',
+        'One completed group plus one failed group must persist RETRY_REQUIRED.',
+      );
+
+      assert.equal(
+        firstDetail.completed_jobs,
+        1,
+      );
+
+      assert.equal(
+        firstDetail.failed_jobs,
+        1,
+      );
+
+      assert.deepEqual(
+        firstDetail.jobs.map(
+          (job) => ({
+            group:
+              job.query_group_id,
+            status:
+              job.execution_status,
+            attempts:
+              job.attempt_count,
+          }),
+        ),
+        [
+          {
+            group:
+              'GT01',
+            status:
+              'COMPLETED',
+            attempts:
+              1,
+          },
+          {
+            group:
+              'GT02',
+            status:
+              'FAILED',
+            attempts:
+              1,
+          },
+        ],
+        'Run Detail must preserve the successful group and expose only GT02 as failed.',
+      );
+
+      const gt01ArtifactId =
+        firstDetail.jobs[0]
+          .accepted_artifact_id;
+
+      assert.ok(
+        gt01ArtifactId,
+        'GT01 must retain its accepted artifact before retry.',
+      );
+
+      assert.deepEqual(
+        fixtureSource.collectCalls.map(
+          (context) =>
+            context.source_context
+              .query_group
+              .query_group_id,
+        ),
+        [
+          'GT01',
+          'GT02',
+        ],
+        'Initial execution must call each comparison group exactly once.',
+      );
+
+      executionPromise =
+        null;
+
+      await controller.retryFailed(
+        firstDetail.run.run_id,
+      );
+
+      assert.ok(
+        executionPromise,
+        'Retry Failed must dispatch the same persisted Run back to Core.',
+      );
+
+      await executionPromise;
+
+      const finalDetail =
+        controller.getRunState(
+          firstDetail.run.run_id,
+        );
+
+      assert.equal(
+        finalDetail.run.run_status,
+        'COMPLETED',
+        'Successful retry of the only failed group must complete the existing Run.',
+      );
+
+      assert.equal(
+        finalDetail.completed_jobs,
+        2,
+      );
+
+      assert.equal(
+        finalDetail.failed_jobs,
+        0,
+      );
+
+      assert.deepEqual(
+        finalDetail.jobs.map(
+          (job) => ({
+            group:
+              job.query_group_id,
+            status:
+              job.execution_status,
+            validation:
+              job.validation_status,
+            attempts:
+              job.attempt_count,
+          }),
+        ),
+        [
+          {
+            group:
+              'GT01',
+            status:
+              'COMPLETED',
+            validation:
+              'VALID',
+            attempts:
+              1,
+          },
+          {
+            group:
+              'GT02',
+            status:
+              'COMPLETED',
+            validation:
+              'VALID',
+            attempts:
+              2,
+          },
+        ],
+        'Run Detail must expose GT01 attempt 1 and retried GT02 attempt 2 as completed.',
+      );
+
+      assert.equal(
+        finalDetail.jobs[0]
+          .accepted_artifact_id,
+        gt01ArtifactId,
+        'Retry must preserve the already accepted GT01 artifact.',
+      );
+
+      assert.deepEqual(
+        fixtureSource.collectCalls.map(
+          (context) =>
+            context.source_context
+              .query_group
+              .query_group_id,
+        ),
+        [
+          'GT01',
+          'GT02',
+          'GT02',
+        ],
+        'Retry must recollect only GT02 and must never call GT01 again.',
+      );
+
+      console.log(
+        'PASS GT-QUICK-RUN-RETRY-001: partial GT Quick Run retries only the failed comparison group and completes the same persisted Run',
+      );
+    } finally {
+      repository.close();
+    }
+  }
+
 };
 
 main().catch((error) => {

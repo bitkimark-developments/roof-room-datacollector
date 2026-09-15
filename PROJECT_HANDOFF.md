@@ -909,3 +909,38 @@ Verification for this checkpoint:
 Exact next action:
 
 - Choose the next bounded Google Trends MVP interface only after this checkpoint is committed; do not expand into a new source module while the Google Trends base path is still being hardened.
+
+## 27. Reviewed Google Trends failed-job retry checkpoint — 2026-09-15
+
+Previous Git checkpoint: 1f43949 — feat: complete reviewed Google Trends core run path.
+
+Current checkpoint scope:
+
+- Reviewed Google Trends Quick Run partial-failure retry is covered through the production Core execution path.
+- Deterministic acceptance flow: GT01 completes, GT02 fails, Run becomes RETRY_REQUIRED, explicit Retry Failed retries only GT02, and the same persisted Run becomes COMPLETED.
+- GT01 accepted evidence is preserved and GT01 is not recollected during retry.
+- Attempt counts remain GT01 = 1 and GT02 = 2 after successful retry.
+- DesktopMultiSourceController now receives a source-neutral execute_retry dependency for already-started explicit retry attempts.
+- DesktopExecutionService executes the already-started retry attempt first, then continues the same Run through runUntilBlocked.
+- This mirrors the established Core retry ownership pattern used by the working Google Trends batch runner.
+- Normal run scheduling remains fail-closed for unexpected persisted RUNNING or VALIDATING jobs; that reconciliation protection was not weakened.
+- RunManager, Google Trends source behavior, validator behavior, and renderer retry semantics were not broadened in this slice.
+- The acceptance test uses deterministic fixtures only and makes no live Google Trends provider call.
+- Multi-failed-job retry policy expansion is outside this bounded checkpoint.
+- Historical untracked files CODEX_HANDOFF_CURRENT.md and PROJECT_HANDOFF.pre-20260820.md remain untouched.
+
+Verification required for this checkpoint:
+
+- test:m3:gt-core-runner
+- test:m5:desktop-multisource
+- test:m5:desktop-ui
+- test:m3:gt-batch-core-runner
+- test:m3:desktop-controller
+- test:m3:gt-period
+- TypeScript no-emit typecheck
+- ESLint
+- git diff --check
+
+Exact next action:
+
+- Select the next bounded Google Trends MVP reliability interface after this checkpoint is committed.
