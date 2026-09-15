@@ -5,11 +5,13 @@ import type {
 import type {
   JobPlan,
   JsonObject,
+  JsonValue,
 } from '../../shared/run-job';
 import type {
   DesktopMultiSourceRepository,
   DesktopReadinessStatus,
   DesktopReview,
+  DesktopReviewedRunDraft,
   DesktopRunDraft,
   DesktopRunState,
   DesktopSourceCard,
@@ -18,6 +20,10 @@ import type {
 import {
   SUPPORTED_DESKTOP_SOURCE_IDS,
 } from '../../shared/desktop-multisource';
+import {
+  formatLocalReferenceDate,
+  resolveDesktopDatePolicy,
+} from '../../shared/desktop-run-resolution';
 import { buildDataPackage, writeDataPackage } from '../export/data-package-exporter';
 import type { DataPackage, DataPackageMode } from '../../shared/data-package';
 import { ResumePlanner } from '../core/resume-planner';
@@ -48,6 +54,16 @@ export interface DesktopMultiSourceControllerDependencies {
 const asObject = (value: unknown): Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
+    : {}
+);
+
+const asJsonObjectValue = (
+  value: JsonValue | undefined,
+): JsonObject => (
+  typeof value === 'object'
+  && value !== null
+  && !Array.isArray(value)
+    ? value
     : {}
 );
 
@@ -242,8 +258,40 @@ export class DesktopMultiSourceController {
     const cards = this.buildCards(draft.reusable_configuration, statuses);
     const includedSources = cards.filter((card) => card.included).map((card) => card.source_id);
     const blockingSources = cards.filter((card) => card.included && card.readiness_status !== 'READY').map((card) => card.source_id);
-    const plans = this.buildPlans(draft.reusable_configuration, includedSources);
-    return { workspace, origin: draft.origin, included_sources: includedSources, source_cards: cards, job_count: plans.length, can_start: blockingSources.length === 0 && plans.length > 0, blocking_sources: blockingSources };
+    const reviewedDraft =
+      this.resolveReviewedDraft(
+        draft,
+      );
+
+    const executionConfiguration =
+      reviewedDraft
+        ?.resolved_configuration
+      ?? draft.reusable_configuration;
+
+    const plans =
+      this.buildPlans(
+        executionConfiguration,
+        includedSources,
+      );
+
+    return {
+      workspace,
+      origin:
+        draft.origin,
+      included_sources:
+        includedSources,
+      source_cards:
+        cards,
+      job_count:
+        plans.length,
+      can_start:
+        blockingSources.length === 0
+        && plans.length > 0,
+      blocking_sources:
+        blockingSources,
+      reviewed_draft:
+        reviewedDraft,
+    };
   }
 
   async startDraft(draft: DesktopRunDraft): Promise<DesktopRunState> {
@@ -307,6 +355,115 @@ export class DesktopMultiSourceController {
     const directory = `${this.dependencies.package_directory}/${run_id}/exports/${mode.toLowerCase()}`;
     await writeDataPackage(directory, dataPackage);
     return { export_directory: directory, dataset_count: dataPackage.datasets.length, failed_count: dataPackage.failures.length };
+  }
+
+  private resolveReviewedDraft(
+    draft: DesktopRunDraft,
+  ): DesktopReviewedRunDraft | null {
+    const includedSourceIds =
+      this.sourceOrder.filter(
+        (sourceId) =>
+          included(
+            draft.reusable_configuration,
+            sourceId,
+          ),
+      );
+
+    if (
+      includedSourceIds.length !== 1
+      || includedSourceIds[0]
+        !== 'google-search-console-query-page'
+    ) {
+      return null;
+    }
+
+    const sourceId =
+      'google-search-console-query-page';
+
+    const config =
+      sourceConfig(
+        draft.reusable_configuration,
+        sourceId,
+      );
+
+    if (
+      config.task_id
+        !== 'gsc-current-90-days'
+      || config.date_policy
+        !== 'TODAY_MINUS_90_TO_YESTERDAY'
+    ) {
+      return null;
+    }
+
+    const resolvedAt =
+      this.now();
+
+    const referenceDate =
+      formatLocalReferenceDate(
+        resolvedAt,
+      );
+
+    const range =
+      resolveDesktopDatePolicy(
+        'TODAY_MINUS_90_TO_YESTERDAY',
+        referenceDate,
+      );
+
+    const reusableConfiguration =
+      cloneConfiguration(
+        draft.reusable_configuration,
+      );
+
+    const resolvedConfiguration =
+      cloneConfiguration(
+        draft.reusable_configuration,
+      );
+
+    const resolvedSources =
+      asJsonObjectValue(
+        resolvedConfiguration.sources,
+      );
+
+    const resolvedSource =
+      asJsonObjectValue(
+        resolvedSources[sourceId],
+      );
+
+    resolvedSources[sourceId] = {
+      ...resolvedSource,
+      date_ranges: [
+        {
+          job_key:
+            'gsc-current-90-days',
+          task_id:
+            'gsc-current-90-days',
+          requested_date_start:
+            range.requested_date_start,
+          requested_date_end:
+            range.requested_date_end,
+        },
+      ],
+    };
+
+    resolvedConfiguration.sources =
+      resolvedSources;
+
+    return {
+      workspace_id:
+        draft.workspace_id,
+      task_id:
+        'gsc-current-90-days',
+      source_id:
+        sourceId,
+      reference_date:
+        range.reference_date,
+      resolved_at:
+        resolvedAt.toISOString(),
+      reusable_configuration:
+        reusableConfiguration,
+      resolved_configuration:
+        resolvedConfiguration,
+    };
   }
 
   private buildPlans(configuration: ReusableCollectionConfiguration, sourceIds: readonly string[]): JobPlan[] {

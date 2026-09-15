@@ -45,6 +45,18 @@ export interface DesktopRunDraft extends RunDraft {
   source_cards: DesktopSourceCard[];
 }
 
+export interface DesktopReviewedRunDraft {
+  workspace_id: string;
+  task_id: string;
+  source_id: string;
+  reference_date: string;
+  resolved_at: string;
+  reusable_configuration:
+    ReusableCollectionConfiguration;
+  resolved_configuration:
+    ReusableCollectionConfiguration;
+}
+
 export interface DesktopReview {
   workspace: WorkspaceRecord;
   origin: RunDraftOrigin;
@@ -53,6 +65,8 @@ export interface DesktopReview {
   job_count: number;
   can_start: boolean;
   blocking_sources: string[];
+  reviewed_draft:
+    DesktopReviewedRunDraft | null;
 }
 
 export interface DesktopRunState {

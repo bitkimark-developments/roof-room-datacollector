@@ -29,7 +29,12 @@ try {
 
 const READY = (workspace_id, source_id) => ({ workspace_id, source_id, readiness_status: 'READY', checked_at: '2026-09-11T00:00:00.000Z', message: null });
 
-const createFixture = () => {
+const createFixture = (
+  now = () =>
+    new Date(
+      '2026-09-14T09:30:00.000Z',
+    ),
+) => {
   const workspaces = [
     { workspace_id: 'ws_a', workspace_name: 'A', created_at: '2026-09-11T00:00:00.000Z' },
     { workspace_id: 'ws_b', workspace_name: 'B', created_at: '2026-09-11T00:00:01.000Z' },
@@ -83,6 +88,7 @@ const createFixture = () => {
     source_order: ['google-trends', 'google-search-console-query-page', 'serpapi', 'ikas-products'],
     job_planner: (source_id, source_config) => [{ source_id, job_key: `${source_id}-job`, query_group_id: null, source_context: { source_config } }],
     execute_run: async (run_id) => executions.push(run_id),
+    now,
   });
   return { controller, repository, reservations, executions };
 };
@@ -139,6 +145,91 @@ async function main() {
         previousTimezone;
     }
   }
+
+  const gscReviewController =
+    createFixture().controller;
+
+  const gscCurrentDraft =
+    gscReviewController.createDraft({
+      workspace_id:
+        'ws_a',
+      origin: {
+        kind:
+          'BLANK',
+      },
+    });
+
+  gscCurrentDraft
+    .reusable_configuration
+    .sources = {
+      'google-search-console-query-page': {
+        included:
+          true,
+        task_id:
+          'gsc-current-90-days',
+        date_policy:
+          'TODAY_MINUS_90_TO_YESTERDAY',
+      },
+    };
+
+  const gscCurrentReview =
+    await gscReviewController
+      .reviewDraft(
+        gscCurrentDraft,
+      );
+
+  assert.deepEqual(
+    gscCurrentReview.reviewed_draft,
+    {
+      workspace_id:
+        'ws_a',
+      task_id:
+        'gsc-current-90-days',
+      source_id:
+        'google-search-console-query-page',
+      reference_date:
+        '2026-09-14',
+      resolved_at:
+        '2026-09-14T09:30:00.000Z',
+      reusable_configuration: {
+        sources: {
+          'google-search-console-query-page': {
+            included:
+              true,
+            task_id:
+              'gsc-current-90-days',
+            date_policy:
+              'TODAY_MINUS_90_TO_YESTERDAY',
+          },
+        },
+      },
+      resolved_configuration: {
+        sources: {
+          'google-search-console-query-page': {
+            included:
+              true,
+            task_id:
+              'gsc-current-90-days',
+            date_policy:
+              'TODAY_MINUS_90_TO_YESTERDAY',
+            date_ranges: [
+              {
+                job_key:
+                  'gsc-current-90-days',
+                task_id:
+                  'gsc-current-90-days',
+                requested_date_start:
+                  '2026-06-16',
+                requested_date_end:
+                  '2026-09-13',
+              },
+            ],
+          },
+        },
+      },
+    },
+    'GSC Current Review must produce an exact reviewed artifact.',
+  );
 
   const { controller, reservations, executions } = createFixture();
   const createdPreset = controller.createPreset({
