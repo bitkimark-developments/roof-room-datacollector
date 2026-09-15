@@ -16,6 +16,9 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 
 npx tsc \
   src/main/sources/google-trends/google-trends-core-runner.ts \
+  src/main/app/desktop-multisource-controller.ts \
+  src/main/app/desktop-execution-service.ts \
+  src/main/app/production-collection-runtime.ts \
   --rootDir . \
   --outDir "$TMP_ROOT/build" \
   --module commonjs \

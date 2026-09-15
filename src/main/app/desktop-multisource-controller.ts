@@ -537,6 +537,21 @@ export class DesktopMultiSourceController {
           requestedDateEnd,
       };
 
+    if (
+      reviewedDraft.source_id
+        === 'google-trends'
+      && configurationSnapshot.search_type
+        === 'WEB_SEARCH'
+      && configurationSnapshot.selection_type
+        === 'SEARCH_TERM'
+    ) {
+      configurationSnapshot.search_type =
+        'Web Search';
+
+      configurationSnapshot.selection_type =
+        'Search Term';
+    }
+
     const reserved =
       this.dependencies.repository
         .reserveRunFromJobPlans({

@@ -74,6 +74,42 @@ const {
   ),
 );
 
+const {
+  DesktopMultiSourceController,
+} = require(
+  path.join(
+    buildRoot,
+    'src',
+    'main',
+    'app',
+    'desktop-multisource-controller.js',
+  ),
+);
+
+const {
+  DesktopExecutionService,
+} = require(
+  path.join(
+    buildRoot,
+    'src',
+    'main',
+    'app',
+    'desktop-execution-service.js',
+  ),
+);
+
+const {
+  createProductionCollectionRuntime,
+} = require(
+  path.join(
+    buildRoot,
+    'src',
+    'main',
+    'app',
+    'production-collection-runtime.js',
+  ),
+);
+
 let workspaceNumber = 0;
 
 const createWorkspaceId = () => {
@@ -256,7 +292,10 @@ class FixtureGoogleTrendsSource {
       result_type:
         'ARTIFACT_PRODUCED',
       preferred_filename:
-        'GT01_TR_24M_interest_over_time.csv',
+        context.source_context
+          .query_group
+          .query_group_id
+          + '_TR_24M_interest_over_time.csv',
       media_type:
         'text/csv',
       bytes:
@@ -844,6 +883,283 @@ const main = async () => {
   console.log(
     'PASS GT-CORE-009: suspicious provider bytes are preserved unchanged as rejected evidence and never become an accepted artifact',
   );
+
+  // ------------------------------------------------
+  // GT-QUICK-RUN-CORE-001
+  // Reviewed desktop Quick Run must execute through
+  // the production Core seam and remain readable as
+  // persisted Run Detail state.
+  // ------------------------------------------------
+
+  {
+    const repository =
+      new StateRepository(
+        getDatabasePath(
+          directories,
+        ),
+      );
+
+    try {
+      const workspace =
+        repository.createWorkspace({
+          workspace_name:
+            'GT Quick Run Core',
+        });
+
+      const fixtureSource =
+        new FixtureGoogleTrendsSource();
+
+      const productionRuntime =
+        createProductionCollectionRuntime({
+          repository,
+          credentialStore: {},
+          directories,
+          googleTrendsSource:
+            fixtureSource,
+        });
+
+      const executionService =
+        new DesktopExecutionService(
+          productionRuntime.orchestrator,
+        );
+
+      let executionPromise =
+        null;
+
+      const controller =
+        new DesktopMultiSourceController({
+          repository,
+          readiness: {
+            getReadiness:
+              async (
+                workspace_id,
+                source_id,
+              ) => ({
+                workspace_id,
+                source_id,
+                readiness_status:
+                  'READY',
+              }),
+          },
+          application_version:
+            'integration-test',
+          source_order: [
+            'google-trends',
+          ],
+          google_trends_query_groups: [
+            {
+              ...gt01,
+            },
+            {
+              ...gt01,
+              query_group_id:
+                'GT02',
+              query_group_name:
+                'generic_commercial_duplicate_context',
+            },
+          ],
+          now:
+            () =>
+              new Date(
+                '2026-08-18T12:00:00.000Z',
+              ),
+          execute_run:
+            async (run_id) => {
+              executionPromise =
+                executionService.execute(
+                  run_id,
+                );
+
+              await executionPromise;
+            },
+        });
+
+      const draft =
+        controller.createDraft({
+          workspace_id:
+            workspace.workspace_id,
+          origin: {
+            kind:
+              'BLANK',
+          },
+        });
+
+      draft
+        .reusable_configuration
+        .sources = {
+          'google-trends': {
+            included:
+              true,
+            task_id:
+              'google-trends-interest-over-time',
+            date_policy:
+              'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+          },
+        };
+
+      const review =
+        await controller.reviewDraft(
+          draft,
+        );
+
+      assert.equal(
+        review.can_start,
+        true,
+        'Reviewed Google Trends Quick Run must be startable.',
+      );
+
+      assert.ok(
+        review.reviewed_draft,
+        'Reviewed Google Trends Quick Run must materialize an exact artifact.',
+      );
+
+      assert.equal(
+        review.job_count,
+        2,
+        'All configured comparison groups must become independent Jobs.',
+      );
+
+      const started =
+        await controller.startDraft(
+          review.reviewed_draft,
+        );
+
+      assert.equal(
+        started.jobs.length,
+        2,
+      );
+
+      assert.ok(
+        executionPromise,
+        'Start must hand the persisted Run to DesktopExecutionService.',
+      );
+
+      await executionPromise;
+
+      const detail =
+        controller.getRunState(
+          started.run.run_id,
+        );
+
+      assert.equal(
+        detail.run.run_status,
+        'COMPLETED',
+        'Production Core execution must persist a terminal completed Run.',
+      );
+
+      assert.equal(
+        detail.completed_jobs,
+        2,
+        'Run Detail must report every configured comparison group as completed.',
+      );
+
+      assert.equal(
+        detail.failed_jobs,
+        0,
+      );
+
+      assert.deepEqual(
+        detail.jobs.map(
+          (job) => ({
+            job_key:
+              job.job_key,
+            query_group_id:
+              job.query_group_id,
+            execution_status:
+              job.execution_status,
+            validation_status:
+              job.validation_status,
+            attempt_count:
+              job.attempt_count,
+          }),
+        ),
+        [
+          {
+            job_key:
+              'GT01',
+            query_group_id:
+              'GT01',
+            execution_status:
+              'COMPLETED',
+            validation_status:
+              'VALID',
+            attempt_count:
+              1,
+          },
+          {
+            job_key:
+              'GT02',
+            query_group_id:
+              'GT02',
+            execution_status:
+              'COMPLETED',
+            validation_status:
+              'VALID',
+            attempt_count:
+              1,
+          },
+        ],
+        'Run Detail must expose terminal persisted Job state in comparison-group order.',
+      );
+
+      assert.equal(
+        fixtureSource.collectCalls.length,
+        2,
+        'Production Core must invoke the Google Trends source once per comparison group.',
+      );
+
+      assert.deepEqual(
+        fixtureSource.collectCalls.map(
+          (context) =>
+            context.source_context
+              .query_group
+              .query_group_id,
+        ),
+        [
+          'GT01',
+          'GT02',
+        ],
+        'Core execution must preserve comparison-group identity through source_context.',
+      );
+
+      assert.deepEqual(
+        fixtureSource.collectCalls.map(
+          (context) => ({
+            start:
+              context
+                .requested_configuration
+                .requested_date_start,
+            end:
+              context
+                .requested_configuration
+                .requested_date_end,
+          }),
+        ),
+        [
+          {
+            start:
+              '2024-08-18',
+            end:
+              '2026-08-17',
+          },
+          {
+            start:
+              '2024-08-18',
+            end:
+              '2026-08-17',
+          },
+        ],
+        'Core execution must use the exact dates resolved during Review.',
+      );
+
+      console.log(
+        'PASS GT-QUICK-RUN-CORE-001: reviewed GT Quick Run executes through production Core and remains readable as persisted Run Detail state',
+      );
+    } finally {
+      repository.close();
+    }
+  }
+
 };
 
 main().catch((error) => {

@@ -872,3 +872,40 @@ Verification for this checkpoint:
 Next candidate interface:
 
 - Continue the Release 1.0 task catalog with the next source/task Quick Run interface only after a bounded audit of its existing production seam.
+
+## 26. Reviewed Google Trends Core execution checkpoint — 2026-09-15
+
+Previous Git checkpoint: b9f13d9 — feat: add reviewed Google Trends quick run.
+
+Current checkpoint scope:
+
+- Reviewed Google Trends Quick Run is now covered end-to-end through the production Core execution seam.
+- The deterministic vertical path exercises DesktopMultiSourceController → DesktopExecutionService → production runtime → CollectionOrchestrator → Google Trends source/validator → persisted Run/Jobs → getRunState Run Detail.
+- No live Google Trends provider request is used by this acceptance test.
+- Review continues to expose machine semantics WEB_SEARCH and SEARCH_TERM.
+- At the reviewed Start persistence boundary, Google Trends snapshot semantics are normalized to the established Core requested-configuration contract: Web Search and Search Term.
+- The Google Trends validator and legacy Core path remain strict; neither was relaxed.
+- Exact dates resolved during Review are preserved through Start and Core execution.
+- Multiple configured comparison groups execute as independent persisted Jobs in configured order.
+- Query-group identity remains available through source_context.query_group.
+- Completed Core execution is readable through the same getRunState contract used by Run Detail.
+- Raw artifact immutability remains fail-closed; StorageManager collision behavior was not changed.
+- The deterministic fixture now uses query-group-aware filenames so multi-group tests model distinct source artifacts rather than colliding on a fixed GT01 filename.
+- The core persistence runner compile harness includes the desktop controller, execution service, and production runtime entrypoints required by the vertical acceptance test.
+- Historical untracked files CODEX_HANDOFF_CURRENT.md and PROJECT_HANDOFF.pre-20260820.md remain untouched.
+
+Verification for this checkpoint:
+
+- test:m3:gt-core-runner
+- test:m5:desktop-multisource
+- test:m5:desktop-ui
+- test:m3:gt-period
+- test:m3:desktop-controller
+- test:m3:gt-batch-core-runner
+- TypeScript no-emit typecheck
+- ESLint
+- git diff --check
+
+Exact next action:
+
+- Choose the next bounded Google Trends MVP interface only after this checkpoint is committed; do not expand into a new source module while the Google Trends base path is still being hardened.
