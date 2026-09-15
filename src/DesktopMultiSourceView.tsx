@@ -108,6 +108,92 @@ function TaskCard({
 import type { DesktopReview } from './shared/desktop-multisource';
 import type { JsonObject } from './shared/run-job';
 
+const getReviewedDateSummary = (
+  review: DesktopReview,
+): {
+  referenceDate: string;
+  start: string;
+  end: string;
+} | null => {
+  const reviewed =
+    review.reviewed_draft;
+
+  if (reviewed === null) {
+    return null;
+  }
+
+  const sources =
+    reviewed
+      .resolved_configuration
+      .sources;
+
+  if (
+    typeof sources !== 'object'
+    || sources === null
+    || Array.isArray(sources)
+  ) {
+    return null;
+  }
+
+  const source =
+    (sources as JsonObject)[
+      reviewed.source_id
+    ];
+
+  if (
+    typeof source !== 'object'
+    || source === null
+    || Array.isArray(source)
+  ) {
+    return null;
+  }
+
+  const ranges =
+    (source as JsonObject)
+      .date_ranges;
+
+  if (
+    !Array.isArray(ranges)
+    || ranges.length === 0
+  ) {
+    return null;
+  }
+
+  const first =
+    ranges[0];
+
+  if (
+    typeof first !== 'object'
+    || first === null
+    || Array.isArray(first)
+  ) {
+    return null;
+  }
+
+  const range =
+    first as JsonObject;
+
+  const start =
+    range.requested_date_start;
+
+  const end =
+    range.requested_date_end;
+
+  if (
+    typeof start !== 'string'
+    || typeof end !== 'string'
+  ) {
+    return null;
+  }
+
+  return {
+    referenceDate:
+      reviewed.reference_date,
+    start,
+    end,
+  };
+};
+
 export function DesktopMultiSourceView() {
   const [
     view,
@@ -703,7 +789,16 @@ export function DesktopMultiSourceView() {
 
         const sourceConfiguration:
           JsonObject =
-            selectedTask.source_id === 'ikas-products'
+            selectedTask.task_id === 'gsc-current-90-days'
+              ? {
+                  included:
+                    true,
+                  task_id:
+                    selectedTask.task_id,
+                  date_policy:
+                    selectedTask.date_policy,
+                }
+              : selectedTask.source_id === 'ikas-products'
             && selectedIkasFile !== null
               ? {
                   included: true,
@@ -772,7 +867,7 @@ export function DesktopMultiSourceView() {
         const startedState =
           await window.roofroom
             .startDesktopDraft(
-              quickRunReview.draft,
+              quickRunReview.review.reviewed_draft ?? quickRunReview.draft,
             );
 
         setActiveRunState(
@@ -1249,8 +1344,11 @@ export function DesktopMultiSourceView() {
                 : readiness;
 
             const hasReviewableQuickRunConfiguration =
-              selectedTask.source_id === 'ikas-products'
-              && selectedIkasFile !== null;
+              (
+                selectedTask.source_id === 'ikas-products'
+                && selectedIkasFile !== null
+              )
+              || selectedTask.task_id === 'gsc-current-90-days';
 
             const canReview =
               effectiveReadiness === 'READY'
@@ -1623,6 +1721,51 @@ export function DesktopMultiSourceView() {
                     }
                   </section>
                 </div>
+
+                {(() => {
+                  const summary =
+                    getReviewedDateSummary(
+                      quickRunReview.review,
+                    );
+
+                  return summary === null
+                    ? null
+                    : (
+                      <section
+                        className="rr-panel rr-detail-panel"
+                      >
+                        <span
+                          className="rr-kicker"
+                        >
+                          RESOLVED RUN WINDOW
+                        </span>
+
+                        <h2>
+                          Exact Dates
+                        </h2>
+
+                        <p>
+                          {
+                            [
+                              'Reference date: ',
+                              summary.referenceDate,
+                            ].join('')
+                          }
+                        </p>
+
+                        <p>
+                          {
+                            [
+                              'Resolved range: ',
+                              summary.start,
+                              ' → ',
+                              summary.end,
+                            ].join('')
+                          }
+                        </p>
+                      </section>
+                    );
+                })()}
 
                 {
                   quickRunReview

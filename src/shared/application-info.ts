@@ -7,6 +7,7 @@ import type {
 } from './google-trends-period';
 import type {
   DesktopReview,
+  DesktopReviewedRunDraft,
   DesktopRunDraft,
   DesktopRunState,
   DesktopWorkspaceView,
@@ -102,7 +103,11 @@ export interface RoofRoomApi {
   }) => Promise<void>;
   createDesktopDraft: (input: { workspace_id: string; origin: RunDraftOrigin }) => Promise<DesktopRunDraft>;
   reviewDesktopDraft: (draft: DesktopRunDraft) => Promise<DesktopReview>;
-  startDesktopDraft: (draft: DesktopRunDraft) => Promise<DesktopRunState>;
+  startDesktopDraft: (
+    draft:
+      DesktopRunDraft
+      | DesktopReviewedRunDraft,
+  ) => Promise<DesktopRunState>;
   getDesktopRunState: (run_id: string) => Promise<DesktopRunState>;
   retryDesktopFailed: (run_id: string) => Promise<DesktopRunState>;
   exportDesktopRun: (input: { run_id: string; mode: 'ALL' | 'SUCCESSFUL_ONLY' }) => Promise<{ export_directory: string; dataset_count: number; failed_count: number }>;

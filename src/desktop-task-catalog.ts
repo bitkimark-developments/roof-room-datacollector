@@ -1,6 +1,9 @@
 import type {
   DesktopSourceId,
 } from './shared/desktop-multisource';
+import type {
+  DesktopDatePolicy,
+} from './shared/desktop-run-resolution';
 
 export type DesktopTaskGroup =
   | 'GOOGLE'
@@ -14,6 +17,7 @@ export interface DesktopTaskDefinition {
   description: string;
   group: DesktopTaskGroup;
   default_summary: string;
+  date_policy?: DesktopDatePolicy;
 }
 
 export const DESKTOP_TASK_CATALOG:
@@ -45,6 +49,8 @@ export const DESKTOP_TASK_CATALOG:
         'GOOGLE',
       default_summary:
         'Today − 90 days → yesterday',
+      date_policy:
+        'TODAY_MINUS_90_TO_YESTERDAY',
     },
     {
       task_id:

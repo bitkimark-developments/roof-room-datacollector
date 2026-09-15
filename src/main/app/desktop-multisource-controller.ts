@@ -294,7 +294,20 @@ export class DesktopMultiSourceController {
     };
   }
 
-  async startDraft(draft: DesktopRunDraft): Promise<DesktopRunState> {
+  async startDraft(
+    draft:
+      DesktopRunDraft
+      | DesktopReviewedRunDraft,
+  ): Promise<DesktopRunState> {
+    if (
+      'resolved_configuration'
+      in draft
+    ) {
+      return this.startReviewedDraft(
+        draft,
+      );
+    }
+
     const review = await this.reviewDraft(draft);
     if (!review.can_start) throw new Error(`Run cannot start; included sources are not ready: ${review.blocking_sources.join(', ') || 'no source selected'}.`);
     const plans = this.buildPlans(draft.reusable_configuration, review.included_sources);
@@ -316,6 +329,206 @@ export class DesktopMultiSourceController {
       jobs: reserved.jobs,
       completed_jobs: 0,
       failed_jobs: 0,
+    };
+  }
+
+  private async startReviewedDraft(
+    reviewedDraft:
+      DesktopReviewedRunDraft,
+  ): Promise<DesktopRunState> {
+    const workspace =
+      this.dependencies.repository
+        .getWorkspace(
+          reviewedDraft.workspace_id,
+        );
+
+    if (!workspace) {
+      throw new Error(
+        `Unknown Workspace: ${reviewedDraft.workspace_id}`,
+      );
+    }
+
+    const statuses =
+      await Promise.all(
+        this.sourceOrder.map(
+          async (sourceId) => ({
+            source_id:
+              sourceId,
+            readiness_status:
+              included(
+                reviewedDraft
+                  .resolved_configuration,
+                sourceId,
+              )
+                ? (
+                    await this
+                      .readinessEvaluator
+                      .getReadiness(
+                        reviewedDraft.workspace_id,
+                        sourceId,
+                        sourceConfig(
+                          reviewedDraft
+                            .resolved_configuration,
+                          sourceId,
+                        ),
+                      )
+                  ).readiness_status
+                : 'READY' as DesktopReadinessStatus,
+          }),
+        ),
+      );
+
+    const cards =
+      this.buildCards(
+        reviewedDraft
+          .resolved_configuration,
+        statuses,
+      );
+
+    const includedSources =
+      cards
+        .filter(
+          (card) =>
+            card.included,
+        )
+        .map(
+          (card) =>
+            card.source_id,
+        );
+
+    const blockingSources =
+      cards
+        .filter(
+          (card) =>
+            card.included
+            && card.readiness_status
+              !== 'READY',
+        )
+        .map(
+          (card) =>
+            card.source_id,
+        );
+
+    const plans =
+      this.buildPlans(
+        reviewedDraft
+          .resolved_configuration,
+        includedSources,
+      );
+
+    if (
+      blockingSources.length > 0
+      || plans.length === 0
+    ) {
+      throw new Error(
+        `Run cannot start; included sources are not ready: ${blockingSources.join(', ') || 'no source selected'}.`,
+      );
+    }
+
+    const reusableSource =
+      sourceConfig(
+        reviewedDraft
+          .reusable_configuration,
+        reviewedDraft.source_id,
+      );
+
+    const resolvedSource =
+      sourceConfig(
+        reviewedDraft
+          .resolved_configuration,
+        reviewedDraft.source_id,
+      );
+
+    const dateRanges =
+      Array.isArray(
+        resolvedSource.date_ranges,
+      )
+        ? resolvedSource.date_ranges
+        : [];
+
+    const firstDateRange =
+      asObject(
+        dateRanges[0],
+      );
+
+    const configurationSnapshot:
+      JsonObject = {
+        ...cloneConfiguration(
+          reviewedDraft
+            .resolved_configuration,
+        ),
+        workspace_id:
+          reviewedDraft.workspace_id,
+        task_id:
+          reviewedDraft.task_id,
+        source_id:
+          reviewedDraft.source_id,
+        reference_date:
+          reviewedDraft.reference_date,
+        resolved_at:
+          reviewedDraft.resolved_at,
+        date_policy:
+          typeof reusableSource
+            .date_policy === 'string'
+            ? reusableSource.date_policy
+            : null,
+        requested_date_start:
+          typeof firstDateRange
+            .requested_date_start
+            === 'string'
+            ? firstDateRange
+                .requested_date_start
+            : null,
+        requested_date_end:
+          typeof firstDateRange
+            .requested_date_end
+            === 'string'
+            ? firstDateRange
+                .requested_date_end
+            : null,
+      };
+
+    const reserved =
+      this.dependencies.repository
+        .reserveRunFromJobPlans({
+          workspace_id:
+            reviewedDraft.workspace_id,
+          application_version:
+            this.dependencies
+              .application_version,
+          configuration_snapshot:
+            configurationSnapshot,
+          reusable_configuration:
+            cloneConfiguration(
+              reviewedDraft
+                .reusable_configuration,
+            ),
+          job_plans:
+            plans,
+        });
+
+    if (
+      this.dependencies.execute_run
+    ) {
+      void this.dependencies
+        .execute_run(
+          reserved.run.run_id,
+        )
+        .catch(() => {
+          // Core persistence remains authoritative;
+          // renderer reads persisted state.
+        });
+    }
+
+    return {
+      run:
+        reserved.run,
+      jobs:
+        reserved.jobs,
+      completed_jobs:
+        0,
+      failed_jobs:
+        0,
     };
   }
 

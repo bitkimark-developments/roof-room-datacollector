@@ -53,7 +53,12 @@ import type {
 import {
   normalizeGoogleTrendsCollectionStartRequest,
 } from './shared/google-trends-period';
-import { isDesktopRunDraft, type DesktopRunDraft } from './shared/desktop-multisource';
+import {
+  isDesktopReviewedRunDraft,
+  isDesktopRunDraft,
+  type DesktopReviewedRunDraft,
+  type DesktopRunDraft,
+} from './shared/desktop-multisource';
 import type { RunDraftOrigin } from './shared/collection-configuration';
 
 if (started) {
@@ -499,8 +504,21 @@ const registerIpcHandlers = (
   });
   ipcMain.handle(IPC_CHANNELS.DESKTOP_START_DRAFT, (event, draft: unknown) => {
     assertTrustedIpcSender(event);
-    if (!isDesktopRunDraft(draft)) throw new Error('Desktop draft payload is invalid.');
-    return requireDesktopController().startDraft(draft as DesktopRunDraft);
+
+    if (
+      !isDesktopRunDraft(draft)
+      && !isDesktopReviewedRunDraft(draft)
+    ) {
+      throw new Error(
+        'Desktop start payload is invalid.',
+      );
+    }
+
+    return requireDesktopController().startDraft(
+      draft as
+        | DesktopRunDraft
+        | DesktopReviewedRunDraft,
+    );
   });
   ipcMain.handle(IPC_CHANNELS.DESKTOP_RUN_STATE, (event, runId: unknown) => {
     assertTrustedIpcSender(event);

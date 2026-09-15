@@ -121,6 +121,41 @@ export interface DesktopMultiSourceRepository {
   listRuns?(workspace_id: string): RunRecord[];
 }
 
+export const isDesktopReviewedRunDraft = (
+  value: unknown,
+): value is DesktopReviewedRunDraft => {
+  if (
+    typeof value !== 'object'
+    || value === null
+  ) {
+    return false;
+  }
+
+  const draft =
+    value as Partial<DesktopReviewedRunDraft>;
+
+  return typeof draft.workspace_id === 'string'
+    && draft.workspace_id.trim().length > 0
+    && typeof draft.task_id === 'string'
+    && draft.task_id.trim().length > 0
+    && typeof draft.source_id === 'string'
+    && draft.source_id.trim().length > 0
+    && typeof draft.reference_date === 'string'
+    && draft.reference_date.trim().length > 0
+    && typeof draft.resolved_at === 'string'
+    && draft.resolved_at.trim().length > 0
+    && typeof draft.reusable_configuration === 'object'
+    && draft.reusable_configuration !== null
+    && Array.isArray(
+      draft.reusable_configuration,
+    ) === false
+    && typeof draft.resolved_configuration === 'object'
+    && draft.resolved_configuration !== null
+    && Array.isArray(
+      draft.resolved_configuration,
+    ) === false;
+};
+
 export const isDesktopRunDraft = (value: unknown): value is DesktopRunDraft => {
   if (typeof value !== 'object' || value === null) return false;
   const draft = value as Partial<DesktopRunDraft>;

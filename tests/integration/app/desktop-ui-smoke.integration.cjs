@@ -227,7 +227,17 @@ const main = async () => {
 
           createDesktopDraft: async () => ({
             ...blankDraft,
-            source_cards: cards,
+            source_cards: cards.map(
+              (card) =>
+                card.source_id
+                  === 'google-search-console-query-page'
+                  ? {
+                      ...card,
+                      readiness_status:
+                        'READY',
+                    }
+                  : card,
+            ),
           }),
 
           createDesktopPreset: async () => {
@@ -242,11 +252,115 @@ const main = async () => {
             window.__reviewedDesktopDraft =
               reviewDraft;
 
+            const gscConfig =
+              reviewDraft
+                ?.reusable_configuration
+                ?.sources
+                ?.['google-search-console-query-page'];
+
+            if (
+              gscConfig
+              && gscConfig.included === true
+            ) {
+              const reviewedArtifact = {
+                workspace_id:
+                  'ws_fixture',
+                task_id:
+                  'gsc-current-90-days',
+                source_id:
+                  'google-search-console-query-page',
+                reference_date:
+                  '2026-09-14',
+                resolved_at:
+                  '2026-09-14T09:30:00.000Z',
+                reusable_configuration: {
+                  sources: {
+                    'google-search-console-query-page': {
+                      included:
+                        true,
+                      task_id:
+                        'gsc-current-90-days',
+                      date_policy:
+                        'TODAY_MINUS_90_TO_YESTERDAY',
+                    },
+                  },
+                },
+                resolved_configuration: {
+                  sources: {
+                    'google-search-console-query-page': {
+                      included:
+                        true,
+                      task_id:
+                        'gsc-current-90-days',
+                      date_policy:
+                        'TODAY_MINUS_90_TO_YESTERDAY',
+                      date_ranges: [
+                        {
+                          job_key:
+                            'gsc-current-90-days',
+                          task_id:
+                            'gsc-current-90-days',
+                          requested_date_start:
+                            '2026-06-16',
+                          requested_date_end:
+                            '2026-09-13',
+                        },
+                      ],
+                    },
+                  },
+                },
+              };
+
+              window.__reviewedDesktopArtifact =
+                reviewedArtifact;
+
+              return {
+                workspace: {
+                  workspace_id:
+                    'ws_fixture',
+                  workspace_name:
+                    'Acceptance Workspace',
+                  created_at:
+                    '2026-09-11T00:00:00.000Z',
+                },
+                origin:
+                  reviewDraft.origin,
+                included_sources: [
+                  'google-search-console-query-page',
+                ],
+                source_cards: [
+                  {
+                    source_id:
+                      'google-search-console-query-page',
+                    source_name:
+                      'Google Search Console',
+                    included:
+                      true,
+                    readiness_status:
+                      'READY',
+                    configuration_summary:
+                      'GSC Current 90 Days',
+                  },
+                ],
+                job_count:
+                  1,
+                can_start:
+                  true,
+                blocking_sources:
+                  [],
+                reviewed_draft:
+                  reviewedArtifact,
+              };
+            }
+
             return {
               workspace: {
-                workspace_id: 'ws_fixture',
-                workspace_name: 'Acceptance Workspace',
-                created_at: '2026-09-11T00:00:00.000Z',
+                workspace_id:
+                  'ws_fixture',
+                workspace_name:
+                  'Acceptance Workspace',
+                created_at:
+                  '2026-09-11T00:00:00.000Z',
               },
               origin:
                 reviewDraft.origin,
@@ -255,16 +369,26 @@ const main = async () => {
               ],
               source_cards: [
                 {
-                  source_id: 'ikas-products',
-                  source_name: 'İkas Products',
-                  included: true,
-                  readiness_status: 'READY',
-                  configuration_summary: 'Products XLSX',
+                  source_id:
+                    'ikas-products',
+                  source_name:
+                    'İkas Products',
+                  included:
+                    true,
+                  readiness_status:
+                    'READY',
+                  configuration_summary:
+                    'Products XLSX',
                 },
               ],
-              job_count: 1,
-              can_start: true,
-              blocking_sources: [],
+              job_count:
+                1,
+              can_start:
+                true,
+              blocking_sources:
+                [],
+              reviewed_draft:
+                null,
             };
           },
 
@@ -1292,8 +1416,148 @@ const main = async () => {
       'Run Detail must apply the persisted state returned by Retry Failed.',
     );
 
+    await page.reload();
+
+    await page.getByRole(
+      'heading',
+      {
+        name:
+          'Collection Operations',
+        exact:
+          true,
+      },
+    ).waitFor();
+
+    const gscCurrentTaskCard =
+      page
+        .getByTestId(
+          'task-card',
+        )
+        .filter({
+          hasText:
+            'GSC — Current 90 Days',
+        });
+
+    await gscCurrentTaskCard
+      .getByText(
+        'READY',
+        {
+          exact:
+            true,
+        },
+      )
+      .waitFor();
+
+    await gscCurrentTaskCard.click();
+
+    const gscReviewButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            'Review Quick Run',
+          exact:
+            true,
+        },
+      );
+
+    assert.equal(
+      await gscReviewButton.isEnabled(),
+      true,
+      'GSC Current Quick Run must be reviewable without a file input.',
+    );
+
+    await gscReviewButton.click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name:
+          'Review Quick Run',
+        exact:
+          true,
+      },
+    ).waitFor();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () =>
+          window
+            .__reviewedDesktopDraft
+            ?.reusable_configuration
+            ?.sources
+            ?.['google-search-console-query-page'],
+      ),
+      {
+        included:
+          true,
+        task_id:
+          'gsc-current-90-days',
+        date_policy:
+          'TODAY_MINUS_90_TO_YESTERDAY',
+      },
+      'GSC Current Review must receive machine-readable task identity and relative date policy.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Reference date: 2026-09-14',
+        {
+          exact:
+            true,
+        },
+      ).count(),
+      1,
+      'Review must show the exact resolved reference date.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Resolved range: 2026-06-16 → 2026-09-13',
+        {
+          exact:
+            true,
+        },
+      ).count(),
+      1,
+      'Review must show the exact resolved GSC Current date range.',
+    );
+
+    const gscStartButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            'Start Run',
+          exact:
+            true,
+        },
+      );
+
+    assert.equal(
+      await gscStartButton.isEnabled(),
+      true,
+      'Reviewed GSC Current Run must expose Start Run.',
+    );
+
+    await gscStartButton.click();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () =>
+          window
+            .__startedDesktopDraft,
+      ),
+      await page.evaluate(
+        () =>
+          window
+            .__reviewedDesktopArtifact,
+      ),
+      'Start Run must send the exact reviewed artifact rather than rebuilding the GSC dates.',
+    );
+
     console.log(
-      'PASS DESKTOP-UI-001: source-neutral operations shell exposes all Release 1.0 tasks and removes the global Google Trends MVP surface',
+      'PASS DESKTOP-UI-001: source-neutral operations shell and GSC Current reviewed Quick Run flow are verified',
     );
   } finally {
     await browser.close();

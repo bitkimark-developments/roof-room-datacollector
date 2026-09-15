@@ -4,6 +4,11 @@ const {
   DesktopMultiSourceController,
 } = require(`${process.argv[2]}/main/app/desktop-multisource-controller.js`);
 const { DesktopExecutionService } = require(`${process.argv[2]}/main/app/desktop-execution-service.js`);
+const {
+  isDesktopReviewedRunDraft,
+} = require(
+  `${process.argv[2]}/shared/desktop-multisource.js`,
+);
 
 let resolveDesktopDatePolicy =
   () => null;
@@ -229,6 +234,111 @@ async function main() {
       },
     },
     'GSC Current Review must produce an exact reviewed artifact.',
+  );
+
+  let driftClock =
+    new Date(
+      '2026-09-14T09:30:00.000Z',
+    );
+
+  const driftFixture =
+    createFixture(
+      () => driftClock,
+    );
+
+  const driftDraft =
+    driftFixture.controller.createDraft({
+      workspace_id:
+        'ws_a',
+      origin: {
+        kind:
+          'BLANK',
+      },
+    });
+
+  driftDraft
+    .reusable_configuration
+    .sources = {
+      'google-search-console-query-page': {
+        included:
+          true,
+        task_id:
+          'gsc-current-90-days',
+        date_policy:
+          'TODAY_MINUS_90_TO_YESTERDAY',
+      },
+    };
+
+  const driftReview =
+    await driftFixture.controller
+      .reviewDraft(
+        driftDraft,
+      );
+
+  assert.ok(
+    driftReview.reviewed_draft,
+    'GSC Current Review must return a reviewed artifact before Start.',
+  );
+
+  assert.equal(
+    typeof isDesktopReviewedRunDraft,
+    'function',
+    'Reviewed desktop Run payload guard must be exported.',
+  );
+
+  assert.equal(
+    isDesktopReviewedRunDraft(
+      driftReview.reviewed_draft,
+    ),
+    true,
+    'Reviewed desktop Run payload guard must accept the Review artifact.',
+  );
+
+  driftClock =
+    new Date(
+      '2026-09-15T09:30:00.000Z',
+    );
+
+  await driftFixture.controller
+    .startDraft(
+      driftReview.reviewed_draft,
+    );
+
+  assert.equal(
+    driftFixture.reservations.length,
+    1,
+    'Starting a reviewed artifact must reserve exactly one Run.',
+  );
+
+  assert.equal(
+    driftFixture
+      .reservations[0]
+      .configuration_snapshot
+      .reference_date,
+    '2026-09-14',
+    'Start must preserve the exact reviewed GSC Current dates.',
+  );
+
+  assert.deepEqual(
+    driftFixture
+      .reservations[0]
+      .job_plans[0]
+      .source_context
+      .source_config
+      .date_ranges,
+    [
+      {
+        job_key:
+          'gsc-current-90-days',
+        task_id:
+          'gsc-current-90-days',
+        requested_date_start:
+          '2026-06-16',
+        requested_date_end:
+          '2026-09-13',
+      },
+    ],
+    'Start must build Jobs from the reviewed resolved configuration.',
   );
 
   const { controller, reservations, executions } = createFixture();
