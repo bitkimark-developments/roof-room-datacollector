@@ -120,6 +120,45 @@ async function main() {
     'TODAY_MINUS_90_TO_YESTERDAY must resolve the exact GSC Current calendar range.',
   );
 
+  const resolvedGscLong =
+    resolveDesktopDatePolicy(
+      'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+      '2026-09-14',
+    );
+
+  assert.deepEqual(
+    resolvedGscLong,
+    {
+      reference_date:
+        '2026-09-14',
+      date_policy:
+        'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+      requested_date_start:
+        '2025-05-14',
+      requested_date_end:
+        '2026-09-13',
+    },
+    'GSC Long must resolve the exact 16-calendar-month range.',
+  );
+
+  assert.deepEqual(
+    resolveDesktopDatePolicy(
+      'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+      '2026-10-31',
+    ),
+    {
+      reference_date:
+        '2026-10-31',
+      date_policy:
+        'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+      requested_date_start:
+        '2025-06-30',
+      requested_date_end:
+        '2026-10-30',
+    },
+    'GSC Long calendar-month policy must clamp month-end dates.',
+  );
+
   assert.equal(
     typeof formatLocalReferenceDate,
     'function',
@@ -339,6 +378,131 @@ async function main() {
       },
     ],
     'Start must build Jobs from the reviewed resolved configuration.',
+  );
+
+  let longClock =
+    new Date(
+      '2026-09-14T09:30:00.000Z',
+    );
+
+  const longFixture =
+    createFixture(
+      () => longClock,
+    );
+
+  const gscLongDraft =
+    longFixture.controller
+      .createDraft({
+        workspace_id:
+          'ws_a',
+        origin: {
+          kind:
+            'BLANK',
+        },
+      });
+
+  gscLongDraft
+    .reusable_configuration
+    .sources = {
+      'google-search-console-query-page': {
+        included:
+          true,
+        task_id:
+          'gsc-long-16-months',
+        date_policy:
+          'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+      },
+    };
+
+  const gscLongReview =
+    await longFixture.controller
+      .reviewDraft(
+        gscLongDraft,
+      );
+
+  assert.ok(
+    gscLongReview.reviewed_draft,
+    'GSC Long Review must return a reviewed artifact.',
+  );
+
+  assert.equal(
+    gscLongReview
+      .reviewed_draft
+      .task_id,
+    'gsc-long-16-months',
+    'GSC Long reviewed artifact must preserve task identity.',
+  );
+
+  assert.equal(
+    gscLongReview
+      .reviewed_draft
+      .reference_date,
+    '2026-09-14',
+    'GSC Long Review must capture the local reference date once.',
+  );
+
+  assert.deepEqual(
+    gscLongReview
+      .reviewed_draft
+      .resolved_configuration
+      .sources[
+        'google-search-console-query-page'
+      ]
+      .date_ranges,
+    [
+      {
+        job_key:
+          'gsc-long-16-months',
+        task_id:
+          'gsc-long-16-months',
+        requested_date_start:
+          '2025-05-14',
+        requested_date_end:
+          '2026-09-13',
+      },
+    ],
+    'GSC Long Review must resolve the exact absolute date range.',
+  );
+
+  longClock =
+    new Date(
+      '2026-09-15T09:30:00.000Z',
+    );
+
+  await longFixture.controller
+    .startDraft(
+      gscLongReview.reviewed_draft,
+    );
+
+  assert.equal(
+    longFixture
+      .reservations[0]
+      .configuration_snapshot
+      .reference_date,
+    '2026-09-14',
+    'GSC Long Start must not re-resolve dates after midnight.',
+  );
+
+  assert.deepEqual(
+    longFixture
+      .reservations[0]
+      .job_plans[0]
+      .source_context
+      .source_config
+      .date_ranges,
+    [
+      {
+        job_key:
+          'gsc-long-16-months',
+        task_id:
+          'gsc-long-16-months',
+        requested_date_start:
+          '2025-05-14',
+        requested_date_end:
+          '2026-09-13',
+      },
+    ],
+    'GSC Long Start must build Jobs from the exact reviewed configuration.',
   );
 
   const { controller, reservations, executions } = createFixture();

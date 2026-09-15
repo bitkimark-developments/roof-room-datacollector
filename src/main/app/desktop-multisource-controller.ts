@@ -599,12 +599,48 @@ export class DesktopMultiSourceController {
         sourceId,
       );
 
+    const taskId =
+      (
+        config.task_id
+          === 'gsc-current-90-days'
+        || config.task_id
+          === 'gsc-long-16-months'
+      )
+        ? config.task_id
+        : null;
+
+    const datePolicy =
+      (
+        config.date_policy
+          === 'TODAY_MINUS_90_TO_YESTERDAY'
+        || config.date_policy
+          === 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY'
+      )
+        ? config.date_policy
+        : null;
+
     if (
-      config.task_id
-        !== 'gsc-current-90-days'
-      || config.date_policy
-        !== 'TODAY_MINUS_90_TO_YESTERDAY'
+      taskId === null
+      || datePolicy === null
     ) {
+      return null;
+    }
+
+    const taskMatchesPolicy =
+      (
+        taskId
+          === 'gsc-current-90-days'
+        && datePolicy
+          === 'TODAY_MINUS_90_TO_YESTERDAY'
+      )
+      || (
+        taskId
+          === 'gsc-long-16-months'
+        && datePolicy
+          === 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY'
+      );
+
+    if (!taskMatchesPolicy) {
       return null;
     }
 
@@ -618,7 +654,7 @@ export class DesktopMultiSourceController {
 
     const range =
       resolveDesktopDatePolicy(
-        'TODAY_MINUS_90_TO_YESTERDAY',
+        datePolicy,
         referenceDate,
       );
 
@@ -647,9 +683,9 @@ export class DesktopMultiSourceController {
       date_ranges: [
         {
           job_key:
-            'gsc-current-90-days',
+            taskId,
           task_id:
-            'gsc-current-90-days',
+            taskId,
           requested_date_start:
             range.requested_date_start,
           requested_date_end:
@@ -665,7 +701,7 @@ export class DesktopMultiSourceController {
       workspace_id:
         draft.workspace_id,
       task_id:
-        'gsc-current-90-days',
+        taskId,
       source_id:
         sourceId,
       reference_date:

@@ -65,6 +65,8 @@ export const DESKTOP_TASK_CATALOG:
         'GOOGLE',
       default_summary:
         'Today − 16 calendar months → yesterday',
+      date_policy:
+        'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
     },
     {
       task_id:

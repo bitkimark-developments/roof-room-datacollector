@@ -10,6 +10,7 @@ import {
   type DesktopTaskGroup,
 } from './desktop-task-catalog';
 import type {
+  DesktopReview,
   DesktopReadinessStatus,
   DesktopRunDraft,
   DesktopWorkspaceView,
@@ -105,7 +106,6 @@ function TaskCard({
   );
 }
 
-import type { DesktopReview } from './shared/desktop-multisource';
 import type { JsonObject } from './shared/run-job';
 
 const getReviewedDateSummary = (
@@ -789,7 +789,10 @@ export function DesktopMultiSourceView() {
 
         const sourceConfiguration:
           JsonObject =
-            selectedTask.task_id === 'gsc-current-90-days'
+            selectedTask.source_id
+              === 'google-search-console-query-page'
+            && selectedTask.date_policy
+              !== undefined
               ? {
                   included:
                     true,
@@ -1348,7 +1351,12 @@ export function DesktopMultiSourceView() {
                 selectedTask.source_id === 'ikas-products'
                 && selectedIkasFile !== null
               )
-              || selectedTask.task_id === 'gsc-current-90-days';
+              || (
+                selectedTask.source_id
+                  === 'google-search-console-query-page'
+                && selectedTask.date_policy
+                  !== undefined
+              );
 
             const canReview =
               effectiveReadiness === 'READY'

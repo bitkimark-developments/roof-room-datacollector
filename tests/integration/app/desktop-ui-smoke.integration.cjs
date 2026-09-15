@@ -260,6 +260,102 @@ const main = async () => {
 
             if (
               gscConfig
+              ?.task_id
+              === 'gsc-long-16-months'
+            ) {
+              const reviewedArtifact = {
+                workspace_id:
+                  'ws_fixture',
+                task_id:
+                  'gsc-long-16-months',
+                source_id:
+                  'google-search-console-query-page',
+                reference_date:
+                  '2026-09-14',
+                resolved_at:
+                  '2026-09-14T09:30:00.000Z',
+                reusable_configuration: {
+                  sources: {
+                    'google-search-console-query-page': {
+                      included:
+                        true,
+                      task_id:
+                        'gsc-long-16-months',
+                      date_policy:
+                        'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+                    },
+                  },
+                },
+                resolved_configuration: {
+                  sources: {
+                    'google-search-console-query-page': {
+                      included:
+                        true,
+                      task_id:
+                        'gsc-long-16-months',
+                      date_policy:
+                        'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+                      date_ranges: [
+                        {
+                          job_key:
+                            'gsc-long-16-months',
+                          task_id:
+                            'gsc-long-16-months',
+                          requested_date_start:
+                            '2025-05-14',
+                          requested_date_end:
+                            '2026-09-13',
+                        },
+                      ],
+                    },
+                  },
+                },
+              };
+
+              window.__reviewedDesktopArtifact =
+                reviewedArtifact;
+
+              return {
+                workspace: {
+                  workspace_id:
+                    'ws_fixture',
+                  workspace_name:
+                    'Acceptance Workspace',
+                  created_at:
+                    '2026-09-11T00:00:00.000Z',
+                },
+                origin:
+                  reviewDraft.origin,
+                included_sources: [
+                  'google-search-console-query-page',
+                ],
+                source_cards: [
+                  {
+                    source_id:
+                      'google-search-console-query-page',
+                    source_name:
+                      'Google Search Console',
+                    included:
+                      true,
+                    readiness_status:
+                      'READY',
+                    configuration_summary:
+                      'GSC Long 16 Months',
+                  },
+                ],
+                job_count:
+                  1,
+                can_start:
+                  true,
+                blocking_sources:
+                  [],
+                reviewed_draft:
+                  reviewedArtifact,
+              };
+            }
+
+            if (
+              gscConfig
               && gscConfig.included === true
             ) {
               const reviewedArtifact = {
@@ -1556,8 +1652,148 @@ const main = async () => {
       'Start Run must send the exact reviewed artifact rather than rebuilding the GSC dates.',
     );
 
+    await page.reload();
+
+    await page.getByRole(
+      'heading',
+      {
+        name:
+          'Collection Operations',
+        exact:
+          true,
+      },
+    ).waitFor();
+
+    const gscLongTaskCard =
+      page
+        .getByTestId(
+          'task-card',
+        )
+        .filter({
+          hasText:
+            'GSC — Long 16 Months',
+        });
+
+    await gscLongTaskCard
+      .getByText(
+        'READY',
+        {
+          exact:
+            true,
+        },
+      )
+      .waitFor();
+
+    await gscLongTaskCard.click();
+
+    const gscLongReviewButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            'Review Quick Run',
+          exact:
+            true,
+        },
+      );
+
+    assert.equal(
+      await gscLongReviewButton.isEnabled(),
+      true,
+      'GSC Long Quick Run must be reviewable without a file input.',
+    );
+
+    await gscLongReviewButton.click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name:
+          'Review Quick Run',
+        exact:
+          true,
+      },
+    ).waitFor();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () =>
+          window
+            .__reviewedDesktopDraft
+            ?.reusable_configuration
+            ?.sources
+            ?.['google-search-console-query-page'],
+      ),
+      {
+        included:
+          true,
+        task_id:
+          'gsc-long-16-months',
+        date_policy:
+          'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+      },
+      'GSC Long Review must receive task identity and relative date policy.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Reference date: 2026-09-14',
+        {
+          exact:
+            true,
+        },
+      ).count(),
+      1,
+      'GSC Long Review must show the resolved reference date.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Resolved range: 2025-05-14 → 2026-09-13',
+        {
+          exact:
+            true,
+        },
+      ).count(),
+      1,
+      'GSC Long Review must show the exact resolved date range.',
+    );
+
+    const gscLongStartButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            'Start Run',
+          exact:
+            true,
+        },
+      );
+
+    assert.equal(
+      await gscLongStartButton.isEnabled(),
+      true,
+      'Reviewed GSC Long Run must expose Start Run.',
+    );
+
+    await gscLongStartButton.click();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () =>
+          window
+            .__startedDesktopDraft,
+      ),
+      await page.evaluate(
+        () =>
+          window
+            .__reviewedDesktopArtifact,
+      ),
+      'GSC Long Start must send the exact reviewed artifact.',
+    );
+
     console.log(
-      'PASS DESKTOP-UI-001: source-neutral operations shell and GSC Current reviewed Quick Run flow are verified',
+      'PASS DESKTOP-UI-001: source-neutral operations shell and reviewed GSC Current + Long Quick Run flows are verified',
     );
   } finally {
     await browser.close();

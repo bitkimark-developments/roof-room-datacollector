@@ -767,3 +767,68 @@ The next major product gap is task configuration beyond the current İkas standa
 Historical untracked files remain intentionally untouched:
 - CODEX_HANDOFF_CURRENT.md
 - PROJECT_HANDOFF.pre-20260820.md
+
+---
+
+## 24. Reviewed GSC Current + Long Quick Run checkpoint — 2026-09-15
+
+This section is the authoritative latest UI/task-resolution checkpoint. Earlier next-action sections are historical.
+
+Previous technical checkpoint:
+
+- `a6edc5d feat: add reviewed GSC current quick run`
+
+Implemented in the current checkpoint:
+
+- GSC Current and GSC Long remain separate task identities over the shared `google-search-console-query-page` source.
+- GSC Current reusable date policy remains `TODAY_MINUS_90_TO_YESTERDAY`.
+- GSC Long reusable date policy is `TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY`.
+- GSC Long resolves from the local reference calendar date minus 16 calendar months through yesterday.
+- Calendar-month subtraction clamps invalid target month-end dates instead of overflowing into the following month.
+- Example locked behavior: reference date `2026-09-14` resolves GSC Long to `2025-05-14 → 2026-09-13`.
+- Example month-end behavior: reference date `2026-10-31` resolves the start to `2025-06-30`.
+- Review resolves relative date policy once into an exact reviewed artifact.
+- Explicit Start consumes that reviewed artifact and does not recalculate dates, including when the local clock advances to the next day between Review and Start.
+- Persisted Run planning therefore uses the exact reviewed `reference_date`, requested start/end dates, task identity, source identity, and date policy.
+- The Task Detail renderer enables GSC Quick Run through the source + machine-readable date-policy capability instead of separate Current-only UI logic.
+- Review displays the exact resolved reference date and requested range supplied by the controller.
+- The existing generic reviewed-artifact IPC / Start boundary is reused unchanged.
+- İkas Quick Run behavior remains supported.
+- No universal date-policy DSL was introduced.
+- No GSC provider request or other live-provider collection was executed during these UI/resolution slices.
+
+Focused deterministic coverage includes:
+
+- exact GSC Current 90-day resolution;
+- exact GSC Long 16-calendar-month resolution;
+- GSC Long month-end clamping;
+- local-calendar reference-date behavior;
+- Current Review → reviewed artifact;
+- Long Review → reviewed artifact;
+- midnight drift between Review and Start without re-resolution;
+- exact resolved Job planning from the reviewed artifact;
+- GSC Current Task Detail → Review → exact dates → Start;
+- GSC Long Task Detail → Review → exact dates → Start;
+- preservation of the existing source-neutral desktop shell and İkas Quick Run flow.
+
+Checkpoint verification commands:
+
+- `npm run test:m5:desktop-multisource`
+- `npm run test:m5:desktop-ui`
+- `npx tsc --noEmit`
+- `npm run lint`
+- `git diff --check`
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Exact next grouped interface candidate:
+
+- Google Trends — Interest Over Time Quick Run.
+- First perform one bounded audit of the existing Google Trends reusable configuration and task defaults.
+- Lock its rolling 24-calendar-month resolution and comparison-group context before enabling Review.
+- Preserve Search Term semantics, Turkey / All Categories / Web Search defaults, and independent comparison-group normalization.
+- Use the same interface-level RED → coherent GREEN batch → verification → commit workflow.
+- Do not execute a live Google Trends provider request as part of that deterministic implementation slice.

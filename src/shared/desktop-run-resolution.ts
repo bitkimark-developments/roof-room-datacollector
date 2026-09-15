@@ -1,5 +1,6 @@
 export type DesktopDatePolicy =
-  | 'TODAY_MINUS_90_TO_YESTERDAY';
+  | 'TODAY_MINUS_90_TO_YESTERDAY'
+  | 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY';
 
 export interface DesktopResolvedDateRange {
   reference_date: string;
@@ -69,6 +70,49 @@ const addCalendarDays = (
   return result;
 };
 
+const subtractCalendarMonthsClamped = (
+  value: Date,
+  months: number,
+): Date => {
+  const targetMonthStart =
+    new Date(
+      Date.UTC(
+        value.getUTCFullYear(),
+        value.getUTCMonth() - months,
+        1,
+      ),
+    );
+
+  const targetYear =
+    targetMonthStart.getUTCFullYear();
+
+  const targetMonth =
+    targetMonthStart.getUTCMonth();
+
+  const lastDayOfTargetMonth =
+    new Date(
+      Date.UTC(
+        targetYear,
+        targetMonth + 1,
+        0,
+      ),
+    ).getUTCDate();
+
+  const targetDay =
+    Math.min(
+      value.getUTCDate(),
+      lastDayOfTargetMonth,
+    );
+
+  return new Date(
+    Date.UTC(
+      targetYear,
+      targetMonth,
+      targetDay,
+    ),
+  );
+};
+
 export const formatLocalReferenceDate = (
   now: Date,
 ): string => {
@@ -112,24 +156,59 @@ export const resolveDesktopDatePolicy = (
     parseDateOnly(referenceDate);
 
   if (
-    policy !==
-    'TODAY_MINUS_90_TO_YESTERDAY'
+    policy
+    === 'TODAY_MINUS_90_TO_YESTERDAY'
   ) {
-    throw new Error(
-      `Unsupported desktop date policy: ${policy}`,
-    );
+    return {
+      reference_date:
+        referenceDate,
+      date_policy:
+        policy,
+      requested_date_start:
+        formatDateOnly(
+          addCalendarDays(
+            reference,
+            -90,
+          ),
+        ),
+      requested_date_end:
+        formatDateOnly(
+          addCalendarDays(
+            reference,
+            -1,
+          ),
+        ),
+    };
   }
 
-  return {
-    reference_date: referenceDate,
-    date_policy: policy,
-    requested_date_start:
-      formatDateOnly(
-        addCalendarDays(reference, -90),
-      ),
-    requested_date_end:
-      formatDateOnly(
-        addCalendarDays(reference, -1),
-      ),
-  };
+  if (
+    policy
+    === 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY'
+  ) {
+    return {
+      reference_date:
+        referenceDate,
+      date_policy:
+        policy,
+      requested_date_start:
+        formatDateOnly(
+          subtractCalendarMonthsClamped(
+            reference,
+            16,
+          ),
+        ),
+      requested_date_end:
+        formatDateOnly(
+          addCalendarDays(
+            reference,
+            -1,
+          ),
+        ),
+    };
+  }
+
+  throw new Error(
+    'Unsupported desktop date policy: '
+    + policy,
+  );
 };
