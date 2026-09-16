@@ -65,6 +65,7 @@ export interface DesktopMultiSourceControllerDependencies {
     job_id: string,
     attempt: AttemptRecord,
   ) => Promise<void>;
+  is_run_active?: (run_id: string) => boolean;
   package_directory?: string;
   load_datasets?: (run_id: string) => Promise<Parameters<typeof buildDataPackage>[0]['datasets']>;
 }
@@ -378,6 +379,8 @@ export class DesktopMultiSourceController {
       jobs: reserved.jobs,
       completed_jobs: 0,
       failed_jobs: 0,
+      can_resume: false,
+      can_retry: false,
     };
   }
 
@@ -605,14 +608,101 @@ export class DesktopMultiSourceController {
         0,
       failed_jobs:
         0,
+      can_resume:
+        false,
+      can_retry:
+        false,
     };
   }
 
   getRunState(run_id: string): DesktopRunState {
-    const run = this.dependencies.repository.getRun(run_id);
-    if (!run) throw new Error(`Unknown Run: ${run_id}`);
-    const jobs = this.dependencies.repository.listJobs(run_id);
-    return { run, jobs, completed_jobs: jobs.filter((job) => job.execution_status === 'COMPLETED').length, failed_jobs: jobs.filter((job) => job.execution_status === 'FAILED').length };
+    const run =
+      this.dependencies.repository
+        .getRun(
+          run_id,
+        );
+
+    if (!run) {
+      throw new Error(
+        'Unknown Run: ' + run_id,
+      );
+    }
+
+    const jobs =
+      this.dependencies.repository
+        .listJobs(
+          run_id,
+        );
+
+    const plan =
+      new ResumePlanner(
+        this.dependencies.repository as never,
+      ).planRun(
+        run.workspace_id,
+        run_id,
+      );
+
+    const isActive =
+      this.dependencies
+        .is_run_active?.(
+          run_id,
+        ) === true;
+
+    const retryPolicy =
+      new RetryPolicy({
+        max_attempts: 2,
+      });
+
+    const can_resume =
+      isActive === false
+      && (
+        plan?.jobs.some(
+          (jobPlan) =>
+            jobPlan.action
+              === 'RECONCILE_REQUIRED'
+            && jobPlan.candidate_artifact
+              === null
+            && (
+              jobPlan.job.execution_status
+                === 'RUNNING'
+              || jobPlan.job.execution_status
+                === 'VALIDATING'
+            ),
+        ) ?? false
+      );
+
+    const can_retry =
+      isActive === false
+      && (
+        plan?.jobs.some(
+          (jobPlan) =>
+            jobPlan.action
+              === 'RETRY_CANDIDATE'
+            && retryPolicy
+              .canStartAnotherAttempt(
+                jobPlan.job,
+              ),
+        ) ?? false
+      );
+
+    return {
+      run,
+      jobs,
+      completed_jobs:
+        jobs.filter(
+          (job) =>
+            job.execution_status
+              === 'COMPLETED',
+        ).length,
+      failed_jobs:
+        jobs.filter(
+          (job) =>
+            job.execution_status
+              === 'FAILED',
+        ).length,
+      can_resume,
+      can_retry,
+    };
   }
 
   async retryFailed(run_id: string): Promise<DesktopRunState> {
@@ -681,6 +771,136 @@ export class DesktopMultiSourceController {
     });
 
     return this.getRunState(run_id);
+  }
+
+  async resumeInterrupted(
+    run_id: string,
+  ): Promise<DesktopRunState> {
+    const run =
+      this.dependencies.repository
+        .getRun(
+          run_id,
+        );
+
+    if (!run) {
+      throw new Error(
+        'Unknown Run: ' + run_id,
+      );
+    }
+
+    if (
+      this.dependencies
+        .is_run_active?.(
+          run_id,
+        ) === true
+    ) {
+      throw new Error(
+        'Run '
+        + run_id
+        + ' is still owned by active in-process execution.',
+      );
+    }
+
+    const plan =
+      new ResumePlanner(
+        this.dependencies.repository as never,
+      ).planRun(
+        run.workspace_id,
+        run_id,
+      );
+
+    if (!plan) {
+      throw new Error(
+        'Run '
+        + run_id
+        + ' is not resumable in its Workspace.',
+      );
+    }
+
+    const interruptedPlans =
+      plan.jobs.filter(
+        (jobPlan) =>
+          jobPlan.action ===
+            'RECONCILE_REQUIRED',
+      );
+
+    if (
+      interruptedPlans.length === 0
+    ) {
+      throw new Error(
+        'Run '
+        + run_id
+        + ' has no interrupted work to reconcile.',
+      );
+    }
+
+    const unsafePlan =
+      interruptedPlans.find(
+        (jobPlan) =>
+          jobPlan.candidate_artifact
+            !== null
+          || (
+            jobPlan.job
+              .execution_status
+              !== 'RUNNING'
+            && jobPlan.job
+              .execution_status
+              !== 'VALIDATING'
+          ),
+      );
+
+    if (unsafePlan) {
+      throw new Error(
+        'Run '
+        + run_id
+        + ' has interrupted work requiring manual reconciliation.',
+      );
+    }
+
+    const coordinator =
+      new ReconciliationCoordinator(
+        this.dependencies.repository as never,
+        new RetryPolicy({
+          max_attempts: 2,
+        }),
+      );
+
+    for (
+      const jobPlan
+      of interruptedPlans
+    ) {
+      const reconciliation =
+        coordinator.apply(
+          jobPlan,
+        );
+
+      if (
+        reconciliation.outcome
+          !== 'RETRY_PENDING'
+        && reconciliation.outcome
+          !== 'RETRY_EXHAUSTED'
+      ) {
+        throw new Error(
+          'Run '
+          + run_id
+          + ' could not reconcile interrupted Job '
+          + jobPlan.job.job_id
+          + ': '
+          + reconciliation.outcome
+          + '.',
+        );
+      }
+    }
+
+    new RunManager(
+      this.dependencies.repository as never,
+    ).refreshRunStatus(
+      run_id,
+    );
+
+    return this.getRunState(
+      run_id,
+    );
   }
 
   async continueManual(

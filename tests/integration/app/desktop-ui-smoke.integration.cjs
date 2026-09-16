@@ -692,7 +692,22 @@ const main = async () => {
             window.__listDesktopRunsWorkspaceId =
               workspaceId;
 
+
             return [
+              {
+                run_id: 'rr_fixture_resume_001',
+                workspace_id: 'ws_fixture',
+                run_status: 'RUNNING',
+                created_at: '2026-09-13T13:00:00.000Z',
+                started_at: '2026-09-13T13:00:01.000Z',
+                completed_at: null,
+                application_version: '1.0.0',
+                selected_sources: [
+                  'google-trends',
+                ],
+                requested_configuration: null,
+                configuration_snapshot: {},
+              },
               {
                 run_id: 'rr_fixture_history_001',
                 workspace_id: 'ws_fixture',
@@ -710,7 +725,69 @@ const main = async () => {
             ];
           },
 
+
           getDesktopRunState: async (runId) => {
+            if (runId === 'rr_fixture_resume_001') {
+              window.__openedResumeRunId =
+                runId;
+
+              return {
+                run: {
+                  run_id: 'rr_fixture_resume_001',
+                  workspace_id: 'ws_fixture',
+                  run_status: 'RUNNING',
+                  created_at: '2026-09-13T13:00:00.000Z',
+                  started_at: '2026-09-13T13:00:01.000Z',
+                  completed_at: null,
+                  application_version: '1.0.0',
+                  selected_sources: [
+                    'google-trends',
+                  ],
+                  requested_configuration: null,
+                  configuration_snapshot: {},
+                },
+                jobs: [
+                  {
+                    job_id: 'job_fixture_resume_gt01',
+                    run_id: 'rr_fixture_resume_001',
+                    source_id: 'google-trends',
+                    job_key: 'GT01',
+                    query_group_id: 'GT01',
+                    source_context: {},
+                    job_order: 1,
+                    execution_status: 'COMPLETED',
+                    validation_status: 'VALID',
+                    attempt_count: 1,
+                    accepted_artifact_id:
+                      'artifact_fixture_resume_gt01',
+                    created_at: '2026-09-13T13:00:00.000Z',
+                    started_at: '2026-09-13T13:00:01.000Z',
+                    completed_at: '2026-09-13T13:00:03.000Z',
+                  },
+                  {
+                    job_id: 'job_fixture_resume_gt02',
+                    run_id: 'rr_fixture_resume_001',
+                    source_id: 'google-trends',
+                    job_key: 'GT02',
+                    query_group_id: 'GT02',
+                    source_context: {},
+                    job_order: 2,
+                    execution_status: 'RUNNING',
+                    validation_status: 'NOT_RUN',
+                    attempt_count: 1,
+                    accepted_artifact_id: null,
+                    created_at: '2026-09-13T13:00:00.000Z',
+                    started_at: '2026-09-13T13:00:04.000Z',
+                    completed_at: null,
+                  },
+                ],
+                completed_jobs: 1,
+                failed_jobs: 0,
+                can_resume: true,
+                can_retry: false,
+              };
+            }
+
             if (runId === 'rr_fixture_history_001') {
               window.__openedHistoryRunId =
                 runId;
@@ -840,10 +917,75 @@ const main = async () => {
               ],
               completed_jobs: 0,
               failed_jobs: 1,
+              can_resume: false,
+              can_retry: true,
             };
           },
 
+
           retryDesktopFailed: async (runId) => {
+            if (runId === 'rr_fixture_resume_001') {
+              window.__retriedResumeRunId =
+                runId;
+
+              return {
+                run: {
+                  run_id: 'rr_fixture_resume_001',
+                  workspace_id: 'ws_fixture',
+                  run_status: 'COMPLETED',
+                  created_at: '2026-09-13T13:00:00.000Z',
+                  started_at: '2026-09-13T13:00:01.000Z',
+                  completed_at: '2026-09-13T13:00:08.000Z',
+                  application_version: '1.0.0',
+                  selected_sources: [
+                    'google-trends',
+                  ],
+                  requested_configuration: null,
+                  configuration_snapshot: {},
+                },
+                jobs: [
+                  {
+                    job_id: 'job_fixture_resume_gt01',
+                    run_id: 'rr_fixture_resume_001',
+                    source_id: 'google-trends',
+                    job_key: 'GT01',
+                    query_group_id: 'GT01',
+                    source_context: {},
+                    job_order: 1,
+                    execution_status: 'COMPLETED',
+                    validation_status: 'VALID',
+                    attempt_count: 1,
+                    accepted_artifact_id:
+                      'artifact_fixture_resume_gt01',
+                    created_at: '2026-09-13T13:00:00.000Z',
+                    started_at: '2026-09-13T13:00:01.000Z',
+                    completed_at: '2026-09-13T13:00:03.000Z',
+                  },
+                  {
+                    job_id: 'job_fixture_resume_gt02',
+                    run_id: 'rr_fixture_resume_001',
+                    source_id: 'google-trends',
+                    job_key: 'GT02',
+                    query_group_id: 'GT02',
+                    source_context: {},
+                    job_order: 2,
+                    execution_status: 'COMPLETED',
+                    validation_status: 'VALID',
+                    attempt_count: 2,
+                    accepted_artifact_id:
+                      'artifact_fixture_resume_gt02',
+                    created_at: '2026-09-13T13:00:00.000Z',
+                    started_at: '2026-09-13T13:00:04.000Z',
+                    completed_at: '2026-09-13T13:00:08.000Z',
+                  },
+                ],
+                completed_jobs: 2,
+                failed_jobs: 0,
+                can_resume: false,
+                can_retry: false,
+              };
+            }
+
             window.__retryDesktopFailedCalls =
               (
                 window.__retryDesktopFailedCalls
@@ -890,6 +1032,69 @@ const main = async () => {
               failed_jobs: 0,
             };
           },
+
+
+          resumeDesktopInterrupted:
+            async (runId) => {
+              window.__resumedDesktopRunId =
+                runId;
+
+              return {
+                run: {
+                  run_id: 'rr_fixture_resume_001',
+                  workspace_id: 'ws_fixture',
+                  run_status: 'RETRY_REQUIRED',
+                  created_at: '2026-09-13T13:00:00.000Z',
+                  started_at: '2026-09-13T13:00:01.000Z',
+                  completed_at: null,
+                  application_version: '1.0.0',
+                  selected_sources: [
+                    'google-trends',
+                  ],
+                  requested_configuration: null,
+                  configuration_snapshot: {},
+                },
+                jobs: [
+                  {
+                    job_id: 'job_fixture_resume_gt01',
+                    run_id: 'rr_fixture_resume_001',
+                    source_id: 'google-trends',
+                    job_key: 'GT01',
+                    query_group_id: 'GT01',
+                    source_context: {},
+                    job_order: 1,
+                    execution_status: 'COMPLETED',
+                    validation_status: 'VALID',
+                    attempt_count: 1,
+                    accepted_artifact_id:
+                      'artifact_fixture_resume_gt01',
+                    created_at: '2026-09-13T13:00:00.000Z',
+                    started_at: '2026-09-13T13:00:01.000Z',
+                    completed_at: '2026-09-13T13:00:03.000Z',
+                  },
+                  {
+                    job_id: 'job_fixture_resume_gt02',
+                    run_id: 'rr_fixture_resume_001',
+                    source_id: 'google-trends',
+                    job_key: 'GT02',
+                    query_group_id: 'GT02',
+                    source_context: {},
+                    job_order: 2,
+                    execution_status: 'RETRY_PENDING',
+                    validation_status: 'NOT_RUN',
+                    attempt_count: 1,
+                    accepted_artifact_id: null,
+                    created_at: '2026-09-13T13:00:00.000Z',
+                    started_at: '2026-09-13T13:00:04.000Z',
+                    completed_at: null,
+                  },
+                ],
+                completed_jobs: 1,
+                failed_jobs: 0,
+                can_resume: false,
+                can_retry: true,
+              };
+            },
 
           continueDesktopManual:
             async (runId) => {
@@ -1079,6 +1284,120 @@ const main = async () => {
       1,
       'Run History must expose persisted Run status.',
     );
+
+
+    // RESTART-RESUME-UI-001
+    const interruptedHistoryRunButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            /rr_fixture_resume_001/,
+        },
+      );
+
+    assert.equal(
+      await interruptedHistoryRunButton.count(),
+      1,
+      'Run History must expose the persisted interrupted Run.',
+    );
+
+    await interruptedHistoryRunButton.click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name: 'Run Detail',
+        exact: true,
+      },
+    ).waitFor();
+
+    assert.equal(
+      await page.evaluate(
+        () => window.__openedResumeRunId,
+      ),
+      'rr_fixture_resume_001',
+      'Interrupted Run Detail must load the exact persisted run_id.',
+    );
+
+    const resumeRunButton =
+      page.getByRole(
+        'button',
+        {
+          name: 'Resume Run',
+          exact: true,
+        },
+      );
+
+    assert.equal(
+      await resumeRunButton.count(),
+      1,
+      'Persisted interrupted Run Detail must expose an explicit Resume Run action.',
+    );
+
+    await resumeRunButton.click();
+
+    assert.equal(
+      await page.evaluate(
+        () => window.__resumedDesktopRunId,
+      ),
+      'rr_fixture_resume_001',
+      'Resume Run must use the exact persisted run_id.',
+    );
+
+    const resumedRetryButton =
+      page.getByRole(
+        'button',
+        {
+          name: 'Retry Failed',
+          exact: true,
+        },
+      );
+
+    assert.equal(
+      await resumedRetryButton.count(),
+      1,
+      'Reconciled RETRY_PENDING work must expose explicit Retry Failed.',
+    );
+
+    await resumedRetryButton.click();
+
+    assert.equal(
+      await page.evaluate(
+        () => window.__retriedResumeRunId,
+      ),
+      'rr_fixture_resume_001',
+      'Explicit retry after resume must keep the same persisted run_id.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Run Status: COMPLETED',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Restart Resume then explicit Retry must complete the same Run.',
+    );
+
+    await page.reload();
+
+    await page.getByRole(
+      'button',
+      {
+        name: 'RUNS',
+        exact: true,
+      },
+    ).click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name: 'Runs',
+        exact: true,
+      },
+    ).waitFor();
 
     const historyRunButton =
       page.getByRole(

@@ -29,6 +29,434 @@ async function main() {
   const successful = await controller.exportRun(run.run_id, 'SUCCESSFUL_ONLY');
   assert.equal(fs.existsSync(path.join(successful.export_directory, 'serpapi_google_serp.json')), false);
   assert.equal(fs.existsSync(path.join(successful.export_directory, 'google-trends_interest_over_time.json')), true);
+
+  // DESKTOP-RESUME-001
+  // Persisted RUNNING work from a previous process must
+  // reconcile before explicit retry. Accepted sibling
+  // Jobs must remain untouched.
+
+  const resumedRun = {
+    run_id: "rr_resume",
+    workspace_id: "ws_resume",
+    run_status: "RUNNING",
+    selected_sources: [
+      "google-trends",
+    ],
+  };
+
+  const resumedAccepted = {
+    job_id: "job_resume_gt01",
+    run_id: resumedRun.run_id,
+    source_id: "google-trends",
+    job_key: "GT01",
+    execution_status: "COMPLETED",
+    validation_status: "VALID",
+    attempt_count: 1,
+    accepted_artifact_id:
+      "art_resume_gt01",
+  };
+
+  const resumedInterrupted = {
+    job_id: "job_resume_gt02",
+    run_id: resumedRun.run_id,
+    source_id: "google-trends",
+    job_key: "GT02",
+    execution_status: "RUNNING",
+    validation_status: "NOT_RUN",
+    attempt_count: 1,
+    accepted_artifact_id: null,
+  };
+
+  const interruptedAttempt = {
+    attempt_id: "att_resume_gt02_1",
+    job_id: resumedInterrupted.job_id,
+    run_id: resumedRun.run_id,
+    source_id: "google-trends",
+    attempt_number: 1,
+    execution_status: "RUNNING",
+    candidate_artifact_id: null,
+    error_code: null,
+  };
+
+  const resumedAttempts = [
+    interruptedAttempt,
+  ];
+
+  const resumedArtifacts =
+    new Map([
+      [
+        "art_resume_gt01",
+        {
+          artifact_id:
+            "art_resume_gt01",
+          job_id:
+            resumedAccepted.job_id,
+          run_id:
+            resumedRun.run_id,
+          source_id:
+            resumedAccepted.source_id,
+          artifact_state:
+            "ACCEPTED",
+        },
+      ],
+    ]);
+
+  const retryExecutions = [];
+
+  const resumeRepository = {
+    getRun:
+      (runId) =>
+        runId === resumedRun.run_id
+          ? resumedRun
+          : null,
+
+    listRuns:
+      () => [
+        resumedRun,
+      ],
+
+    listIncompleteRuns:
+      () =>
+        resumedRun.run_status ===
+          "COMPLETED"
+          ? []
+          : [
+              resumedRun,
+            ],
+
+    listJobs:
+      () => [
+        resumedAccepted,
+        resumedInterrupted,
+      ],
+
+    listAttempts:
+      (jobId) =>
+        jobId ===
+          resumedInterrupted.job_id
+          ? resumedAttempts
+          : [],
+
+    getArtifact:
+      (artifactId) =>
+        resumedArtifacts.get(
+          artifactId,
+        ) ?? null,
+
+    getJob:
+      (jobId) =>
+        jobId ===
+          resumedAccepted.job_id
+          ? resumedAccepted
+          : jobId ===
+              resumedInterrupted.job_id
+            ? resumedInterrupted
+            : null,
+
+    transitionRunStatus:
+      (
+        runId,
+        nextStatus,
+      ) => {
+        assert.equal(
+          runId,
+          resumedRun.run_id,
+        );
+
+        resumedRun.run_status =
+          nextStatus;
+
+        return resumedRun;
+      },
+
+    transitionJobExecution:
+      (
+        jobId,
+        nextStatus,
+        options = {},
+      ) => {
+        assert.equal(
+          jobId,
+          resumedInterrupted.job_id,
+        );
+
+        resumedInterrupted
+          .execution_status =
+            nextStatus;
+
+        if (
+          nextStatus === "FAILED"
+        ) {
+          interruptedAttempt
+            .execution_status =
+              "FAILED";
+
+          interruptedAttempt
+            .error_code =
+              options.error_code
+              ?? null;
+        }
+
+        return resumedInterrupted;
+      },
+
+    reacquireRunAndStartRetryAttempt:
+      () => {
+        assert.equal(
+          resumedInterrupted
+            .execution_status,
+          "RETRY_PENDING",
+        );
+
+        resumedRun.run_status =
+          "RUNNING";
+
+        resumedInterrupted
+          .execution_status =
+            "RUNNING";
+
+        resumedInterrupted
+          .attempt_count =
+            2;
+
+        const attempt2 = {
+          attempt_id:
+            "att_resume_gt02_2",
+          job_id:
+            resumedInterrupted.job_id,
+          run_id:
+            resumedRun.run_id,
+          source_id:
+            "google-trends",
+          attempt_number: 2,
+          execution_status:
+            "RUNNING",
+          candidate_artifact_id:
+            null,
+          error_code: null,
+        };
+
+        resumedAttempts.push(
+          attempt2,
+        );
+
+        return attempt2;
+      },
+
+    reserveRunFromJobPlans:
+      () => {
+        throw new Error(
+          "unused",
+        );
+      },
+  };
+
+  const activeProcessController =
+    new DesktopMultiSourceController({
+      repository:
+        resumeRepository,
+      readiness: {
+        getReadiness:
+          async () => ({
+            readiness_status:
+              "READY",
+          }),
+      },
+      application_version:
+        "test",
+      execute_run:
+        async () => {},
+      execute_retry:
+        async () => {},
+      is_run_active:
+        () => true,
+    });
+
+  const restartedController =
+    new DesktopMultiSourceController({
+      repository:
+        resumeRepository,
+      readiness: {
+        getReadiness:
+          async () => ({
+            readiness_status:
+              "READY",
+          }),
+      },
+      application_version:
+        "test",
+      execute_run:
+        async () => {},
+      execute_retry:
+        async (
+          runId,
+          jobId,
+          attempt,
+        ) => {
+          retryExecutions.push({
+            run_id:
+              runId,
+            job_id:
+              jobId,
+            attempt_number:
+              attempt.attempt_number,
+          });
+
+          resumedInterrupted
+            .execution_status =
+              "COMPLETED";
+
+          resumedInterrupted
+            .validation_status =
+              "VALID";
+
+          resumedInterrupted
+            .accepted_artifact_id =
+              "art_resume_gt02";
+
+          resumedAttempts[
+            resumedAttempts.length - 1
+          ].execution_status =
+            "COMPLETED";
+
+          resumedArtifacts.set(
+            "art_resume_gt02",
+            {
+              artifact_id:
+                "art_resume_gt02",
+              job_id:
+                resumedInterrupted.job_id,
+              run_id:
+                resumedRun.run_id,
+              source_id:
+                "google-trends",
+              artifact_state:
+                "ACCEPTED",
+            },
+          );
+
+          resumedRun.run_status =
+            "COMPLETED";
+        },
+      is_run_active:
+        () => false,
+    });
+
+  assert.equal(
+    typeof restartedController
+      .resumeInterrupted,
+    "function",
+    "Persisted interrupted Runs must expose an explicit source-neutral resume operation.",
+  );
+
+  await assert.rejects(
+    () =>
+      activeProcessController
+        .resumeInterrupted(
+          resumedRun.run_id,
+        ),
+    /active|running|owned/i,
+    "Resume must refuse a Run still owned by active in-process execution.",
+  );
+
+  const reconciled =
+    await restartedController
+      .resumeInterrupted(
+        resumedRun.run_id,
+      );
+
+  assert.equal(
+    reconciled.run.run_id,
+    "rr_resume",
+    "Resume must preserve the persisted run_id.",
+  );
+
+  assert.equal(
+    reconciled.run.run_status,
+    "RETRY_REQUIRED",
+    "Interrupted RUNNING work without candidate evidence must reconcile to explicit retry-required state.",
+  );
+
+  assert.equal(
+    resumedAccepted.attempt_count,
+    1,
+    "Accepted GT01 must not be recollected during restart reconciliation.",
+  );
+
+  assert.equal(
+    resumedInterrupted.attempt_count,
+    1,
+    "Resume reconciliation must not create a retry attempt automatically.",
+  );
+
+  assert.equal(
+    resumedInterrupted
+      .execution_status,
+    "RETRY_PENDING",
+  );
+
+  assert.equal(
+    interruptedAttempt
+      .execution_status,
+    "FAILED",
+    "Interrupted attempt 1 must remain preserved as failed historical evidence.",
+  );
+
+  assert.equal(
+    interruptedAttempt.error_code,
+    "INTERRUPTED_ATTEMPT",
+  );
+
+  assert.deepEqual(
+    retryExecutions,
+    [],
+    "Resume reconciliation must not call the provider or start retry automatically.",
+  );
+
+  await restartedController
+    .retryFailed(
+      resumedRun.run_id,
+    );
+
+  assert.deepEqual(
+    retryExecutions,
+    [
+      {
+        run_id:
+          "rr_resume",
+        job_id:
+          "job_resume_gt02",
+        attempt_number: 2,
+      },
+    ],
+    "Explicit Retry Failed must target only interrupted GT02 as attempt 2.",
+  );
+
+  assert.equal(
+    resumedRun.run_status,
+    "COMPLETED",
+  );
+
+  assert.equal(
+    resumedAccepted.attempt_count,
+    1,
+  );
+
+  assert.equal(
+    resumedInterrupted.attempt_count,
+    2,
+  );
+
+  assert.equal(
+    resumedAttempts.length,
+    2,
+    "Attempt 1 must remain preserved when explicit retry creates attempt 2.",
+  );
+
+  console.log(
+    "PASS DESKTOP-RESUME-001: restart reconciliation preserves accepted GT01, marks interrupted GT02 retry-pending, and requires explicit attempt-2 retry",
+  );
+
   fs.rmSync(root, { recursive: true, force: true });
   console.log('PASS DESKTOP-RETRY-EXPORT-001: generalized retry targets failed Job only and physical package modes remain source-separated');
 }

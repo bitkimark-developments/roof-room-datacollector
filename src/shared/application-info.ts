@@ -43,6 +43,7 @@ export const IPC_CHANNELS = {
   DESKTOP_START_DRAFT: 'desktop:start-draft',
   DESKTOP_RUN_STATE: 'desktop:run-state',
   DESKTOP_RETRY_FAILED: 'desktop:retry-failed',
+  DESKTOP_RESUME_INTERRUPTED: 'desktop:resume-interrupted',
   DESKTOP_CONTINUE_MANUAL: 'desktop:continue-manual',
   DESKTOP_EXPORT: 'desktop:export',
   DESKTOP_SELECT_INPUT_FILE: 'desktop:select-input-file',
@@ -111,6 +112,7 @@ export interface RoofRoomApi {
   ) => Promise<DesktopRunState>;
   getDesktopRunState: (run_id: string) => Promise<DesktopRunState>;
   retryDesktopFailed: (run_id: string) => Promise<DesktopRunState>;
+  resumeDesktopInterrupted: (run_id: string) => Promise<DesktopRunState>;
   continueDesktopManual: (run_id: string) => Promise<DesktopRunState>;
   exportDesktopRun: (input: { run_id: string; mode: 'ALL' | 'SUCCESSFUL_ONLY' }) => Promise<{ export_directory: string; dataset_count: number; failed_count: number }>;
   selectDesktopInputFile: (

@@ -14,6 +14,14 @@ export class DesktopExecutionService {
   private readonly active = new Map<string, Promise<OrchestrationRunResult>>();
   constructor(private readonly executor: SharedCoreRunExecutor) {}
 
+  isActive(
+    run_id: string,
+  ): boolean {
+    return this.active.has(
+      run_id,
+    );
+  }
+
   execute(run_id: string): Promise<OrchestrationRunResult> {
     const existing = this.active.get(run_id);
     if (existing) return existing;

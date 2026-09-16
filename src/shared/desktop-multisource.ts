@@ -74,6 +74,8 @@ export interface DesktopRunState {
   jobs: JobRecord[];
   completed_jobs: number;
   failed_jobs: number;
+  can_resume: boolean;
+  can_retry: boolean;
 }
 
 export interface DesktopPresetView {

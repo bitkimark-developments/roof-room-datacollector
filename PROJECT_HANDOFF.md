@@ -979,3 +979,54 @@ Exact next action:
 
 - After this checkpoint is committed, select the next bounded Google Trends MVP reliability/interface slice from current repository evidence.
 - Do not expand into a new provider module until the Google Trends base MVP reliability path is intentionally closed.
+
+## 29. Explicit interrupted Run recovery checkpoint — 2026-09-16
+
+Previous Git checkpoint: `487267e` — feat: add explicit manual run continuation.
+
+Current checkpoint scope:
+
+- Reviewed Google Trends Quick Run now supports explicit recovery of persisted interrupted work after application/process restart through the generic Run Detail flow.
+- Recovery preserves the existing persisted `run_id`; no replacement Run is created.
+- Accepted sibling Jobs remain accepted and are not recollected.
+- Deterministic acceptance flow preserves GT01 as accepted attempt 1 while GT02 is persisted as interrupted RUNNING attempt 1 with no candidate artifact.
+- `Resume Run` performs reconciliation only; it does not call the provider and does not automatically create a retry attempt.
+- Interrupted GT02 attempt 1 is preserved as failed historical evidence with `INTERRUPTED_ATTEMPT`.
+- The reconciled GT02 Job becomes `RETRY_PENDING` and the Run becomes `RETRY_REQUIRED`.
+- The existing explicit `Retry Failed` action then creates GT02 attempt 2 and completes the same persisted Run.
+- Final deterministic attempt counts are GT01 = 1 and GT02 = 2.
+- `DesktopExecutionService` exposes source-neutral active-Run ownership through `isActive(run_id)`.
+- Recovery refuses a Run still owned by active execution in the current process.
+- Candidate-artifact interruption remains fail-closed and is not recollected automatically.
+- `DesktopRunState` now exposes authoritative `can_resume` and `can_retry` action state.
+- Trusted desktop IPC exposes `DESKTOP_RESUME_INTERRUPTED` through the typed `RoofRoomApi` and preload bridge.
+- Run Detail exposes `Resume Run` only when persisted state is safely resumable, then adopts the returned persisted state.
+- Renderer remains presentation-only and never owns provider execution or reconciliation loops.
+- No automatic resume occurs during application startup.
+- Cancellation behavior was not expanded in this slice.
+- No live Google Trends or other provider request was executed during this deterministic checkpoint.
+- Historical untracked files `CODEX_HANDOFF_CURRENT.md` and `PROJECT_HANDOFF.pre-20260820.md` remain untouched.
+
+TDD evidence:
+
+- `DESKTOP-RESUME-001` first failed because `resumeInterrupted` did not exist.
+- The Core behavior then passed after implementing explicit restart reconciliation.
+- `RESTART-RESUME-UI-001` first failed because persisted interrupted Run Detail had no `Resume Run` action.
+- The UI behavior then passed after wiring authoritative recovery state, trusted IPC/preload, and Run Detail action handling.
+
+Verification for this checkpoint:
+
+- `npm run test:m5:desktop-retry-export`
+- `npm run test:m5:desktop-ui`
+- `npm run test:m5:desktop-multisource`
+- `npm run test:release:gate`
+- `npx tsc --noEmit`
+- `npm run lint`
+- `git diff --check`
+- `git diff --cached --check`
+
+Exact next action:
+
+- After this checkpoint is committed, select the next bounded Google Trends MVP reliability/interface slice from current repository evidence.
+- Keep restart/recovery, manual continuation, and explicit failed-job retry as separate user intents.
+- Do not expand into a new provider module until the Google Trends base MVP reliability path is intentionally closed.

@@ -531,6 +531,31 @@ const registerIpcHandlers = (
     return requireDesktopController().retryFailed(runId);
   });
   ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_RESUME_INTERRUPTED,
+    (
+      event,
+      runId: unknown,
+    ) => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      if (
+        typeof runId !== 'string'
+        || runId.trim().length === 0
+      ) {
+        throw new Error(
+          'run_id must be a non-empty string.',
+        );
+      }
+
+      return requireDesktopController()
+        .resumeInterrupted(
+          runId,
+        );
+    },
+  );
+  ipcMain.handle(
     IPC_CHANNELS.DESKTOP_CONTINUE_MANUAL,
     (
       event,
@@ -726,6 +751,14 @@ const initializeBootstrapStatus =
             ),
         },
         application_version: app.getVersion(),
+        is_run_active: (
+          run_id,
+        ) =>
+          desktopExecutionService
+            ?.isActive(
+              run_id,
+            )
+          ?? false,
         package_directory: directories.runs,
         execute_run: async (run_id) => {
           if (!desktopExecutionService) throw new Error('Core execution is unavailable.');
