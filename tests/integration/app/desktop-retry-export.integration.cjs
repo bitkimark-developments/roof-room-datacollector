@@ -19,7 +19,7 @@ async function main() {
   };
   const root = path.join(process.cwd(), '.tmp-desktop-package-fixture');
   fs.rmSync(root, { recursive: true, force: true });
-  const controller = new DesktopMultiSourceController({ repository, readiness: { getReadiness: async () => ({ readiness_status: 'READY' }) }, application_version: 'test', execute_run: async () => {}, package_directory: root, load_datasets: async () => [{ source_id: 'google-trends', dataset_type: 'INTEREST_OVER_TIME', rows: [{ query: 'ficus', value: null }] }, { source_id: 'serpapi', dataset_type: 'GOOGLE_SERP', rows: null, failure: { code: 'ERROR_NOT_DATA' } }] });
+  const controller = new DesktopMultiSourceController({ repository, readiness: { getReadiness: async () => ({ readiness_status: 'READY' }) }, application_version: 'test', execute_run: async () => {}, execute_retry: async () => {}, package_directory: root, load_datasets: async () => [{ source_id: 'google-trends', dataset_type: 'INTEREST_OVER_TIME', rows: [{ query: 'ficus', value: null }] }, { source_id: 'serpapi', dataset_type: 'GOOGLE_SERP', rows: null, failure: { code: 'ERROR_NOT_DATA' } }] });
   const retried = await controller.retryFailed(run.run_id);
   assert.equal(retried.jobs.find((job) => job.job_id === failed.job_id).attempt_count, 2);
   assert.equal(retried.jobs.find((job) => job.job_id === accepted.job_id).attempt_count, 1);

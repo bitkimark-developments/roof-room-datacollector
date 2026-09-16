@@ -1543,6 +1543,401 @@ const main = async () => {
     }
   }
 
+
+  // ------------------------------------------------
+  // GT-QUICK-RUN-MANUAL-001
+  // Manual action must explicitly continue the same
+  // persisted attempt before pending groups advance.
+  // ------------------------------------------------
+
+  {
+    class ManualOnceGoogleTrendsSource
+      extends FixtureGoogleTrendsSource {
+      manualGt01Once =
+        false;
+
+      async collect(context) {
+        this.collectCalls.push(
+          context,
+        );
+
+        const groupId =
+          context.source_context
+            .query_group
+            .query_group_id;
+
+        if (
+          groupId === 'GT01'
+          && this.manualGt01Once === false
+        ) {
+          this.manualGt01Once =
+            true;
+
+          return {
+            result_type:
+              'MANUAL_ACTION_REQUIRED',
+            message:
+              'Safe deterministic GT01 manual action fixture.',
+          };
+        }
+
+        return {
+          result_type:
+            'ARTIFACT_PRODUCED',
+          preferred_filename:
+            groupId
+            + '_TR_24M_interest_over_time.csv',
+          media_type:
+            'text/csv',
+          bytes:
+            fs.readFileSync(
+              fixturePath,
+            ),
+        };
+      }
+    }
+
+    const repository =
+      new StateRepository(
+        getDatabasePath(
+          directories,
+        ),
+      );
+
+    try {
+      const workspace =
+        repository.createWorkspace({
+          workspace_name:
+            'GT Quick Run Manual Action',
+        });
+
+      const fixtureSource =
+        new ManualOnceGoogleTrendsSource();
+
+      const productionRuntime =
+        createProductionCollectionRuntime({
+          repository,
+          credentialStore: {},
+          directories,
+          googleTrendsSource:
+            fixtureSource,
+        });
+
+      const executionService =
+        new DesktopExecutionService(
+          productionRuntime.orchestrator,
+        );
+
+      let executionPromise =
+        null;
+
+      const controller =
+        new DesktopMultiSourceController({
+          repository,
+          readiness: {
+            getReadiness:
+              async (
+                workspace_id,
+                source_id,
+              ) => ({
+                workspace_id,
+                source_id,
+                readiness_status:
+                  'READY',
+              }),
+          },
+          application_version:
+            'integration-test',
+          source_order: [
+            'google-trends',
+          ],
+          google_trends_query_groups: [
+            {
+              ...gt01,
+            },
+            {
+              ...gt01,
+              query_group_id:
+                'GT02',
+              query_group_name:
+                'manual-second-group',
+            },
+          ],
+          now:
+            () =>
+              new Date(
+                '2026-08-18T12:00:00.000Z',
+              ),
+          execute_run:
+            async (run_id) => {
+              executionPromise =
+                executionService.execute(
+                  run_id,
+                );
+
+              await executionPromise;
+            },
+          execute_continue:
+            async (
+              run_id,
+              job_id,
+              attempt,
+            ) => {
+              executionPromise =
+                executionService
+                  .executeStartedAttemptAndContinue(
+                    run_id,
+                    job_id,
+                    attempt,
+                  );
+
+              await executionPromise;
+            },
+        });
+
+      const draft =
+        controller.createDraft({
+          workspace_id:
+            workspace.workspace_id,
+          origin: {
+            kind:
+              'BLANK',
+          },
+        });
+
+      draft
+        .reusable_configuration
+        .sources = {
+          'google-trends': {
+            included:
+              true,
+            task_id:
+              'google-trends-interest-over-time',
+            date_policy:
+              'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+          },
+        };
+
+      const review =
+        await controller.reviewDraft(
+          draft,
+        );
+
+      assert.equal(
+        review.can_start,
+        true,
+      );
+
+      assert.ok(
+        review.reviewed_draft,
+      );
+
+      await controller.startDraft(
+        review.reviewed_draft,
+      );
+
+      assert.ok(
+        executionPromise,
+        'Start must dispatch the persisted Run to Core.',
+      );
+
+      await executionPromise;
+
+      const firstDetail =
+        controller.getRunState(
+          repository.listRuns(
+            workspace.workspace_id,
+          )[0].run_id,
+        );
+
+      assert.equal(
+        firstDetail.run.run_status,
+        'MANUAL_ACTION_REQUIRED',
+        'GT01 manual action must block the same persisted Run.',
+      );
+
+      assert.deepEqual(
+        firstDetail.jobs.map(
+          (job) => ({
+            group:
+              job.query_group_id,
+            status:
+              job.execution_status,
+            attempts:
+              job.attempt_count,
+          }),
+        ),
+        [
+          {
+            group:
+              'GT01',
+            status:
+              'MANUAL_ACTION_REQUIRED',
+            attempts:
+              1,
+          },
+          {
+            group:
+              'GT02',
+            status:
+              'PENDING',
+            attempts:
+              0,
+          },
+        ],
+        'Run Detail must expose GT01 as manually blocked and leave GT02 pending.',
+      );
+
+      assert.deepEqual(
+        fixtureSource.collectCalls.map(
+          (context) =>
+            context.source_context
+              .query_group
+              .query_group_id,
+        ),
+        [
+          'GT01',
+        ],
+        'Pending GT02 must not start while GT01 requires manual action.',
+      );
+
+      const gt01AttemptsBefore =
+        repository.listAttempts(
+          firstDetail.jobs[0].job_id,
+        );
+
+      assert.equal(
+        gt01AttemptsBefore.length,
+        1,
+        'Manual action must preserve exactly one GT01 attempt.',
+      );
+
+      assert.equal(
+        gt01AttemptsBefore[0]
+          .attempt_number,
+        1,
+      );
+
+      const gt01AttemptId =
+        gt01AttemptsBefore[0]
+          .attempt_id;
+
+      executionPromise =
+        null;
+
+      assert.equal(
+        typeof controller.continueManual,
+        'function',
+        'Run Detail must expose an explicit manual-action Continue operation.',
+      );
+
+      await controller.continueManual(
+        firstDetail.run.run_id,
+      );
+
+      assert.ok(
+        executionPromise,
+        'Continue must dispatch the same persisted Run back to Core.',
+      );
+
+      await executionPromise;
+
+      const finalDetail =
+        controller.getRunState(
+          firstDetail.run.run_id,
+        );
+
+      assert.equal(
+        finalDetail.run.run_id,
+        firstDetail.run.run_id,
+        'Continue must not create a replacement Run.',
+      );
+
+      assert.equal(
+        finalDetail.run.run_status,
+        'COMPLETED',
+        'Explicit continuation must complete the same Run after manual action is satisfied.',
+      );
+
+      assert.deepEqual(
+        finalDetail.jobs.map(
+          (job) => ({
+            group:
+              job.query_group_id,
+            status:
+              job.execution_status,
+            validation:
+              job.validation_status,
+            attempts:
+              job.attempt_count,
+          }),
+        ),
+        [
+          {
+            group:
+              'GT01',
+            status:
+              'COMPLETED',
+            validation:
+              'VALID',
+            attempts:
+              1,
+          },
+          {
+            group:
+              'GT02',
+            status:
+              'COMPLETED',
+            validation:
+              'VALID',
+            attempts:
+              1,
+          },
+        ],
+        'Continuation must reuse GT01 attempt 1 and run GT02 only as its initial attempt.',
+      );
+
+      const gt01AttemptsAfter =
+        repository.listAttempts(
+          finalDetail.jobs[0].job_id,
+        );
+
+      assert.equal(
+        gt01AttemptsAfter.length,
+        1,
+        'Continue must not create a retry attempt for GT01.',
+      );
+
+      assert.equal(
+        gt01AttemptsAfter[0]
+          .attempt_id,
+        gt01AttemptId,
+        'Continue must execute the original interrupted GT01 attempt.',
+      );
+
+      assert.deepEqual(
+        fixtureSource.collectCalls.map(
+          (context) =>
+            context.source_context
+              .query_group
+              .query_group_id,
+        ),
+        [
+          'GT01',
+          'GT01',
+          'GT02',
+        ],
+        'Continue must resume GT01 first, then advance to pending GT02.',
+      );
+
+      console.log(
+        'PASS GT-QUICK-RUN-MANUAL-001: explicit continuation reuses the blocked GT01 attempt and completes the same persisted Run',
+      );
+    } finally {
+      repository.close();
+    }
+  }
+
 };
 
 main().catch((error) => {

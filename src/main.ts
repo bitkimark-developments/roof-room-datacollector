@@ -530,6 +530,31 @@ const registerIpcHandlers = (
     if (typeof runId !== 'string' || runId.trim().length === 0) throw new Error('run_id must be a non-empty string.');
     return requireDesktopController().retryFailed(runId);
   });
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_CONTINUE_MANUAL,
+    (
+      event,
+      runId: unknown,
+    ) => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      if (
+        typeof runId !== 'string'
+        || runId.trim().length === 0
+      ) {
+        throw new Error(
+          'run_id must be a non-empty string.',
+        );
+      }
+
+      return requireDesktopController()
+        .continueManual(
+          runId,
+        );
+    },
+  );
   ipcMain.handle(IPC_CHANNELS.DESKTOP_EXPORT, (event, input: unknown) => {
     assertTrustedIpcSender(event);
     if (typeof input !== 'object' || input === null) throw new Error('Export input must be an object.');
@@ -707,6 +732,24 @@ const initializeBootstrapStatus =
           await desktopExecutionService.execute(run_id);
         },
         execute_retry: async (
+          run_id,
+          job_id,
+          attempt,
+        ) => {
+          if (!desktopExecutionService) {
+            throw new Error(
+              'Core execution is unavailable.',
+            );
+          }
+
+          await desktopExecutionService
+            .executeStartedAttemptAndContinue(
+              run_id,
+              job_id,
+              attempt,
+            );
+        },
+        execute_continue: async (
           run_id,
           job_id,
           attempt,

@@ -891,6 +891,74 @@ const main = async () => {
             };
           },
 
+          continueDesktopManual:
+            async (runId) => {
+              window.__continueDesktopManualRunId =
+                runId;
+
+              return {
+                run: {
+                  run_id:
+                    'rr_fixture_ikas_001',
+                  workspace_id:
+                    'ws_fixture',
+                  run_status:
+                    'MANUAL_ACTION_REQUIRED',
+                  created_at:
+                    '2026-09-14T17:00:00.000Z',
+                  started_at:
+                    '2026-09-14T17:00:01.000Z',
+                  completed_at:
+                    null,
+                  application_version:
+                    '1.0.0',
+                  selected_sources: [
+                    'ikas-products',
+                  ],
+                  requested_configuration:
+                    null,
+                  configuration_snapshot:
+                    {},
+                },
+                jobs: [
+                  {
+                    job_id:
+                      'job_fixture_ikas_001',
+                    run_id:
+                      'rr_fixture_ikas_001',
+                    source_id:
+                      'ikas-products',
+                    job_key:
+                      'ikas-products-current',
+                    query_group_id:
+                      null,
+                    source_context:
+                      {},
+                    job_order:
+                      1,
+                    execution_status:
+                      'MANUAL_ACTION_REQUIRED',
+                    validation_status:
+                      'NOT_RUN',
+                    attempt_count:
+                      1,
+                    accepted_artifact_id:
+                      null,
+                    created_at:
+                      '2026-09-14T17:00:00.000Z',
+                    started_at:
+                      '2026-09-14T17:00:01.000Z',
+                    completed_at:
+                      null,
+                  },
+                ],
+                completed_jobs:
+                  0,
+                failed_jobs:
+                  0,
+              };
+            },
+
           exportDesktopRun: async (input) => {
             window.__exportDesktopRunInputs =
               [
@@ -1572,6 +1640,36 @@ const main = async () => {
       ).count(),
       1,
       'Run Detail must render the refreshed persisted Run status.',
+    );
+
+    // MANUAL-CONTINUE-UI-001
+    const continueRunButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            'Continue Run',
+          exact:
+            true,
+        },
+      );
+
+    assert.equal(
+      await continueRunButton.count(),
+      1,
+      'MANUAL_ACTION_REQUIRED Run Detail must expose an explicit Continue Run action.',
+    );
+
+    await continueRunButton.click();
+
+    assert.equal(
+      await page.evaluate(
+        () =>
+          window
+            .__continueDesktopManualRunId,
+      ),
+      'rr_fixture_ikas_001',
+      'Continue Run must use the exact persisted run_id through the desktop API boundary.',
     );
 
     await page.waitForTimeout(

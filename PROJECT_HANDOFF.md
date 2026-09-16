@@ -944,3 +944,38 @@ Verification required for this checkpoint:
 Exact next action:
 
 - Select the next bounded Google Trends MVP reliability interface after this checkpoint is committed.
+
+## 28. Reviewed Google Trends manual-action continuation checkpoint — 2026-09-16
+
+Previous Git checkpoint: ad65ae1 — fix: execute Google Trends failed-job retries through Core.
+
+Current checkpoint scope:
+
+- Reviewed Google Trends Quick Run now supports explicit continuation after MANUAL_ACTION_REQUIRED through the generic desktop Run Detail flow.
+- Deterministic acceptance flow: GT01 enters MANUAL_ACTION_REQUIRED, GT02 remains PENDING, and no later comparison group starts before explicit continuation.
+- Continue reuses the same persisted Run and the same interrupted GT01 attempt; it does not create a retry attempt.
+- After continuation, GT01 completes first and the existing Core execution loop advances to GT02 as its initial attempt.
+- Final deterministic state is COMPLETED with GT01 attempt count = 1 and GT02 attempt count = 1.
+- DesktopMultiSourceController now exposes a source-neutral continueManual operation and execute_continue execution seam.
+- Manual continuation follows the existing ResumePlanner BLOCKED_MANUAL_ACTION semantics and refreshes persisted Run status through RunManager.
+- Production continuation executes through DesktopExecutionService.executeStartedAttemptAndContinue.
+- Trusted desktop IPC now exposes DESKTOP_CONTINUE_MANUAL through the typed RoofRoomApi and preload bridge.
+- Run Detail exposes Continue Run only while the persisted Run status is MANUAL_ACTION_REQUIRED.
+- Renderer continuation sends the exact persisted run_id and adopts the returned persisted DesktopRunState; renderer does not own provider execution.
+- Existing Retry Failed behavior remains separate; the retry/export regression fixture was updated to provide the explicit execute_retry dependency required by the current controller contract.
+- One explicit Continue action resumes one currently blocked manual-action Job; subsequent manual-action stops remain explicit user actions.
+- No live Google Trends or other provider request was executed during this deterministic slice.
+- Historical untracked files CODEX_HANDOFF_CURRENT.md and PROJECT_HANDOFF.pre-20260820.md remain untouched.
+
+Verification required for this checkpoint:
+
+- npm run test:release:gate
+- npx tsc --noEmit
+- npm run lint
+- git diff --check
+- git diff --cached --check
+
+Exact next action:
+
+- After this checkpoint is committed, select the next bounded Google Trends MVP reliability/interface slice from current repository evidence.
+- Do not expand into a new provider module until the Google Trends base MVP reliability path is intentionally closed.

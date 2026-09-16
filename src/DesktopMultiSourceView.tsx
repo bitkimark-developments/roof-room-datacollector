@@ -1121,6 +1121,50 @@ export function DesktopMultiSourceView() {
       }
     };
 
+  const continueActiveRun =
+    async () => {
+      if (
+        activeRunState === null
+        || activeRunState.run.run_status
+          !== 'MANUAL_ACTION_REQUIRED'
+        || busy === true
+      ) {
+        return;
+      }
+
+      setBusy(
+        true,
+      );
+
+      setMessage(
+        null,
+      );
+
+      try {
+        const nextState =
+          await window.roofroom
+            .continueDesktopManual(
+              activeRunState
+                .run
+                .run_id,
+            );
+
+        setActiveRunState(
+          nextState,
+        );
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Run devam ettirilemedi.',
+        );
+      } finally {
+        setBusy(
+          false,
+        );
+      }
+    };
+
   const createPreset =
     async () => {
       const presetName =
@@ -2185,6 +2229,25 @@ export function DesktopMultiSourceView() {
                     ),
                   )}
                 </div>
+
+                {
+                  activeRunState.run.run_status === 'MANUAL_ACTION_REQUIRED'
+                  && (
+                    <button
+                      type="button"
+                      className="rr-primary-action"
+                      disabled={
+                        busy
+                      }
+                      onClick={
+                        () =>
+                          void continueActiveRun()
+                      }
+                    >
+                      Continue Run
+                    </button>
+                  )
+                }
 
                 {
                   activeRunState.run.run_status === 'RETRY_REQUIRED'

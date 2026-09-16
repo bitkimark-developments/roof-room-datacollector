@@ -30,6 +30,7 @@ import type { DataPackage, DataPackageMode } from '../../shared/data-package';
 import { ResumePlanner } from '../core/resume-planner';
 import { ReconciliationCoordinator } from '../core/reconciliation-coordinator';
 import { RetryPolicy } from '../core/retry-policy';
+import { RunManager } from '../core/run-manager';
 
 export interface DesktopReadinessReader {
   getReadiness(
@@ -55,6 +56,11 @@ export interface DesktopMultiSourceControllerDependencies {
   now?: () => Date;
   execute_run?: (run_id: string) => Promise<void>;
   execute_retry?: (
+    run_id: string,
+    job_id: string,
+    attempt: AttemptRecord,
+  ) => Promise<void>;
+  execute_continue?: (
     run_id: string,
     job_id: string,
     attempt: AttemptRecord,
@@ -675,6 +681,112 @@ export class DesktopMultiSourceController {
     });
 
     return this.getRunState(run_id);
+  }
+
+  async continueManual(
+    run_id: string,
+  ): Promise<DesktopRunState> {
+    const run =
+      this.dependencies.repository
+        .getRun(
+          run_id,
+        );
+
+    if (!run) {
+      throw new Error(
+        `Unknown Run: ${run_id}`,
+      );
+    }
+
+    const plan =
+      new ResumePlanner(
+        this.dependencies.repository as never,
+      ).planRun(
+        run.workspace_id,
+        run_id,
+      );
+
+    if (!plan) {
+      throw new Error(
+        `Run ${run_id} is not resumable in its Workspace.`,
+      );
+    }
+
+    if (!this.dependencies.execute_continue) {
+      throw new Error(
+        'Core continuation execution is unavailable.',
+      );
+    }
+
+    const manualJob =
+      plan.jobs.find(
+        (jobPlan) =>
+          jobPlan.action ===
+            'BLOCKED_MANUAL_ACTION',
+      );
+
+    if (!manualJob) {
+      throw new Error(
+        `Run ${run_id} has no manual-action Job to continue.`,
+      );
+    }
+
+    const continuationRepository =
+      this.dependencies.repository as
+        DesktopMultiSourceRepository & {
+          transitionJobExecution(
+            job_id: string,
+            next_status: 'RUNNING',
+          ): unknown;
+          listAttempts(
+            job_id: string,
+          ): AttemptRecord[];
+        };
+
+    continuationRepository
+      .transitionJobExecution(
+        manualJob.job.job_id,
+        'RUNNING',
+      );
+
+    new RunManager(
+      this.dependencies.repository as never,
+    ).refreshRunStatus(
+      run_id,
+    );
+
+    const continuedAttempt =
+      continuationRepository
+        .listAttempts(
+          manualJob.job.job_id,
+        )
+        .at(-1);
+
+    if (
+      continuedAttempt === undefined
+      || continuedAttempt
+        .execution_status !==
+          'RUNNING'
+    ) {
+      throw new Error(
+        `Run ${run_id} manual continuation has no active attempt for Job ${manualJob.job.job_id}.`,
+      );
+    }
+
+    void this.dependencies
+      .execute_continue(
+        run_id,
+        manualJob.job.job_id,
+        continuedAttempt,
+      )
+      .catch(() => {
+        // Core persistence remains authoritative;
+        // renderer reads persisted state.
+      });
+
+    return this.getRunState(
+      run_id,
+    );
   }
 
   buildPackage(run_id: string, mode: DataPackageMode, datasets: Parameters<typeof buildDataPackage>[0]['datasets']): DataPackage {
