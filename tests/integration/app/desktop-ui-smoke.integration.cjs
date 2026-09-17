@@ -685,6 +685,9 @@ const main = async () => {
               ],
               completed_jobs: 0,
               failed_jobs: 0,
+              can_resume: false,
+              can_retry: false,
+              can_cancel: false,
             };
           },
 
@@ -694,6 +697,20 @@ const main = async () => {
 
 
             return [
+              {
+                run_id: 'rr_fixture_cancel_001',
+                workspace_id: 'ws_fixture',
+                run_status: 'RUNNING',
+                created_at: '2026-09-13T14:00:00.000Z',
+                started_at: '2026-09-13T14:00:01.000Z',
+                completed_at: null,
+                application_version: '1.0.0',
+                selected_sources: [
+                  'google-trends',
+                ],
+                requested_configuration: null,
+                configuration_snapshot: {},
+              },
               {
                 run_id: 'rr_fixture_resume_001',
                 workspace_id: 'ws_fixture',
@@ -727,6 +744,68 @@ const main = async () => {
 
 
           getDesktopRunState: async (runId) => {
+            if (runId === 'rr_fixture_cancel_001') {
+              window.__openedCancelRunId =
+                runId;
+
+              return {
+                run: {
+                  run_id: 'rr_fixture_cancel_001',
+                  workspace_id: 'ws_fixture',
+                  run_status: 'RUNNING',
+                  created_at: '2026-09-13T14:00:00.000Z',
+                  started_at: '2026-09-13T14:00:01.000Z',
+                  completed_at: null,
+                  application_version: '1.0.0',
+                  selected_sources: [
+                    'google-trends',
+                  ],
+                  requested_configuration: null,
+                  configuration_snapshot: {},
+                },
+                jobs: [
+                  {
+                    job_id: 'job_fixture_cancel_gt01',
+                    run_id: 'rr_fixture_cancel_001',
+                    source_id: 'google-trends',
+                    job_key: 'GT01',
+                    query_group_id: 'GT01',
+                    source_context: {},
+                    job_order: 1,
+                    execution_status: 'COMPLETED',
+                    validation_status: 'VALID',
+                    attempt_count: 1,
+                    accepted_artifact_id:
+                      'artifact_fixture_cancel_gt01',
+                    created_at: '2026-09-13T14:00:00.000Z',
+                    started_at: '2026-09-13T14:00:01.000Z',
+                    completed_at: '2026-09-13T14:00:03.000Z',
+                  },
+                  {
+                    job_id: 'job_fixture_cancel_gt02',
+                    run_id: 'rr_fixture_cancel_001',
+                    source_id: 'google-trends',
+                    job_key: 'GT02',
+                    query_group_id: 'GT02',
+                    source_context: {},
+                    job_order: 2,
+                    execution_status: 'RUNNING',
+                    validation_status: 'NOT_RUN',
+                    attempt_count: 1,
+                    accepted_artifact_id: null,
+                    created_at: '2026-09-13T14:00:00.000Z',
+                    started_at: '2026-09-13T14:00:04.000Z',
+                    completed_at: null,
+                  },
+                ],
+                completed_jobs: 1,
+                failed_jobs: 0,
+                can_resume: false,
+                can_retry: false,
+                can_cancel: true,
+              };
+            }
+
             if (runId === 'rr_fixture_resume_001') {
               window.__openedResumeRunId =
                 runId;
@@ -785,6 +864,7 @@ const main = async () => {
                 failed_jobs: 0,
                 can_resume: true,
                 can_retry: false,
+                can_cancel: true,
               };
             }
 
@@ -828,6 +908,9 @@ const main = async () => {
                 ],
                 completed_jobs: 1,
                 failed_jobs: 0,
+                can_resume: false,
+                can_retry: false,
+                can_cancel: false,
               };
             }
 
@@ -879,6 +962,9 @@ const main = async () => {
                 ],
                 completed_jobs: 0,
                 failed_jobs: 0,
+                can_resume: false,
+                can_retry: false,
+                can_cancel: true,
               };
             }
 
@@ -919,6 +1005,7 @@ const main = async () => {
               failed_jobs: 1,
               can_resume: false,
               can_retry: true,
+              can_cancel: true,
             };
           },
 
@@ -983,6 +1070,7 @@ const main = async () => {
                 failed_jobs: 0,
                 can_resume: false,
                 can_retry: false,
+                can_cancel: false,
               };
             }
 
@@ -1030,6 +1118,9 @@ const main = async () => {
               ],
               completed_jobs: 0,
               failed_jobs: 0,
+              can_resume: false,
+              can_retry: false,
+              can_cancel: false,
             };
           },
 
@@ -1093,6 +1184,7 @@ const main = async () => {
                 failed_jobs: 0,
                 can_resume: false,
                 can_retry: true,
+                can_cancel: true,
               };
             },
 
@@ -1161,6 +1253,116 @@ const main = async () => {
                   0,
                 failed_jobs:
                   0,
+                can_resume:
+                  false,
+                can_retry:
+                  false,
+                can_cancel:
+                  false,
+              };
+            },
+
+          cancelDesktopRun:
+            async (runId) => {
+              window.__cancelDesktopRunId =
+                runId;
+
+              return {
+                run: {
+                  run_id:
+                    'rr_fixture_cancel_001',
+                  workspace_id:
+                    'ws_fixture',
+                  run_status:
+                    'CANCELLED',
+                  created_at:
+                    '2026-09-13T14:00:00.000Z',
+                  started_at:
+                    '2026-09-13T14:00:01.000Z',
+                  completed_at:
+                    '2026-09-13T14:00:05.000Z',
+                  application_version:
+                    '1.0.0',
+                  selected_sources: [
+                    'google-trends',
+                  ],
+                  requested_configuration:
+                    null,
+                  configuration_snapshot:
+                    {},
+                },
+                jobs: [
+                  {
+                    job_id:
+                      'job_fixture_cancel_gt01',
+                    run_id:
+                      'rr_fixture_cancel_001',
+                    source_id:
+                      'google-trends',
+                    job_key:
+                      'GT01',
+                    query_group_id:
+                      'GT01',
+                    source_context:
+                      {},
+                    job_order:
+                      1,
+                    execution_status:
+                      'COMPLETED',
+                    validation_status:
+                      'VALID',
+                    attempt_count:
+                      1,
+                    accepted_artifact_id:
+                      'artifact_fixture_cancel_gt01',
+                    created_at:
+                      '2026-09-13T14:00:00.000Z',
+                    started_at:
+                      '2026-09-13T14:00:01.000Z',
+                    completed_at:
+                      '2026-09-13T14:00:03.000Z',
+                  },
+                  {
+                    job_id:
+                      'job_fixture_cancel_gt02',
+                    run_id:
+                      'rr_fixture_cancel_001',
+                    source_id:
+                      'google-trends',
+                    job_key:
+                      'GT02',
+                    query_group_id:
+                      'GT02',
+                    source_context:
+                      {},
+                    job_order:
+                      2,
+                    execution_status:
+                      'CANCELLED',
+                    validation_status:
+                      'NOT_RUN',
+                    attempt_count:
+                      1,
+                    accepted_artifact_id:
+                      null,
+                    created_at:
+                      '2026-09-13T14:00:00.000Z',
+                    started_at:
+                      '2026-09-13T14:00:04.000Z',
+                    completed_at:
+                      '2026-09-13T14:00:05.000Z',
+                  },
+                ],
+                completed_jobs:
+                  1,
+                failed_jobs:
+                  0,
+                can_resume:
+                  false,
+                can_retry:
+                  false,
+                can_cancel:
+                  false,
               };
             },
 
@@ -1285,6 +1487,115 @@ const main = async () => {
       'Run History must expose persisted Run status.',
     );
 
+
+    // RUN-CANCEL-UI-001
+    const cancellableHistoryRunButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            /rr_fixture_cancel_001/,
+        },
+      );
+
+    assert.equal(
+      await cancellableHistoryRunButton.count(),
+      1,
+      'Run History must expose the persisted cancellable Run.',
+    );
+
+    await cancellableHistoryRunButton.click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name: 'Run Detail',
+        exact: true,
+      },
+    ).waitFor();
+
+    assert.equal(
+      await page.evaluate(
+        () => window.__openedCancelRunId,
+      ),
+      'rr_fixture_cancel_001',
+      'Cancellable Run Detail must load the exact persisted run_id.',
+    );
+
+    const cancelRunButton =
+      page.getByRole(
+        'button',
+        {
+          name: 'Cancel Run',
+          exact: true,
+        },
+      );
+
+    assert.equal(
+      await cancelRunButton.count(),
+      1,
+      'Authoritative can_cancel=true must expose Cancel Run.',
+    );
+
+    await cancelRunButton.click();
+
+    assert.equal(
+      await page.evaluate(
+        () => window.__cancelDesktopRunId,
+      ),
+      'rr_fixture_cancel_001',
+      'Cancel Run must invoke the desktop API with the exact persisted run_id.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Run Status: CANCELLED',
+        {
+          exact: true,
+        },
+      ).count(),
+      1,
+      'Run Detail must apply the terminal CANCELLED state returned by cancellation.',
+    );
+
+    for (
+      const actionName of [
+        'Cancel Run',
+        'Resume Run',
+        'Retry Failed',
+        'Continue Run',
+      ]
+    ) {
+      assert.equal(
+        await page.getByRole(
+          'button',
+          {
+            name: actionName,
+            exact: true,
+          },
+        ).count(),
+        0,
+        `Terminal CANCELLED state must not expose ${actionName}.`,
+      );
+    }
+
+    await page.reload();
+
+    await page.getByRole(
+      'button',
+      {
+        name: 'RUNS',
+        exact: true,
+      },
+    ).click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name: 'Runs',
+        exact: true,
+      },
+    ).waitFor();
 
     // RESTART-RESUME-UI-001
     const interruptedHistoryRunButton =

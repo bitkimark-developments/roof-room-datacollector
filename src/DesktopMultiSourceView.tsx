@@ -1209,6 +1209,50 @@ export function DesktopMultiSourceView() {
       }
     };
 
+  const cancelActiveRun =
+    async () => {
+      if (
+        activeRunState === null
+        || activeRunState.can_cancel
+          !== true
+        || busy === true
+      ) {
+        return;
+      }
+
+      setBusy(
+        true,
+      );
+
+      setMessage(
+        null,
+      );
+
+      try {
+        const nextState =
+          await window.roofroom
+            .cancelDesktopRun(
+              activeRunState
+                .run
+                .run_id,
+            );
+
+        setActiveRunState(
+          nextState,
+        );
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Run iptal edilemedi.',
+        );
+      } finally {
+        setBusy(
+          false,
+        );
+      }
+    };
+
   const createPreset =
     async () => {
       const presetName =
@@ -2329,6 +2373,26 @@ export function DesktopMultiSourceView() {
                       }
                     >
                       Retry Failed
+                    </button>
+                  )
+                }
+
+                {
+                  activeRunState.can_cancel
+                    === true
+                  && (
+                    <button
+                      type="button"
+                      className="rr-primary-action"
+                      disabled={
+                        busy
+                      }
+                      onClick={
+                        () =>
+                          void cancelActiveRun()
+                      }
+                    >
+                      Cancel Run
                     </button>
                   )
                 }

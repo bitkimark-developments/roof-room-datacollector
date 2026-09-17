@@ -66,6 +66,7 @@ const roofroomApi: RoofRoomApi = {
   retryDesktopFailed: (run_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_RETRY_FAILED, run_id),
   resumeDesktopInterrupted: (run_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_RESUME_INTERRUPTED, run_id),
   continueDesktopManual: (run_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_CONTINUE_MANUAL, run_id),
+  cancelDesktopRun: (run_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_CANCEL_RUN, run_id),
   exportDesktopRun: (input) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_EXPORT, input),
   selectDesktopInputFile: (input) =>
     ipcRenderer.invoke(

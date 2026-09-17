@@ -4,6 +4,7 @@ const {
   DesktopMultiSourceController,
 } = require(`${process.argv[2]}/main/app/desktop-multisource-controller.js`);
 const { DesktopExecutionService } = require(`${process.argv[2]}/main/app/desktop-execution-service.js`);
+
 const {
   isDesktopReviewedRunDraft,
 } = require(
@@ -99,6 +100,198 @@ const createFixture = (
 };
 
 async function main() {
+  let releaseCancellationExecution;
+  let physicalCancelCalls = 0;
+  let cancelFinished = false;
+
+  const cancellableExecutionService =
+    new DesktopExecutionService({
+      runUntilBlocked:
+        async (runId) => {
+          assert.equal(
+            runId,
+            'rr_execution_cancel',
+          );
+
+          await new Promise(
+            (resolve) => {
+              releaseCancellationExecution =
+                resolve;
+            },
+          );
+
+          return {
+            steps: [],
+            stopped_because:
+              'RUN_COMPLETED',
+          };
+        },
+
+      executeStartedAttempt:
+        async () => {
+          throw new Error(
+            'unused',
+          );
+        },
+    });
+
+  const ownedExecution =
+    cancellableExecutionService
+      .execute(
+        'rr_execution_cancel',
+        async () => {
+          physicalCancelCalls += 1;
+        },
+      );
+
+  assert.equal(
+    cancellableExecutionService
+      .isActive(
+        'rr_execution_cancel',
+      ),
+    true,
+    'ExecutionService must own the active Run.',
+  );
+
+  assert.equal(
+    cancellableExecutionService
+      .canCancel(
+        'rr_execution_cancel',
+      ),
+    true,
+    'ExecutionService must expose cancellation only when an active handle exists.',
+  );
+
+  const cancellationPromise =
+    cancellableExecutionService
+      .cancelActive(
+        'rr_execution_cancel',
+      )
+      .then(() => {
+        cancelFinished = true;
+      });
+
+  await new Promise(
+    (resolve) =>
+      setTimeout(
+        resolve,
+        0,
+      ),
+  );
+
+  assert.equal(
+    physicalCancelCalls,
+    1,
+    'Physical cancellation handle must run exactly once.',
+  );
+
+  assert.equal(
+    cancelFinished,
+    false,
+    'cancelActive must not resolve while the owned execution is still active.',
+  );
+
+  releaseCancellationExecution();
+
+  await Promise.all([
+    ownedExecution,
+    cancellationPromise,
+  ]);
+
+  assert.equal(
+    cancellableExecutionService
+      .isActive(
+        'rr_execution_cancel',
+      ),
+    false,
+    'Execution ownership must be released before cancellation completes.',
+  );
+
+  assert.equal(
+    cancellableExecutionService
+      .canCancel(
+        'rr_execution_cancel',
+      ),
+    false,
+    'Released execution must no longer advertise cancellation.',
+  );
+
+  console.log(
+    'PASS DESKTOP-EXECUTION-CANCEL-001: cancellation invokes the physical handle and waits for execution ownership release',
+  );
+
+
+  let releaseCancellationDomainOwner;
+
+  const domainExecutionService =
+    new DesktopExecutionService({
+      runUntilBlocked:
+        async (runId) => {
+          if (
+            runId ===
+              'rr_domain_owner'
+          ) {
+            await new Promise(
+              (resolve) => {
+                releaseCancellationDomainOwner =
+                  resolve;
+              },
+            );
+          }
+
+          return {
+            steps: [],
+            stopped_because:
+              'RUN_COMPLETED',
+          };
+        },
+
+      executeStartedAttempt:
+        async () => {
+          throw new Error(
+            'unused',
+          );
+        },
+    });
+
+  const domainOwnerExecution =
+    domainExecutionService
+      .execute(
+        'rr_domain_owner',
+        async () => {},
+        'google-trends-browser',
+      );
+
+  assert.throws(
+    () =>
+      domainExecutionService
+        .execute(
+          'rr_domain_other',
+          async () => {},
+          'google-trends-browser',
+        ),
+    /cancellation domain|already owned|google-trends-browser/i,
+    'Two Runs must not share one physical cancellation domain at the same time.',
+  );
+
+  releaseCancellationDomainOwner();
+
+  await domainOwnerExecution;
+
+  const reusedDomainExecution =
+    domainExecutionService
+      .execute(
+        'rr_domain_other',
+        async () => {},
+        'google-trends-browser',
+      );
+
+  await reusedDomainExecution;
+
+  console.log(
+    'PASS DESKTOP-EXECUTION-DOMAIN-001: one physical cancellation domain has one active Run owner and releases ownership after completion',
+  );
+
   const resolvedGscCurrent =
     resolveDesktopDatePolicy(
       'TODAY_MINUS_90_TO_YESTERDAY',

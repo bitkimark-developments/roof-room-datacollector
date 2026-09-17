@@ -458,6 +458,347 @@ async function main() {
   );
 
   fs.rmSync(root, { recursive: true, force: true });
+  const cancellationRun = {
+    run_id: 'rr_cancel',
+    workspace_id: 'ws_cancel',
+    run_status: 'RUNNING',
+    selected_sources: ['google-trends'],
+  };
+
+  const cancellationAcceptedJob = {
+    job_id: 'job_cancel_gt01',
+    run_id: cancellationRun.run_id,
+    source_id: 'google-trends',
+    job_key: 'GT01',
+    query_group_id: 'GT01',
+    execution_status: 'COMPLETED',
+    validation_status: 'VALID',
+    attempt_count: 1,
+    accepted_artifact_id: 'art_cancel_gt01',
+  };
+
+  const cancellationActiveJob = {
+    job_id: 'job_cancel_gt02',
+    run_id: cancellationRun.run_id,
+    source_id: 'google-trends',
+    job_key: 'GT02',
+    query_group_id: 'GT02',
+    execution_status: 'RUNNING',
+    validation_status: 'NOT_RUN',
+    attempt_count: 1,
+    accepted_artifact_id: null,
+  };
+
+  const cancellationPendingJob = {
+    job_id: 'job_cancel_gt03',
+    run_id: cancellationRun.run_id,
+    source_id: 'google-trends',
+    job_key: 'GT03',
+    query_group_id: 'GT03',
+    execution_status: 'PENDING',
+    validation_status: 'NOT_RUN',
+    attempt_count: 0,
+    accepted_artifact_id: null,
+  };
+
+  const cancellationAttempt = {
+  attempt_id: 'att_cancel_gt02_1',
+  job_id: cancellationActiveJob.job_id,
+  run_id: cancellationRun.run_id,
+  attempt_number: 1,
+  execution_status: 'RUNNING',
+  candidate_artifact_id: null,
+  error_code: null,
+  error_message: null,
+};
+
+  const cancellationJobs = [
+    cancellationAcceptedJob,
+    cancellationActiveJob,
+    cancellationPendingJob,
+  ];
+
+  const cancellationAttempts = [
+    cancellationAttempt,
+  ];
+
+  const cancelledExecutionCalls = [];
+
+  const cancellationRepository = {
+    getRun: (runId) =>
+      runId === cancellationRun.run_id
+        ? cancellationRun
+        : null,
+
+    listRuns: () => [
+      cancellationRun,
+    ],
+
+    listIncompleteRuns: (
+  workspaceId,
+) =>
+  workspaceId ===
+    cancellationRun.workspace_id
+  && ![
+    'COMPLETED',
+    'COMPLETED_WITH_WARNINGS',
+    'FAILED',
+    'CANCELLED',
+  ].includes(
+    cancellationRun.run_status,
+  )
+    ? [
+        cancellationRun,
+      ]
+    : [],
+
+    listJobs: (runId) =>
+      runId === cancellationRun.run_id
+        ? cancellationJobs
+        : [],
+
+listAttempts: (jobId) =>
+  cancellationAttempts.filter(
+    (attempt) =>
+      attempt.job_id === jobId,
+  ),
+
+getArtifact: (
+  artifactId,
+) =>
+  artifactId ===
+    'art_cancel_gt01'
+    ? {
+        artifact_id:
+          'art_cancel_gt01',
+        job_id:
+          cancellationAcceptedJob
+            .job_id,
+        run_id:
+          cancellationRun.run_id,
+        source_id:
+          'google-trends',
+        artifact_state:
+          'ACCEPTED',
+      }
+    : null,
+
+listArtifactsForJob: () => [],
+
+    getAcceptedArtifact: (jobId) =>
+      jobId === cancellationAcceptedJob.job_id
+        ? {
+            artifact_id: 'art_cancel_gt01',
+            job_id: cancellationAcceptedJob.job_id,
+            run_id: cancellationRun.run_id,
+            source_id: 'google-trends',
+          }
+        : null,
+
+    transitionRunStatus: (
+      runId,
+      nextStatus,
+    ) => {
+      assert.equal(
+        runId,
+        cancellationRun.run_id,
+      );
+
+      cancellationRun.run_status =
+        nextStatus;
+
+      return cancellationRun;
+    },
+
+    transitionJobExecution: (
+      jobId,
+      nextStatus,
+    ) => {
+      const job =
+        cancellationJobs.find(
+          (candidate) =>
+            candidate.job_id === jobId,
+        );
+
+      assert.ok(
+        job,
+        `Unknown cancellation fixture Job: ${jobId}`,
+      );
+
+      job.execution_status =
+        nextStatus;
+
+      const activeAttempt =
+        cancellationAttempts.find(
+          (attempt) =>
+            attempt.job_id === jobId
+            && (
+              attempt.execution_status === 'RUNNING'
+              || attempt.execution_status === 'VALIDATING'
+              || attempt.execution_status === 'MANUAL_ACTION_REQUIRED'
+            ),
+        );
+
+      if (
+        activeAttempt
+        && nextStatus === 'CANCELLED'
+      ) {
+        activeAttempt.execution_status =
+          'CANCELLED';
+        activeAttempt.error_code =
+          'USER_CANCELLED';
+        activeAttempt.error_message =
+          'Run cancelled by user.';
+      }
+
+      return job;
+    },
+  };
+
+  const cancellationController =
+    new DesktopMultiSourceController({
+      repository:
+        cancellationRepository,
+      readiness: {
+        getReadiness:
+          async () => ({
+            readiness_status:
+              'READY',
+          }),
+      },
+      application_version:
+        'test',
+      is_run_active:
+        (runId) =>
+          runId ===
+          cancellationRun.run_id,
+      can_cancel_run:
+        (runId) =>
+          runId ===
+          cancellationRun.run_id,
+      cancel_active_run:
+        async (runId) => {
+          cancelledExecutionCalls.push(
+            runId,
+          );
+        },
+    });
+
+  const cancellableState =
+    cancellationController
+      .getRunState(
+        cancellationRun.run_id,
+      );
+
+  assert.equal(
+    cancellableState.can_cancel,
+    true,
+    'An actively owned Run with a cancellation handle must expose can_cancel.',
+  );
+
+  assert.equal(
+    typeof cancellationController
+      .cancelRun,
+    'function',
+    'DesktopMultiSourceController must expose generic explicit Run cancellation.',
+  );
+
+  const cancelledState =
+    await cancellationController
+      .cancelRun(
+        cancellationRun.run_id,
+      );
+
+  assert.equal(
+    cancelledState.run.run_id,
+    'rr_cancel',
+    'Cancellation must preserve the exact persisted Run identity.',
+  );
+
+  assert.equal(
+    cancelledState.run.run_status,
+    'CANCELLED',
+    'Explicit cancellation must terminalize the same Run.',
+  );
+
+  assert.equal(
+    cancellationAcceptedJob
+      .execution_status,
+    'COMPLETED',
+    'Accepted completed sibling evidence must remain completed.',
+  );
+
+  assert.equal(
+    cancellationAcceptedJob
+      .accepted_artifact_id,
+    'art_cancel_gt01',
+    'Accepted artifact identity must survive cancellation.',
+  );
+
+  assert.equal(
+    cancellationAcceptedJob
+      .attempt_count,
+    1,
+    'Accepted sibling attempt history must not change.',
+  );
+
+  assert.equal(
+    cancellationActiveJob
+      .execution_status,
+    'CANCELLED',
+    'Active unfinished Job must become CANCELLED.',
+  );
+
+  assert.equal(
+    cancellationAttempt
+      .execution_status,
+    'CANCELLED',
+    'The existing active Attempt must become CANCELLED.',
+  );
+
+  assert.equal(
+    cancellationActiveJob
+      .attempt_count,
+    1,
+    'Cancellation must not create attempt 2.',
+  );
+
+  assert.equal(
+    cancellationPendingJob
+      .execution_status,
+    'CANCELLED',
+    'Pending later work must be cancelled instead of executed.',
+  );
+
+  assert.deepEqual(
+    cancelledExecutionCalls,
+    [
+      'rr_cancel',
+    ],
+    'Physical cancellation must target the exact owning Run once.',
+  );
+
+  assert.equal(
+    cancelledState.can_cancel,
+    false,
+    'Terminal CANCELLED Run must not remain cancellable.',
+  );
+
+  assert.equal(
+    cancelledState.can_resume,
+    false,
+    'Terminal CANCELLED Run must not be resumable.',
+  );
+
+  assert.equal(
+    cancelledState.can_retry,
+    false,
+    'Terminal CANCELLED Run must not be retryable.',
+  );
+
+  console.log(
+    'PASS DESKTOP-CANCEL-001: generic explicit cancellation preserves accepted evidence, cancels unfinished work, and creates no retry attempt',
+  );
   console.log('PASS DESKTOP-RETRY-EXPORT-001: generalized retry targets failed Job only and physical package modes remain source-separated');
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

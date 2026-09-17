@@ -76,6 +76,7 @@ export interface DesktopRunState {
   failed_jobs: number;
   can_resume: boolean;
   can_retry: boolean;
+  can_cancel: boolean;
 }
 
 export interface DesktopPresetView {

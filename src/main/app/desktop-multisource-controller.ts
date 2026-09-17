@@ -31,6 +31,9 @@ import { ResumePlanner } from '../core/resume-planner';
 import { ReconciliationCoordinator } from '../core/reconciliation-coordinator';
 import { RetryPolicy } from '../core/retry-policy';
 import { RunManager } from '../core/run-manager';
+import {
+  isTerminalRunStatus,
+} from '../core/run-execution-state-machine';
 
 export interface DesktopReadinessReader {
   getReadiness(
@@ -66,6 +69,13 @@ export interface DesktopMultiSourceControllerDependencies {
     attempt: AttemptRecord,
   ) => Promise<void>;
   is_run_active?: (run_id: string) => boolean;
+  can_cancel_run?: (
+  run_id: string,
+) => boolean;
+
+cancel_active_run?: (
+  run_id: string,
+) => Promise<void>;
   package_directory?: string;
   load_datasets?: (run_id: string) => Promise<Parameters<typeof buildDataPackage>[0]['datasets']>;
 }
@@ -381,6 +391,7 @@ export class DesktopMultiSourceController {
       failed_jobs: 0,
       can_resume: false,
       can_retry: false,
+      can_cancel: false,
     };
   }
 
@@ -600,21 +611,15 @@ export class DesktopMultiSourceController {
     }
 
     return {
-      run:
-        reserved.run,
-      jobs:
-        reserved.jobs,
-      completed_jobs:
-        0,
-      failed_jobs:
-        0,
-      can_resume:
-        false,
-      can_retry:
-        false,
-    };
+  run: reserved.run,
+  jobs: reserved.jobs,
+  completed_jobs: 0,
+  failed_jobs: 0,
+  can_resume: false,
+  can_retry: false,
+  can_cancel: false,
+};
   }
-
   getRunState(run_id: string): DesktopRunState {
     const run =
       this.dependencies.repository
@@ -685,6 +690,19 @@ export class DesktopMultiSourceController {
         ) ?? false
       );
 
+      const can_cancel =
+  !isTerminalRunStatus(
+    run.run_status,
+  )
+  && (
+    isActive
+      ? this.dependencies
+          .can_cancel_run?.(
+            run_id,
+          ) === true
+      : true
+  );
+
     return {
       run,
       jobs,
@@ -702,9 +720,136 @@ export class DesktopMultiSourceController {
         ).length,
       can_resume,
       can_retry,
+      can_cancel,
     };
   }
 
+  async cancelRun(
+  run_id: string,
+): Promise<DesktopRunState> {
+  const run =
+    this.dependencies.repository
+      .getRun(
+        run_id,
+      );
+
+  if (!run) {
+    throw new Error(
+      `Unknown Run: ${run_id}`,
+    );
+  }
+
+  if (
+    isTerminalRunStatus(
+      run.run_status,
+    )
+  ) {
+    throw new Error(
+      `Run ${run_id} cannot be cancelled from ${run.run_status}.`,
+    );
+  }
+
+  const isActive =
+    this.dependencies
+      .is_run_active?.(
+        run_id,
+      ) === true;
+
+  if (
+    isActive
+    && this.dependencies
+      .can_cancel_run?.(
+        run_id,
+      ) !== true
+  ) {
+    throw new Error(
+      `Run ${run_id} is active but has no safe physical cancellation capability.`,
+    );
+  }
+
+  if (
+    isActive
+    && !this.dependencies
+      .cancel_active_run
+  ) {
+    throw new Error(
+      'Active Run cancellation is unavailable.',
+    );
+  }
+
+  const repository =
+    this.dependencies.repository as
+      DesktopMultiSourceRepository & {
+        transitionJobExecution(
+          job_id: string,
+          next_status:
+            'CANCELLED',
+          options?: {
+            error_code?:
+              string;
+            error_message?:
+              string;
+          },
+        ): unknown;
+      };
+
+  const cancellableStatuses =
+    new Set([
+      'PENDING',
+      'RUNNING',
+      'VALIDATING',
+      'MANUAL_ACTION_REQUIRED',
+      'RETRY_PENDING',
+    ]);
+
+  for (
+    const job
+    of repository.listJobs(
+      run_id,
+    )
+  ) {
+    if (
+      !cancellableStatuses.has(
+        job.execution_status,
+      )
+    ) {
+      continue;
+    }
+
+    repository
+      .transitionJobExecution(
+        job.job_id,
+        'CANCELLED',
+        {
+          error_code:
+            'USER_CANCELLED',
+          error_message:
+            'Run cancelled by user.',
+        },
+      );
+  }
+
+  new RunManager(
+  this.dependencies.repository as never,
+).cancelRun(
+  run_id,
+);
+
+  if (
+    isActive
+    && this.dependencies
+      .cancel_active_run
+  ) {
+    await this.dependencies
+      .cancel_active_run(
+        run_id,
+      );
+  }
+
+  return this.getRunState(
+    run_id,
+  );
+}
   async retryFailed(run_id: string): Promise<DesktopRunState> {
     const run = this.dependencies.repository.getRun(run_id);
     if (!run) throw new Error(`Unknown Run: ${run_id}`);

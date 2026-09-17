@@ -580,6 +580,31 @@ const registerIpcHandlers = (
         );
     },
   );
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_CANCEL_RUN,
+    (
+      event,
+      runId: unknown,
+    ) => {
+      assertTrustedIpcSender(
+        event,
+      );
+
+      if (
+        typeof runId !== 'string'
+        || runId.trim().length === 0
+      ) {
+        throw new Error(
+          'run_id must be a non-empty string.',
+        );
+      }
+
+      return requireDesktopController()
+        .cancelRun(
+          runId,
+        );
+    },
+  );
   ipcMain.handle(IPC_CHANNELS.DESKTOP_EXPORT, (event, input: unknown) => {
     assertTrustedIpcSender(event);
     if (typeof input !== 'object' || input === null) throw new Error('Export input must be an object.');
@@ -733,74 +758,183 @@ const initializeBootstrapStatus =
           },
         );
       }
-      desktopMultiSourceController = new DesktopMultiSourceController({
-        google_trends_query_groups:
-          googleTrendsQueryGroups,
-        repository:
-          desktopRepository,
-        readiness: {
-          getReadiness: async (
-            workspace_id,
-            source_id,
-            source_config,
-          ) =>
-            readinessRegistry.getReadiness(
+      const cancellationForDesktopRun = (
+        run_id: string,
+      ): {
+        cancel: () => Promise<void>;
+        domain: string;
+      } | undefined => {
+        const jobs =
+          desktopRepository.listJobs(
+            run_id,
+          );
+
+        const googleTrendsOnly =
+          jobs.length > 0
+          && jobs.every(
+            (job) =>
+              job.source_id ===
+              'google-trends',
+          );
+
+        if (!googleTrendsOnly) {
+          return undefined;
+        }
+
+        return {
+          cancel: () =>
+            runtime.browser_manager.close(),
+          domain:
+            'google-trends-browser',
+        };
+      };
+
+      desktopMultiSourceController =
+        new DesktopMultiSourceController({
+          google_trends_query_groups:
+            googleTrendsQueryGroups,
+
+          repository:
+            desktopRepository,
+
+          readiness: {
+            getReadiness: async (
               workspace_id,
               source_id,
               source_config,
-            ),
-        },
-        application_version: app.getVersion(),
-        is_run_active: (
-          run_id,
-        ) =>
-          desktopExecutionService
-            ?.isActive(
-              run_id,
-            )
-          ?? false,
-        package_directory: directories.runs,
-        execute_run: async (run_id) => {
-          if (!desktopExecutionService) throw new Error('Core execution is unavailable.');
-          await desktopExecutionService.execute(run_id);
-        },
-        execute_retry: async (
-          run_id,
-          job_id,
-          attempt,
-        ) => {
-          if (!desktopExecutionService) {
-            throw new Error(
-              'Core execution is unavailable.',
-            );
-          }
+            ) =>
+              readinessRegistry.getReadiness(
+                workspace_id,
+                source_id,
+                source_config,
+              ),
+          },
 
-          await desktopExecutionService
-            .executeStartedAttemptAndContinue(
+          application_version:
+            app.getVersion(),
+
+          is_run_active: (
+            run_id,
+          ) =>
+            desktopExecutionService
+              ?.isActive(
+                run_id,
+              )
+            ?? false,
+
+          can_cancel_run: (
+            run_id,
+          ) =>
+            desktopExecutionService
+              ?.canCancel(
+                run_id,
+              )
+            ?? false,
+
+          cancel_active_run:
+            async (
+              run_id,
+            ) => {
+              if (
+                !desktopExecutionService
+              ) {
+                throw new Error(
+                  'Core execution is unavailable.',
+                );
+              }
+
+              await desktopExecutionService
+                .cancelActive(
+                  run_id,
+                );
+            },
+
+          package_directory:
+            directories.runs,
+
+          execute_run:
+            async (
+              run_id,
+            ) => {
+              if (
+                !desktopExecutionService
+              ) {
+                throw new Error(
+                  'Core execution is unavailable.',
+                );
+              }
+
+              const cancellation =
+                cancellationForDesktopRun(
+                  run_id,
+                );
+
+              await desktopExecutionService
+                .execute(
+                  run_id,
+                  cancellation?.cancel,
+                  cancellation?.domain,
+                );
+            },
+
+          execute_retry:
+            async (
               run_id,
               job_id,
               attempt,
-            );
-        },
-        execute_continue: async (
-          run_id,
-          job_id,
-          attempt,
-        ) => {
-          if (!desktopExecutionService) {
-            throw new Error(
-              'Core execution is unavailable.',
-            );
-          }
+            ) => {
+              if (
+                !desktopExecutionService
+              ) {
+                throw new Error(
+                  'Core execution is unavailable.',
+                );
+              }
 
-          await desktopExecutionService
-            .executeStartedAttemptAndContinue(
+              const cancellation =
+                cancellationForDesktopRun(
+                  run_id,
+                );
+
+              await desktopExecutionService
+                .executeStartedAttemptAndContinue(
+                  run_id,
+                  job_id,
+                  attempt,
+                  cancellation?.cancel,
+                  cancellation?.domain,
+                );
+            },
+
+          execute_continue:
+            async (
               run_id,
               job_id,
               attempt,
-            );
-        },
-      });
+            ) => {
+              if (
+                !desktopExecutionService
+              ) {
+                throw new Error(
+                  'Core execution is unavailable.',
+                );
+              }
+
+              const cancellation =
+                cancellationForDesktopRun(
+                  run_id,
+                );
+
+              await desktopExecutionService
+                .executeStartedAttemptAndContinue(
+                  run_id,
+                  job_id,
+                  attempt,
+                  cancellation?.cancel,
+                  cancellation?.domain,
+                );
+            },
+        });
       const productionRuntime = createProductionCollectionRuntime({
         repository: desktopRepository,
         credentialStore,
