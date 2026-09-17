@@ -108,10 +108,8 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
     const start = stringField(context, 'start_date') ?? stringField(context, 'date_start'); const end = stringField(context, 'end_date') ?? stringField(context, 'date_end');
     return start && end ? googleApi.createSearchConsoleSource({ workspace_id: workspaceId, start_date: start, end_date: end }) : null;
   }));
-  sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, 'Google Ads Search Terms', 'OFFICIAL_API', ['SEARCH_TERMS'], input.repository, (workspaceId, context) => {
-    const query = stringField(context, 'query') ?? stringField(context, 'gaql_query');
-    return query ? googleApi.createSearchTermsSource({ workspace_id: workspaceId, query }) : null;
-  }));
+  sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, 'Google Ads Search Terms', 'OFFICIAL_API', ['SEARCH_TERMS'], input.repository,
+    (workspaceId) => googleApi.createSearchTermsSource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, 'Google Keyword Planner', 'OFFICIAL_API', ['KEYWORD_HISTORICAL_METRICS'], input.repository, (workspaceId, context) => {
     const values = field(context, 'keywords'); const keywords = Array.isArray(values) ? values.filter((v): v is string => typeof v === 'string' && v.trim().length > 0) : [];
     return keywords.length ? googleApi.createKeywordPlannerSource({ workspace_id: workspaceId, keywords }) : null;

@@ -108,7 +108,6 @@ export class GoogleApiRuntimeFactory {
 
   createSearchTermsSource(input: {
     workspace_id: string;
-    query: string;
   }): GoogleAdsSearchTermsSource {
     const connection = this.requireConnection(
       input.workspace_id,
@@ -118,14 +117,12 @@ export class GoogleApiRuntimeFactory {
       normalizeGoogleAdsCustomerId(
         requireMetadataString(connection, 'customer_id'),
       ),
-      input.query,
       this.createGoogleAdsRequester(connection),
     );
   }
 
   createLiveSearchTermsSmokeSource(input: {
     workspace_id: string;
-    query: string;
     confirmation: string | undefined;
   }): GoogleAdsSearchTermsSource {
     assertGoogleLiveAcceptanceConfirmation(input.confirmation);

@@ -1,4 +1,5 @@
 export type DesktopDatePolicy =
+  | 'TODAY_MINUS_17_TO_YESTERDAY'
   | 'TODAY_MINUS_90_TO_YESTERDAY'
   | 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY'
   | 'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY';
@@ -159,6 +160,7 @@ export const resolveDesktopDatePolicy = (
   if (
     policy
     === 'TODAY_MINUS_90_TO_YESTERDAY'
+    || policy === 'TODAY_MINUS_17_TO_YESTERDAY'
   ) {
     return {
       reference_date:
@@ -169,7 +171,7 @@ export const resolveDesktopDatePolicy = (
         formatDateOnly(
           addCalendarDays(
             reference,
-            -90,
+            policy === 'TODAY_MINUS_17_TO_YESTERDAY' ? -17 : -90,
           ),
         ),
       requested_date_end:

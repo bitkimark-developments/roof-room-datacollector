@@ -228,8 +228,14 @@ const encryption = {
   }).collect({});
   const searchTermsResult = await runtime.createSearchTermsSource({
     workspace_id: 'workspace-a',
-    query: 'SELECT search_term_view.search_term FROM search_term_view',
-  }).collect({});
+  }).collect({
+    source_id: 'google-ads-search-terms',
+    source_context: {
+      source_id: 'google-ads-search-terms', task_id: 'google-ads-search-terms',
+      source_mode: 'search_term_view', campaign_type: 'SEARCH',
+      requested_date_start: '2026-08-31', requested_date_end: '2026-09-16',
+    },
+  });
   const plannerResult = await runtime.createKeywordPlannerSource({
     workspace_id: 'workspace-a',
     keywords: ['ficus', 'ficus çeşitleri'],

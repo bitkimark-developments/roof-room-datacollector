@@ -889,6 +889,8 @@ export function DesktopMultiSourceView() {
                 === 'google-search-console-query-page'
               || selectedTask.source_id
                 === 'google-trends'
+              || selectedTask.source_id
+                === 'google-ads-search-terms'
             )
             && selectedTask.date_policy
               !== undefined
@@ -1588,6 +1590,8 @@ export function DesktopMultiSourceView() {
                     === 'google-search-console-query-page'
                   || selectedTask.source_id
                     === 'google-trends'
+                  || selectedTask.source_id
+                    === 'google-ads-search-terms'
                 )
                 && selectedTask.date_policy
                   !== undefined

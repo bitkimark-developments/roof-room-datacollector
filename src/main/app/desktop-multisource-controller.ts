@@ -31,6 +31,7 @@ import { ResumePlanner } from '../core/resume-planner';
 import { ReconciliationCoordinator } from '../core/reconciliation-coordinator';
 import { RetryPolicy } from '../core/retry-policy';
 import { RunManager } from '../core/run-manager';
+import { createSearchTermsJobContext } from '../sources/google-ads/search-terms-request';
 import {
   isTerminalRunStatus,
 } from '../core/run-execution-state-machine';
@@ -1194,6 +1195,28 @@ export class DesktopMultiSourceController {
         draft.reusable_configuration,
         sourceId,
       );
+
+    if (sourceId === 'google-ads-search-terms') {
+      if (config.task_id !== 'google-ads-search-terms'
+        || config.date_policy !== 'TODAY_MINUS_17_TO_YESTERDAY') return null;
+      const resolvedAt = this.now();
+      const range = resolveDesktopDatePolicy(config.date_policy, formatLocalReferenceDate(resolvedAt));
+      const reusableConfiguration = cloneConfiguration(draft.reusable_configuration);
+      const resolvedConfiguration = cloneConfiguration(draft.reusable_configuration);
+      const sources = asJsonObjectValue(resolvedConfiguration.sources);
+      const jobContext = createSearchTermsJobContext(range);
+      sources[sourceId] = { ...asJsonObjectValue(sources[sourceId]), ...jobContext, jobs: [jobContext] };
+      resolvedConfiguration.sources = sources;
+      return {
+        workspace_id: draft.workspace_id,
+        task_id: config.task_id,
+        source_id: sourceId,
+        reference_date: range.reference_date,
+        resolved_at: resolvedAt.toISOString(),
+        reusable_configuration: reusableConfiguration,
+        resolved_configuration: resolvedConfiguration,
+      };
+    }
 
     if (
       sourceId === 'google-trends'

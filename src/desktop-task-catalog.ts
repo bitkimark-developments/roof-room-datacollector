@@ -83,6 +83,8 @@ export const DESKTOP_TASK_CATALOG:
         'GOOGLE',
       default_summary:
         'Today − 17 days → yesterday',
+      date_policy:
+        'TODAY_MINUS_17_TO_YESTERDAY',
     },
     {
       task_id:

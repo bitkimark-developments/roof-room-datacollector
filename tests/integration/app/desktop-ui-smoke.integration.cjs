@@ -234,6 +234,7 @@ const main = async () => {
                     === 'google-search-console-query-page'
                   || card.source_id
                     === 'google-trends'
+                  || (card.source_id === 'google-ads-search-terms' && window.__adsReady)
                 )
                   ? {
                       ...card,
@@ -255,6 +256,26 @@ const main = async () => {
           reviewDesktopDraft: async (reviewDraft) => {
             window.__reviewedDesktopDraft =
               reviewDraft;
+
+            const adsConfig = reviewDraft?.reusable_configuration?.sources?.['google-ads-search-terms'];
+            if (adsConfig?.included) {
+              const reviewedArtifact = {
+                workspace_id: 'ws_fixture', task_id: 'google-ads-search-terms', source_id: 'google-ads-search-terms',
+                reference_date: '2026-09-17', resolved_at: '2026-09-17T12:00:00.000Z',
+                reusable_configuration: reviewDraft.reusable_configuration,
+                resolved_configuration: { sources: { 'google-ads-search-terms': {
+                  ...adsConfig, source_mode: 'search_term_view', campaign_type: 'SEARCH',
+                  requested_date_start: '2026-08-31', requested_date_end: '2026-09-16',
+                } } },
+              };
+              window.__reviewedDesktopArtifact = reviewedArtifact;
+              return {
+                workspace: { workspace_id: 'ws_fixture', workspace_name: 'Acceptance Workspace' },
+                origin: reviewDraft.origin, included_sources: ['google-ads-search-terms'],
+                source_cards: [{ source_id: 'google-ads-search-terms', included: true, readiness_status: 'READY' }],
+                job_count: 1, can_start: true, blocking_sources: [], reviewed_draft: reviewedArtifact,
+              };
+            }
 
             const googleTrendsConfig =
               reviewDraft
@@ -2842,6 +2863,24 @@ const main = async () => {
       ),
       'Google Trends Start must send the exact reviewed artifact without rebuilding dates or groups.',
     );
+
+    await page.addInitScript(() => { window.__adsReady = true; });
+    await page.reload();
+    const adsCard = page.getByTestId('task-card').filter({ hasText: 'Google Ads — Search Terms' });
+    await adsCard.getByText('READY', { exact: true }).waitFor();
+    await adsCard.click();
+    const adsReviewButton = page.getByRole('button', { name: 'Review Quick Run', exact: true });
+    assert.equal(await adsReviewButton.isEnabled(), true, 'Configured Ads task must be reviewable');
+    await adsReviewButton.click();
+    await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__reviewedDesktopDraft.reusable_configuration.sources['google-ads-search-terms']), {
+      included: true, task_id: 'google-ads-search-terms', date_policy: 'TODAY_MINUS_17_TO_YESTERDAY',
+    }, 'Ads renderer must send task identity and date policy to Review');
+    assert.equal(await page.getByText('Reference date: 2026-09-17', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Resolved range: 2026-08-31 → 2026-09-16', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Start Run', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'Ads Start must forward the exact reviewed artifact');
+    console.log('PASS ADS-REVIEW-UI-001: Ads task sends date policy and starts the exact reviewed artifact');
 
     console.log(
       'PASS DESKTOP-UI-001: source-neutral operations shell and reviewed GSC + Google Trends Quick Run flows are verified',
