@@ -1,12 +1,15 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Checkpoint date:** 2026-09-14
+**Checkpoint date:** 2026-09-17
 
 **Current milestone:** M5 — Desktop UX / Release 1.0 source-neutral operations workflow
 
-**Current stage:** Source-neutral operations shell, Task Detail, native İkas XLSX input, run-specific readiness, and mandatory Quick Run Review implemented and committed
+**Current stage:** Generic explicit Run cancellation implemented, cancellation-domain ownership hardened, and full deterministic release gate passed
 
-**Current goal:** Continue the approved UI redesign with explicit Review → Start Run → persisted Run Detail / Progress
+**Current goal:** Close the generic cancellation checkpoint cleanly, preserve the verified Core/UI baseline, and require explicit approval before the next implementation slice
+
+
+**Current-state authority:** Section 30 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 30.
 
 ---
 
@@ -1030,3 +1033,100 @@ Exact next action:
 - After this checkpoint is committed, select the next bounded Google Trends MVP reliability/interface slice from current repository evidence.
 - Keep restart/recovery, manual continuation, and explicit failed-job retry as separate user intents.
 - Do not expand into a new provider module until the Google Trends base MVP reliability path is intentionally closed.
+
+---
+
+## 30. Generic explicit Run cancellation checkpoint — 2026-09-17
+
+This section is the authoritative latest repository-state update. Earlier current-stage and next-action sections are historical.
+
+Technical implementation commit:
+
+`c0a43ee feat: add generic run cancellation`
+
+Implementation scope:
+
+- `DesktopRunState` now exposes authoritative `can_cancel`.
+- Renderer cancellation eligibility is driven by persisted/controller state rather than inferred from Run status.
+- Trusted desktop IPC exposes a dedicated `DESKTOP_CANCEL_RUN` channel through `RoofRoomApi.cancelDesktopRun(run_id)` and preload.
+- Run Detail exposes `Cancel Run` only when `can_cancel === true`.
+- Cancellation always targets the exact persisted `run_id`.
+- Unknown or already-terminal Runs fail closed.
+- Inactive non-terminal Runs may be terminal-cancelled without a live provider handle.
+- Active Runs are cancellable only when `DesktopExecutionService` owns a safe physical cancellation capability.
+- Completed Jobs and accepted sibling evidence remain preserved.
+- Eligible unfinished Jobs become `CANCELLED`.
+- An active unfinished Attempt becomes `CANCELLED`.
+- Cancellation does not create a retry Attempt.
+- The Run becomes terminal `CANCELLED`.
+- A terminal cancelled Run exposes no Resume, Retry Failed, Continue Run, or Cancel Run action.
+- `DesktopExecutionService.cancelActive(run_id)` invokes the physical cancellation handle and waits for active execution ownership to be released before reporting completion.
+- Google Trends is the first production physical-stop implementation and uses the existing managed browser runtime shutdown boundary.
+- The Google Trends physical cancellation primitive is protected by the shared cancellation domain `google-trends-browser`.
+- Only one active Run may own that cancellation domain at a time.
+- A second Run attempting to acquire an already-owned cancellation domain fails closed rather than sharing the same physical stop primitive.
+- Cancellation-domain ownership is released after the owning execution finishes so a later Run can safely reuse the same domain.
+- Retry and manual-continue execution paths preserve the same cancellation-domain ownership rule.
+- No persisted `CANCELLING` state was introduced.
+- Pause, undo, bulk cancellation, automatic restart, cancellation-reason taxonomy, and new provider-specific physical-stop implementations remain outside this slice.
+
+TDD / regression evidence:
+
+- `DESKTOP-EXECUTION-DOMAIN-001` was introduced RED-first.
+- The RED run failed with `Missing expected exception: Two Runs must not share one physical cancellation domain at the same time.`
+- After implementation, the same test passed and also proved ownership is released after completion.
+- Existing generic cancellation, retry/export, UI, and legacy Google Trends controller behavior remained covered.
+
+Focused verification after the ownership fix passed:
+
+```text
+PASS DESKTOP-EXECUTION-CANCEL-001
+PASS DESKTOP-EXECUTION-DOMAIN-001
+PASS DESKTOP-MULTISOURCE-001
+PASS DESKTOP-RESUME-001
+PASS DESKTOP-CANCEL-001
+PASS DESKTOP-RETRY-EXPORT-001
+PASS DESKTOP-UI-001
+PASS DESKTOP-CTRL-001
+PASS DESKTOP-CTRL-002
+PASS DESKTOP-CTRL-003
+PASS DESKTOP-CTRL-004
+
+multisource_exit=0
+retry_exit=0
+ui_exit=0
+legacy_exit=0
+typecheck_exit=0
+lint_exit=0
+diffcheck_exit=0
+```
+
+Full deterministic release verification after the cancellation-domain fix passed:
+
+```text
+PASS DESKTOP-EXECUTION-CANCEL-001
+PASS DESKTOP-EXECUTION-DOMAIN-001
+PASS DESKTOP-CANCEL-001
+PASS DESKTOP-UI-001
+PASS RELEASE-GATE-001
+
+release_exit=0
+typecheck_exit=0
+lint_exit=0
+diffcheck_exit=0
+```
+
+No live provider request was executed during this cancellation checkpoint.
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Exact next action:
+
+- Keep `c0a43ee` as the technical generic-cancellation commit.
+- Correct the separate handoff/documentation commit so it preserves this full historical handoff and records this Section 30 checkpoint.
+- After that documentation checkpoint is clean, do not start another implementation slice implicitly.
+- Choose the next bounded Release 1.0 task only after reviewing current repository evidence and obtaining explicit scope approval.
+- Do not reopen generic cancellation unless new failing evidence appears.
