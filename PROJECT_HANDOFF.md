@@ -1,15 +1,14 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Checkpoint date:** 2026-09-17
+**Checkpoint date:** 2026-09-18
 
 **Current milestone:** M5 — Desktop UX / Release 1.0 source-neutral operations workflow
 
-**Current stage:** Generic explicit Run cancellation implemented, cancellation-domain ownership hardened, and full deterministic release gate passed
+**Current stage:** Work Group 1 (Google Ads Search Terms — Reviewed + Request-Bound Quick Run) completed, request-binding invariant verified, and full deterministic release gate passed
 
-**Current goal:** Close the generic cancellation checkpoint cleanly, preserve the verified Core/UI baseline, and require explicit approval before the next implementation slice
+**Current goal:** Close the WG1 documentation checkpoint cleanly, track GSC request-binding and generic export backlog items, and obtain explicit scope approval before implementing the next slice
 
-
-**Current-state authority:** Section 30 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 30.
+**Current-state authority:** Section 31 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 31.
 
 ---
 
@@ -1130,3 +1129,92 @@ Exact next action:
 - After that documentation checkpoint is clean, do not start another implementation slice implicitly.
 - Choose the next bounded Release 1.0 task only after reviewing current repository evidence and obtaining explicit scope approval.
 - Do not reopen generic cancellation unless new failing evidence appears.
+
+---
+
+## 31. Google Ads Search Terms — Reviewed + Request-Bound Quick Run (WG1) checkpoint — 2026-09-18
+
+This section is the authoritative latest repository-state update. Earlier current-stage and next-action sections are historical.
+
+Technical implementation commit:
+
+`b5159a4 feat(google-ads): bind reviewed date range to search terms request`
+(`b5159a4113848fb8a76e6898edae8c88be66057e`)
+
+Implementation scope:
+
+- Task identity `google-ads-search-terms` configured with date policy `TODAY_MINUS_17_TO_YESTERDAY` and summary in `DESKTOP_TASK_CATALOG`.
+- Date policy `TODAY_MINUS_17_TO_YESTERDAY` resolves reference date minus 17 calendar days through reference date minus 1 calendar day (e.g., reference date `2026-09-17` resolves to `2026-08-31 → 2026-09-16`).
+- Review resolves relative date policy once into an immutable reviewed artifact with absolute dates (`reviewed_draft.resolved_configuration`).
+- Start consumes that exact reviewed artifact without recalculating dates, even if the local clock advances between Review and Start.
+- Atomic reservation persists the exact reviewed dates and required source/task/mode context in SQLite:
+  - `task_id`: `google-ads-search-terms`
+  - `source_id`: `google-ads-search-terms`
+  - `source_mode`: `search_term_view`
+  - `campaign_type`: `SEARCH`
+  - `reference_date`: `2026-09-17`
+  - `date_policy`: `TODAY_MINUS_17_TO_YESTERDAY`
+  - `requested_date_start`: `2026-08-31`
+  - `requested_date_end`: `2026-09-16`
+- Repository close and reopen preserves identical Job `source_context`.
+- Source module `GoogleAdsSearchTermsSource.collect(context)` dynamically constructs GAQL query from Job `source_context` using `buildSearchTermsQuery` rather than relying on static constructor queries.
+- Query construction strictly targets `FROM search_term_view` with `campaign.advertising_channel_type = 'SEARCH'` and absolute date bounds `segments.date BETWEEN 'start' AND 'end'`.
+- Core transports approved Job context and does not learn GAQL semantics; the source module owns query formation.
+- Unsupported scope (`PERFORMANCE_MAX`, `campaign_search_term_view`, mismatched task ID, reversed/invalid dates) fails closed before provider access.
+- Production collection runtime passes Job context through `LazyWorkspaceSource` to the Ads source.
+- UI smoke test verifies Ads task selection, review with date policy, and start forwarding exact reviewed artifact.
+- Provider-bound assertion inspects actual mocked requester/client invocation: `https://googleads.googleapis.com/v25/customers/1234567890/googleAds:searchStream` receives GAQL query matching reviewed absolute dates.
+- Verified invariant:
+  `review.requested_date_start` = `job.source_context.requested_date_start` = `provider_request.requested_date_start`
+  and
+  `review.requested_date_end` = `job.source_context.requested_date_end` = `provider_request.requested_date_end`.
+
+TDD / verification evidence:
+
+- `ADS-REVIEW-DATE-001`: 17 calendar days crosses the month boundary exactly (`2026-09-17` → `2026-08-31` to `2026-09-16`).
+- `ADS-REVIEW-BOUND-001`: Review → atomic persisted Job → production requester survives next-day Start and reopen. Mocked requester receives GAQL with exact date bounds.
+- `ADS-SOURCE-CONTEXT-001`: source builds the provider request from explicit Job context and rejects unsupported scope before provider requests.
+- `ADS-REVIEW-UI-001`: Ads task sends date policy to Review and Start forwards the exact reviewed artifact.
+- `DESKTOP-UI-001`: Operations shell and existing GSC + Google Trends Quick Run flows verified.
+
+Verification results:
+
+- Focused WG1 test (`tests/integration/google-api/run-ads-reviewed-quick-run-test.sh`): PASS (3/3 tests)
+- UI smoke test (`tests/integration/app/run-desktop-ui-smoke-test.sh`): PASS
+- Typecheck (`npx tsc --noEmit`): exit 0
+- Lint (`npm run lint`): exit 0
+- Diff whitespace check (`git diff --check`): exit 0
+- Regression suites:
+  - `npm run test:m3:google-api-adapters`: PASS (`PASS GOOGLE-API-001`)
+  - `npm run test:m3:google-credentials`: PASS (`PASS GOOGLE-CREDENTIAL-001`)
+  - `npm run test:m5:desktop-multisource`: PASS (`PASS DESKTOP-EXECUTION-CANCEL-001`, `PASS DESKTOP-EXECUTION-DOMAIN-001`, `PASS DESKTOP-MULTISOURCE-001`)
+  - `npm run test:m5:desktop-retry-export`: PASS (`PASS DESKTOP-RESUME-001`, `PASS DESKTOP-CANCEL-001`, `PASS DESKTOP-RETRY-EXPORT-001`)
+  - `npm run test:m6:data-package`: PASS (`PASS DATA-PACKAGE-001`)
+  - `npm run test:m3:gt-core-runner`: PASS (14 tests passed)
+  - `npm run test:m3:gt-batch-core-runner`: PASS (5 tests passed)
+  - `npm run test:m2:gate`: PASS (19 tests passed)
+- Full release gate:
+  - `npm run test:release:gate`: `PASS RELEASE-GATE-001` (exit 0)
+
+Provider safety:
+
+- No live provider request ran (no Google Ads, GSC, Google Trends, SerpApi, or Bitkimark live network traffic).
+- No provider quota was consumed.
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Unresolved backlog findings outside WG1:
+
+1. **GSC production request-binding mismatch:**
+   In `src/main/app/production-collection-runtime.ts` and `src/main/sources/google-api/google-api-runtime.ts`, Google Search Console adapter creation requires constructor-injected `start_date` and `end_date` rather than dynamically binding query parameters from Job `source_context` during `collect(context)`.
+2. **Generic export / `load_datasets` gap:**
+   Multi-source Data Package export lacks generalized dataset loader coverage for non-Google-Trends production sources.
+
+Exact recommended next work group:
+
+- **Next recommended bounded slice: Google Search Console (GSC) Query × Page Request-Binding.**
+- Align GSC with the dynamic Job `source_context` request-binding pattern established in WG1, migrating `GoogleSearchConsoleQueryPageSource.collect()` to extract `start_date` and `end_date` dynamically from Job context, removing constructor-injected date coupling from `GoogleApiRuntimeFactory` and `production-collection-runtime.ts`, while preserving all GSC Current/Long date policies and pagination contracts.
+- Obtain explicit user approval before starting implementation.
