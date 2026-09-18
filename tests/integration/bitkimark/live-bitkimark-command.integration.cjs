@@ -15,7 +15,7 @@ const command = require(path.join(buildRoot, 'scripts/m3/live-bitkimark-sitemap-
   assert.equal(requests, 0);
 
   const xml = Buffer.from('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://bitkimark.com/ficus-benjamin</loc></url><url><loc>https://bitkimark.com/sansevieria-ofis</loc></url></urlset>');
-  const fakeFetch = async () => { requests += 1; return { ok: true, status: 200, arrayBuffer: async () => xml }; };
+  const fakeFetch = async (requestedUrl) => { requests += 1; return { ok: true, status: 200, url: requestedUrl, headers: { get: () => 'application/xml' }, arrayBuffer: async () => xml }; };
   const summary = await command.executeBitkimarkLiveSmoke(['--confirm-live-collection', '--sitemap-url', 'https://bitkimark.com/sitemap.xml'], fakeFetch);
   assert.equal(requests, 1);
   assert.equal(summary.byte_size, xml.length);
@@ -26,7 +26,7 @@ const command = require(path.join(buildRoot, 'scripts/m3/live-bitkimark-sitemap-
   assert.equal(summary.raw_artifact_persisted, false);
 
   let failedRequests = 0;
-  await assert.rejects(() => command.executeBitkimarkLiveSmoke(['--confirm-live-collection', '--sitemap-url=https://bitkimark.com/sitemap.xml'], async () => { failedRequests += 1; return { ok: false, status: 503, arrayBuffer: async () => Buffer.from('upstream') }; }), /HTTP_503/);
+  await assert.rejects(() => command.executeBitkimarkLiveSmoke(['--confirm-live-collection', '--sitemap-url=https://bitkimark.com/sitemap.xml'], async (requestedUrl) => { failedRequests += 1; return { ok: false, status: 503, url: requestedUrl, headers: { get: () => 'text/plain' }, arrayBuffer: async () => Buffer.from('upstream') }; }), /HTTP_503/);
   assert.equal(failedRequests, 1);
   console.log('PASS BITKIMARK-LIVE-CMD-001');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

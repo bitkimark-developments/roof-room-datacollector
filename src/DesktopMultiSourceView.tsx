@@ -18,6 +18,9 @@ import type {
 import type {
   SavedCollectionPresetRecord,
 } from './shared/collection-configuration';
+import {
+  BITKIMARK_VERIFIED_SITEMAP_URLS,
+} from './shared/bitkimark-sitemap';
 
 const NAV_ITEMS = [
   'HOME',
@@ -449,6 +452,62 @@ const getReviewedKeywordPlannerGroups = (
   );
 };
 
+interface BitkimarkSitemapInput extends JsonObject {
+  requested_url: string;
+  expected_host: string;
+  parent_sitemap_url: string | null;
+}
+
+const parseBitkimarkSitemapUrls = (
+  value: string,
+): BitkimarkSitemapInput[] | null => {
+  const urls = value
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const rootUrl = BITKIMARK_VERIFIED_SITEMAP_URLS[0];
+  const allowed = new Set<string>(BITKIMARK_VERIFIED_SITEMAP_URLS);
+  if (urls.length === 0 || urls.length > BITKIMARK_VERIFIED_SITEMAP_URLS.length
+    || urls[0] !== rootUrl || new Set(urls).size !== urls.length
+    || urls.some((url) => !allowed.has(url))) {
+    return null;
+  }
+  return urls.map((url) => ({
+    requested_url: url,
+    expected_host: 'bitkimark.com',
+    parent_sitemap_url: url === rootUrl ? null : rootUrl,
+  }));
+};
+
+const getReviewedBitkimarkSitemaps = (
+  review: DesktopReview,
+): BitkimarkSitemapInput[] | null => {
+  const reviewed = review.reviewed_draft;
+  if (reviewed === null || reviewed.source_id !== 'bitkimark-sitemap') return null;
+  const sources = reviewed.resolved_configuration.sources;
+  if (typeof sources !== 'object' || sources === null || Array.isArray(sources)) return null;
+  const source = (sources as JsonObject)['bitkimark-sitemap'];
+  if (typeof source !== 'object' || source === null || Array.isArray(source)) return null;
+  const sitemaps = (source as JsonObject).sitemaps;
+  if (!Array.isArray(sitemaps)) return null;
+  return sitemaps.map((sitemap) => {
+    if (typeof sitemap !== 'object' || sitemap === null || Array.isArray(sitemap)) {
+      throw new Error('Reviewed Bitkimark sitemap context is invalid.');
+    }
+    const value = sitemap as JsonObject;
+    const parentSitemapUrl = value.parent_sitemap_url;
+    if (typeof value.requested_url !== 'string' || value.expected_host !== 'bitkimark.com'
+      || (parentSitemapUrl !== null && typeof parentSitemapUrl !== 'string')) {
+      throw new Error('Reviewed Bitkimark sitemap fields are invalid.');
+    }
+    return {
+      requested_url: value.requested_url,
+      expected_host: value.expected_host,
+      parent_sitemap_url: parentSitemapUrl as string | null,
+    };
+  });
+};
+
 export function DesktopMultiSourceView() {
   const [
     view,
@@ -538,6 +597,13 @@ export function DesktopMultiSourceView() {
     setKeywordPlannerGroupsInput,
   ] =
     useState('');
+
+  const [
+    bitkimarkSitemapUrlsInput,
+    setBitkimarkSitemapUrlsInput,
+  ] = useState(
+    BITKIMARK_VERIFIED_SITEMAP_URLS.join('\n'),
+  );
 
   const [
     quickRunReview,
@@ -1097,6 +1163,14 @@ export function DesktopMultiSourceView() {
             )
           : null;
 
+      const bitkimarkSitemaps =
+        selectedTask.source_id
+          === 'bitkimark-sitemap'
+          ? parseBitkimarkSitemapUrls(
+              bitkimarkSitemapUrlsInput,
+            )
+          : null;
+
       if (
         selectedTask.source_id
           === 'google-keyword-planner'
@@ -1104,6 +1178,17 @@ export function DesktopMultiSourceView() {
       ) {
         setMessage(
           'Enter valid named Keyword Planner groups before Review.',
+        );
+        return;
+      }
+
+      if (
+        selectedTask.source_id
+          === 'bitkimark-sitemap'
+        && bitkimarkSitemaps === null
+      ) {
+        setMessage(
+          'Use a bounded subset of the verified Bitkimark sitemap URLs, beginning with sitemap.xml.',
         );
         return;
       }
@@ -1177,6 +1262,17 @@ export function DesktopMultiSourceView() {
                       selectedTask.task_id,
                     groups:
                       keywordPlannerGroups,
+                  }
+              : selectedTask.source_id
+                  === 'bitkimark-sitemap'
+                && bitkimarkSitemaps !== null
+                ? {
+                    included:
+                      true,
+                    task_id:
+                      selectedTask.task_id,
+                    sitemaps:
+                      bitkimarkSitemaps,
                   }
               : {
                   included: true,
@@ -1850,6 +1946,12 @@ export function DesktopMultiSourceView() {
                     === 'google-keyword-planner-csv'
                   && selectedKeywordPlannerCsvFile !== null
                   ? 'READY'
+                  : selectedTask.source_id
+                      === 'bitkimark-sitemap'
+                    && parseBitkimarkSitemapUrls(
+                      bitkimarkSitemapUrlsInput,
+                    ) !== null
+                    ? 'READY'
                 : readiness;
 
             const hasReviewableQuickRunConfiguration =
@@ -1861,6 +1963,13 @@ export function DesktopMultiSourceView() {
                 selectedTask.source_id
                   === 'google-keyword-planner-csv'
                 && selectedKeywordPlannerCsvFile !== null
+              )
+              || (
+                selectedTask.source_id
+                  === 'bitkimark-sitemap'
+                && parseBitkimarkSitemapUrls(
+                  bitkimarkSitemapUrlsInput,
+                ) !== null
               )
               || (
                 (
@@ -2078,6 +2187,37 @@ export function DesktopMultiSourceView() {
                                 </code>
                               </div>
                             )}
+                          </div>
+                        )
+                      : selectedTask.source_id
+                          === 'bitkimark-sitemap'
+                        ? (
+                          <div
+                            className="rr-file-input"
+                          >
+                            <p>
+                              One reviewed request is made for each selected evidence-backed sitemap URL. No discovered link is crawled automatically.
+                            </p>
+
+                            <label>
+                              <span>
+                                Sitemap URLs
+                              </span>
+
+                              <textarea
+                                aria-label="Sitemap URLs"
+                                rows={6}
+                                value={
+                                  bitkimarkSitemapUrlsInput
+                                }
+                                onChange={
+                                  (event) =>
+                                    setBitkimarkSitemapUrlsInput(
+                                      event.target.value,
+                                    )
+                                }
+                              />
+                            </label>
                           </div>
                         )
                       : selectedTask.source_id
@@ -2469,6 +2609,45 @@ export function DesktopMultiSourceView() {
                               key={group.group_id}
                             >
                               {group.group_id}: {group.keywords.join(', ')}
+                            </p>
+                          ),
+                        )}
+                      </section>
+                    );
+                })()}
+
+                {(() => {
+                  const sitemaps =
+                    getReviewedBitkimarkSitemaps(
+                      quickRunReview.review,
+                    );
+
+                  return sitemaps === null
+                    ? null
+                    : (
+                      <section
+                        className="rr-panel rr-detail-panel"
+                      >
+                        <span
+                          className="rr-kicker"
+                        >
+                          REQUESTED HTTP/XML
+                        </span>
+
+                        <h2>
+                          Bitkimark Sitemaps
+                        </h2>
+
+                        <p>
+                          Sitemap URLs: {sitemaps.length}
+                        </p>
+
+                        {sitemaps.map(
+                          (sitemap) => (
+                            <p
+                              key={sitemap.requested_url}
+                            >
+                              {sitemap.requested_url}
                             </p>
                           ),
                         )}

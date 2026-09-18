@@ -51,6 +51,13 @@ import {
   KEYWORD_PLANNER_CSV_TASK_ID,
 } from '../sources/google-ads/keyword-planner-csv-request';
 import {
+  BITKIMARK_EXPECTED_HOST,
+  BITKIMARK_SITEMAP_SOURCE_MODE,
+  BITKIMARK_SITEMAP_TASK_ID,
+  bitkimarkSitemapContextAsJson,
+  createBitkimarkSitemapJobContext,
+} from '../sources/bitkimark/bitkimark-sitemap-request';
+import {
   isTerminalRunStatus,
 } from '../core/run-execution-state-machine';
 
@@ -133,6 +140,43 @@ const sourceConfig = (configuration: ReusableCollectionConfiguration, sourceId: 
 
 const included = (configuration: ReusableCollectionConfiguration, sourceId: string): boolean =>
   sourceConfig(configuration, sourceId).included === true;
+
+const resolveBitkimarkSitemapContexts = (
+  config: Record<string, unknown>,
+): JsonObject[] => {
+  if (
+    config.task_id !== undefined
+    && config.task_id !== BITKIMARK_SITEMAP_TASK_ID
+  ) {
+    throw new Error('Bitkimark task identity is invalid.');
+  }
+
+  const rawContexts = Array.isArray(config.sitemaps)
+    ? config.sitemaps
+    : typeof config.sitemap_url === 'string'
+      ? [{ requested_url: config.sitemap_url, parent_sitemap_url: null }]
+      : [];
+
+  if (rawContexts.length === 0) throw new Error('At least one Bitkimark sitemap URL is required.');
+
+  const contexts = rawContexts.map((rawContext) => {
+    const value = asObject(rawContext);
+    return bitkimarkSitemapContextAsJson(createBitkimarkSitemapJobContext({
+      task_id: value.task_id ?? BITKIMARK_SITEMAP_TASK_ID,
+      source_id: value.source_id ?? 'bitkimark-sitemap',
+      source_mode: value.source_mode ?? BITKIMARK_SITEMAP_SOURCE_MODE,
+      requested_url: value.requested_url,
+      expected_host: value.expected_host ?? BITKIMARK_EXPECTED_HOST,
+      parent_sitemap_url: value.parent_sitemap_url ?? null,
+    }));
+  });
+
+  const requestedUrls = contexts.map((context) => context.requested_url as string);
+  if (new Set(requestedUrls).size !== requestedUrls.length) {
+    throw new Error('Bitkimark sitemap URLs must be unique.');
+  }
+  return contexts;
+};
 
 const productionPlanner = (sourceId: string, config: Record<string, unknown>): JobPlan[] => {
   const plans = (items: unknown[], key: (item: Record<string, unknown>, index: number) => string): JobPlan[] => items.map((item, index) => {
@@ -285,7 +329,23 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
       return [];
     }
   }
-  if (sourceId === 'bitkimark-sitemap') return config.sitemap_url ? plans([config], () => 'bitkimark-sitemap-current') : [];
+  if (sourceId === 'bitkimark-sitemap') {
+    try {
+      return resolveBitkimarkSitemapContexts(config).map((context, index) => {
+        const pathname = new URL(context.requested_url as string).pathname;
+        const name = pathname.split('/').filter(Boolean).at(-1)?.replace(/\.xml$/i, '') ?? 'root';
+        const safeName = name.replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '') || 'root';
+        return {
+          source_id: sourceId,
+          job_key: `bitkimark-${index + 1}-${safeName}`,
+          query_group_id: null as string | null,
+          source_context: context,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
   return [];
 };
 
@@ -1603,6 +1663,37 @@ export class DesktopMultiSourceController {
           reusableConfiguration,
         resolved_configuration:
           resolvedConfiguration,
+      };
+    }
+
+    if (sourceId === 'bitkimark-sitemap') {
+      let sitemapContexts: JsonObject[];
+      try {
+        sitemapContexts = resolveBitkimarkSitemapContexts(config);
+      } catch {
+        return null;
+      }
+      const resolvedAt = this.now();
+      const reusableConfiguration = cloneConfiguration(draft.reusable_configuration);
+      const resolvedConfiguration = cloneConfiguration(draft.reusable_configuration);
+      const sources = asJsonObjectValue(resolvedConfiguration.sources);
+      sources[sourceId] = {
+        ...asJsonObjectValue(sources[sourceId]),
+        task_id: BITKIMARK_SITEMAP_TASK_ID,
+        source_id: sourceId,
+        source_mode: BITKIMARK_SITEMAP_SOURCE_MODE,
+        sitemaps: sitemapContexts,
+      };
+      delete sources[sourceId].sitemap_url;
+      resolvedConfiguration.sources = sources;
+      return {
+        workspace_id: draft.workspace_id,
+        task_id: BITKIMARK_SITEMAP_TASK_ID,
+        source_id: sourceId,
+        reference_date: formatLocalReferenceDate(resolvedAt),
+        resolved_at: resolvedAt.toISOString(),
+        reusable_configuration: reusableConfiguration,
+        resolved_configuration: resolvedConfiguration,
       };
     }
 

@@ -673,6 +673,8 @@ export class CollectionOrchestrator {
         artifact,
         source_context:
           validatingJob.source_context,
+        acquisition_metadata:
+          collection.acquisition_metadata,
         absolute_path:
           persisted.absolute_path,
       });
@@ -694,6 +696,8 @@ export class CollectionOrchestrator {
           },
           source_context:
             validatingJob.source_context,
+          acquisition_metadata:
+            collection.acquisition_metadata,
           validation_status:
             validation.validation_status,
           actual_date_start:

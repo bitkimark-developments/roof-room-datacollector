@@ -33,6 +33,7 @@ export type SourceCollectionResult =
       preferred_filename: string;
       media_type: string;
       bytes: Uint8Array;
+      acquisition_metadata?: JsonObject;
     }
   | {
       result_type: 'FAILED';
@@ -71,6 +72,7 @@ export interface CollectionValidationContext {
   attempt: AttemptRecord;
   artifact: ArtifactRecord;
   source_context: JsonObject;
+  acquisition_metadata?: JsonObject;
   absolute_path: string;
 }
 

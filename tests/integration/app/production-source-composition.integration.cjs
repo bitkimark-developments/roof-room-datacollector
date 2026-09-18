@@ -65,6 +65,7 @@ assert.deepEqual(ids, [
   'bitkimark-sitemap',
   'google-ads-search-terms',
   'google-keyword-planner',
+  'google-keyword-planner-csv',
   'google-search-console-query-page',
   'google-trends',
   'ikas-products',

@@ -57,6 +57,7 @@ export interface SourceNeutralDatasetMetadataDocument {
   job_key: string;
   query_group_id: null;
   source_context: JsonObject;
+  acquisition_metadata?: JsonObject;
   retrieved_at: string;
   application_version: string;
   raw_artifact_id: string;

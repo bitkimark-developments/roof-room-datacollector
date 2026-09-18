@@ -750,6 +750,12 @@ const initializeBootstrapStatus =
                 : 'CONFIGURATION_REQUIRED';
             }
 
+            if (
+              sourceId === 'bitkimark-sitemap'
+            ) {
+              return 'READY';
+            }
+
             if (!connection) {
               return 'CONFIGURATION_REQUIRED';
             }
@@ -759,13 +765,6 @@ const initializeBootstrapStatus =
               && !credential_available
             ) {
               return 'CONNECTION_REQUIRED';
-            }
-
-            if (
-              sourceId === 'bitkimark-sitemap'
-              && typeof connection.safe_metadata.sitemap_url !== 'string'
-            ) {
-              return 'CONFIGURATION_REQUIRED';
             }
 
             return 'READY';

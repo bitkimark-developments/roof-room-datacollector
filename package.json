@@ -33,6 +33,7 @@
     "test:m3:google-credentials": "bash tests/integration/google-api/run-google-credential-composition-test.sh",
     "test:m3:serpapi": "bash tests/integration/serpapi/run-serpapi-source-test.sh",
     "test:m3:live-serpapi-command": "bash tests/integration/serpapi/run-live-serpapi-command-test.sh",
+    "test:m3:bitkimark-reviewed": "bash tests/integration/bitkimark/run-bitkimark-reviewed-http-xml-test.sh",
     "test:m2:preset-reservation": "bash tests/integration/sqlite/run-saved-preset-run-reservation-test.sh",
     "test:m2:workspace-ownership": "bash tests/integration/sqlite/run-workspace-run-ownership-test.sh",
     "test:m2:source-neutral-state": "bash tests/integration/sqlite/run-source-neutral-job-persistence-test.sh",

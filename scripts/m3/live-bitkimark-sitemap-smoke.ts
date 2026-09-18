@@ -6,6 +6,13 @@ import { BitkimarkSitemapSource } from '../../src/main/sources/bitkimark/bitkima
 import { BitkimarkSitemapValidator } from '../../src/main/sources/bitkimark/bitkimark-sitemap-validator';
 import { parseBitkimarkSitemap } from '../../src/main/sources/bitkimark/bitkimark-sitemap-parser';
 import { BITKIMARK_SITEMAP_SOURCE_ID } from '../../src/shared/bitkimark-sitemap';
+import {
+  BITKIMARK_EXPECTED_HOST,
+  BITKIMARK_SITEMAP_SOURCE_MODE,
+  BITKIMARK_SITEMAP_TASK_ID,
+  bitkimarkSitemapContextAsJson,
+  createBitkimarkSitemapJobContext,
+} from '../../src/main/sources/bitkimark/bitkimark-sitemap-request';
 
 export const CONFIRMATION_FLAG = '--confirm-live-collection';
 export const SITEMAP_URL_FLAG = '--sitemap-url';
@@ -49,16 +56,37 @@ export const executeBitkimarkLiveSmoke = async (
 ): Promise<BitkimarkLiveSmokeSummary> => {
   const parsed = requireBitkimarkLiveSmokeConfirmation(args);
   if (parsed.help) throw new Error('HELP_REQUESTED');
-  const source = new BitkimarkSitemapSource(parsed.sitemap_url as string, fetcher);
-  const result = await source.collect();
+  const jobContext = createBitkimarkSitemapJobContext({
+    task_id: BITKIMARK_SITEMAP_TASK_ID,
+    source_id: BITKIMARK_SITEMAP_SOURCE_ID,
+    source_mode: BITKIMARK_SITEMAP_SOURCE_MODE,
+    requested_url: parsed.sitemap_url,
+    expected_host: BITKIMARK_EXPECTED_HOST,
+    parent_sitemap_url: null,
+  });
+  const sourceContext = bitkimarkSitemapContextAsJson(jobContext);
+  const source = new BitkimarkSitemapSource(fetcher);
+  const result = await source.collect({ source_id: BITKIMARK_SITEMAP_SOURCE_ID, source_context: sourceContext } as never);
   if (result.result_type !== 'ARTIFACT_PRODUCED') throw new Error(`${'error_code' in result ? result.error_code : result.result_type}: ${result.message ?? 'Bitkimark sitemap request failed.'}`);
   const bytes = result.bytes;
   const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'roofroom-bitkimark-smoke-'));
   const artifactPath = path.join(temporaryDirectory, 'bitkimark-sitemap.xml');
   try {
     await writeFile(artifactPath, bytes);
-    const validation = await new BitkimarkSitemapValidator().validate({ absolute_path: artifactPath, source_context: { source_url: parsed.sitemap_url } } as never);
-    const document = parseBitkimarkSitemap(bytes, parsed.sitemap_url as string, new Date().toISOString());
+    const retrievedAt = new Date().toISOString();
+    const validation = await new BitkimarkSitemapValidator().validate({
+      absolute_path: artifactPath,
+      source_context: sourceContext,
+      acquisition_metadata: result.acquisition_metadata,
+      job: { source_id: BITKIMARK_SITEMAP_SOURCE_ID },
+      artifact: { source_id: BITKIMARK_SITEMAP_SOURCE_ID, created_at: retrievedAt },
+    } as never);
+    const document = parseBitkimarkSitemap(bytes, {
+      source_url: jobContext.requested_url,
+      expected_host: jobContext.expected_host,
+      parent_sitemap_url: jobContext.parent_sitemap_url,
+      retrieved_at: retrievedAt,
+    });
     const annotationCounts: Record<string, number> = {};
     for (const entry of document.entries) for (const annotation of entry.annotations) annotationCounts[annotation] = (annotationCounts[annotation] ?? 0) + 1;
     return { source_id: BITKIMARK_SITEMAP_SOURCE_ID, request_status: 'HTTP_SUCCESS', byte_size: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex'), validation_status: validation.validation_status, url_count: document.entries.length, annotation_counts: annotationCounts, raw_artifact_persisted: false };

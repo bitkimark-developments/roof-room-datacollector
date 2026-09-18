@@ -83,9 +83,6 @@ class GoogleApiCollectionValidator implements CollectionValidator {
   }
 }
 
-const field = (context: SourceCollectionContext, key: string): unknown => context.source_context[key];
-const stringField = (context: SourceCollectionContext, key: string): string | null => { const value = field(context, key); return typeof value === 'string' && value.trim() ? value : null; };
-
 export interface ProductionCollectionRuntime {
   source_registry: SourceRegistry;
   validator_registry: CollectionValidatorRegistry;
@@ -97,6 +94,7 @@ export interface ProductionCollectionRuntimeInput {
   credentialStore: CredentialStore;
   directories: ApplicationDirectories;
   googleTrendsSource: CollectingDataSourceModule;
+  bitkimarkFetcher?: typeof fetch;
   logger?: StructuredLogSink | null;
 }
 
@@ -115,10 +113,8 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
     () => new KeywordPlannerManualCsvSource()));
   sourceRegistry.register(new LazyWorkspaceSource(IKAS_PRODUCTS_SOURCE_ID, 'İkas Products', 'FILE_IMPORT', ['PRODUCTS'], input.repository,
     () => new IkasProductsSource()));
-  sourceRegistry.register(new LazyWorkspaceSource(BITKIMARK_SITEMAP_SOURCE_ID, 'Bitkimark Sitemap', 'HTTP_XML', ['SITEMAP_URLS'], input.repository, (workspaceId, context) => {
-    const connection = input.repository.getSourceConnection(workspaceId, BITKIMARK_SITEMAP_SOURCE_ID); const url = stringField(context, 'sitemap_url') ?? (typeof connection?.safe_metadata.sitemap_url === 'string' ? connection.safe_metadata.sitemap_url : null);
-    return url ? new BitkimarkSitemapSource(url) : null;
-  }));
+  sourceRegistry.register(new LazyWorkspaceSource(BITKIMARK_SITEMAP_SOURCE_ID, 'Bitkimark Sitemap', 'HTTP_XML', ['SITEMAP_URLS'], input.repository,
+    () => new BitkimarkSitemapSource(input.bitkimarkFetcher)));
   sourceRegistry.register(new LazyWorkspaceSource(SERPAPI_SOURCE_ID, 'SerpApi Google SERP', 'THIRD_PARTY_API', [SERPAPI_DATASET_TYPE], input.repository, (workspaceId) => serpApi.createSource({ workspace_id: workspaceId })));
 
   const validators = new CollectionValidatorRegistry();

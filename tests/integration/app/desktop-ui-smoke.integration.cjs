@@ -309,6 +309,89 @@ const main = async () => {
                 ?.sources
                 ?.['google-keyword-planner-csv'];
 
+            const bitkimarkConfig =
+              reviewDraft
+                ?.reusable_configuration
+                ?.sources
+                ?.['bitkimark-sitemap'];
+
+            if (
+              bitkimarkConfig
+                ?.task_id
+              === 'bitkimark-sitemap'
+            ) {
+              const resolvedSitemaps =
+                bitkimarkConfig.sitemaps.map(
+                  (sitemap) => ({
+                    task_id:
+                      'bitkimark-sitemap',
+                    source_id:
+                      'bitkimark-sitemap',
+                    source_mode:
+                      'HTTP_XML',
+                    ...sitemap,
+                  }),
+                );
+              const reviewedArtifact = {
+                workspace_id:
+                  'ws_fixture',
+                task_id:
+                  'bitkimark-sitemap',
+                source_id:
+                  'bitkimark-sitemap',
+                reference_date:
+                  '2026-09-18',
+                resolved_at:
+                  '2026-09-18T09:30:00.000Z',
+                reusable_configuration:
+                  reviewDraft.reusable_configuration,
+                resolved_configuration: {
+                  sources: {
+                    'bitkimark-sitemap': {
+                      ...bitkimarkConfig,
+                      source_id:
+                        'bitkimark-sitemap',
+                      source_mode:
+                        'HTTP_XML',
+                      sitemaps:
+                        resolvedSitemaps,
+                    },
+                  },
+                },
+              };
+              window.__reviewedDesktopArtifact =
+                reviewedArtifact;
+              return {
+                workspace: {
+                  workspace_id:
+                    'ws_fixture',
+                  workspace_name:
+                    'Acceptance Workspace',
+                },
+                origin:
+                  reviewDraft.origin,
+                included_sources: [
+                  'bitkimark-sitemap',
+                ],
+                source_cards: [{
+                  source_id:
+                    'bitkimark-sitemap',
+                  included:
+                    true,
+                  readiness_status:
+                    'READY',
+                }],
+                job_count:
+                  resolvedSitemaps.length,
+                can_start:
+                  true,
+                blocking_sources:
+                  [],
+                reviewed_draft:
+                  reviewedArtifact,
+              };
+            }
+
             if (
               keywordPlannerCsvConfig
                 ?.task_id
@@ -3154,6 +3237,44 @@ const main = async () => {
     await page.getByRole('button', { name: 'Start Run', exact: true }).click();
     assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'Manual CSV Start must forward the exact reviewed artifact.');
     console.log('PASS KEYWORD-PLANNER-CSV-UI-001: selected manual export is reviewed and started unchanged');
+
+    await page.reload();
+    const bitkimarkCard = page.getByTestId('task-card').filter({ hasText: 'Bitkimark — Sitemap/XML' });
+    await bitkimarkCard.getByText('READY', { exact: true }).waitFor();
+    await bitkimarkCard.click();
+    const sitemapInput = page.getByLabel('Sitemap URLs');
+    assert.equal(await sitemapInput.count(), 1, 'Bitkimark task must expose the bounded reviewed URL list.');
+    assert.deepEqual((await sitemapInput.inputValue()).split('\n'), [
+      'https://bitkimark.com/sitemap.xml',
+      'https://bitkimark.com/blogs.xml',
+      'https://bitkimark.com/pages.xml',
+      'https://bitkimark.com/products.xml',
+      'https://bitkimark.com/collections.xml',
+    ]);
+    const bitkimarkReviewButton = page.getByRole('button', { name: 'Review Quick Run', exact: true });
+    assert.equal(await bitkimarkReviewButton.isEnabled(), true);
+    await sitemapInput.fill('https://example.com/sitemap.xml');
+    assert.equal(await bitkimarkReviewButton.isEnabled(), false, 'Foreign URLs must not become reviewable.');
+    await sitemapInput.fill([
+      'https://bitkimark.com/sitemap.xml',
+      'https://bitkimark.com/blogs.xml',
+    ].join('\n'));
+    assert.equal(await bitkimarkReviewButton.isEnabled(), true);
+    await bitkimarkReviewButton.click();
+    await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__reviewedDesktopDraft.reusable_configuration.sources['bitkimark-sitemap']), {
+      included: true,
+      task_id: 'bitkimark-sitemap',
+      sitemaps: [
+        { requested_url: 'https://bitkimark.com/sitemap.xml', expected_host: 'bitkimark.com', parent_sitemap_url: null },
+        { requested_url: 'https://bitkimark.com/blogs.xml', expected_host: 'bitkimark.com', parent_sitemap_url: 'https://bitkimark.com/sitemap.xml' },
+      ],
+    });
+    assert.equal(await page.getByText('Sitemap URLs: 2', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('https://bitkimark.com/blogs.xml', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Start Run', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'Bitkimark Start must forward the exact reviewed HTTP_XML artifact.');
+    console.log('PASS BITKIMARK-REVIEW-UI-001: bounded sitemap URLs are reviewed and started unchanged');
 
     console.log(
       'PASS DESKTOP-UI-001: source-neutral operations shell and reviewed GSC + Google Trends Quick Run flows are verified',

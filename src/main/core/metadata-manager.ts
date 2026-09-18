@@ -30,6 +30,7 @@ export interface CreateDatasetMetadataInput {
   raw_artifact: ArtifactRecord;
   source: DatasetMetadataSource;
   source_context: JsonObject;
+  acquisition_metadata?: JsonObject;
   validation_status: Exclude<
     ValidationStatus,
     'NOT_RUN'
@@ -118,6 +119,13 @@ export class MetadataManager {
         source_context: {
           ...input.source_context,
         },
+        ...(input.acquisition_metadata === undefined
+          ? {}
+          : {
+              acquisition_metadata: {
+                ...input.acquisition_metadata,
+              },
+            }),
         retrieved_at: rawArtifact.created_at,
         application_version:
           run.application_version,

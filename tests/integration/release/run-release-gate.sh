@@ -63,6 +63,9 @@ bash \
   tests/integration/app/run-desktop-multisource-flow-test.sh
 
 bash \
+  tests/integration/app/run-production-source-composition-test.sh
+
+bash \
   tests/integration/app/run-desktop-retry-export-test.sh
 
 bash \
@@ -76,6 +79,9 @@ bash \
 
 bash \
   tests/integration/bitkimark/run-live-bitkimark-command-test.sh
+
+bash \
+  tests/integration/bitkimark/run-bitkimark-reviewed-http-xml-test.sh
 
 bash \
   tests/integration/app/run-desktop-ui-smoke-test.sh
