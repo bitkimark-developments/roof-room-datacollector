@@ -216,7 +216,6 @@ const encryption = {
   }), /explicit confirmation/u);
   assert.throws(() => runtime.createLiveKeywordPlannerSmokeSource({
     workspace_id: 'workspace-a',
-    keywords: ['ficus'],
     confirmation: undefined,
   }), /explicit confirmation/u);
   const gscResult = await runtime.createSearchConsoleSource({
@@ -239,8 +238,17 @@ const encryption = {
   });
   const plannerResult = await runtime.createKeywordPlannerSource({
     workspace_id: 'workspace-a',
-    keywords: ['ficus', 'ficus çeşitleri'],
-  }).collect({});
+  }).collect({
+    source_id: 'google-keyword-planner',
+    source_context: {
+      task_id: 'keyword-planner-historical-metrics',
+      source_id: 'google-keyword-planner',
+      source_mode: 'OFFICIAL_API',
+      group_id: 'credential-fixture',
+      group_name: 'Credential fixture',
+      keywords: ['ficus', 'ficus çeşitleri'],
+    },
+  });
 
   assert.equal(gscResult.result_type, 'ARTIFACT_PRODUCED');
   assert.equal(searchTermsResult.result_type, 'ARTIFACT_PRODUCED');

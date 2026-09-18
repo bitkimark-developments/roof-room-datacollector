@@ -107,10 +107,8 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
   sourceRegistry.register(new LazyWorkspaceSource(GSC_QUERY_PAGE_SOURCE_ID, 'Google Search Console Query × Page', 'OFFICIAL_API', ['QUERY_PAGE'], input.repository, (workspaceId) => googleApi.createSearchConsoleSource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, 'Google Ads Search Terms', 'OFFICIAL_API', ['SEARCH_TERMS'], input.repository,
     (workspaceId) => googleApi.createSearchTermsSource({ workspace_id: workspaceId })));
-  sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, 'Google Keyword Planner', 'OFFICIAL_API', ['KEYWORD_HISTORICAL_METRICS'], input.repository, (workspaceId, context) => {
-    const values = field(context, 'keywords'); const keywords = Array.isArray(values) ? values.filter((v): v is string => typeof v === 'string' && v.trim().length > 0) : [];
-    return keywords.length ? googleApi.createKeywordPlannerSource({ workspace_id: workspaceId, keywords }) : null;
-  }));
+  sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, 'Google Keyword Planner', 'OFFICIAL_API', ['KEYWORD_HISTORICAL_METRICS'], input.repository,
+    (workspaceId) => googleApi.createKeywordPlannerSource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(IKAS_PRODUCTS_SOURCE_ID, 'İkas Products', 'FILE_IMPORT', ['PRODUCTS'], input.repository, (workspaceId, context) => {
     const connection = input.repository.getSourceConnection(workspaceId, IKAS_PRODUCTS_SOURCE_ID); const path = stringField(context, 'file_path') ?? (typeof connection?.safe_metadata.file_path === 'string' ? connection.safe_metadata.file_path : null);
     return new IkasProductsSource(path);

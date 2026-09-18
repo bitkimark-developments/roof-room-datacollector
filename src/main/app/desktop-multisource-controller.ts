@@ -33,6 +33,12 @@ import { RetryPolicy } from '../core/retry-policy';
 import { RunManager } from '../core/run-manager';
 import { createSearchTermsJobContext } from '../sources/google-ads/search-terms-request';
 import {
+  createKeywordPlannerJobContext,
+  keywordPlannerContextAsJson,
+  KEYWORD_PLANNER_SOURCE_MODE,
+  KEYWORD_PLANNER_TASK_ID,
+} from '../sources/google-ads/keyword-planner-request';
+import {
   isTerminalRunStatus,
 } from '../core/run-execution-state-machine';
 
@@ -155,7 +161,51 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
   }
   if (sourceId === 'google-search-console-query-page') return plans(Array.isArray(config.date_ranges) ? config.date_ranges : [], (item, index) => typeof item.job_key === 'string' ? item.job_key : `gsc-${index + 1}`);
   if (sourceId === 'serpapi') return plans(Array.isArray(config.queries) ? config.queries : [], (item, index) => typeof item.query === 'string' ? item.query : `query-${index + 1}`);
-  if (sourceId === 'google-keyword-planner') return plans(Array.isArray(config.groups) ? config.groups : [], (item, index) => typeof item.group_id === 'string' ? item.group_id : `keyword-group-${index + 1}`);
+  if (sourceId === 'google-keyword-planner') {
+    if (!Array.isArray(config.groups)) {
+      return [];
+    }
+
+    try {
+      const contexts =
+        config.groups.map(
+          (group) =>
+            keywordPlannerContextAsJson(
+              createKeywordPlannerJobContext(
+                group,
+              ),
+            ),
+        );
+
+      const groupIds =
+        contexts.map(
+          (context) =>
+            context.group_id as string,
+        );
+
+      if (
+        new Set(groupIds).size
+          !== groupIds.length
+      ) {
+        return [];
+      }
+
+      return contexts.map(
+        (context) => ({
+          source_id:
+            sourceId,
+          job_key:
+            context.group_id as string,
+          query_group_id:
+            null as string | null,
+          source_context:
+            context,
+        }),
+      );
+    } catch {
+      return [];
+    }
+  }
   if (sourceId === 'google-ads-search-terms') return plans(Array.isArray(config.jobs) ? config.jobs : [{}], (_item, index) => `search-terms-${index + 1}`);
   if (sourceId === 'ikas-products') return config.file_path ? plans([config], () => 'ikas-products-current') : [];
   if (sourceId === 'bitkimark-sitemap') return config.sitemap_url ? plans([config], () => 'bitkimark-sitemap-current') : [];
@@ -1215,6 +1265,113 @@ export class DesktopMultiSourceController {
         resolved_at: resolvedAt.toISOString(),
         reusable_configuration: reusableConfiguration,
         resolved_configuration: resolvedConfiguration,
+      };
+    }
+
+    if (
+      sourceId === 'google-keyword-planner'
+    ) {
+      if (
+        config.task_id
+          !== KEYWORD_PLANNER_TASK_ID
+        || !Array.isArray(
+          config.groups,
+        )
+        || config.groups.length === 0
+      ) {
+        return null;
+      }
+
+      let resolvedGroups:
+        JsonObject[];
+
+      try {
+        resolvedGroups =
+          config.groups.map(
+            (group) => {
+              const value =
+                asObject(group);
+
+              return keywordPlannerContextAsJson(
+                createKeywordPlannerJobContext({
+                  task_id:
+                    KEYWORD_PLANNER_TASK_ID,
+                  source_id:
+                    sourceId,
+                  source_mode:
+                    KEYWORD_PLANNER_SOURCE_MODE,
+                  group_id:
+                    value.group_id,
+                  group_name:
+                    value.group_name,
+                  keywords:
+                    value.keywords,
+                }),
+              );
+            },
+          );
+      } catch {
+        return null;
+      }
+
+      const groupIds =
+        resolvedGroups.map(
+          (group) => group.group_id,
+        );
+
+      if (
+        new Set(groupIds).size
+          !== groupIds.length
+      ) {
+        return null;
+      }
+
+      const resolvedAt =
+        this.now();
+
+      const reusableConfiguration =
+        cloneConfiguration(
+          draft.reusable_configuration,
+        );
+
+      const resolvedConfiguration =
+        cloneConfiguration(
+          draft.reusable_configuration,
+        );
+
+      const sources =
+        asJsonObjectValue(
+          resolvedConfiguration.sources,
+        );
+
+      sources[sourceId] = {
+        ...asJsonObjectValue(
+          sources[sourceId],
+        ),
+        groups:
+          resolvedGroups,
+      };
+
+      resolvedConfiguration.sources =
+        sources;
+
+      return {
+        workspace_id:
+          draft.workspace_id,
+        task_id:
+          KEYWORD_PLANNER_TASK_ID,
+        source_id:
+          sourceId,
+        reference_date:
+          formatLocalReferenceDate(
+            resolvedAt,
+          ),
+        resolved_at:
+          resolvedAt.toISOString(),
+        reusable_configuration:
+          reusableConfiguration,
+        resolved_configuration:
+          resolvedConfiguration,
       };
     }
 

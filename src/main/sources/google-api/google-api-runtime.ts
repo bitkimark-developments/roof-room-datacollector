@@ -126,7 +126,6 @@ export class GoogleApiRuntimeFactory {
 
   createKeywordPlannerSource(input: {
     workspace_id: string;
-    keywords: string[];
   }): GoogleKeywordPlannerSource {
     const connection = this.requireConnection(
       input.workspace_id,
@@ -136,14 +135,12 @@ export class GoogleApiRuntimeFactory {
       normalizeGoogleAdsCustomerId(
         requireMetadataString(connection, 'customer_id'),
       ),
-      [...input.keywords],
       this.createGoogleAdsRequester(connection),
     );
   }
 
   createLiveKeywordPlannerSmokeSource(input: {
     workspace_id: string;
-    keywords: string[];
     confirmation: string | undefined;
   }): GoogleKeywordPlannerSource {
     assertGoogleLiveAcceptanceConfirmation(input.confirmation);

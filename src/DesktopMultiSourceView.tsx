@@ -289,6 +289,166 @@ const getReviewedGoogleTrendsSummary = (
   };
 };
 
+interface KeywordPlannerInputGroup
+  extends JsonObject {
+  group_id: string;
+  group_name: string;
+  keywords: string[];
+}
+
+const parseKeywordPlannerGroups = (
+  value: string,
+): KeywordPlannerInputGroup[] | null => {
+  const lines =
+    value
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const groups:
+    KeywordPlannerInputGroup[] = [];
+
+  for (const line of lines) {
+    const parts =
+      line
+        .split('|')
+        .map((part) => part.trim());
+
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    const [
+      groupId,
+      groupName,
+      keywordText,
+    ] = parts;
+
+    const keywords =
+      keywordText
+        .split(',')
+        .map((keyword) => keyword.trim());
+
+    if (
+      !/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/u.test(groupId)
+      || groupName.length === 0
+      || keywords.length === 0
+      || keywords.some(
+        (keyword) => keyword.length === 0,
+      )
+    ) {
+      return null;
+    }
+
+    groups.push({
+      group_id:
+        groupId,
+      group_name:
+        groupName,
+      keywords,
+    });
+  }
+
+  if (
+    new Set(
+      groups.map((group) => group.group_id),
+    ).size !== groups.length
+  ) {
+    return null;
+  }
+
+  return groups;
+};
+
+const getReviewedKeywordPlannerGroups = (
+  review: DesktopReview,
+): KeywordPlannerInputGroup[] | null => {
+  const reviewed =
+    review.reviewed_draft;
+
+  if (
+    reviewed === null
+    || reviewed.source_id
+      !== 'google-keyword-planner'
+  ) {
+    return null;
+  }
+
+  const sources =
+    reviewed.resolved_configuration.sources;
+
+  if (
+    typeof sources !== 'object'
+    || sources === null
+    || Array.isArray(sources)
+  ) {
+    return null;
+  }
+
+  const source =
+    (sources as JsonObject)[
+      'google-keyword-planner'
+    ];
+
+  if (
+    typeof source !== 'object'
+    || source === null
+    || Array.isArray(source)
+  ) {
+    return null;
+  }
+
+  const groups =
+    (source as JsonObject).groups;
+
+  if (!Array.isArray(groups)) {
+    return null;
+  }
+
+  return groups.map(
+    (group) => {
+      if (
+        typeof group !== 'object'
+        || group === null
+        || Array.isArray(group)
+      ) {
+        throw new Error(
+          'Reviewed Keyword Planner group is invalid.',
+        );
+      }
+
+      const value =
+        group as JsonObject;
+
+      if (
+        typeof value.group_id !== 'string'
+        || typeof value.group_name !== 'string'
+        || !Array.isArray(value.keywords)
+        || value.keywords.some(
+          (keyword) => typeof keyword !== 'string',
+        )
+      ) {
+        throw new Error(
+          'Reviewed Keyword Planner group fields are invalid.',
+        );
+      }
+
+      return {
+        group_id:
+          value.group_id,
+        group_name:
+          value.group_name,
+        keywords:
+          value.keywords as string[],
+      };
+    },
+  );
+};
+
 export function DesktopMultiSourceView() {
   const [
     view,
@@ -361,6 +521,12 @@ export function DesktopMultiSourceView() {
     } | null>(
       null,
     );
+
+  const [
+    keywordPlannerGroupsInput,
+    setKeywordPlannerGroupsInput,
+  ] =
+    useState('');
 
   const [
     quickRunReview,
@@ -863,6 +1029,25 @@ export function DesktopMultiSourceView() {
         return;
       }
 
+      const keywordPlannerGroups =
+        selectedTask.source_id
+          === 'google-keyword-planner'
+          ? parseKeywordPlannerGroups(
+              keywordPlannerGroupsInput,
+            )
+          : null;
+
+      if (
+        selectedTask.source_id
+          === 'google-keyword-planner'
+        && keywordPlannerGroups === null
+      ) {
+        setMessage(
+          'Enter valid named Keyword Planner groups before Review.',
+        );
+        return;
+      }
+
       setBusy(
         true,
       );
@@ -909,6 +1094,17 @@ export function DesktopMultiSourceView() {
                   file_path:
                     selectedIkasFile.file_path,
                 }
+              : selectedTask.source_id
+                  === 'google-keyword-planner'
+                && keywordPlannerGroups !== null
+                ? {
+                    included:
+                      true,
+                    task_id:
+                      selectedTask.task_id,
+                    groups:
+                      keywordPlannerGroups,
+                  }
               : {
                   included: true,
                 };
@@ -1595,6 +1791,13 @@ export function DesktopMultiSourceView() {
                 )
                 && selectedTask.date_policy
                   !== undefined
+              )
+              || (
+                selectedTask.source_id
+                  === 'google-keyword-planner'
+                && parseKeywordPlannerGroups(
+                  keywordPlannerGroupsInput,
+                ) !== null
               );
 
             const canReview =
@@ -1759,6 +1962,37 @@ export function DesktopMultiSourceView() {
                           )}
                         </div>
                       )
+                      : selectedTask.source_id
+                          === 'google-keyword-planner'
+                        ? (
+                          <div
+                            className="rr-file-input"
+                          >
+                            <p>
+                              Enter one explicit group per line: group-id | Group name | keyword one, keyword two
+                            </p>
+
+                            <label>
+                              <span>
+                                Keyword groups
+                              </span>
+
+                              <textarea
+                                aria-label="Keyword groups"
+                                rows={6}
+                                value={
+                                  keywordPlannerGroupsInput
+                                }
+                                onChange={
+                                  (event) =>
+                                    setKeywordPlannerGroupsInput(
+                                      event.target.value,
+                                    )
+                                }
+                              />
+                            </label>
+                          </div>
+                        )
                       : (
                         <p>
                           Provider input and connection state are managed through the source-neutral collection boundary.
@@ -2065,6 +2299,45 @@ export function DesktopMultiSourceView() {
                         <p>
                           Fixed scope: Turkey · All Categories · Web Search · Search Term
                         </p>
+                      </section>
+                    );
+                })()}
+
+                {(() => {
+                  const groups =
+                    getReviewedKeywordPlannerGroups(
+                      quickRunReview.review,
+                    );
+
+                  return groups === null
+                    ? null
+                    : (
+                      <section
+                        className="rr-panel rr-detail-panel"
+                      >
+                        <span
+                          className="rr-kicker"
+                        >
+                          REQUESTED KEYWORDS
+                        </span>
+
+                        <h2>
+                          Keyword Planner Groups
+                        </h2>
+
+                        <p>
+                          Keyword groups: {groups.length}
+                        </p>
+
+                        {groups.map(
+                          (group) => (
+                            <p
+                              key={group.group_id}
+                            >
+                              {group.group_id}: {group.keywords.join(', ')}
+                            </p>
+                          ),
+                        )}
                       </section>
                     );
                 })()}

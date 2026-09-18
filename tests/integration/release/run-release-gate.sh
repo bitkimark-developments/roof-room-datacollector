@@ -51,6 +51,9 @@ bash \
   tests/integration/google-api/run-gsc-reviewed-quick-run-test.sh
 
 bash \
+  tests/integration/google-api/run-keyword-planner-reviewed-api-test.sh
+
+bash \
   tests/integration/app/run-desktop-multisource-flow-test.sh
 
 bash \

@@ -235,6 +235,7 @@ const main = async () => {
                   || card.source_id
                     === 'google-trends'
                   || (card.source_id === 'google-ads-search-terms' && window.__adsReady)
+                  || (card.source_id === 'google-keyword-planner' && window.__keywordPlannerReady)
                 )
                   ? {
                       ...card,
@@ -288,6 +289,88 @@ const main = async () => {
                 ?.reusable_configuration
                 ?.sources
                 ?.['google-search-console-query-page'];
+
+            const keywordPlannerConfig =
+              reviewDraft
+                ?.reusable_configuration
+                ?.sources
+                ?.['google-keyword-planner'];
+
+            if (
+              keywordPlannerConfig
+                ?.task_id
+              === 'keyword-planner-historical-metrics'
+            ) {
+              const resolvedGroups =
+                keywordPlannerConfig.groups.map(
+                  (group) => ({
+                    task_id:
+                      'keyword-planner-historical-metrics',
+                    source_id:
+                      'google-keyword-planner',
+                    source_mode:
+                      'OFFICIAL_API',
+                    ...group,
+                  }),
+                );
+
+              const reviewedArtifact = {
+                workspace_id:
+                  'ws_fixture',
+                task_id:
+                  'keyword-planner-historical-metrics',
+                source_id:
+                  'google-keyword-planner',
+                reference_date:
+                  '2026-09-18',
+                resolved_at:
+                  '2026-09-18T09:30:00.000Z',
+                reusable_configuration:
+                  reviewDraft.reusable_configuration,
+                resolved_configuration: {
+                  sources: {
+                    'google-keyword-planner': {
+                      ...keywordPlannerConfig,
+                      groups:
+                        resolvedGroups,
+                    },
+                  },
+                },
+              };
+
+              window.__reviewedDesktopArtifact =
+                reviewedArtifact;
+
+              return {
+                workspace: {
+                  workspace_id:
+                    'ws_fixture',
+                  workspace_name:
+                    'Acceptance Workspace',
+                },
+                origin:
+                  reviewDraft.origin,
+                included_sources: [
+                  'google-keyword-planner',
+                ],
+                source_cards: [{
+                  source_id:
+                    'google-keyword-planner',
+                  included:
+                    true,
+                  readiness_status:
+                    'READY',
+                }],
+                job_count:
+                  resolvedGroups.length,
+                can_start:
+                  true,
+                blocking_sources:
+                  [],
+                reviewed_draft:
+                  reviewedArtifact,
+              };
+            }
 
             if (
               googleTrendsConfig
@@ -2881,6 +2964,35 @@ const main = async () => {
     await page.getByRole('button', { name: 'Start Run', exact: true }).click();
     assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'Ads Start must forward the exact reviewed artifact');
     console.log('PASS ADS-REVIEW-UI-001: Ads task sends date policy and starts the exact reviewed artifact');
+
+    await page.addInitScript(() => { window.__keywordPlannerReady = true; });
+    await page.reload();
+    const plannerCard = page.getByTestId('task-card').filter({ hasText: 'Keyword Planner — Historical Metrics' });
+    await plannerCard.getByText('READY', { exact: true }).waitFor();
+    await plannerCard.click();
+    const plannerReviewButton = page.getByRole('button', { name: 'Review Quick Run', exact: true });
+    assert.equal(await plannerReviewButton.isEnabled(), false, 'Keyword Planner Review requires explicit groups.');
+    await page.getByLabel('Keyword groups').fill([
+      'indoor-plants | Indoor plants | ficus, monstera deliciosa',
+      'care-topics | Care topics | ficus bakımı, monstera bakımı',
+    ].join('\n'));
+    assert.equal(await plannerReviewButton.isEnabled(), true, 'Valid explicit keyword groups make Review available.');
+    await plannerReviewButton.click();
+    await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__reviewedDesktopDraft.reusable_configuration.sources['google-keyword-planner']), {
+      included: true,
+      task_id: 'keyword-planner-historical-metrics',
+      groups: [
+        { group_id: 'indoor-plants', group_name: 'Indoor plants', keywords: ['ficus', 'monstera deliciosa'] },
+        { group_id: 'care-topics', group_name: 'Care topics', keywords: ['ficus bakımı', 'monstera bakımı'] },
+      ],
+    }, 'Renderer must send exact named keyword groups to Review.');
+    assert.equal(await page.getByText('Keyword groups: 2', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('indoor-plants: ficus, monstera deliciosa', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('care-topics: ficus bakımı, monstera bakımı', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Start Run', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'Keyword Planner Start must forward the exact reviewed groups.');
+    console.log('PASS KEYWORD-PLANNER-REVIEW-UI-001: explicit groups are reviewed and started unchanged');
 
     console.log(
       'PASS DESKTOP-UI-001: source-neutral operations shell and reviewed GSC + Google Trends Quick Run flows are verified',

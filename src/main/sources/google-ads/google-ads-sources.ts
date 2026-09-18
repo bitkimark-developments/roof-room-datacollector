@@ -4,6 +4,9 @@ import { GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_SOURCE_ID } f
 import { fetchSearchTerms } from './search-terms-adapter'; import { fetchKeywordPlanner } from './keyword-planner-adapter'; import type { ApiRequester } from '../google-api/api-helpers';
 import { mapGoogleApiCollectionError } from '../google-api/google-api-error';
 import { buildSearchTermsQuery } from './search-terms-request';
+import {
+  keywordPlannerJobContextFromCollection,
+} from './keyword-planner-request';
 const capabilities = (): SourceCapabilities => ({ requires_browser: false, requires_oauth: true, may_require_manual_login: true, supports_custom_date_range: true, supports_direct_export: false, supports_api: true, supports_resume: true, max_concurrency: 1 });
 export class GoogleAdsSearchTermsSource implements CollectingDataSourceModule {
   readonly id = GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID;
@@ -38,4 +41,82 @@ export class GoogleAdsSearchTermsSource implements CollectingDataSourceModule {
     }
   }
 }
-export class GoogleKeywordPlannerSource implements CollectingDataSourceModule { readonly id = GOOGLE_KEYWORD_PLANNER_SOURCE_ID; readonly name = 'Google Keyword Planner'; readonly sourceMode = 'OFFICIAL_API'; readonly datasetTypes = ['KEYWORD_HISTORICAL_METRICS']; constructor(private readonly customerId: string | null, private readonly keywords: string[], private readonly requester: ApiRequester) {} getCapabilities() { return capabilities(); } async checkReadiness(): Promise<SourceReadinessResult> { return { source_id: this.id, readiness_status: this.customerId && this.keywords.length ? 'READY' : 'NOT_CONFIGURED', checked_at: new Date().toISOString(), message: this.customerId && this.keywords.length ? null : 'Google Ads customer and keywords are required.' }; } async collect(): Promise<SourceCollectionResult> { if (!this.customerId || !this.keywords.length) return { result_type: 'FAILED', error_code: 'CONFIGURATION_REQUIRED', message: 'Google Ads customer and keywords are required.' }; try { const result = await fetchKeywordPlanner({ customer_id: this.customerId, keywords: this.keywords }, this.requester); return { result_type: 'ARTIFACT_PRODUCED', preferred_filename: 'google-keyword-planner.json', media_type: 'application/json', bytes: new TextEncoder().encode(JSON.stringify(result.raw)) }; } catch (error) { return mapGoogleApiCollectionError(error, 'GOOGLE_ADS_API_FAILED', 'Google Ads request failed.'); } } }
+export class GoogleKeywordPlannerSource implements CollectingDataSourceModule {
+  readonly id = GOOGLE_KEYWORD_PLANNER_SOURCE_ID;
+  readonly name = 'Google Keyword Planner';
+  readonly sourceMode = 'OFFICIAL_API';
+  readonly datasetTypes = ['KEYWORD_HISTORICAL_METRICS'];
+
+  constructor(
+    private readonly customerId: string | null,
+    private readonly requester: ApiRequester,
+  ) {}
+
+  getCapabilities() { return capabilities(); }
+
+  async checkReadiness(): Promise<SourceReadinessResult> {
+    return {
+      source_id: this.id,
+      readiness_status: this.customerId ? 'READY' : 'NOT_CONFIGURED',
+      checked_at: new Date().toISOString(),
+      message: this.customerId ? null : 'Google Ads customer is required.',
+    };
+  }
+
+  async collect(
+    context: SourceCollectionContext,
+  ): Promise<SourceCollectionResult> {
+    if (!this.customerId) {
+      return {
+        result_type: 'FAILED',
+        error_code: 'CONFIGURATION_REQUIRED',
+        message: 'Google Ads customer is required.',
+      };
+    }
+
+    let jobContext;
+
+    try {
+      jobContext =
+        keywordPlannerJobContextFromCollection(
+          context,
+        );
+    } catch {
+      return {
+        result_type: 'FAILED',
+        error_code: 'SOURCE_CONFIGURATION_INVALID',
+        message: 'Keyword Planner requires a valid reviewed official-API keyword group.',
+      };
+    }
+
+    try {
+      const result =
+        await fetchKeywordPlanner(
+          {
+            customer_id:
+              this.customerId,
+            keywords:
+              jobContext.keywords,
+          },
+          this.requester,
+        );
+
+      return {
+        result_type: 'ARTIFACT_PRODUCED',
+        preferred_filename:
+          `google-keyword-planner-${jobContext.group_id}.json`,
+        media_type: 'application/json',
+        bytes:
+          new TextEncoder().encode(
+            JSON.stringify(result.raw),
+          ),
+      };
+    } catch (error) {
+      return mapGoogleApiCollectionError(
+        error,
+        'GOOGLE_ADS_API_FAILED',
+        'Google Ads request failed.',
+      );
+    }
+  }
+}
