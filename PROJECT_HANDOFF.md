@@ -1627,3 +1627,86 @@ Exact next action:
 - Commit this Section 36 documentation checkpoint separately and fast-forward the feature branch into local `main`.
 - Audit the existing SerpApi on-demand source, reviewed query input, credential/quota readiness, provider request binding, raw JSON/validation, guarded live command, and desktop/Core integration against the Release 1.0 contract.
 - Implement only the smallest remaining truthful SerpApi vertical gaps. Do not add continuous tracking, automatic full-keyword refresh, intent classification, commercial-fit scoring, page-type recommendations, or any other analysis-layer output.
+
+---
+
+## 37. SerpApi reviewed on-demand vertical — 2026-09-18
+
+This section is the authoritative latest repository-state update. Earlier current-stage and next-action sections are historical.
+
+Implementation plan commit:
+
+`c090f88 docs: plan SerpApi reviewed on-demand vertical`
+
+Technical implementation commit:
+
+`c5e301e feat(serpapi): bind reviewed on-demand queries`
+
+Bounded implementation scope:
+
+- The existing `serpapi` source remains `THIRD_PARTY_API` acquisition with `GOOGLE_SERP` dataset semantics and Workspace-scoped encrypted credential resolution.
+- Desktop Task Detail now accepts only an explicit on-demand batch in `query-id | query` form; it does not prefill or expand a keyword universe.
+- Query IDs must be unique safe Job keys and queries must be non-empty bounded strings. Invalid or duplicate rows do not become reviewable.
+- Review materializes one immutable strict context per query: task/source/mode/dataset identity, Job key, query, `TR`, `tr`, desktop, Google, first page, first-ten organic limit, and the Review-day local snapshot date.
+- Start consumes the exact reviewed artifact without recalculating the snapshot date or query batch. Repository close/reopen preserves identical Job contexts.
+- Production planning accepts only the strict reviewed context and creates one independently retryable sequential Job per explicit query.
+- `SerpApiSource.collect(context)` verifies the persisted Job key and every locked identity/scope field before credential resolution or provider access.
+- Production runtime supports deterministic requester injection for full Review → Start → SQLite → Core request-binding verification without live quota.
+- Each accepted Job preserves independent raw provider JSON and validates the returned query, country, language, device, engine, and first-page offset against its reviewed request.
+- Missing provider request context, wrong query/scope, invalid positions, malformed fields, and non-success/provider-error payloads fail closed.
+- A successful response with zero organic results remains `NO_DATA`, distinct from provider/quota/transport failure.
+- Quota/rate/authentication/provider/timeout outcomes retain existing one-attempt stop behavior; no source-level automatic retry or evasion was added.
+- Review visibly lists exact query IDs/text and the fixed scope before Start.
+- No intent, commercial-fit, page-type, action recommendation, continuous rank tracking, automatic refresh, or analysis-layer output was added.
+- The guarded single-query live command now records its execution-day local snapshot date instead of the obsolete fixed development date while preserving its explicit confirmation/workspace guard.
+- The focused Core suite is exposed as `npm run test:m3:serpapi-reviewed` and wired into the full release gate.
+
+TDD and regression evidence:
+
+- Initial source-contract RED failed because `serpapi-request.ts` did not exist.
+- Initial reviewed Core RED proved the generic planner accepted duplicate arbitrary query objects and produced Jobs without a reviewed artifact.
+- Initial desktop UI RED timed out because no SerpApi query input existed.
+- A response-context RED proved missing `search_parameters` was silently tolerated; validation now requires and matches the full provider request context.
+- `PASS SERPAPI-001` covers strict pre-request rejection, raw JSON, first-ten organic/PAA normalization, nullable fields, no-data distinction, readiness, quota stop, and strict Job planning.
+- `SERPAPI-REVIEW-CORE-001` proves exact Review/Start persistence, repository reopen, one request per Job, fixed request URL scope, credential exclusion from snapshots, separate raw evidence, and valid Core completion.
+- `SERPAPI-REVIEW-UI-001` proves missing-batch gating, exact named-query input, visible locked scope, and unchanged reviewed Start transport.
+- `SERPAPI-LIVE-CMD-001` proves unconfirmed or unsupported live execution exits before Electron/provider activity.
+
+Fresh deterministic verification:
+
+- `npm run test:m3:serpapi`: PASS.
+- `npm run test:m3:serpapi-reviewed`: PASS (1/1 Core integration test).
+- `npm run test:m3:live-serpapi-command`: PASS.
+- Desktop UI smoke: `PASS SERPAPI-REVIEW-UI-001` and all existing UI checks.
+- `npx tsc --noEmit`: exit 0.
+- `npm run lint`: exit 0.
+- `git diff --check`: exit 0.
+- `npm run test:release:gate`: `PASS RELEASE-GATE-001` (exit 0).
+
+Live acceptance status:
+
+- A read-only query of the actual RoofRoom application database found two Workspaces: `Development migration workspace` and `Bitkimark Production`.
+- Neither Workspace has a `serpapi` connection row or credential reference.
+- Therefore no guarded live request was run and no SerpApi quota was consumed. Live acceptance remains truthfully blocked on configuring the intended Workspace connection and encrypted API key.
+- No secret value or credential reference was printed or copied into repository state.
+
+Scope not included:
+
+- No continuous scheduler, automatic entire-keyword refresh, rank-history analysis, or freshness inference was introduced.
+- Freshness lifecycle completion and generic production dataset loading/export remain incomplete.
+- Release 1.0 completion is not claimed.
+
+Stable documentation:
+
+- No stable canonical document changed because the implementation conforms to the approved on-demand, raw-preservation, validation, credential, quota-safety, and collection-only boundaries.
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Exact next action:
+
+- Commit this Section 37 documentation checkpoint separately and fast-forward the feature branch into local `main`.
+- Audit Work Group 11 freshness/due/import-needed/on-demand behavior against the now-implemented real source modes and current Core/desktop contracts.
+- Implement only the smallest source-neutral freshness vertical supported by existing accepted evidence; do not infer unsupported provider schedules or conflate freshness with readiness, execution, or validation.
