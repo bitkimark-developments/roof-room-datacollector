@@ -624,10 +624,6 @@ const main = async (): Promise<void> => {
     const liveSource =
       googleApi.createLiveSearchConsoleSmokeSource({
         workspace_id: workspace.workspace_id,
-        start_date:
-          dateRange.start_date,
-        end_date:
-          dateRange.end_date,
         confirmation:
           GOOGLE_LIVE_ACCEPTANCE_CONFIRMATION,
       });
@@ -686,9 +682,9 @@ const main = async (): Promise<void> => {
             dateRange.date_policy,
           reference_date:
             dateRange.reference_date,
-          start_date:
+          requested_date_start:
           dateRange.start_date,
-              end_date:
+              requested_date_end:
           dateRange.end_date,
             },
           },

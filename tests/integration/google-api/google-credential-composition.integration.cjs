@@ -207,8 +207,6 @@ const encryption = {
   const runtime = new GoogleApiRuntimeFactory(repository, store, requester);
   assert.throws(() => runtime.createLiveSearchConsoleSmokeSource({
     workspace_id: 'workspace-a',
-    start_date: '2026-06-12',
-    end_date: '2026-09-09',
     confirmation: 'no',
   }), /explicit confirmation/u);
   assert.throws(() => runtime.createLiveSearchTermsSmokeSource({
@@ -223,9 +221,12 @@ const encryption = {
   }), /explicit confirmation/u);
   const gscResult = await runtime.createSearchConsoleSource({
     workspace_id: 'workspace-a',
-    start_date: '2026-06-12',
-    end_date: '2026-09-09',
-  }).collect({});
+  }).collect({
+    source_context: {
+      requested_date_start: '2026-06-12',
+      requested_date_end: '2026-09-09',
+    }
+  });
   const searchTermsResult = await runtime.createSearchTermsSource({
     workspace_id: 'workspace-a',
   }).collect({
@@ -286,9 +287,12 @@ const encryption = {
   );
   const expiredResult = await expiredRuntime.createSearchConsoleSource({
     workspace_id: 'workspace-a',
-    start_date: '2026-06-12',
-    end_date: '2026-09-09',
-  }).collect({});
+  }).collect({
+    source_context: {
+      requested_date_start: '2026-06-12',
+      requested_date_end: '2026-09-09',
+    }
+  });
   assert.equal(expiredResult.result_type, 'MANUAL_ACTION_REQUIRED');
   assert.equal(
     repository.getSourceConnection(
@@ -307,9 +311,12 @@ const encryption = {
   assert.equal(await store.hasCredential(gscConnection.credential_ref), false);
   const missingCredentialResult = await runtime.createSearchConsoleSource({
       workspace_id: 'workspace-a',
-      start_date: '2026-06-12',
-      end_date: '2026-09-09',
-    }).collect({});
+    }).collect({
+      source_context: {
+        requested_date_start: '2026-06-12',
+        requested_date_end: '2026-09-09',
+      }
+    });
   assert.equal(missingCredentialResult.result_type, 'FAILED');
   assert.equal(missingCredentialResult.error_code, 'CONNECTION_REQUIRED');
 

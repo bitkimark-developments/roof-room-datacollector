@@ -76,8 +76,6 @@ export class GoogleApiRuntimeFactory {
 
   createSearchConsoleSource(input: {
     workspace_id: string;
-    start_date: string;
-    end_date: string;
   }): GoogleSearchConsoleSource {
     const connection = this.requireConnection(
       input.workspace_id,
@@ -89,17 +87,14 @@ export class GoogleApiRuntimeFactory {
       this.requester,
       () => this.markReauthorizationRequired(connection),
     );
-    return new GoogleSearchConsoleSource({
-      site_url: requireMetadataString(connection, 'site_url'),
-      start_date: input.start_date,
-      end_date: input.end_date,
-    }, createAuthenticatedRequester(oauth, this.requester));
+    return new GoogleSearchConsoleSource(
+      requireMetadataString(connection, 'site_url'),
+      createAuthenticatedRequester(oauth, this.requester)
+    );
   }
 
   createLiveSearchConsoleSmokeSource(input: {
     workspace_id: string;
-    start_date: string;
-    end_date: string;
     confirmation: string | undefined;
   }): GoogleSearchConsoleSource {
     assertGoogleLiveAcceptanceConfirmation(input.confirmation);

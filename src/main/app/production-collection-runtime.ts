@@ -104,10 +104,7 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
   const googleApi = new GoogleApiRuntimeFactory(input.repository, input.credentialStore);
   const serpApi = new SerpApiRuntimeFactory(input.repository, input.credentialStore);
 
-  sourceRegistry.register(new LazyWorkspaceSource(GSC_QUERY_PAGE_SOURCE_ID, 'Google Search Console Query × Page', 'OFFICIAL_API', ['QUERY_PAGE'], input.repository, (workspaceId, context) => {
-    const start = stringField(context, 'start_date') ?? stringField(context, 'date_start'); const end = stringField(context, 'end_date') ?? stringField(context, 'date_end');
-    return start && end ? googleApi.createSearchConsoleSource({ workspace_id: workspaceId, start_date: start, end_date: end }) : null;
-  }));
+  sourceRegistry.register(new LazyWorkspaceSource(GSC_QUERY_PAGE_SOURCE_ID, 'Google Search Console Query × Page', 'OFFICIAL_API', ['QUERY_PAGE'], input.repository, (workspaceId) => googleApi.createSearchConsoleSource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, 'Google Ads Search Terms', 'OFFICIAL_API', ['SEARCH_TERMS'], input.repository,
     (workspaceId) => googleApi.createSearchTermsSource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, 'Google Keyword Planner', 'OFFICIAL_API', ['KEYWORD_HISTORICAL_METRICS'], input.repository, (workspaceId, context) => {
