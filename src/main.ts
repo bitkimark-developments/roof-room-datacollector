@@ -334,6 +334,8 @@ const registerIpcHandlers = (
       if (
         value.input_kind !==
         'IKAS_PRODUCTS_XLSX'
+        && value.input_kind !==
+          'KEYWORD_PLANNER_CSV'
       ) {
         throw new Error(
           'Desktop input-file kind is unsupported.',
@@ -343,16 +345,25 @@ const registerIpcHandlers = (
       const result =
         await dialog.showOpenDialog({
           title:
-            'Select İkas Products XLSX',
+            value.input_kind
+              === 'IKAS_PRODUCTS_XLSX'
+              ? 'Select İkas Products XLSX'
+              : 'Select Keyword Planner Keyword Stats CSV',
           properties: [
             'openFile',
           ],
           filters: [
             {
               name:
-                'Excel Workbook',
+                value.input_kind
+                  === 'IKAS_PRODUCTS_XLSX'
+                  ? 'Excel Workbook'
+                  : 'Keyword Stats CSV',
               extensions: [
-                'xlsx',
+                value.input_kind
+                  === 'IKAS_PRODUCTS_XLSX'
+                  ? 'xlsx'
+                  : 'csv',
               ],
             },
           ],
@@ -714,7 +725,10 @@ const initializeBootstrapStatus =
             credential_available,
             source_config,
           }) => {
-            if (sourceId === 'ikas-products') {
+            if (
+              sourceId === 'ikas-products'
+              || sourceId === 'google-keyword-planner-csv'
+            ) {
               const runFilePath =
                 typeof source_config.file_path === 'string'
                 && source_config.file_path.trim().length > 0;

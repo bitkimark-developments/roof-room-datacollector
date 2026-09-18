@@ -523,6 +523,17 @@ export function DesktopMultiSourceView() {
     );
 
   const [
+    selectedKeywordPlannerCsvFile,
+    setSelectedKeywordPlannerCsvFile,
+  ] =
+    useState<{
+      file_path: string;
+      file_name: string;
+    } | null>(
+      null,
+    );
+
+  const [
     keywordPlannerGroupsInput,
     setKeywordPlannerGroupsInput,
   ] =
@@ -1010,6 +1021,44 @@ export function DesktopMultiSourceView() {
       }
     };
 
+  const selectKeywordPlannerCsvFile =
+    async () => {
+      setMessage(
+        null,
+      );
+
+      try {
+        const result =
+          await window
+            .roofroom
+            .selectDesktopInputFile({
+              input_kind:
+                'KEYWORD_PLANNER_CSV',
+            });
+
+        if (
+          result.canceled
+          || result.file_path === null
+          || result.file_name === null
+        ) {
+          return;
+        }
+
+        setSelectedKeywordPlannerCsvFile({
+          file_path:
+            result.file_path,
+          file_name:
+            result.file_name,
+        });
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Keyword Stats CSV could not be selected.',
+        );
+      }
+    };
+
   const reviewSelectedTaskQuickRun =
     async () => {
       if (
@@ -1025,6 +1074,17 @@ export function DesktopMultiSourceView() {
       ) {
         setMessage(
           'Select a current Products XLSX before Review.',
+        );
+        return;
+      }
+
+      if (
+        selectedTask.source_id
+          === 'google-keyword-planner-csv'
+        && selectedKeywordPlannerCsvFile === null
+      ) {
+        setMessage(
+          'Select a Keyword Stats CSV before Review.',
         );
         return;
       }
@@ -1096,6 +1156,17 @@ export function DesktopMultiSourceView() {
                   file_path:
                     selectedIkasFile.file_path,
                 }
+              : selectedTask.source_id
+                  === 'google-keyword-planner-csv'
+                && selectedKeywordPlannerCsvFile !== null
+                ? {
+                    included:
+                      true,
+                    task_id:
+                      selectedTask.task_id,
+                    file_path:
+                      selectedKeywordPlannerCsvFile.file_path,
+                  }
               : selectedTask.source_id
                   === 'google-keyword-planner'
                 && keywordPlannerGroups !== null
@@ -1775,12 +1846,21 @@ export function DesktopMultiSourceView() {
               selectedTask.source_id === 'ikas-products'
               && selectedIkasFile !== null
                 ? 'READY'
+                : selectedTask.source_id
+                    === 'google-keyword-planner-csv'
+                  && selectedKeywordPlannerCsvFile !== null
+                  ? 'READY'
                 : readiness;
 
             const hasReviewableQuickRunConfiguration =
               (
                 selectedTask.source_id === 'ikas-products'
                 && selectedIkasFile !== null
+              )
+              || (
+                selectedTask.source_id
+                  === 'google-keyword-planner-csv'
+                && selectedKeywordPlannerCsvFile !== null
               )
               || (
                 (
@@ -1964,6 +2044,42 @@ export function DesktopMultiSourceView() {
                           )}
                         </div>
                       )
+                      : selectedTask.source_id
+                          === 'google-keyword-planner-csv'
+                        ? (
+                          <div
+                            className="rr-file-input"
+                          >
+                            <p>
+                              A current Keyword Stats CSV export is required for this fallback task.
+                            </p>
+
+                            <button
+                              type="button"
+                              className="rr-secondary-action"
+                              onClick={
+                                () =>
+                                  void selectKeywordPlannerCsvFile()
+                              }
+                            >
+                              Select Keyword Stats CSV
+                            </button>
+
+                            {selectedKeywordPlannerCsvFile && (
+                              <div
+                                className="rr-selected-file"
+                              >
+                                <strong>
+                                  {selectedKeywordPlannerCsvFile.file_name}
+                                </strong>
+
+                                <code>
+                                  {selectedKeywordPlannerCsvFile.file_path}
+                                </code>
+                              </div>
+                            )}
+                          </div>
+                        )
                       : selectedTask.source_id
                           === 'google-keyword-planner'
                         ? (
@@ -2196,6 +2312,22 @@ export function DesktopMultiSourceView() {
                             </code>
                           </div>
                         )
+                        : selectedTask.source_id
+                            === 'google-keyword-planner-csv'
+                          && selectedKeywordPlannerCsvFile !== null
+                          ? (
+                            <div
+                              className="rr-selected-file"
+                            >
+                              <strong>
+                                {selectedKeywordPlannerCsvFile.file_name}
+                              </strong>
+
+                              <code>
+                                {selectedKeywordPlannerCsvFile.file_path}
+                              </code>
+                            </div>
+                          )
                         : (
                           <p>
                             Configuration is captured in the reviewed Run draft.

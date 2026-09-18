@@ -29,6 +29,7 @@
     "test:m2:connection-readiness": "bash tests/integration/sqlite/run-workspace-connection-readiness-test.sh",
     "test:m3:non-google-sources": "bash tests/integration/sources/run-non-google-source-slices-test.sh",
     "test:m3:google-api-adapters": "bash tests/integration/google-api/run-google-api-adapters-test.sh",
+    "test:m3:keyword-planner-csv": "bash tests/integration/file-import/run-keyword-planner-manual-csv-test.sh",
     "test:m3:google-credentials": "bash tests/integration/google-api/run-google-credential-composition-test.sh",
     "test:m3:serpapi": "bash tests/integration/serpapi/run-serpapi-source-test.sh",
     "test:m3:live-serpapi-command": "bash tests/integration/serpapi/run-live-serpapi-command-test.sh",

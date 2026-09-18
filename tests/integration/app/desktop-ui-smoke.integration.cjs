@@ -108,6 +108,13 @@ const sourceCards = [
     configuration_summary: 'Historical Metrics',
   },
   {
+    source_id: 'google-keyword-planner-csv',
+    source_name: 'Keyword Planner Manual CSV',
+    included: false,
+    readiness_status: 'FILE_REQUIRED',
+    configuration_summary: 'Manual UTF-16 CSV',
+  },
+  {
     source_id: 'ikas-products',
     source_name: 'İkas Products',
     included: false,
@@ -295,6 +302,77 @@ const main = async () => {
                 ?.reusable_configuration
                 ?.sources
                 ?.['google-keyword-planner'];
+
+            const keywordPlannerCsvConfig =
+              reviewDraft
+                ?.reusable_configuration
+                ?.sources
+                ?.['google-keyword-planner-csv'];
+
+            if (
+              keywordPlannerCsvConfig
+                ?.task_id
+              === 'keyword-planner-manual-csv-import'
+            ) {
+              const reviewedArtifact = {
+                workspace_id:
+                  'ws_fixture',
+                task_id:
+                  'keyword-planner-manual-csv-import',
+                source_id:
+                  'google-keyword-planner-csv',
+                reference_date:
+                  '2026-09-18',
+                resolved_at:
+                  '2026-09-18T09:30:00.000Z',
+                reusable_configuration:
+                  reviewDraft.reusable_configuration,
+                resolved_configuration: {
+                  sources: {
+                    'google-keyword-planner-csv': {
+                      ...keywordPlannerCsvConfig,
+                      source_id:
+                        'google-keyword-planner-csv',
+                      source_mode:
+                        'FILE_IMPORT',
+                    },
+                  },
+                },
+              };
+
+              window.__reviewedDesktopArtifact =
+                reviewedArtifact;
+
+              return {
+                workspace: {
+                  workspace_id:
+                    'ws_fixture',
+                  workspace_name:
+                    'Acceptance Workspace',
+                },
+                origin:
+                  reviewDraft.origin,
+                included_sources: [
+                  'google-keyword-planner-csv',
+                ],
+                source_cards: [{
+                  source_id:
+                    'google-keyword-planner-csv',
+                  included:
+                    true,
+                  readiness_status:
+                    'READY',
+                }],
+                job_count:
+                  1,
+                can_start:
+                  true,
+                blocking_sources:
+                  [],
+                reviewed_draft:
+                  reviewedArtifact,
+              };
+            }
 
             if (
               keywordPlannerConfig
@@ -1540,6 +1618,17 @@ const main = async () => {
           selectDesktopInputFile: async (input) => {
             window.__selectedDesktopInputRequest = input;
 
+            if (
+              input.input_kind
+                === 'KEYWORD_PLANNER_CSV'
+            ) {
+              return {
+                canceled: false,
+                file_path: '/fixture/imports/keyword-stats.csv',
+                file_name: 'keyword-stats.csv',
+              };
+            }
+
             return {
               canceled: false,
               file_path: '/fixture/imports/ikas-products.xlsx',
@@ -2008,6 +2097,7 @@ const main = async () => {
       'GSC — Long 16 Months',
       'Google Ads — Search Terms',
       'Keyword Planner — Historical Metrics',
+      'Keyword Planner — Manual CSV Import',
       'İkas — Products Import',
       'Bitkimark — Sitemap/XML',
       'SerpApi — SERP Snapshot',
@@ -2025,7 +2115,7 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      8,
+      9,
     );
 
     assert.equal(
@@ -2060,7 +2150,7 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      8,
+      9,
     );
 
     await page.getByText(
@@ -3040,6 +3130,30 @@ const main = async () => {
     await page.getByRole('button', { name: 'Start Run', exact: true }).click();
     assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'Keyword Planner Start must forward the exact reviewed groups.');
     console.log('PASS KEYWORD-PLANNER-REVIEW-UI-001: explicit groups are reviewed and started unchanged');
+
+    await page.reload();
+    const plannerCsvCard = page.getByTestId('task-card').filter({ hasText: 'Keyword Planner — Manual CSV Import' });
+    await plannerCsvCard.getByText('FILE REQUIRED', { exact: true }).waitFor();
+    await plannerCsvCard.click();
+    const plannerCsvReviewButton = page.getByRole('button', { name: 'Review Quick Run', exact: true });
+    assert.equal(await plannerCsvReviewButton.isEnabled(), false, 'Manual CSV Review requires an explicit selected file.');
+    await page.getByRole('button', { name: 'Select Keyword Stats CSV', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__selectedDesktopInputRequest), {
+      input_kind: 'KEYWORD_PLANNER_CSV',
+    });
+    assert.equal(await page.getByText('keyword-stats.csv', { exact: true }).count(), 1);
+    assert.equal(await plannerCsvReviewButton.isEnabled(), true, 'Selecting a manual export makes Review available.');
+    await plannerCsvReviewButton.click();
+    await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__reviewedDesktopDraft.reusable_configuration.sources['google-keyword-planner-csv']), {
+      included: true,
+      task_id: 'keyword-planner-manual-csv-import',
+      file_path: '/fixture/imports/keyword-stats.csv',
+    }, 'Renderer must send the exact selected manual export to Review.');
+    assert.equal(await page.getByText('keyword-stats.csv', { exact: true }).count(), 1, 'Review must expose the exact selected manual export.');
+    await page.getByRole('button', { name: 'Start Run', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'Manual CSV Start must forward the exact reviewed artifact.');
+    console.log('PASS KEYWORD-PLANNER-CSV-UI-001: selected manual export is reviewed and started unchanged');
 
     console.log(
       'PASS DESKTOP-UI-001: source-neutral operations shell and reviewed GSC + Google Trends Quick Run flows are verified',

@@ -51,7 +51,8 @@ export const IPC_CHANNELS = {
 } as const;
 
 export type DesktopInputFileKind =
-  | 'IKAS_PRODUCTS_XLSX';
+  | 'IKAS_PRODUCTS_XLSX'
+  | 'KEYWORD_PLANNER_CSV';
 
 export interface DesktopInputFileSelectionRequest {
   input_kind: DesktopInputFileKind;

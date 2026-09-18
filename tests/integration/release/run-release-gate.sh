@@ -42,6 +42,9 @@ bash \
   tests/integration/file-import/run-ikas-reviewed-file-import-test.sh
 
 bash \
+  tests/integration/file-import/run-keyword-planner-manual-csv-test.sh
+
+bash \
   tests/integration/google-api/run-google-api-adapters-test.sh
 
 bash \

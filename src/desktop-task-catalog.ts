@@ -102,6 +102,20 @@ export const DESKTOP_TASK_CATALOG:
     },
     {
       task_id:
+        'keyword-planner-manual-csv-import',
+      source_id:
+        'google-keyword-planner-csv',
+      task_name:
+        'Keyword Planner — Manual CSV Import',
+      description:
+        'Manual Keyword Stats export preserved as immutable run evidence.',
+      group:
+        'GOOGLE',
+      default_summary:
+        'Observed UTF-16 tab-delimited Keyword Stats export',
+    },
+    {
+      task_id:
         'ikas-products-import',
       source_id:
         'ikas-products',
