@@ -36,6 +36,10 @@ import {
 import { StateRepository } from './main/storage/state-repository';
 import { ElectronSafeStorageCredentialStore } from './main/core/electron-safe-storage-credential-store';
 import { ReadinessRegistry } from './main/core/readiness-registry';
+import {
+  FreshnessRegistry,
+  resolveConfiguredIntervalPolicy,
+} from './main/core/freshness-registry';
 import { DesktopExecutionService } from './main/app/desktop-execution-service';
 import { createProductionCollectionRuntime } from './main/app/production-collection-runtime';
 import { StructuredLogger } from './main/logging/structured-logger';
@@ -717,7 +721,23 @@ const initializeBootstrapStatus =
         `${directories.app_data_root}/credentials`,
       );
       const readinessRegistry = new ReadinessRegistry(desktopRepository, credentialStore);
+      const freshnessRegistry = new FreshnessRegistry(desktopRepository);
       for (const sourceId of SUPPORTED_DESKTOP_SOURCE_IDS) {
+        freshnessRegistry.register(
+          sourceId,
+          ({ source_config }) => {
+            if (sourceId === 'serpapi') return { kind: 'ON_DEMAND' };
+            const defaultPolicy =
+              sourceId === 'ikas-products'
+              || sourceId === 'google-keyword-planner-csv'
+                ? { kind: 'MANUAL_IMPORT' as const }
+                : { kind: 'UNKNOWN' as const };
+            return resolveConfiguredIntervalPolicy(
+              source_config,
+              defaultPolicy,
+            );
+          },
+        );
         readinessRegistry.register(
           sourceId,
           ({
@@ -822,6 +842,9 @@ const initializeBootstrapStatus =
                 source_config,
               ),
           },
+
+          freshness:
+            freshnessRegistry,
 
           application_version:
             app.getVersion(),

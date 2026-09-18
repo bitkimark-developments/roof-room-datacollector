@@ -3246,6 +3246,43 @@ export class StateRepository {
     `).all(workspaceId).map(mapRunRow);
   }
 
+  getLatestAcceptedSourceCompletion(
+    workspaceId: string,
+    sourceId: string,
+  ): string | null {
+    requireNonEmpty(workspaceId, 'workspace_id');
+    requireNonEmpty(sourceId, 'source_id');
+    const row = this.database.prepare(`
+      SELECT j.completed_at
+      FROM jobs AS j
+      INNER JOIN runs AS r
+        ON r.run_id = j.run_id
+      INNER JOIN artifacts AS a
+        ON a.artifact_id = j.accepted_artifact_id
+      WHERE r.workspace_id = ?
+        AND j.source_id = ?
+        AND j.execution_status = 'COMPLETED'
+        AND j.validation_status IN ('VALID', 'LOW_DATA', 'NO_DATA')
+        AND j.completed_at IS NOT NULL
+        AND a.artifact_state IN ('ACCEPTED', 'ACCEPTED_WITH_WARNING')
+      ORDER BY j.completed_at DESC, j.job_id DESC
+      LIMIT 1
+    `).get(workspaceId, sourceId);
+    if (row === undefined) return null;
+    const record = requireRecord(
+      row,
+      'latest accepted source completion',
+    );
+    return requireUtcTimestamp(
+      requireString(
+        record,
+        'completed_at',
+        'latest accepted source completion',
+      ),
+      'latest accepted source completion.completed_at',
+    );
+  }
+
   getRun(runId: string): RunRecord | null {
     const row = this.database
       .prepare(`

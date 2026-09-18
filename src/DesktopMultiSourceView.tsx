@@ -15,6 +15,7 @@ import type {
   DesktopRunDraft,
   DesktopWorkspaceView,
 } from './shared/desktop-multisource';
+import type { FreshnessStatus } from './shared/freshness';
 import type {
   SavedCollectionPresetRecord,
 } from './shared/collection-configuration';
@@ -57,12 +58,15 @@ const GROUP_LABELS:
 function TaskCard({
   task,
   readiness,
+  freshness,
   onOpen,
 }: {
   task:
     DesktopTaskDefinition;
   readiness:
     UiReadiness;
+  freshness:
+    FreshnessStatus;
   onOpen:
     () => void;
 }) {
@@ -91,6 +95,14 @@ function TaskCard({
             '_',
             ' ',
           )}
+        </span>
+
+        <span
+          className={
+            `rr-status rr-status-${freshness.toLowerCase()}`
+          }
+        >
+          {freshness.replaceAll('_', ' ')}
         </span>
       </span>
 
@@ -1034,6 +1046,18 @@ export function DesktopMultiSourceView() {
       ],
     );
 
+  const freshnessBySource =
+    useMemo(
+      () =>
+        new Map(
+          (draft?.source_cards ?? []).map((card) => [
+            card.source_id,
+            card.freshness_status,
+          ]),
+        ),
+      [draft],
+    );
+
   const renderTaskCatalog =
     () => (
       <div
@@ -1092,6 +1116,10 @@ export function DesktopMultiSourceView() {
                                 .source_id,
                             )
                           ?? 'NOT_YET_AVAILABLE'
+                        }
+                        freshness={
+                          freshnessBySource.get(task.source_id)
+                          ?? 'UNKNOWN'
                         }
                         onOpen={
                           () => {
@@ -2028,6 +2056,10 @@ export function DesktopMultiSourceView() {
               )
               ?? 'NOT_YET_AVAILABLE';
 
+            const freshness =
+              freshnessBySource.get(selectedTask.source_id)
+              ?? 'UNKNOWN';
+
             const effectiveReadiness =
               selectedTask.source_id === 'ikas-products'
               && selectedIkasFile !== null
@@ -2176,6 +2208,15 @@ export function DesktopMultiSourceView() {
                         </dt>
                         <dd>
                           {selectedTask.source_id}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>
+                          Freshness
+                        </dt>
+                        <dd>
+                          {freshness.replaceAll('_', ' ')}
                         </dd>
                       </div>
                     </dl>

@@ -84,6 +84,7 @@ const sourceCards = [
     source_name: 'Google Trends',
     included: false,
     readiness_status: 'READY',
+    freshness_status: 'FRESH', last_successful_at: '2026-09-18T10:00:00.000Z', next_due_at: null,
     configuration_summary: '6 query groups',
   },
   {
@@ -91,6 +92,7 @@ const sourceCards = [
     source_name: 'Google Search Console',
     included: false,
     readiness_status: 'READY',
+    freshness_status: 'DUE', last_successful_at: '2026-09-16T10:00:00.000Z', next_due_at: '2026-09-17T10:00:00.000Z',
     configuration_summary: 'Query × Page',
   },
   {
@@ -98,6 +100,7 @@ const sourceCards = [
     source_name: 'Google Ads Search Terms',
     included: false,
     readiness_status: 'CONNECTION_REQUIRED',
+    freshness_status: 'DUE', last_successful_at: null, next_due_at: null,
     configuration_summary: 'Search Terms',
   },
   {
@@ -105,6 +108,7 @@ const sourceCards = [
     source_name: 'Keyword Planner',
     included: false,
     readiness_status: 'CONNECTION_REQUIRED',
+    freshness_status: 'UNKNOWN', last_successful_at: null, next_due_at: null,
     configuration_summary: 'Historical Metrics',
   },
   {
@@ -112,6 +116,7 @@ const sourceCards = [
     source_name: 'Keyword Planner Manual CSV',
     included: false,
     readiness_status: 'FILE_REQUIRED',
+    freshness_status: 'IMPORT_NEEDED', last_successful_at: null, next_due_at: null,
     configuration_summary: 'Manual UTF-16 CSV',
   },
   {
@@ -119,6 +124,7 @@ const sourceCards = [
     source_name: 'İkas Products',
     included: false,
     readiness_status: 'FILE_REQUIRED',
+    freshness_status: 'IMPORT_NEEDED', last_successful_at: null, next_due_at: null,
     configuration_summary: 'Products XLSX',
   },
   {
@@ -126,6 +132,7 @@ const sourceCards = [
     source_name: 'Bitkimark Sitemap',
     included: false,
     readiness_status: 'READY',
+    freshness_status: 'UNKNOWN', last_successful_at: null, next_due_at: null,
     configuration_summary: 'Sitemap/XML',
   },
   {
@@ -133,6 +140,7 @@ const sourceCards = [
     source_name: 'SerpApi',
     included: false,
     readiness_status: 'CONFIGURATION_REQUIRED',
+    freshness_status: 'ON_DEMAND', last_successful_at: null, next_due_at: null,
     configuration_summary: 'SERP Snapshot',
   },
 ];
@@ -2247,6 +2255,17 @@ const main = async () => {
       await page.locator('[data-testid="task-card"]').count(),
       9,
     );
+
+    const homeGscCard = page.getByTestId('task-card').filter({ hasText: 'GSC — Current 90 Days' });
+    assert.equal(await homeGscCard.getByText('DUE', { exact: true }).count(), 1);
+    const homeAdsCard = page.getByTestId('task-card').filter({ hasText: 'Google Ads — Search Terms' });
+    assert.equal(await homeAdsCard.getByText('CONNECTION REQUIRED', { exact: true }).count(), 1);
+    assert.equal(await homeAdsCard.getByText('DUE', { exact: true }).count(), 1, 'Freshness DUE remains visible while readiness is blocked.');
+    const homeIkasCard = page.getByTestId('task-card').filter({ hasText: 'İkas — Products Import' });
+    assert.equal(await homeIkasCard.getByText('IMPORT NEEDED', { exact: true }).count(), 1);
+    const homeSerpCard = page.getByTestId('task-card').filter({ hasText: 'SerpApi — SERP Snapshot' });
+    assert.equal(await homeSerpCard.getByText('ON DEMAND', { exact: true }).count(), 1);
+    console.log('PASS FRESHNESS-UI-001: readiness and freshness remain separately visible across due, import-needed, and on-demand tasks');
 
     assert.equal(
       await page.getByText('Blog-Agentic-Beklentisi', {

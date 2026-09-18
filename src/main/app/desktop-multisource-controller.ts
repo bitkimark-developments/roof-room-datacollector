@@ -27,6 +27,7 @@ import {
 } from '../../shared/desktop-run-resolution';
 import { buildDataPackage, writeDataPackage } from '../export/data-package-exporter';
 import type { DataPackage, DataPackageMode } from '../../shared/data-package';
+import type { WorkspaceFreshnessResult } from '../../shared/freshness';
 import { ResumePlanner } from '../core/resume-planner';
 import { ReconciliationCoordinator } from '../core/reconciliation-coordinator';
 import { RetryPolicy } from '../core/retry-policy';
@@ -75,9 +76,18 @@ export interface DesktopReadinessReader {
   ): Promise<{ readiness_status: DesktopReadinessStatus }>;
 }
 
+export interface DesktopFreshnessReader {
+  getFreshness(
+    workspace_id: string,
+    source_id: string,
+    source_config?: Record<string, unknown>,
+  ): WorkspaceFreshnessResult;
+}
+
 export interface DesktopMultiSourceControllerDependencies {
   repository: DesktopMultiSourceRepository;
   readiness: DesktopReadinessReader;
+  freshness?: DesktopFreshnessReader;
   application_version: string;
   google_trends_query_groups?:
     readonly {
@@ -507,7 +517,11 @@ export class DesktopMultiSourceController {
       workspace_id: input.workspace_id,
       origin: input.origin,
       reusable_configuration: configuration,
-      source_cards: this.buildCards(configuration, this.sourceOrder.map((source_id) => ({ source_id, readiness_status: 'CONFIGURATION_REQUIRED' })) as never),
+      source_cards: this.buildCards(
+        input.workspace_id,
+        configuration,
+        this.sourceOrder.map((source_id) => ({ source_id, readiness_status: 'CONFIGURATION_REQUIRED' })) as never,
+      ),
     };
   }
 
@@ -529,7 +543,7 @@ export class DesktopMultiSourceController {
         ).readiness_status
         : 'READY' as DesktopReadinessStatus,
     })));
-    const cards = this.buildCards(draft.reusable_configuration, statuses);
+    const cards = this.buildCards(draft.workspace_id, draft.reusable_configuration, statuses);
     const includedSources = cards.filter((card) => card.included).map((card) => card.source_id);
     const blockingSources = cards.filter((card) => card.included && card.readiness_status !== 'READY').map((card) => card.source_id);
     const reviewedDraft =
@@ -657,6 +671,7 @@ export class DesktopMultiSourceController {
 
     const cards =
       this.buildCards(
+        reviewedDraft.workspace_id,
         reviewedDraft
           .resolved_configuration,
         statuses,
@@ -2030,9 +2045,39 @@ export class DesktopMultiSourceController {
     return sourceIds.flatMap((sourceId) => this.planner(sourceId, sourceConfig(configuration, sourceId)));
   }
 
-  private buildCards(configuration: ReusableCollectionConfiguration, statuses: readonly { source_id: string; readiness_status: DesktopReadinessStatus }[]): DesktopSourceCard[] {
+  private buildCards(
+    workspaceId: string,
+    configuration: ReusableCollectionConfiguration,
+    statuses: readonly { source_id: string; readiness_status: DesktopReadinessStatus }[],
+  ): DesktopSourceCard[] {
     const statusBySource = new Map(statuses.map((status) => [status.source_id, status.readiness_status]));
-    return this.sourceOrder.map((sourceId) => ({ source_id: sourceId, source_name: this.sourceNames[sourceId] ?? sourceId, included: included(configuration, sourceId), readiness_status: statusBySource.get(sourceId) ?? 'CONFIGURATION_REQUIRED', configuration_summary: this.summary(sourceConfig(configuration, sourceId)) }));
+    return this.sourceOrder.map((sourceId) => {
+      const config = sourceConfig(configuration, sourceId);
+      const freshness = this.dependencies.freshness?.getFreshness(
+        workspaceId,
+        sourceId,
+        config,
+      ) ?? {
+        freshness_status:
+          sourceId === 'serpapi'
+            ? 'ON_DEMAND' as const
+            : sourceId === 'ikas-products' || sourceId === 'google-keyword-planner-csv'
+              ? 'IMPORT_NEEDED' as const
+              : 'UNKNOWN' as const,
+        last_successful_at: null as string | null,
+        next_due_at: null as string | null,
+      };
+      return {
+        source_id: sourceId,
+        source_name: this.sourceNames[sourceId] ?? sourceId,
+        included: included(configuration, sourceId),
+        readiness_status: statusBySource.get(sourceId) ?? 'CONFIGURATION_REQUIRED',
+        freshness_status: freshness.freshness_status,
+        last_successful_at: freshness.last_successful_at,
+        next_due_at: freshness.next_due_at,
+        configuration_summary: this.summary(config),
+      };
+    });
   }
 
   private summary(config: Record<string, unknown>): string {

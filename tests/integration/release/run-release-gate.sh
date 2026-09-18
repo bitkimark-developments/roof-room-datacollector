@@ -78,6 +78,9 @@ bash \
   tests/integration/serpapi/run-serpapi-reviewed-on-demand-test.sh
 
 bash \
+  tests/integration/freshness/run-freshness-lifecycle-test.sh
+
+bash \
   tests/integration/serpapi/run-live-serpapi-command-test.sh
 
 bash \

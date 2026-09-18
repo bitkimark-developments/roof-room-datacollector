@@ -13,6 +13,7 @@ import type {
 import type {
   WorkspaceRecord,
 } from './workspace';
+import type { FreshnessStatus } from './freshness';
 
 export const SUPPORTED_DESKTOP_SOURCE_IDS = [
   'google-trends',
@@ -39,6 +40,9 @@ export interface DesktopSourceCard {
   source_name: string;
   included: boolean;
   readiness_status: DesktopReadinessStatus;
+  freshness_status: FreshnessStatus;
+  last_successful_at: string | null;
+  next_due_at: string | null;
   configuration_summary: string;
 }
 
