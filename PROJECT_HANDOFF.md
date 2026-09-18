@@ -1218,3 +1218,73 @@ Exact recommended next work group:
 - **Next recommended bounded slice: Google Search Console (GSC) Query × Page Request-Binding.**
 - Align GSC with the dynamic Job `source_context` request-binding pattern established in WG1, migrating `GoogleSearchConsoleQueryPageSource.collect()` to extract `start_date` and `end_date` dynamically from Job context, removing constructor-injected date coupling from `GoogleApiRuntimeFactory` and `production-collection-runtime.ts`, while preserving all GSC Current/Long date policies and pagination contracts.
 - Obtain explicit user approval before starting implementation.
+
+---
+
+## 32. Google Search Console Query × Page — Reviewed + Request-Bound Execution checkpoint — 2026-09-18
+
+This section is the authoritative latest repository-state update. Earlier current-stage and next-action sections are historical. The standing Release 1.0 continuation authorization supersedes older intermediate approval gates for the remaining accepted roadmap.
+
+Technical implementation commit:
+
+`c745646 feat(gsc): bind reviewed date range to query page request`
+(`c745646216f88bd93c4b8e7334b000bee8d8908a`)
+
+Bounded implementation scope:
+
+- `GoogleSearchConsoleSource.collect(context)` builds its request from the persisted Job `source_context` and calls `fetchGscQueryPage(request, this.requester)`.
+- Absolute reviewed dates are read from `requested_date_start` and `requested_date_end`; constructor-level date coupling was removed.
+- Production `LazyWorkspaceSource` composition no longer extracts or injects request dates while constructing the source.
+- GSC Current and GSC Long remain distinct reviewed task modes over the existing Query × Page source.
+- Current mode preserves `TODAY_MINUS_90_TO_YESTERDAY`; Long mode preserves `TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY`.
+- Review resolves the requested date range once, Start consumes the exact reviewed artifact, and advancing the clock after Review does not recalculate the dates.
+- Repository close/reopen preserves the reviewed Job context.
+- Repeated explicit collection contexts do not leak stale dates.
+- Missing, malformed, invalid, or reversed date context fails before provider execution.
+- Query × Page dimensions and existing pagination semantics remain unchanged.
+- No schema migration was required.
+- Verified invariant:
+  `what the user reviewed = what the Job persisted = what Start executed = what the GSC provider request requested`.
+
+Accepted verification evidence for this already-verified feature commit:
+
+- Focused GSC reviewed/request-bound suite: PASS.
+- Google API adapter regression: PASS.
+- Google credential composition regression: PASS.
+- Google Ads reviewed/request-bound regression: PASS.
+- Relevant desktop multi-source regression: PASS.
+- `npx tsc --noEmit`: PASS.
+- `npm run lint`: PASS.
+- `npm run test:release:gate`: `PASS RELEASE-GATE-001`.
+- `git diff --check`: PASS.
+- The focused GSC suite is wired into `tests/integration/release/run-release-gate.sh`.
+
+Provider safety:
+
+- No live provider request ran and no provider quota was consumed.
+
+Scope claims intentionally not made:
+
+- Full GSC Release 1.0 Definition of Done is not claimed.
+- Limited live GSC acceptance is not complete.
+- Generic multi-source export completion is not claimed.
+- Freshness lifecycle completion is not claimed.
+- Release 1.0 completion is not claimed.
+
+Known shared backlog:
+
+- Generic Data Package/export abstractions exist.
+- `DesktopMultiSourceController.exportRun` expects a `load_datasets` dependency.
+- Current production `DesktopMultiSourceController` composition does not inject `load_datasets`, so non-Google-Trends production dataset loading through that generic path remains unwired.
+- Generic export is therefore partially implemented, not absent and not complete.
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Exact next action:
+
+- Integrate this completed GSC feature and documentation checkpoint into local `main` by fast-forward.
+- Continue with the accepted bounded Release 1.0 sequence, beginning with a live-repository audit of the Google Ads Keyword Planner official API vertical.
+- Determine the smallest remaining truthful gap before writing a focused failing test; do not bundle the manual CSV fallback into that official-API slice.
