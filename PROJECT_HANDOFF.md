@@ -1288,3 +1288,78 @@ Exact next action:
 - Integrate this completed GSC feature and documentation checkpoint into local `main` by fast-forward.
 - Continue with the accepted bounded Release 1.0 sequence, beginning with a live-repository audit of the Google Ads Keyword Planner official API vertical.
 - Determine the smallest remaining truthful gap before writing a focused failing test; do not bundle the manual CSV fallback into that official-API slice.
+
+---
+
+## 33. Google Ads Keyword Planner — Reviewed + Request-Bound Official API checkpoint — 2026-09-18
+
+This section is the authoritative latest repository-state update. Earlier current-stage and next-action sections are historical.
+
+Technical implementation commit:
+
+`79ca5a2 feat(keyword-planner): bind reviewed groups to API requests`
+
+Bounded implementation scope:
+
+- Task `keyword-planner-historical-metrics` now exposes an explicit named keyword-group input in the desktop Task Detail flow.
+- The renderer accepts user-provided groups only; it does not choose, rank, infer, or recommend keywords.
+- Each input line preserves an explicit lowercase `group_id`, human-readable `group_name`, and ordered keyword list.
+- Review materializes one immutable official-API Job context per named group with:
+  - `task_id`: `keyword-planner-historical-metrics`
+  - `source_id`: `google-keyword-planner`
+  - `source_mode`: `OFFICIAL_API`
+  - `group_id`
+  - `group_name`
+  - ordered `keywords`
+- Duplicate group IDs, missing group fields, empty keyword lists, blank keywords, source/task/mode mismatches, and malformed contexts fail closed before Start/provider access.
+- `GoogleKeywordPlannerSource.collect(context)` now builds each request from the persisted Job `source_context`; constructor-captured keyword coupling was removed from `GoogleApiRuntimeFactory` and production composition.
+- Repeated calls against one source instance bind only the context supplied for that call and do not leak stale keyword groups.
+- The exact reviewed groups survive Start, SQLite persistence, and repository close/reopen unchanged.
+- Production Core execution sends one bounded `GenerateKeywordHistoricalMetrics` request per reviewed group through the existing authenticated Google Ads request boundary.
+- Each group receives a distinct deterministic raw JSON filename, preventing same-source multi-Job artifact collisions while preserving independent canonical evidence.
+- Existing Keyword Planner normalization preserves nullable provider metrics, monthly rows, and monetary-micros conversion; the existing source-keyed validator and operational error mapping remain in use.
+- The focused suite is wired into `tests/integration/release/run-release-gate.sh`.
+
+TDD evidence:
+
+- Initial `KEYWORD-PLANNER-SOURCE-CONTEXT-001` RED failed because `GoogleApiRuntimeFactory.createKeywordPlannerSource` required constructor keywords and ignored `collect(context)`.
+- Initial `KEYWORD-PLANNER-REVIEW-BOUND-001` RED failed because Keyword Planner Review returned no reviewed artifact.
+- A later fail-closed RED proved duplicate groups still produced two generic Jobs; the planner was tightened so malformed or duplicate reviewed groups produce zero Jobs and `can_start = false`.
+- `KEYWORD-PLANNER-REVIEW-UI-001` proves explicit groups are required, transported to Review exactly, displayed before execution, and the exact reviewed artifact is sent to Start.
+
+Fresh verification after the final fail-closed correction:
+
+- Focused Keyword Planner suite: PASS (2/2 tests).
+- `npm run test:m3:google-api-adapters`: PASS (`PASS GOOGLE-API-001`).
+- `npm run test:m3:google-credentials`: PASS (`PASS GOOGLE-CREDENTIAL-001`).
+- `npm run test:m5:desktop-multisource`: PASS.
+- `npm run test:m5:desktop-retry-export`: PASS.
+- `npm run test:m6:data-package`: PASS.
+- Desktop UI smoke: `PASS KEYWORD-PLANNER-REVIEW-UI-001` and `PASS DESKTOP-UI-001`.
+- `npx tsc --noEmit`: exit 0.
+- `npm run lint`: exit 0.
+- `git diff --check`: exit 0.
+- `npm run test:release:gate`: `PASS RELEASE-GATE-001` (exit 0).
+
+Provider safety and remaining acceptance:
+
+- No live Google Ads/Keyword Planner or other provider request ran and no provider quota was consumed.
+- Limited live Keyword Planner acceptance remains incomplete and requires a configured intended Workspace/account with safe bounded access.
+- Keyword Planner manual CSV fallback remains a separate unimplemented/reality-audit slice and was not blended into this official-API checkpoint.
+- This checkpoint does not claim the generic multi-source export loader gap, freshness lifecycle, or Release 1.0 as complete.
+
+Stable documentation:
+
+- No stable canonical document changed because the implementation conforms to the already-approved official-API, raw-preservation, group-context, and missing-value contracts.
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Exact next action:
+
+- Commit this Section 33 documentation checkpoint separately and fast-forward the feature branch into local `main`.
+- Continue with a bounded reality audit of the shared `FILE_IMPORT` boundary and the existing İkas Products vertical.
+- Reuse the already-implemented native trusted-IPC file selection, reviewed file-path persistence, raw XLSX preservation, production parser mapping, and validator; write a focused RED only for the smallest remaining end-to-end gap proven by current repository evidence.
+- If the shared `FILE_IMPORT` seam and İkas vertical cannot remain one coherent slice, split them without expanding the abstraction beyond current R1 consumers.
