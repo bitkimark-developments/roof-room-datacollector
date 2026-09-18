@@ -1444,3 +1444,91 @@ Exact next action:
 - Audit the existing repository for any Keyword Planner manual CSV fallback foundations and sanitized/real-shape fixture evidence.
 - Implement the fallback as a distinct `FILE_IMPORT` acquisition/source mode using the shared evidence reader, preserving original UTF-16 tab-separated bytes and blank metrics as `NULL`.
 - Do not blend manual-import provenance with the completed Keyword Planner official-API path.
+
+---
+
+## 35. Keyword Planner manual CSV reviewed FILE_IMPORT checkpoint — 2026-09-18
+
+This section is the authoritative latest repository-state update. Earlier current-stage and next-action sections are historical.
+
+Implementation plan commit:
+
+`ea1cb34 docs: plan Keyword Planner manual CSV fallback`
+
+Technical implementation commit:
+
+`9670b2d feat(keyword-planner): add reviewed manual CSV fallback`
+
+Observed provider evidence:
+
+- The read-only local provider export `Keyword Stats 2026-09-08 at 16_21_37.csv` was inspected before implementation.
+- The file is UTF-16LE with a BOM and tab-delimited despite the `.csv` extension.
+- It has two provider metadata lines, the observed 26-column header, two leading segmentation aggregate rows, Turkish localized competition labels, comma-decimal bid values, and 12 consecutive monthly search columns.
+- The implemented parser was run directly against that unchanged file after the deterministic fixture suite passed.
+- Real-evidence structural result: 43 keyword rows, 2 segmentation rows, 12 monthly columns, and 26 rows whose blank average monthly search value remained `NULL`.
+- The raw user keywords and complete raw export were not copied into the repository; deterministic tests construct a sanitized derivative of the observed structure in memory.
+
+Bounded implementation scope:
+
+- A distinct desktop/Core source `google-keyword-planner-csv` now represents the manual fallback with `FILE_IMPORT` acquisition and the same logical `KEYWORD_HISTORICAL_METRICS` dataset family.
+- The official API source `google-keyword-planner` remains unchanged and retains `OFFICIAL_API` provenance.
+- Task `keyword-planner-manual-csv-import` exposes native trusted-IPC `.csv` selection and requires an explicit selected file before Review.
+- Review produces a non-null immutable artifact with the exact absolute `file_path`, manual task/source identity, and `FILE_IMPORT` mode.
+- Start persists that exact context into one Job; relative paths, task/source/mode mismatches, directories, missing files, malformed contexts, and non-regular files fail closed.
+- Collection uses the shared FILE_IMPORT evidence reader and copies the original bytes unchanged into run-scoped evidence before parsing.
+- Validation reads the stored artifact, not the source path, and accepts only the observed UTF-16LE+BOM, tab-delimited Keyword Stats shape.
+- Required fixed headers and exactly 12 consecutive `Searches: Mon YYYY` columns are enforced.
+- Provider metadata and leading segmentation rows are handled explicitly; segmentation rows after keyword data begins fail closed.
+- Quoted tabular values, localized comma-decimal bids, percent values, competition/index values, and monthly history are normalized deterministically.
+- Blank averages, bids, competition/index, percent changes, and monthly searches remain `NULL`; zero remains numeric zero.
+- UTF-8 masquerading as the export, unrelated content, missing headers, malformed quoting, unsupported numeric cells, partial rows, and invalid segmentation placement fail closed.
+- The exact selected raw bytes remain unchanged both in the original selected file and in the accepted Core artifact.
+- The focused parser/source/Core suite is wired into `tests/integration/release/run-release-gate.sh` and exposed as `npm run test:m3:keyword-planner-csv`.
+
+TDD evidence:
+
+- Initial parser RED failed because `keyword-planner-csv-parser.ts` did not exist.
+- The first negative-path run exposed an ineffective partial-row fixture mutation; the fixture was corrected before parser behavior was changed.
+- Initial Core RED failed because the manual CSV source module did not exist.
+- Initial UI RED failed because the manual CSV task card was absent.
+- `KEYWORD-PLANNER-CSV-PARSER-001/002` prove observed-shape normalization, blank-to-NULL behavior, and fail-closed malformed/unrelated input handling.
+- `KEYWORD-PLANNER-CSV-SOURCE-001` proves each collection binds only its explicit reviewed path and preserves exact bytes.
+- `KEYWORD-PLANNER-CSV-CORE-001` proves Review → Start → SQLite → production Core validation with distinct FILE_IMPORT provenance.
+- `KEYWORD-PLANNER-CSV-UI-001` proves explicit selection, missing-file gating, exact Review payload, visible reviewed filename, and unchanged Start artifact.
+
+Fresh verification:
+
+- Focused manual CSV suite: PASS (4/4 tests).
+- Direct parser run against unchanged real provider evidence: PASS with structural counts recorded above.
+- Desktop UI smoke: `PASS KEYWORD-PLANNER-CSV-UI-001` and existing UI checks.
+- `npx tsc --noEmit`: exit 0.
+- `npm run lint`: exit 0.
+- `git diff --check`: exit 0.
+- `npm run test:release:gate`: `PASS RELEASE-GATE-001` (exit 0).
+
+Provider safety and remaining acceptance:
+
+- No live Google Ads, Google Trends, GSC, SerpApi, Bitkimark, or other provider request ran; no provider quota was consumed.
+- This is a real-file local parsing acceptance for the manual fallback, not a live provider/API acceptance.
+- Limited live Keyword Planner API acceptance remains separately incomplete and requires a configured intended Workspace/account with explicit bounded access.
+
+Scope not included:
+
+- Generic production multi-source dataset loading/export remains incomplete.
+- Freshness lifecycle completion remains incomplete.
+- Release 1.0 completion is not claimed.
+
+Stable documentation:
+
+- No stable canonical document changed because this implementation follows the already-approved Keyword Planner fallback, FILE_IMPORT, raw-preservation, validation, provenance, and null-semantics contracts.
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Exact next action:
+
+- Commit this Section 35 documentation checkpoint separately and fast-forward the feature branch into local `main`.
+- Audit the existing Bitkimark `HTTP_XML` source, validator, live-smoke command guard, desktop Review/Start binding, and deterministic coverage against the Release 1.0 contract.
+- Identify and implement only the smallest remaining truthful Bitkimark vertical gap, preserving the existing approved public sitemap/XML scope and avoiding live network access unless an explicit bounded acceptance is both required and authorized.
