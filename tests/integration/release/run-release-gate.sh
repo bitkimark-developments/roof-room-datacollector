@@ -75,6 +75,9 @@ bash \
   tests/integration/serpapi/run-serpapi-source-test.sh
 
 bash \
+  tests/integration/serpapi/run-serpapi-reviewed-on-demand-test.sh
+
+bash \
   tests/integration/serpapi/run-live-serpapi-command-test.sh
 
 bash \

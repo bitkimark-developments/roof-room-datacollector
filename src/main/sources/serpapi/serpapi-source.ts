@@ -10,20 +10,9 @@ import type {
 import {
   SERPAPI_DATASET_TYPE,
   SERPAPI_SOURCE_ID,
-  type SerpApiRequestContext,
 } from '../../../shared/serpapi';
 import { SerpApiClient, SerpApiError } from './serpapi-client';
-
-const isRequestContext = (
-  value: unknown,
-): value is SerpApiRequestContext => {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-  const context = value as Partial<SerpApiRequestContext>;
-  return typeof context.query === 'string' && context.query.trim().length > 0 &&
-    context.country_code === 'TR' && context.language_code === 'tr' &&
-    context.device === 'desktop' && context.engine === 'google' &&
-    context.organic_limit === 10 && typeof context.snapshot_date === 'string';
-};
+import { requireSerpApiJobContext } from './serpapi-request';
 
 export class SerpApiSource implements CollectingDataSourceModule {
   readonly id = SERPAPI_SOURCE_ID;
@@ -82,7 +71,13 @@ export class SerpApiSource implements CollectingDataSourceModule {
         message: 'A SerpApi Workspace connection is required.',
       };
     }
-    if (!isRequestContext(context.source_context)) {
+    let requestContext;
+    try {
+      requestContext = requireSerpApiJobContext(
+        context.source_context,
+        context.job_key,
+      );
+    } catch {
       return {
         result_type: 'FAILED',
         error_code: 'CONFIGURATION_REQUIRED',
@@ -90,7 +85,7 @@ export class SerpApiSource implements CollectingDataSourceModule {
       };
     }
     try {
-      const result = await this.client.search(context.source_context);
+      const result = await this.client.search(requestContext);
       const bytes = result.raw_bytes ?? new TextEncoder().encode(
         JSON.stringify(result.raw),
       );

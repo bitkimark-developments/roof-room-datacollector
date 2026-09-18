@@ -26,6 +26,7 @@ import { GSC_QUERY_PAGE_SOURCE_ID, GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, GOOGLE_KEY
 import { IKAS_PRODUCTS_SOURCE_ID } from '../../shared/ikas-products';
 import { BITKIMARK_SITEMAP_SOURCE_ID } from '../../shared/bitkimark-sitemap';
 import { SERPAPI_SOURCE_ID, SERPAPI_DATASET_TYPE } from '../../shared/serpapi';
+import type { ApiRequester } from '../sources/google-api/api-helpers';
 
 type Repository = StateRepository;
 
@@ -95,6 +96,7 @@ export interface ProductionCollectionRuntimeInput {
   directories: ApplicationDirectories;
   googleTrendsSource: CollectingDataSourceModule;
   bitkimarkFetcher?: typeof fetch;
+  serpApiRequester?: ApiRequester;
   logger?: StructuredLogSink | null;
 }
 
@@ -102,7 +104,11 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
   const sourceRegistry = new SourceRegistry();
   sourceRegistry.register(input.googleTrendsSource);
   const googleApi = new GoogleApiRuntimeFactory(input.repository, input.credentialStore);
-  const serpApi = new SerpApiRuntimeFactory(input.repository, input.credentialStore);
+  const serpApi = new SerpApiRuntimeFactory(
+    input.repository,
+    input.credentialStore,
+    input.serpApiRequester,
+  );
 
   sourceRegistry.register(new LazyWorkspaceSource(GSC_QUERY_PAGE_SOURCE_ID, 'Google Search Console Query × Page', 'OFFICIAL_API', ['QUERY_PAGE'], input.repository, (workspaceId) => googleApi.createSearchConsoleSource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, 'Google Ads Search Terms', 'OFFICIAL_API', ['SEARCH_TERMS'], input.repository,

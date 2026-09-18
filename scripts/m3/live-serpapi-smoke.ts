@@ -42,6 +42,7 @@ import {
 import type {
   ApplicationDirectories,
 } from '../../src/shared/bootstrap-status';
+import { formatLocalReferenceDate } from '../../src/shared/desktop-run-resolution';
 
 export const SERPAPI_LIVE_SMOKE_CONFIRMATION_FLAG =
   '--confirm-live-serpapi';
@@ -150,27 +151,19 @@ const main = async (): Promise<void> => {
       workspace_id: parsed.workspace_id as string,
       confirmation: 'I UNDERSTAND THIS WILL CALL SERPAPI',
     });
-    const context = {
-      query: parsed.query,
-      country_code: 'TR' as const,
-      language_code: 'tr' as const,
-      device: 'desktop' as const,
-      engine: 'google' as const,
-      organic_limit: 10 as const,
-      snapshot_date: '2026-09-10',
-    };
+    const snapshotDate = formatLocalReferenceDate(new Date());
     const planned = repository.createRunFromJobPlans({
       workspace_id: parsed.workspace_id as string,
       application_version: app.getVersion(),
       configuration_snapshot: {
         source_id: SERPAPI_SOURCE_ID,
         dataset_type: 'GOOGLE_SERP',
-        reference_date: context.snapshot_date,
+        reference_date: snapshotDate,
       },
       job_plans: createSerpApiJobPlans([{
         job_key: 'SERP-LIVE-001',
         query: parsed.query,
-      }], context),
+      }], snapshotDate),
     });
     const registry = new SourceRegistry();
     registry.register(source);

@@ -60,6 +60,12 @@ import {
 import {
   isTerminalRunStatus,
 } from '../core/run-execution-state-machine';
+import {
+  requireSerpApiJobContext,
+  serpApiContextAsJson,
+  SERPAPI_TASK_ID,
+} from '../sources/serpapi/serpapi-request';
+import { createSerpApiJobPlans } from '../sources/serpapi/serpapi-job-plans';
 
 export interface DesktopReadinessReader {
   getReadiness(
@@ -216,7 +222,27 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
     );
   }
   if (sourceId === 'google-search-console-query-page') return plans(Array.isArray(config.date_ranges) ? config.date_ranges : [], (item, index) => typeof item.job_key === 'string' ? item.job_key : `gsc-${index + 1}`);
-  if (sourceId === 'serpapi') return plans(Array.isArray(config.queries) ? config.queries : [], (item, index) => typeof item.query === 'string' ? item.query : `query-${index + 1}`);
+  if (sourceId === 'serpapi') {
+    if (!Array.isArray(config.queries)) return [];
+    try {
+      const contexts = config.queries.map((query) => {
+        const value = asObject(query);
+        return serpApiContextAsJson(
+          requireSerpApiJobContext(value, typeof value.job_key === 'string' ? value.job_key : undefined),
+        );
+      });
+      const jobKeys = contexts.map((context) => context.job_key as string);
+      if (new Set(jobKeys).size !== jobKeys.length) return [];
+      return contexts.map((context) => ({
+        source_id: sourceId,
+        job_key: context.job_key as string,
+        query_group_id: null as string | null,
+        source_context: context,
+      }));
+    } catch {
+      return [];
+    }
+  }
   if (sourceId === 'google-keyword-planner') {
     if (!Array.isArray(config.groups)) {
       return [];
@@ -1382,6 +1408,55 @@ export class DesktopMultiSourceController {
         draft.reusable_configuration,
         sourceId,
       );
+
+    if (sourceId === 'serpapi') {
+      if (
+        config.task_id !== SERPAPI_TASK_ID
+        || !Array.isArray(config.queries)
+        || config.queries.length === 0
+      ) {
+        return null;
+      }
+      const entries = config.queries.map((query) => {
+        const value = asObject(query);
+        return {
+          job_key: value.job_key,
+          query: value.query,
+        };
+      });
+      if (entries.some((entry) => typeof entry.job_key !== 'string' || typeof entry.query !== 'string')) {
+        return null;
+      }
+      const resolvedAt = this.now();
+      const referenceDate = formatLocalReferenceDate(resolvedAt);
+      let contexts: JsonObject[];
+      try {
+        contexts = createSerpApiJobPlans(
+          entries as { job_key: string; query: string }[],
+          referenceDate,
+        ).map((plan) => plan.source_context);
+      } catch {
+        return null;
+      }
+      const reusableConfiguration = cloneConfiguration(draft.reusable_configuration);
+      const resolvedConfiguration = cloneConfiguration(draft.reusable_configuration);
+      const sources = asJsonObjectValue(resolvedConfiguration.sources);
+      sources[sourceId] = {
+        ...asJsonObjectValue(sources[sourceId]),
+        task_id: SERPAPI_TASK_ID,
+        queries: contexts,
+      };
+      resolvedConfiguration.sources = sources;
+      return {
+        workspace_id: draft.workspace_id,
+        task_id: SERPAPI_TASK_ID,
+        source_id: sourceId,
+        reference_date: referenceDate,
+        resolved_at: resolvedAt.toISOString(),
+        reusable_configuration: reusableConfiguration,
+        resolved_configuration: resolvedConfiguration,
+      };
+    }
 
     if (sourceId === 'google-ads-search-terms') {
       if (config.task_id !== 'google-ads-search-terms'

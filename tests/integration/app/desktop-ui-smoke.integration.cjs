@@ -243,6 +243,7 @@ const main = async () => {
                     === 'google-trends'
                   || (card.source_id === 'google-ads-search-terms' && window.__adsReady)
                   || (card.source_id === 'google-keyword-planner' && window.__keywordPlannerReady)
+                  || (card.source_id === 'serpapi' && window.__serpApiReady)
                 )
                   ? {
                       ...card,
@@ -314,6 +315,52 @@ const main = async () => {
                 ?.reusable_configuration
                 ?.sources
                 ?.['bitkimark-sitemap'];
+
+            const serpApiConfig =
+              reviewDraft
+                ?.reusable_configuration
+                ?.sources
+                ?.serpapi;
+
+            if (serpApiConfig?.task_id === 'serpapi-serp-snapshot') {
+              const resolvedQueries = serpApiConfig.queries.map((query) => ({
+                task_id: 'serpapi-serp-snapshot',
+                source_id: 'serpapi',
+                source_mode: 'THIRD_PARTY_API',
+                dataset_type: 'GOOGLE_SERP',
+                ...query,
+                country_code: 'TR',
+                language_code: 'tr',
+                device: 'desktop',
+                engine: 'google',
+                organic_limit: 10,
+                snapshot_date: '2026-09-18',
+              }));
+              const reviewedArtifact = {
+                workspace_id: 'ws_fixture',
+                task_id: 'serpapi-serp-snapshot',
+                source_id: 'serpapi',
+                reference_date: '2026-09-18',
+                resolved_at: '2026-09-18T09:30:00.000Z',
+                reusable_configuration: reviewDraft.reusable_configuration,
+                resolved_configuration: {
+                  sources: {
+                    serpapi: { ...serpApiConfig, queries: resolvedQueries },
+                  },
+                },
+              };
+              window.__reviewedDesktopArtifact = reviewedArtifact;
+              return {
+                workspace: { workspace_id: 'ws_fixture', workspace_name: 'Acceptance Workspace' },
+                origin: reviewDraft.origin,
+                included_sources: ['serpapi'],
+                source_cards: [{ source_id: 'serpapi', included: true, readiness_status: 'READY' }],
+                job_count: resolvedQueries.length,
+                can_start: true,
+                blocking_sources: [],
+                reviewed_draft: reviewedArtifact,
+              };
+            }
 
             if (
               bitkimarkConfig
@@ -3275,6 +3322,36 @@ const main = async () => {
     await page.getByRole('button', { name: 'Start Run', exact: true }).click();
     assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'Bitkimark Start must forward the exact reviewed HTTP_XML artifact.');
     console.log('PASS BITKIMARK-REVIEW-UI-001: bounded sitemap URLs are reviewed and started unchanged');
+
+    await page.addInitScript(() => { window.__serpApiReady = true; });
+    await page.reload();
+    const serpApiCard = page.getByTestId('task-card').filter({ hasText: 'SerpApi — SERP Snapshot' });
+    await serpApiCard.getByText('READY', { exact: true }).waitFor();
+    await serpApiCard.click();
+    const serpApiReviewButton = page.getByRole('button', { name: 'Review Quick Run', exact: true });
+    assert.equal(await serpApiReviewButton.isEnabled(), false, 'SerpApi Review requires an explicit on-demand batch.');
+    const serpApiQueries = page.getByLabel('SERP queries');
+    await serpApiQueries.fill([
+      'SERP-FICUS-001 | ficus çeşitleri',
+      'SERP-OFFICE-001 | ofis bitkileri',
+    ].join('\n'));
+    assert.equal(await serpApiReviewButton.isEnabled(), true);
+    await serpApiReviewButton.click();
+    await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__reviewedDesktopDraft.reusable_configuration.sources.serpapi), {
+      included: true,
+      task_id: 'serpapi-serp-snapshot',
+      queries: [
+        { job_key: 'SERP-FICUS-001', query: 'ficus çeşitleri' },
+        { job_key: 'SERP-OFFICE-001', query: 'ofis bitkileri' },
+      ],
+    });
+    assert.equal(await page.getByText('SERP queries: 2', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('SERP-FICUS-001: ficus çeşitleri', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Fixed scope: Google · Turkey · Turkish · Desktop · First page · 10 organic', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Start Run', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'SerpApi Start must forward the exact reviewed on-demand batch.');
+    console.log('PASS SERPAPI-REVIEW-UI-001: explicit on-demand queries are reviewed and started unchanged');
 
     console.log(
       'PASS DESKTOP-UI-001: source-neutral operations shell and reviewed GSC + Google Trends Quick Run flows are verified',

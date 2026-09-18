@@ -508,6 +508,74 @@ const getReviewedBitkimarkSitemaps = (
   });
 };
 
+interface SerpApiInputQuery extends JsonObject {
+  job_key: string;
+  query: string;
+}
+
+const parseSerpApiQueries = (
+  value: string,
+): SerpApiInputQuery[] | null => {
+  const lines = value
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) return null;
+  const queries: SerpApiInputQuery[] = [];
+  for (const line of lines) {
+    const separator = line.indexOf('|');
+    if (separator < 0 || line.indexOf('|', separator + 1) >= 0) return null;
+    const jobKey = line.slice(0, separator).trim();
+    const query = line.slice(separator + 1).trim();
+    if (
+      !/^[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$/u.test(jobKey)
+      || query.length === 0
+      || query.length > 512
+    ) {
+      return null;
+    }
+    queries.push({ job_key: jobKey, query });
+  }
+  if (new Set(queries.map((query) => query.job_key)).size !== queries.length) return null;
+  return queries;
+};
+
+const getReviewedSerpApiQueries = (
+  review: DesktopReview,
+): SerpApiInputQuery[] | null => {
+  const reviewed = review.reviewed_draft;
+  if (reviewed === null || reviewed.source_id !== 'serpapi') return null;
+  const sources = reviewed.resolved_configuration.sources;
+  if (typeof sources !== 'object' || sources === null || Array.isArray(sources)) return null;
+  const source = (sources as JsonObject).serpapi;
+  if (typeof source !== 'object' || source === null || Array.isArray(source)) return null;
+  const rawQueries = (source as JsonObject).queries;
+  if (!Array.isArray(rawQueries) || rawQueries.length === 0) return null;
+  return rawQueries.map((rawQuery) => {
+    if (typeof rawQuery !== 'object' || rawQuery === null || Array.isArray(rawQuery)) {
+      throw new Error('Reviewed SerpApi query context is invalid.');
+    }
+    const value = rawQuery as JsonObject;
+    if (
+      typeof value.job_key !== 'string'
+      || typeof value.query !== 'string'
+      || value.task_id !== 'serpapi-serp-snapshot'
+      || value.source_id !== 'serpapi'
+      || value.source_mode !== 'THIRD_PARTY_API'
+      || value.dataset_type !== 'GOOGLE_SERP'
+      || value.country_code !== 'TR'
+      || value.language_code !== 'tr'
+      || value.device !== 'desktop'
+      || value.engine !== 'google'
+      || value.organic_limit !== 10
+      || value.snapshot_date !== reviewed.reference_date
+    ) {
+      throw new Error('Reviewed SerpApi query fields are invalid.');
+    }
+    return { job_key: value.job_key, query: value.query };
+  });
+};
+
 export function DesktopMultiSourceView() {
   const [
     view,
@@ -604,6 +672,11 @@ export function DesktopMultiSourceView() {
   ] = useState(
     BITKIMARK_VERIFIED_SITEMAP_URLS.join('\n'),
   );
+
+  const [
+    serpApiQueriesInput,
+    setSerpApiQueriesInput,
+  ] = useState('');
 
   const [
     quickRunReview,
@@ -1171,6 +1244,11 @@ export function DesktopMultiSourceView() {
             )
           : null;
 
+      const serpApiQueries =
+        selectedTask.source_id === 'serpapi'
+          ? parseSerpApiQueries(serpApiQueriesInput)
+          : null;
+
       if (
         selectedTask.source_id
           === 'google-keyword-planner'
@@ -1190,6 +1268,11 @@ export function DesktopMultiSourceView() {
         setMessage(
           'Use a bounded subset of the verified Bitkimark sitemap URLs, beginning with sitemap.xml.',
         );
+        return;
+      }
+
+      if (selectedTask.source_id === 'serpapi' && serpApiQueries === null) {
+        setMessage('Enter valid unique query-id | query rows before Review.');
         return;
       }
 
@@ -1271,8 +1354,15 @@ export function DesktopMultiSourceView() {
                       true,
                     task_id:
                       selectedTask.task_id,
-                    sitemaps:
-                      bitkimarkSitemaps,
+                      sitemaps:
+                        bitkimarkSitemaps,
+                  }
+              : selectedTask.source_id === 'serpapi'
+                && serpApiQueries !== null
+                ? {
+                    included: true,
+                    task_id: selectedTask.task_id,
+                    queries: serpApiQueries,
                   }
               : {
                   included: true,
@@ -1989,6 +2079,10 @@ export function DesktopMultiSourceView() {
                 && parseKeywordPlannerGroups(
                   keywordPlannerGroupsInput,
                 ) !== null
+              )
+              || (
+                selectedTask.source_id === 'serpapi'
+                && parseSerpApiQueries(serpApiQueriesInput) !== null
               );
 
             const canReview =
@@ -2247,6 +2341,27 @@ export function DesktopMultiSourceView() {
                                       event.target.value,
                                     )
                                 }
+                              />
+                            </label>
+                          </div>
+                        )
+                      : selectedTask.source_id === 'serpapi'
+                        ? (
+                          <div className="rr-file-input">
+                            <p>
+                              Enter one explicit on-demand query per line: query-id | query
+                            </p>
+
+                            <label>
+                              <span>
+                                SERP queries
+                              </span>
+
+                              <textarea
+                                aria-label="SERP queries"
+                                rows={8}
+                                value={serpApiQueriesInput}
+                                onChange={(event) => setSerpApiQueriesInput(event.target.value)}
                               />
                             </label>
                           </div>
@@ -2651,6 +2766,37 @@ export function DesktopMultiSourceView() {
                             </p>
                           ),
                         )}
+                      </section>
+                    );
+                })()}
+
+                {(() => {
+                  const queries = getReviewedSerpApiQueries(quickRunReview.review);
+                  return queries === null
+                    ? null
+                    : (
+                      <section className="rr-panel rr-detail-panel">
+                        <span className="rr-kicker">
+                          ON-DEMAND BATCH
+                        </span>
+
+                        <h2>
+                          SerpApi Queries
+                        </h2>
+
+                        <p>
+                          SERP queries: {queries.length}
+                        </p>
+
+                        {queries.map((query) => (
+                          <p key={query.job_key}>
+                            {query.job_key}: {query.query}
+                          </p>
+                        ))}
+
+                        <p>
+                          Fixed scope: Google · Turkey · Turkish · Desktop · First page · 10 organic
+                        </p>
                       </section>
                     );
                 })()}

@@ -10,6 +10,7 @@ npx tsc \
   src/main/sources/serpapi/serpapi-job-plans.ts \
   src/main/sources/serpapi/serpapi-parser.ts \
   src/main/sources/serpapi/serpapi-readiness.ts \
+  src/main/sources/serpapi/serpapi-request.ts \
   src/main/sources/serpapi/serpapi-runtime.ts \
   src/main/sources/serpapi/serpapi-source.ts \
   src/main/sources/serpapi/serpapi-validator.ts \

@@ -6,9 +6,9 @@ import type {
 } from '../../../shared/collection';
 import {
   SERPAPI_SOURCE_ID,
-  type SerpApiRequestContext,
 } from '../../../shared/serpapi';
 import { parseSerpApiResponse, SerpApiParseError } from './serpapi-parser';
+import { requireSerpApiJobContext } from './serpapi-request';
 
 const failure = (
   status: 'ERROR_NOT_DATA' | 'INVALID_SCHEMA' | 'QUERY_MISMATCH',
@@ -29,24 +29,6 @@ const failure = (
   }],
 });
 
-const requireContext = (
-  value: unknown,
-): SerpApiRequestContext => {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new SerpApiParseError('INVALID_SCHEMA', 'SerpApi source_context is required.');
-  }
-  const context = value as Partial<SerpApiRequestContext>;
-  if (
-    typeof context.query !== 'string' || !context.query.trim() ||
-    context.country_code !== 'TR' || context.language_code !== 'tr' ||
-    context.device !== 'desktop' || context.engine !== 'google' ||
-    context.organic_limit !== 10 || typeof context.snapshot_date !== 'string'
-  ) {
-    throw new SerpApiParseError('INVALID_SCHEMA', 'SerpApi source_context does not match the locked request contract.');
-  }
-  return context as SerpApiRequestContext;
-};
-
 export class SerpApiValidator implements CollectionValidator {
   async validate(
     context: CollectionValidationContext,
@@ -63,7 +45,18 @@ export class SerpApiValidator implements CollectionValidator {
       return failure('INVALID_SCHEMA', 'SerpApi validator received another source.');
     }
     try {
-      const expected = requireContext(context.source_context);
+      let expected;
+      try {
+        expected = requireSerpApiJobContext(
+          context.source_context,
+          context.job.job_key,
+        );
+      } catch (error) {
+        throw new SerpApiParseError(
+          'INVALID_SCHEMA',
+          error instanceof Error ? error.message : 'SerpApi source_context is invalid.',
+        );
+      }
       const body = JSON.parse(
         new TextDecoder().decode(await readFile(context.absolute_path)),
       ) as unknown;
@@ -80,6 +73,7 @@ export class SerpApiValidator implements CollectionValidator {
       if (error instanceof SerpApiParseError) {
         return failure(
           error.code === 'QUERY_MISMATCH' ? 'QUERY_MISMATCH' :
+            error.code === 'CONTEXT_MISMATCH' ? 'QUERY_MISMATCH' :
             error.code === 'ERROR_NOT_DATA' ? 'ERROR_NOT_DATA' : 'INVALID_SCHEMA',
           error.message,
         );

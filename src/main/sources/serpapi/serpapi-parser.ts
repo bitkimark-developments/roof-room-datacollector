@@ -99,8 +99,14 @@ export const parseSerpApiResponse = (
   const parameters = isRecord(body.search_parameters)
     ? body.search_parameters
     : null;
+  if (parameters === null) {
+    throw new SerpApiParseError(
+      'CONTEXT_MISMATCH',
+      'SerpApi response context is missing.',
+    );
+  }
   const observed = observedContext(parameters);
-  if (observed.query !== null && observed.query !== expected.query) {
+  if (observed.query !== expected.query) {
     throw new SerpApiParseError('QUERY_MISMATCH', 'SerpApi response query does not match the requested Job.');
   }
   const expectedContext = {
@@ -110,10 +116,11 @@ export const parseSerpApiResponse = (
     engine: expected.engine,
   };
   if (
-    (observed.country_code !== null && observed.country_code !== expectedContext.country_code) ||
-    (observed.language_code !== null && observed.language_code !== expectedContext.language_code) ||
-    (observed.device !== null && observed.device !== expectedContext.device) ||
-    (observed.engine !== null && observed.engine !== expectedContext.engine)
+    observed.country_code !== expectedContext.country_code ||
+    observed.language_code !== expectedContext.language_code ||
+    observed.device !== expectedContext.device ||
+    observed.engine !== expectedContext.engine ||
+    parameters.start !== 0
   ) {
     throw new SerpApiParseError('CONTEXT_MISMATCH', 'SerpApi response context does not match the requested Job.');
   }

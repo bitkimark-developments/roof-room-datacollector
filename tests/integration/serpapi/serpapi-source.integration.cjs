@@ -12,11 +12,20 @@ const { SerpApiValidator } = require(path.join(buildRoot, 'main/sources/serpapi/
 const { parseSerpApiResponse } = require(path.join(buildRoot, 'main/sources/serpapi/serpapi-parser.js'));
 const { SerpApiRuntimeFactory } = require(path.join(buildRoot, 'main/sources/serpapi/serpapi-runtime.js'));
 const { createSerpApiJobPlans } = require(path.join(buildRoot, 'main/sources/serpapi/serpapi-job-plans.js'));
+const {
+  createSerpApiJobContext,
+  requireSerpApiJobContext,
+} = require(path.join(buildRoot, 'main/sources/serpapi/serpapi-request.js'));
 const { serpApiReadinessEvaluator } = require(path.join(buildRoot, 'main/sources/serpapi/serpapi-readiness.js'));
 const { SERPAPI_SOURCE_ID } = require(path.join(buildRoot, 'shared/serpapi.js'));
 const { GoogleApiTransportError } = require(path.join(buildRoot, 'main/sources/google-api/api-helpers.js'));
 
-const context = {
+const context = createSerpApiJobContext({
+  task_id: 'serpapi-serp-snapshot',
+  source_id: 'serpapi',
+  source_mode: 'THIRD_PARTY_API',
+  dataset_type: 'GOOGLE_SERP',
+  job_key: 'SERP-FICUS-001',
   query: 'ficus çeşitleri',
   country_code: 'TR',
   language_code: 'tr',
@@ -24,7 +33,7 @@ const context = {
   engine: 'google',
   organic_limit: 10,
   snapshot_date: '2026-09-10',
-};
+});
 
 const providerBody = {
   search_metadata: { status: 'Success', id: 'safe-id' },
@@ -101,6 +110,19 @@ const makeRecord = (overrides = {}) => ({
   assert.equal(requests[0].url.includes('device=desktop'), true);
   assert.equal(requests[0].url.includes('start=0'), true);
 
+  const requestCountBeforeInvalid = requests.length;
+  const invalid = await source.collect({
+    source_context: { ...context, snapshot_date: '2026-9-10' },
+    job_key: 'SERP-FICUS-001',
+  });
+  assert.equal(invalid.result_type, 'FAILED');
+  assert.equal(invalid.error_code, 'CONFIGURATION_REQUIRED');
+  assert.equal(requests.length, requestCountBeforeInvalid);
+  assert.throws(
+    () => requireSerpApiJobContext({ ...context, job_key: 'different' }, 'SERP-FICUS-001'),
+    /Job key/u,
+  );
+
   const parsed = parseSerpApiResponse(providerBody, context);
   assert.equal(parsed.rows.filter((row) => row.result_type === 'ORGANIC').length, 10);
   assert.equal(parsed.rows.filter((row) => row.result_type === 'PAA').length, 2);
@@ -109,6 +131,17 @@ const makeRecord = (overrides = {}) => ({
   assert.equal(parsed.rows[10].paa, 'Ficus nasıl bakılır?');
   assert.equal(parsed.rows[10].snippet, 'Provider answer.');
   assert.equal(parsed.rows[11].snippet, null);
+  assert.throws(
+    () => parseSerpApiResponse({ ...providerBody, search_parameters: undefined }, context),
+    /context/iu,
+  );
+  assert.throws(
+    () => parseSerpApiResponse({
+      ...providerBody,
+      search_parameters: { ...providerBody.search_parameters, device: 'mobile' },
+    }, context),
+    /context/iu,
+  );
 
   const rawPath = path.join(workRoot, 'serpapi.json');
   fs.mkdirSync(workRoot, { recursive: true });
@@ -119,15 +152,37 @@ const makeRecord = (overrides = {}) => ({
   assert.equal(validation.validation_status, 'VALID');
   assert.equal(validation.findings.length, 0);
 
+  fs.writeFileSync(rawPath, JSON.stringify({
+    search_metadata: { status: 'Success' },
+    search_parameters: providerBody.search_parameters,
+    organic_results: [],
+    related_questions: [],
+  }));
+  const noData = await new SerpApiValidator().validate({
+    ...makeRecord(), absolute_path: rawPath, source_context: context,
+  });
+  assert.equal(noData.validation_status, 'NO_DATA');
+
   const plans = createSerpApiJobPlans([
     { job_key: 'SERP-FICUS-001', query: 'ficus çeşitleri' },
     { job_key: 'SERP-PASA-001', query: 'paşa kılıcı' },
     { job_key: 'SERP-OFFICE-001', query: 'ofis bitkileri' },
-  ], context);
+  ], '2026-09-10');
   assert.equal(plans.length, 3);
   assert.deepEqual(plans.map((plan) => plan.query_group_id), [null, null, null]);
   assert.equal(plans[0].source_context.query, 'ficus çeşitleri');
+  assert.equal(plans[0].source_context.task_id, 'serpapi-serp-snapshot');
+  assert.equal(plans[0].source_context.job_key, 'SERP-FICUS-001');
+  assert.equal(plans[1].source_context.job_key, 'SERP-PASA-001');
+  assert.equal(plans[0].source_context.snapshot_date, '2026-09-10');
   assert.equal(JSON.stringify(plans).includes('serpapi-secret'), false);
+  assert.throws(
+    () => createSerpApiJobPlans([
+      { job_key: 'duplicate', query: 'first' },
+      { job_key: 'duplicate', query: 'second' },
+    ], '2026-09-10'),
+    /unique/u,
+  );
 
   assert.equal(serpApiReadinessEvaluator({ connection: null, credential_available: false }), 'CONFIGURATION_REQUIRED');
   assert.equal(serpApiReadinessEvaluator({ connection: connections.get('workspace-a'), credential_available: false }), 'CONNECTION_REQUIRED');
