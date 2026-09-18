@@ -39,6 +39,9 @@ bash \
   tests/integration/sources/run-non-google-source-slices-test.sh
 
 bash \
+  tests/integration/file-import/run-ikas-reviewed-file-import-test.sh
+
+bash \
   tests/integration/google-api/run-google-api-adapters-test.sh
 
 bash \

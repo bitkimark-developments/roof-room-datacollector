@@ -1091,6 +1091,8 @@ export function DesktopMultiSourceView() {
             && selectedIkasFile !== null
               ? {
                   included: true,
+                  task_id:
+                    selectedTask.task_id,
                   file_path:
                     selectedIkasFile.file_path,
                 }

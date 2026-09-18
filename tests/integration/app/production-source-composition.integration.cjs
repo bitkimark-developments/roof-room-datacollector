@@ -77,7 +77,16 @@ const context = { run_id: 'run-test', job_id: 'job-test', attempt_id: 'attempt-t
 await runtime.source_registry.get('google-trends').collect(context);
 const fixture = '/tmp/production-composition-ikas.xlsx';
 fs.writeFileSync(fixture, Buffer.from('not-a-real-workbook'));
-const ikasResult = await runtime.source_registry.get('ikas-products').collect({ ...context, source_id: 'ikas-products', source_context: { file_path: fixture } });
+const ikasResult = await runtime.source_registry.get('ikas-products').collect({
+  ...context,
+  source_id: 'ikas-products',
+  source_context: {
+    task_id: 'ikas-products-import',
+    source_id: 'ikas-products',
+    source_mode: 'FILE_IMPORT',
+    file_path: fixture,
+  },
+});
 assert.equal(trendsDispatches, 1);
 assert.equal(ikasResult.result_type, 'ARTIFACT_PRODUCED');
 fs.unlinkSync(fixture);

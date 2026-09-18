@@ -702,6 +702,41 @@ const main = async () => {
               };
             }
 
+            const ikasConfig =
+              reviewDraft
+                ?.reusable_configuration
+                ?.sources
+                ?.['ikas-products'];
+
+            const reviewedArtifact = {
+              workspace_id:
+                'ws_fixture',
+              task_id:
+                'ikas-products-import',
+              source_id:
+                'ikas-products',
+              reference_date:
+                '2026-09-14',
+              resolved_at:
+                '2026-09-14T09:30:00.000Z',
+              reusable_configuration:
+                reviewDraft.reusable_configuration,
+              resolved_configuration: {
+                sources: {
+                  'ikas-products': {
+                    ...ikasConfig,
+                    source_id:
+                      'ikas-products',
+                    source_mode:
+                      'FILE_IMPORT',
+                  },
+                },
+              },
+            };
+
+            window.__reviewedDesktopArtifact =
+              reviewedArtifact;
+
             return {
               workspace: {
                 workspace_id:
@@ -737,7 +772,7 @@ const main = async () => {
               blocking_sources:
                 [],
               reviewed_draft:
-                null,
+                reviewedArtifact,
             };
           },
 
@@ -774,6 +809,12 @@ const main = async () => {
                   job_key: 'ikas-products-current',
                   query_group_id: null,
                   source_context: {
+                    task_id:
+                      'ikas-products-import',
+                    source_id:
+                      'ikas-products',
+                    source_mode:
+                      'FILE_IMPORT',
                     file_path:
                       '/fixture/imports/ikas-products.xlsx',
                   },
@@ -2172,6 +2213,8 @@ const main = async () => {
       ),
       {
         included: true,
+        task_id:
+          'ikas-products-import',
         file_path:
           '/fixture/imports/ikas-products.xlsx',
       },
@@ -2266,9 +2309,13 @@ const main = async () => {
         () => window.__startedDesktopDraft,
       ),
       await page.evaluate(
-        () => window.__reviewedDesktopDraft,
+        () => window.__reviewedDesktopArtifact,
       ),
-      'Start Run must execute the exact draft that was reviewed.',
+      'Start Run must execute the exact reviewed FILE_IMPORT artifact.',
+    );
+
+    console.log(
+      'PASS IKAS-FILE-REVIEW-UI-001: selected XLSX path is reviewed and started through the locked FILE_IMPORT artifact',
     );
 
     await page.getByRole(

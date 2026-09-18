@@ -39,6 +39,12 @@ import {
   KEYWORD_PLANNER_TASK_ID,
 } from '../sources/google-ads/keyword-planner-request';
 import {
+  createIkasProductsJobContext,
+  ikasProductsContextAsJson,
+  IKAS_PRODUCTS_SOURCE_MODE,
+  IKAS_PRODUCTS_TASK_ID,
+} from '../sources/ikas/ikas-products-request';
+import {
   isTerminalRunStatus,
 } from '../core/run-execution-state-machine';
 
@@ -207,7 +213,40 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
     }
   }
   if (sourceId === 'google-ads-search-terms') return plans(Array.isArray(config.jobs) ? config.jobs : [{}], (_item, index) => `search-terms-${index + 1}`);
-  if (sourceId === 'ikas-products') return config.file_path ? plans([config], () => 'ikas-products-current') : [];
+  if (sourceId === 'ikas-products') {
+    try {
+      const context =
+        ikasProductsContextAsJson(
+          createIkasProductsJobContext(
+            {
+              ...config,
+              task_id:
+                config.task_id
+                ?? IKAS_PRODUCTS_TASK_ID,
+              source_id:
+                config.source_id
+                ?? sourceId,
+              source_mode:
+                config.source_mode
+                ?? IKAS_PRODUCTS_SOURCE_MODE,
+            },
+          ),
+        );
+
+      return [{
+        source_id:
+          sourceId,
+        job_key:
+          'ikas-products-current',
+        query_group_id:
+          null as string | null,
+        source_context:
+          context,
+      }];
+    } catch {
+      return [];
+    }
+  }
   if (sourceId === 'bitkimark-sitemap') return config.sitemap_url ? plans([config], () => 'bitkimark-sitemap-current') : [];
   return [];
 };
@@ -1360,6 +1399,85 @@ export class DesktopMultiSourceController {
           draft.workspace_id,
         task_id:
           KEYWORD_PLANNER_TASK_ID,
+        source_id:
+          sourceId,
+        reference_date:
+          formatLocalReferenceDate(
+            resolvedAt,
+          ),
+        resolved_at:
+          resolvedAt.toISOString(),
+        reusable_configuration:
+          reusableConfiguration,
+        resolved_configuration:
+          resolvedConfiguration,
+      };
+    }
+
+    if (
+      sourceId === 'ikas-products'
+    ) {
+      if (
+        config.task_id !== undefined
+        && config.task_id
+          !== IKAS_PRODUCTS_TASK_ID
+      ) {
+        return null;
+      }
+
+      let jobContext;
+
+      try {
+        jobContext =
+          ikasProductsContextAsJson(
+            createIkasProductsJobContext({
+              task_id:
+                IKAS_PRODUCTS_TASK_ID,
+              source_id:
+                sourceId,
+              source_mode:
+                IKAS_PRODUCTS_SOURCE_MODE,
+              file_path:
+                config.file_path,
+            }),
+          );
+      } catch {
+        return null;
+      }
+
+      const resolvedAt =
+        this.now();
+
+      const reusableConfiguration =
+        cloneConfiguration(
+          draft.reusable_configuration,
+        );
+
+      const resolvedConfiguration =
+        cloneConfiguration(
+          draft.reusable_configuration,
+        );
+
+      const sources =
+        asJsonObjectValue(
+          resolvedConfiguration.sources,
+        );
+
+      sources[sourceId] = {
+        ...asJsonObjectValue(
+          sources[sourceId],
+        ),
+        ...jobContext,
+      };
+
+      resolvedConfiguration.sources =
+        sources;
+
+      return {
+        workspace_id:
+          draft.workspace_id,
+        task_id:
+          IKAS_PRODUCTS_TASK_ID,
         source_id:
           sourceId,
         reference_date:

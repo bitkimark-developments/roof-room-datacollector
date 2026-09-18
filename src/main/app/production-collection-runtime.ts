@@ -109,10 +109,8 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
     (workspaceId) => googleApi.createSearchTermsSource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, 'Google Keyword Planner', 'OFFICIAL_API', ['KEYWORD_HISTORICAL_METRICS'], input.repository,
     (workspaceId) => googleApi.createKeywordPlannerSource({ workspace_id: workspaceId })));
-  sourceRegistry.register(new LazyWorkspaceSource(IKAS_PRODUCTS_SOURCE_ID, 'İkas Products', 'FILE_IMPORT', ['PRODUCTS'], input.repository, (workspaceId, context) => {
-    const connection = input.repository.getSourceConnection(workspaceId, IKAS_PRODUCTS_SOURCE_ID); const path = stringField(context, 'file_path') ?? (typeof connection?.safe_metadata.file_path === 'string' ? connection.safe_metadata.file_path : null);
-    return new IkasProductsSource(path);
-  }));
+  sourceRegistry.register(new LazyWorkspaceSource(IKAS_PRODUCTS_SOURCE_ID, 'İkas Products', 'FILE_IMPORT', ['PRODUCTS'], input.repository,
+    () => new IkasProductsSource()));
   sourceRegistry.register(new LazyWorkspaceSource(BITKIMARK_SITEMAP_SOURCE_ID, 'Bitkimark Sitemap', 'HTTP_XML', ['SITEMAP_URLS'], input.repository, (workspaceId, context) => {
     const connection = input.repository.getSourceConnection(workspaceId, BITKIMARK_SITEMAP_SOURCE_ID); const url = stringField(context, 'sitemap_url') ?? (typeof connection?.safe_metadata.sitemap_url === 'string' ? connection.safe_metadata.sitemap_url : null);
     return url ? new BitkimarkSitemapSource(url) : null;

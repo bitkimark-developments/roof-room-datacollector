@@ -34,8 +34,8 @@ const productionPath = path.join(workRoot, 'ikas-production.xlsx'); fs.mkdirSync
 const productionDecision = await new IkasProductsValidator().validate({ absolute_path: productionPath }); assert.equal(productionDecision.validation_status, 'VALID'); assert.deepEqual([...fs.readFileSync(productionPath)], [...productionXlsx]);
 const ikasPath = path.join(workRoot, 'ikas.xlsx');
 fs.mkdirSync(workRoot, { recursive: true }); fs.writeFileSync(ikasPath, xlsx);
-const ikasSource = new IkasProductsSource(ikasPath);
-const collectedIkas = await ikasSource.collect({});
+const ikasSource = new IkasProductsSource();
+const collectedIkas = await ikasSource.collect({ source_id: 'ikas-products', source_context: { task_id: 'ikas-products-import', source_id: 'ikas-products', source_mode: 'FILE_IMPORT', file_path: ikasPath } });
 assert.equal(collectedIkas.result_type, 'ARTIFACT_PRODUCED');
 assert.deepEqual([...collectedIkas.bytes], [...xlsx]);
 const ikasDecision = await new IkasProductsValidator().validate({ absolute_path: ikasPath });
