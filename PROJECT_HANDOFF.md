@@ -1363,3 +1363,84 @@ Exact next action:
 - Continue with a bounded reality audit of the shared `FILE_IMPORT` boundary and the existing İkas Products vertical.
 - Reuse the already-implemented native trusted-IPC file selection, reviewed file-path persistence, raw XLSX preservation, production parser mapping, and validator; write a focused RED only for the smallest remaining end-to-end gap proven by current repository evidence.
 - If the shared `FILE_IMPORT` seam and İkas vertical cannot remain one coherent slice, split them without expanding the abstraction beyond current R1 consumers.
+
+---
+
+## 34. Shared FILE_IMPORT + İkas Products reviewed vertical checkpoint — 2026-09-18
+
+This section is the authoritative latest repository-state update. Earlier current-stage and next-action sections are historical.
+
+Technical implementation commit:
+
+`52eb497 feat(ikas): bind reviewed file import to Core`
+
+Bounded implementation scope:
+
+- The existing native trusted-IPC Products XLSX selection remains the user-intent boundary; the renderer does not read files.
+- İkas Quick Run now sends task identity plus the exact selected absolute path to Review.
+- Review produces a non-null immutable reviewed artifact with:
+  - `task_id`: `ikas-products-import`
+  - `source_id`: `ikas-products`
+  - `source_mode`: `FILE_IMPORT`
+  - exact selected `file_path`
+- Start receives the exact reviewed artifact rather than falling back to the mutable draft.
+- Older saved İkas configurations containing only `{ included, file_path }` are enriched into the current reviewed context; explicit mismatched task/source/mode values still fail closed.
+- Relative, blank, malformed, missing, directory, and non-regular-file inputs do not become successful imported datasets.
+- A minimal shared `FILE_IMPORT` evidence reader now validates an absolute regular local file and reads its exact bytes.
+- File extension remains a UI affordance, not proof of content validity; unsupported/non-XLSX bytes are preserved as candidate evidence and rejected through the existing İkas parser/validator contract.
+- `IkasProductsSource.collect(context)` now binds the persisted Job `source_context`; constructor-captured file-path coupling and production connection fallback were removed.
+- The exact selected path survives Review, Start, SQLite persistence, and repository close/reopen.
+- Production Core preserves an immutable raw XLSX copy before validation.
+- Deterministic evidence proves the raw artifact bytes equal the selected fixture and the original selected file is not mutated.
+- The existing production 40-column parser mapping, nullable values, source-native availability, image/product URL separation, and validator remain unchanged.
+- The focused FILE_IMPORT + İkas suite is wired into `tests/integration/release/run-release-gate.sh`.
+
+TDD evidence:
+
+- Initial `IKAS-FILE-CONTEXT-001` RED failed because `IkasProductsSource` captured constructor state and ignored `collect(context)`.
+- Initial `IKAS-REVIEW-CORE-001` RED proved a relative path still produced a generic Job and Review had no locked artifact.
+- A compatibility RED proved saved pre-task İkas paths initially returned no reviewed artifact; the controller now enriches those paths without weakening explicit mismatch checks.
+- `IKAS-FILE-REVIEW-UI-001` proves the selected XLSX path is reviewed and Start receives the exact locked FILE_IMPORT artifact.
+
+Fresh verification:
+
+- Focused FILE_IMPORT + İkas suite: PASS (2/2 tests).
+- `npm run test:m3:non-google-sources`: PASS (`PASS NON-GOOGLE-SOURCES-001`).
+- Production source composition: PASS (`PASS PRODUCTION-SOURCE-COMPOSITION-001`).
+- `npm run test:m5:file-access`: PASS.
+- `npm run test:m5:desktop-multisource`: PASS.
+- `npm run test:m5:desktop-retry-export`: PASS.
+- `npm run test:m6:data-package`: PASS.
+- Desktop UI smoke: `PASS IKAS-FILE-REVIEW-UI-001` and `PASS DESKTOP-UI-001`.
+- `npx tsc --noEmit`: exit 0.
+- `npm run lint`: exit 0.
+- `git diff --check`: exit 0.
+- `npm run test:release:gate`: `PASS RELEASE-GATE-001` (exit 0).
+
+Live/input acceptance state:
+
+- No live provider request ran and no provider quota was consumed.
+- This checkpoint used sanitized deterministic XLSX fixtures; it did not import a new current user-selected production workbook.
+- The previously verified production mapping evidence remains the latest real workbook mapping checkpoint and was not reopened.
+- A current acceptance workbook selection/import remains an explicit local acceptance action when that file is available.
+
+Scope not included:
+
+- Keyword Planner manual CSV parsing/import remains a separate FILE_IMPORT source-mode slice.
+- Generic production multi-source dataset loading/export, freshness lifecycle, and Release 1.0 completion are not claimed.
+
+Stable documentation:
+
+- No stable canonical document changed because this implementation conforms to the approved FILE_IMPORT, raw-preservation, and İkas data contracts.
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Exact next action:
+
+- Commit this Section 34 documentation checkpoint separately and fast-forward the feature branch into local `main`.
+- Audit the existing repository for any Keyword Planner manual CSV fallback foundations and sanitized/real-shape fixture evidence.
+- Implement the fallback as a distinct `FILE_IMPORT` acquisition/source mode using the shared evidence reader, preserving original UTF-16 tab-separated bytes and blank metrics as `NULL`.
+- Do not blend manual-import provenance with the completed Keyword Planner official-API path.
