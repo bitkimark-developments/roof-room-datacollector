@@ -1532,3 +1532,98 @@ Exact next action:
 - Commit this Section 35 documentation checkpoint separately and fast-forward the feature branch into local `main`.
 - Audit the existing Bitkimark `HTTP_XML` source, validator, live-smoke command guard, desktop Review/Start binding, and deterministic coverage against the Release 1.0 contract.
 - Identify and implement only the smallest remaining truthful Bitkimark vertical gap, preserving the existing approved public sitemap/XML scope and avoiding live network access unless an explicit bounded acceptance is both required and authorized.
+
+---
+
+## 36. Bitkimark reviewed HTTP/XML vertical + limited live acceptance — 2026-09-18
+
+This section is the authoritative latest repository-state update. Earlier current-stage and next-action sections are historical.
+
+Implementation plan commit:
+
+`e581944 docs: plan Bitkimark reviewed HTTP XML vertical`
+
+Technical implementation commit:
+
+`123a8bd feat(bitkimark): complete reviewed HTTP XML vertical`
+
+Bounded implementation scope:
+
+- The existing source remains `bitkimark-sitemap` with `HTTP_XML` acquisition and `SITEMAP_URLS` dataset semantics.
+- Desktop Task Detail exposes only the evidence-backed sitemap URLs:
+  - `https://bitkimark.com/sitemap.xml`
+  - `https://bitkimark.com/blogs.xml`
+  - `https://bitkimark.com/pages.xml`
+  - `https://bitkimark.com/products.xml`
+  - `https://bitkimark.com/collections.xml`
+- The user may review a bounded subset only when the root sitemap is first; arbitrary same-host XML paths and foreign URLs do not become reviewable Jobs.
+- Review locks one immutable context per sitemap with task/source identity, `HTTP_XML` mode, requested URL, expected host, and nullable parent sitemap URL.
+- Start persists one sequential Job per reviewed URL. `BitkimarkSitemapSource.collect(context)` now binds only that Job context; constructor-captured URL coupling was removed.
+- Each Job makes exactly one standard HTTPS request with redirects followed by the platform fetch implementation. No retry or discovered-link recursion occurs inside the source.
+- Multi-Job raw artifacts use URL-derived deterministic hashes in filenames, preventing same-source/attempt collisions.
+- Successful collection preserves exact response bytes plus acquisition metadata: requested URL, final URL, HTTP status, and response content type.
+- `SourceCollectionResult` and source-neutral metadata gained an optional JSON-safe `acquisition_metadata` field; sources that omit it retain their existing output shape.
+- Validation receives acquisition metadata before artifact acceptance and rejects missing/mismatched requested URL, non-2xx status, non-XML content type, or a final URL outside the verified HTTPS host boundary.
+- Parser/validator support both standard sitemap-index and URL-set documents, document kind, `loc`, nullable valid ISO `lastmod`, entry type, parent sitemap relationship, and the already-approved deterministic URL annotations.
+- Malformed XML, HTML/DOCTYPE content, unsupported roots/namespaces, missing or duplicate `loc`, duplicate URLs, invalid dates, insecure/foreign URLs, and unverified child sitemap URLs fail closed.
+- Sitemap-index parsing never fetches children. Reviewed children remain separate traceable Core Jobs.
+- Production readiness is `READY` for this public fixed-scope source and does not require a credential/connection record.
+- The guarded live command was migrated to the same strict Job context, parser, validator, and acquisition-metadata contract while retaining exact confirmation and one-request/no-retry behavior.
+- The focused suite and production source composition regression are wired into `tests/integration/release/run-release-gate.sh`.
+
+TDD and regression evidence:
+
+- Initial `BITKIMARK-*` RED failed because the strict request-context module did not exist.
+- The first implementation compile exposed and fixed an explicit missing-document-element/nullability path.
+- Initial Core RED proved production still constructed the source with a URL and the validator still used the old parser signature.
+- Initial UI RED proved the task exposed no bounded reviewed URL input.
+- `BITKIMARK-PARSER-001/002` prove index/URL-set semantics and fail-closed malformed/unrelated/foreign/duplicate/date behavior.
+- `BITKIMARK-SOURCE-CONTEXT-001` proves one request per explicit context, HTTP metadata capture, pre-fetch rejection, and no stale URL reuse.
+- `BITKIMARK-VALIDATOR-001` proves parseable XML cannot hide missing or mismatched HTTP provenance.
+- `BITKIMARK-REVIEW-CORE-001` proves Review → Start → SQLite → two sequential requests → distinct immutable artifacts → validation → source-neutral metadata.
+- `BITKIMARK-REVIEW-UI-001` proves bounded URL editing, foreign-host rejection, exact Review display, and unchanged Start transport.
+- Existing `PASS NON-GOOGLE-SOURCES-001`, `PASS BITKIMARK-LIVE-CMD-001`, source-neutral Core, multi-source Run, and production source composition regressions pass.
+- A stale production-composition expectation omitted the already-merged Keyword Planner CSV source; the assertion was updated to match the verified production registry and now passes.
+
+Fresh deterministic verification:
+
+- Focused reviewed Bitkimark suite: PASS (5/5 tests).
+- `npm run test:m3:non-google-sources`: PASS.
+- Guarded command regression: `PASS BITKIMARK-LIVE-CMD-001`.
+- Source-neutral Core: `PASS SOURCE-NEUTRAL-001`.
+- Multi-source Run: `PASS MULTI-SOURCE-RUN-001`.
+- Production source composition: `PASS PRODUCTION-SOURCE-COMPOSITION-001`.
+- Desktop UI smoke: `PASS BITKIMARK-REVIEW-UI-001` and existing UI checks.
+- `npx tsc --noEmit`: exit 0.
+- `npm run lint`: exit 0.
+- `git diff --check`: exit 0.
+- `npm run test:release:gate`: `PASS RELEASE-GATE-001` (exit 0).
+
+Limited live acceptance:
+
+- Command executed exactly once with explicit confirmation:
+  - `npm run m3:live-bitkimark-sitemap-smoke -- --confirm-live-collection --sitemap-url https://bitkimark.com/sitemap.xml`
+- Result: `HTTP_SUCCESS`, 567 bytes, SHA-256 `0da8af1d104f0907ee1adcf94ea115e01a77fd77fb4b4b33b0eb4b99b2391355`, validation `VALID`, four sitemap-index entries, and no annotations at the index level.
+- Exactly one public root-sitemap request ran. No child sitemap was fetched, no retry occurred, and raw XML was not printed.
+- The acceptance command uses a temporary validation file and truthfully reports `raw_artifact_persisted: false`; production Core raw persistence is proven separately by deterministic integration.
+- No credentialed provider request or quota-bearing request ran.
+
+Scope not included:
+
+- Broad crawling, arbitrary XML URLs, discovery-driven child collection, and non-sitemap content remain unsupported.
+- Freshness lifecycle, generic production dataset loading/export, and Release 1.0 completion remain incomplete.
+
+Stable documentation:
+
+- No stable canonical document changed because the implementation conforms to the already-approved HTTP/XML, raw-preservation, acquisition-provenance, sitemap relationship, annotation, and validation contracts.
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Exact next action:
+
+- Commit this Section 36 documentation checkpoint separately and fast-forward the feature branch into local `main`.
+- Audit the existing SerpApi on-demand source, reviewed query input, credential/quota readiness, provider request binding, raw JSON/validation, guarded live command, and desktop/Core integration against the Release 1.0 contract.
+- Implement only the smallest remaining truthful SerpApi vertical gaps. Do not add continuous tracking, automatic full-keyword refresh, intent classification, commercial-fit scoring, page-type recommendations, or any other analysis-layer output.
