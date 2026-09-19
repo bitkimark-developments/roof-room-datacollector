@@ -1,6 +1,6 @@
 # RoofRoom Data Collector — Data Contracts
 
-**Status:** Canonical contracts reconciled with SQLite schema version 6 and current TypeScript interfaces
+**Status:** Canonical contracts reconciled with SQLite schema version 8 and current TypeScript interfaces
 **Rule:** Conceptual multi-source additions do not silently rename implemented persisted values
 
 ---
@@ -27,13 +27,20 @@ Persisted JSON and database fields use `snake_case`. TypeScript implementation p
 
 ## 3. Current implemented identity contracts
 
-The current code accepts lowercase hyphenated source IDs. The implemented source is:
+The current code accepts lowercase hyphenated source IDs. Release 1.0 implements these source-module identities:
 
-```text
-source_id: google-trends
-source_mode: GOOGLE_TRENDS_UI
-dataset_type: INTEREST_OVER_TIME
-```
+| `source_id` | Module/acquisition mode | Dataset type |
+|---|---|---|
+| `google-trends` | `GOOGLE_TRENDS_UI` / browser export | `INTEREST_OVER_TIME` |
+| `google-search-console-query-page` | `OFFICIAL_API` | `QUERY_PAGE` |
+| `google-ads-search-terms` | `OFFICIAL_API` | `SEARCH_TERMS` |
+| `google-keyword-planner` | `OFFICIAL_API` | `KEYWORD_HISTORICAL_METRICS` |
+| `google-keyword-planner-csv` | `FILE_IMPORT` | `KEYWORD_HISTORICAL_METRICS` |
+| `ikas-products` | `FILE_IMPORT` | `PRODUCTS` |
+| `bitkimark-sitemap` | `HTTP_XML` | `SITEMAP_URLS` |
+| `serpapi` | `THIRD_PARTY_API` | `GOOGLE_SERP` |
+
+Reviewed Job context may narrow a provider surface further, such as Google Ads `search_term_view`, without changing the source module's acquisition mode.
 
 The current query configuration requires `source_id = google-trends` and group IDs matching `GT[0-9]{2}`. These are current implementation facts, not a requirement that every future source use query groups.
 
@@ -53,7 +60,7 @@ Exact future source IDs, dataset IDs, and source-mode strings must be introduced
 
 ## 4. Current implemented status contracts
 
-These values match `src/shared/run-job.ts` and SQLite schema version 6 and must not be renamed without an explicit migration.
+These values match `src/shared/run-job.ts` and SQLite schema version 8 and must not be renamed without an explicit migration.
 
 ### Run status
 
@@ -98,7 +105,7 @@ Operational causes such as authentication required, access denied, rate limited,
 
 ## 5. Current readiness and capability contracts
 
-Current source readiness values are:
+Source-module readiness values are:
 
 ```text
 READY
@@ -107,6 +114,16 @@ AUTHENTICATION_REQUIRED
 MANUAL_ACTION_REQUIRED
 UNAVAILABLE
 ERROR
+```
+
+Workspace/desktop readiness uses the separate user-action-oriented values:
+
+```text
+READY
+CONFIGURATION_REQUIRED
+CONNECTION_REQUIRED
+FILE_REQUIRED
+MANUAL_ACTION_REQUIRED
 ```
 
 Current capabilities expose:

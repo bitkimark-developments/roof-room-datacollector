@@ -309,6 +309,8 @@ Release 1.0 requires:
 
 Google Trends passing alone is a source checkpoint, not the complete multi-source Release 1.0 gate.
 
+Target-mac packaging acceptance is separate from the deterministic release gate. It requires a fresh `npm run package`, an actual `.app` artifact, valid local code-signature structure, packaged external runtime dependencies, and an isolated launch from outside the repository so local `node_modules` cannot mask a missing packaged dependency. Apple Developer ID signing and notarization remain separate distribution credentials, not prerequisites for local R1 acceptance.
+
 ## 16. Governing test rule
 
 Prefer deterministic evidence. Use live providers only for the smallest explicit proof that cannot be established locally, and never turn an external account or quota into a routine regression dependency.

@@ -1,14 +1,14 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Checkpoint date:** 2026-09-18
+**Checkpoint date:** 2026-09-19
 
-**Current milestone:** M5 — Desktop UX / Release 1.0 source-neutral operations workflow
+**Current milestone:** Release 1.0 — final local hardening and reality audit
 
-**Current stage:** Work Group 1 (Google Ads Search Terms — Reviewed + Request-Bound Quick Run) completed, request-binding invariant verified, and full deterministic release gate passed
+**Current stage:** Local implementation, deterministic acceptance, target-Mac packaging, and all independently executable acceptance work complete
 
-**Current goal:** Close the WG1 documentation checkpoint cleanly, track GSC request-binding and generic export backlog items, and obtain explicit scope approval before implementing the next slice
+**Current goal:** Preserve the verified local Release 1.0 checkpoint; complete only provider-specific manual/live acceptance that requires credentials or external account setup
 
-**Current-state authority:** Section 31 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 31.
+**Current-state authority:** Section 41 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 41.
 
 ---
 
@@ -1892,3 +1892,111 @@ Exact next action:
 - Commit this Section 40 documentation checkpoint separately and fast-forward the feature branch into local `main`.
 - Perform the final Release 1.0 reality audit against the specification, run packaging/build and deterministic release verification on the target Mac, inspect repository/worktree truth, and fix only concrete final hardening defects.
 - Record deterministic implementation completion separately from provider-by-provider live acceptance that remains blocked on real Workspace configuration, credentials, inputs, or explicit quota-bearing execution.
+
+---
+
+## 41. FINAL Release 1.0 local hardening and reality audit — 2026-09-19
+
+This section is the authoritative current repository state. Earlier current-stage and next-action statements are historical.
+
+### A. Local implementation complete
+
+Release 1.0 contains all eight approved production source identities and their source-native datasets:
+
+| Source | Production mode | Dataset | Local implementation |
+|---|---|---|---|
+| `google-trends` | `GOOGLE_TRENDS_UI` / browser export | `INTEREST_OVER_TIME` | COMPLETE |
+| `google-search-console-query-page` | `OFFICIAL_API` | `QUERY_PAGE` | COMPLETE |
+| `google-ads-search-terms` | `OFFICIAL_API` (`search_term_view`, Search campaigns only) | `SEARCH_TERMS` | COMPLETE |
+| `google-keyword-planner` | `OFFICIAL_API` | `KEYWORD_HISTORICAL_METRICS` | COMPLETE |
+| `google-keyword-planner-csv` | `FILE_IMPORT` | `KEYWORD_HISTORICAL_METRICS` | COMPLETE |
+| `ikas-products` | `FILE_IMPORT` | `PRODUCTS` | COMPLETE |
+| `bitkimark-sitemap` | `HTTP_XML` | `SITEMAP_URLS` | COMPLETE |
+| `serpapi` | `THIRD_PARTY_API` | `GOOGLE_SERP` | COMPLETE |
+
+For every source, deterministic evidence covers task-catalog presence, explicit Review input, immutable Job context, production request/input binding, raw preservation, source-specific validation, operational-error separation, shared retry/resume behavior, desktop execution, accepted-evidence access, and production Data Package loading. Active physical cancellation is implemented only where a safe provider handle exists (currently the application-owned Google Trends browser); source-neutral inactive cancellation never fabricates provider interruption.
+
+Freshness remains independent of readiness, execution, and validation. SerpApi is `ON_DEMAND`; İkas and manual Keyword Planner CSV default to manual-import semantics; other sources remain `UNKNOWN` unless an explicit bounded interval policy is configured.
+
+### B. Deterministic verification complete
+
+The final hardening branch and integrated local `main` were each verified with:
+
+- `npx tsc --noEmit`: exit 0;
+- `npm run lint`: exit 0;
+- `npm run test:release:gate`: exit 0 with `PASS RELEASE-GATE-001`;
+- `git diff --check`: exit 0.
+
+The release gate includes the focused packaging-config regression (`GT-PACKAGE-001/002`), all source parsers/validators and reviewed production bindings, shared lifecycle/freshness/desktop behavior, the accepted-evidence action, generic Data Package identity, and the all-eight-source production loader fixture.
+
+### C. Packaging complete for local Release 1.0
+
+`npm run package` completes on the target Apple Silicon Mac and produces:
+
+`out/RoofRoom Data Collector-darwin-arm64/RoofRoom Data Collector.app`
+
+The audit found and fixed one concrete application packaging defect: Electron Forge's default Vite packaging allowlist omitted external Playwright runtime dependencies, and the inherited unsigned Electron bundle was not a valid final local signature. Commit `57f696c fix(package): include runtime dependencies` now keeps packaged Node runtime dependencies and applies fail-closed local ad-hoc signing with inherited hardened-runtime flags cleared for certificate-free local execution.
+
+Fresh artifact verification proves:
+
+- arm64 Mach-O application;
+- `playwright` and `playwright-core` present in packaged `app.asar`;
+- `codesign --verify --deep --strict` succeeds;
+- an isolated copy outside the repository launches its main, renderer, GPU, and network utility processes, so repository `node_modules` cannot mask a missing packaged dependency.
+
+Apple Developer ID signing and notarization require external Apple credentials and remain a separate distribution/release-channel action, not a blocker for the local Release 1.0 acceptance contract. No publish command ran.
+
+### D. Live and real-input acceptance completed
+
+- Google Trends: a fresh guarded `GT01` one-group collection completed on 2026-09-19 with `ARTIFACT_PRODUCED`, `VALID`, 15/15 checks, 2,692 preserved bytes, and SHA-256 `2bd5118dd4a06de1b482335f3d667f9f89cfaa2b82f83e203f99169a4438907c`. No refresh or retry ran.
+- Google Search Console: a fresh guarded Current/90-day official-API collection completed for 2026-06-21 through 2026-09-18 with persisted Run/Job state, `VALID`, a 155,466-byte accepted raw artifact, and SHA-256 `9a8d2748967f16bb5ceb217e16617412ea8774f40c020c90a4a9137a625a9f0a`. No automatic retry ran.
+- Keyword Planner manual CSV: the unchanged real provider export re-parsed as 43 keyword rows, two leading segmentation rows, 12 monthly columns, and 26 `NULL` average-monthly-search values; no keywords or raw provider rows were printed or copied into Git.
+- İkas Products: the current real workbook re-parsed as sheet `Ikas Excel File`, 40 headers, 856 variant rows, 88 product groups, and zero parser issues; 16 missing sale prices, 41 missing stock values, and all 856 unavailable storefront URLs remained `NULL`.
+- Bitkimark: the existing guarded one-request live root-sitemap acceptance from 2026-09-18 remains authoritative: HTTP success, 567 bytes, `VALID`, four root sitemap-index entries, zero child fetches, and no raw XML output. It was not repeated merely for duplication.
+
+### E. Live acceptance still manual or blocked
+
+The production database contains two Workspaces and exactly one configured source connection: the authorized Google Search Console connection used by the fresh acceptance above. No connection exists for Google Ads Search Terms, Keyword Planner official API, or SerpApi.
+
+- Google Ads Search Terms: `MANUAL_ACTION_REQUIRED` — intended Google Ads customer/login-customer/developer-token-compatible connection is not configured.
+- Keyword Planner official API: `MANUAL_ACTION_REQUIRED` — intended Google Ads account connection is not configured.
+- SerpApi: `NOT CONFIGURED / MANUAL_ACTION_REQUIRED` — no Workspace connection or encrypted API key exists; no quota was spent.
+
+These are provider/account acceptance blockers, not deterministic implementation failures. No credential was invented, no cookie/session was copied, and no CAPTCHA, 2FA, anti-bot, quota, or rate-limit control was bypassed.
+
+### F. Explicitly deferred and out of Release 1.0
+
+- Apple Developer ID signing, notarization, and remote publishing;
+- Google Ads Performance Max or `campaign_search_term_view` collection;
+- arbitrary spreadsheet imports, arbitrary website crawling, recursive live sitemap expansion, continuous SERP rank tracking, and unsupported Google Trends modes;
+- Semrush, Merchant Center, GA4, and other sources that have not passed feasibility/scope gates;
+- analysis, marketing, SEO, merchandising, ranking, or recommendation outputs.
+
+### Audit discrepancy classification
+
+Each discovered discrepancy received exactly one classification:
+
+1. `IMPLEMENTATION DEFECT`: packaged external Playwright runtime omission and invalid local bundle signature — fixed by `57f696c`.
+2. `TEST COVERAGE GAP`: packaging regression asserted Vite externalization but not Forge inclusion/signing behavior — fixed by `GT-PACKAGE-002`.
+3. `DOCUMENTATION DRIFT`: `DATA_CONTRACTS.md` still named schema v6/a single source and `DECISIONS.md` indexed ADR-059 through ADR-065 without their bodies — corrected in the final documentation checkpoint.
+4. `LIVE ACCEPTANCE BLOCKER`: absent Google Ads/Keyword Planner/SerpApi Workspace connections — recorded truthfully as manual/configuration work.
+5. `EXPLICITLY DEFERRED / OUT OF R1`: distribution signing/notarization and unsupported modes/sources listed above.
+6. `NO DEFECT — CONTRACT ALREADY SATISFIED`: all other audited R1 scope, acquisition, provenance, raw immutability, null semantics, validation, readiness/freshness, lifecycle, desktop privilege, accepted-evidence, and export contracts.
+
+### Generic production Data Package reality check
+
+Production composition injects `ProductionDataPackageLoader`. Fresh deterministic evidence proves accepted artifacts for all eight source identities are integrity-checked and parsed through source-native implementations; rejected/failed Jobs do not become successful datasets; Job identity prevents same-source overwrite; `NULL` stays missing; `DATASETS.json` preserves Run/Job/source/dataset/raw-checksum/request provenance; Export All retains unsuccessful Job accounting; raw files are not mutated; and the existing Google Trends exporter remains passing.
+
+### Repository and security state
+
+- Technical hardening commit: `57f696c fix(package): include runtime dependencies`.
+- Final contract/handoff changes are committed separately and fast-forwarded into local `main`.
+- Protected historical files remain untracked and unchanged:
+  - `CODEX_HANDOFF_CURRENT.md`
+  - `PROJECT_HANDOFF.pre-20260820.md`
+- No credential, token, raw provider dataset, or user business record was added to Git.
+- No remote push or publish occurred.
+
+### Exact remaining Release 1.0 state
+
+Release 1.0 local implementation, deterministic acceptance, target-Mac packaging, Google Trends/GSC/Bitkimark live acceptance, and real İkas/manual-Keyword-Planner input acceptance are complete. Provider-specific live acceptance remains `MANUAL_ACTION_REQUIRED` only for Google Ads Search Terms, Keyword Planner official API, and SerpApi because their intended Workspace connections/credentials are absent. There is no remaining local implementation blocker.

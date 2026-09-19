@@ -1854,6 +1854,111 @@ Schema-v6 migration creates one deterministic development Workspace and assigns 
 
 ---
 
+# ADR-059 — Workspace-Owned Saved Presets and Atomic Last Run Settings Reservation
+
+**Status:** ACCEPTED
+**Documented from implemented contract:** 2026-09-19
+
+## Decision
+
+Saved collection presets and Last Run Settings belong to one Workspace. Presets retain reusable relative configuration; a reviewed Run persists the resolved immutable configuration. Reserving a Run and updating Last Run Settings is one atomic repository operation so a failed reservation cannot publish settings for a Run that does not exist.
+
+## Consequences
+
+Schema v7 stores presets and one system-managed Last Run Settings record per Workspace. Renderer drafts are temporary and sanitized; durable execution truth remains the reserved Run and its Jobs.
+
+---
+
+# ADR-060 — Workspace Connection Metadata, Credential Boundary, and Source-Keyed Readiness
+
+**Status:** ACCEPTED
+**Documented from implemented contract:** 2026-09-19
+
+## Decision
+
+Each Workspace may have one connection record per source. SQLite stores only an opaque credential reference and source-owned safe metadata. Secrets remain behind the Core credential-store boundary. Readiness is evaluated per Workspace and source and remains separate from freshness, execution, and validation.
+
+## Consequences
+
+Schema v8 adds `workspace_source_connections`. Desktop readiness reports the concrete action required—configuration, connection, file selection, or manual intervention—without exposing credential material to the renderer or exports.
+
+---
+
+# ADR-061 — İkas XLSX and Bitkimark Sitemap Use Bounded Shared-Core Source Slices
+
+**Status:** ACCEPTED
+**Documented from implemented contract:** 2026-09-19
+
+## Decision
+
+İkas Products enters Core through explicit `FILE_IMPORT` of a reviewed XLSX path. Bitkimark enters through explicit `HTTP_XML` requests restricted to the approved HTTPS host and reviewed sitemap URLs. Both preserve original bytes before source-specific parsing and validation.
+
+## Consequences
+
+The collector does not become a generic spreadsheet importer or website crawler. File type, workbook shape, response status/content type, final host, XML structure, and provenance fail closed under their source contracts.
+
+---
+
+# ADR-062 — Google API Credentials Use Electron safeStorage and Desktop PKCE OAuth
+
+**Status:** ACCEPTED
+**Documented from implemented contract:** 2026-09-19
+
+## Decision
+
+Google OAuth bundles are stored as OS-encrypted local credential files addressed by opaque references. Desktop authorization uses the approved PKCE composition; short-lived access tokens remain memory-only. Provider account/site identifiers may be stored only as safe Workspace connection metadata.
+
+## Consequences
+
+OAuth tokens, client secrets, Google Ads developer-token compatibility values, authorization headers, and equivalent secrets are excluded from SQLite, renderer state, logs, exports, tests, and documentation.
+
+---
+
+# ADR-063 — SerpApi Is a Workspace-Scoped On-Demand Snapshot Source
+
+**Status:** ACCEPTED
+**Documented from implemented contract:** 2026-09-19
+
+## Decision
+
+One reviewed SerpApi query is one source-keyed Job carrying explicit Google Turkey, Turkish-language, desktop, first-page request context. The exact JSON response is raw evidence; normalized output preserves organic and provider-returned PAA rows. The API key is resolved only through the Workspace credential boundary.
+
+## Consequences
+
+SerpApi is `ON_DEMAND`, not a periodic rank tracker. Quota, authentication, provider, network, and timeout failures are operational outcomes and are never retried automatically by the guarded live smoke.
+
+---
+
+# ADR-064 — Generalized Desktop Flow Delegates to Existing Core Contracts
+
+**Status:** ACCEPTED
+**Documented from implemented contract:** 2026-09-19
+
+## Decision
+
+The source-neutral desktop flow owns Workspace selection, sanitized drafts, readiness/freshness display, immutable Review → Start handoff, Run progress, explicit retry/resume/cancel actions, accepted-evidence access, and source-separated Data Package export. It delegates persistence, lifecycle transitions, validation, storage, and privileged filesystem operations to existing Core/main-process boundaries.
+
+## Consequences
+
+The renderer never receives credentials or unrestricted local paths. Source-specific request construction and parsing stay inside source modules; the generalized UI does not merge source semantics or invent analysis.
+
+---
+
+# ADR-065 — İkas Production Mapping Uses Exact Evidence-Backed Fields
+
+**Status:** ACCEPTED
+**Documented from implemented contract:** 2026-09-19
+
+## Decision
+
+The production İkas mapping uses the verified `Ikas Excel File` worksheet and exact identity, title, category, type, price, description, slug, stock/activity, and image headers. `Bitki Boyu (Saksı Dahil)` and `Saksı Tipi` are resolved by label across the three variant slots. Image URL is not storefront URL evidence.
+
+## Consequences
+
+Missing storefront URL, sale price, stock, or attributes remain `NULL`; they are never replaced with zero or inferred from unrelated fields. Availability is a deterministic derivative of preserved source-native activity/stock evidence.
+
+---
+
 # 4. Deferred Decisions
 
 The following decisions are intentionally not locked in M0.
