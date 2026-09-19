@@ -29,12 +29,12 @@ The live repository currently uses:
 - TypeScript and Vite through Electron Forge;
 - a `SourceRegistry`, a source-keyed `CollectionValidatorRegistry`, and `DataSourceModule`/`CollectingDataSourceModule` contracts;
 - `CollectionOrchestrator`, run/job/attempt state machines, resume, reconciliation, and retry policy;
-- `StateRepository` backed by `node:sqlite` schema version 6;
+- `StateRepository` backed by `node:sqlite` schema version 8;
 - `StorageManager` for application-owned run-scoped evidence;
 - source-specific Google Trends collection, parsing, validation, and export;
 - Playwright with an application-owned persistent browser profile.
 
-The current desktop composition and export path are Google-Trends-specific. Credential lifecycle, freshness lifecycle, and the other Release 1.0 adapters are not implemented merely because they are required by this architecture. Exact live status belongs in `PROJECT_HANDOFF.md`.
+The current desktop composition includes Workspace-scoped credentials/readiness, a derived source-neutral freshness boundary, and the implemented Release 1.0 source adapters. Exact export-loader and live-acceptance status belongs in `PROJECT_HANDOFF.md`.
 
 ## 3. Process and security boundaries
 
@@ -155,7 +155,7 @@ Current canonical application state is under the Electron `userData/app-data` bo
 
 Raw writes are collision-safe and run-scoped. Derived files do not replace raw evidence. Downloads is reserved for intentional user-visible copies and is not canonical application state.
 
-Current schema version 6 includes `workspaces`, `runs`, `jobs`, `attempts`, `artifacts`, and `validations`. Runs require `workspace_id`, persist an ordered array of selected source IDs, and use a partial unique index for the exact active status set. Jobs use `source_id + job_key` as their identity within a Run, persist JSON-compatible source context, and allow `query_group_id = NULL` for non-Google-Trends work. The same `job_key` may therefore exist under different source IDs. Existing Google Trends jobs retain `job_key === query_group_id`. The schema still has no implemented freshness or credential tables.
+Current schema version 8 includes `workspaces`, `runs`, `jobs`, `attempts`, `artifacts`, `validations`, Saved Presets, Last Run Settings, and Workspace source connections. Runs require `workspace_id`, persist an ordered array of selected source IDs, and use a partial unique index for the exact active status set. Jobs use `source_id + job_key` as their identity within a Run, persist JSON-compatible source context, and allow `query_group_id = NULL` for non-Google-Trends work. The same `job_key` may therefore exist under different source IDs. Existing Google Trends jobs retain `job_key === query_group_id`. Credential secrets remain outside SQLite, and freshness is derived rather than cached in a separate table.
 
 Migration from pre-Workspace schemas creates one deterministic development Workspace and attaches historical Runs to it. That row is migration/runtime compatibility only; it is not a customer-facing default, legacy mode, or product taxonomy. Workspace UI/lifecycle management, Presets, Last Run Settings, and credential work remain outside this slice.
 
@@ -178,7 +178,9 @@ Requirements:
 
 Freshness is separate from readiness, execution, and validation.
 
-A future compatible contract may represent last successful collection/import, refresh policy, next due time, on-demand policy, and a safe freshness state. Exact names and persistence are deferred to implementation design against the current schema.
+The Core freshness contract represents `FRESH`, `DUE`, `STALE`, `IMPORT_NEEDED`, `ON_DEMAND`, and `UNKNOWN`. It derives the last successful collection/import from the latest source Job that is completed, has an accepted artifact, and has an accepted validation status. Candidate persistence, failed/rejected validation, readiness, and mere provider access never advance freshness.
+
+Policies are source-neutral: unknown, on demand, manual import, or an explicit bounded interval with separate due and stale thresholds. Clock-dependent evaluation uses an injected clock and returns nullable last-success and next-due timestamps. SerpApi is always on demand; the manual İkas and Keyword Planner CSV sources default to manual-import semantics; sources without an approved cadence remain unknown unless safe configuration supplies an explicit interval policy. Freshness evaluation never schedules or starts work.
 
 Examples:
 

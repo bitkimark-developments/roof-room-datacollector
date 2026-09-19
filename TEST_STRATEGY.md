@@ -186,7 +186,7 @@ Freshness tests must prove:
 - clock-dependent logic uses an injected/fixed clock;
 - successful collection/import updates freshness only after the required acceptance boundary.
 
-Exact enum names will follow the approved implementation contract.
+The implemented states are `FRESH`, `DUE`, `STALE`, `IMPORT_NEEDED`, `ON_DEMAND`, and `UNKNOWN`; policy kinds are `UNKNOWN`, `ON_DEMAND`, `MANUAL_IMPORT`, and `INTERVAL`.
 
 ## 9. Validation and integrity tests
 
@@ -221,6 +221,8 @@ Source integration must prove:
 ## 11. UI and IPC tests
 
 Connection/readiness infrastructure is covered by deterministic v8 migration and Workspace readiness vertical-slice tests. They verify isolation, duplicate logical connection enforcement, credential availability states, unsupported-source fail-closed behavior, and secret-free persistence.
+
+Freshness coverage uses a fixed clock and schema-v8 accepted Job history. It verifies exact due/stale boundaries, manual-import/on-demand/unknown policies, Workspace/source isolation, invalid policy and timestamp rejection, repository reopen, no advancement before accepted Job completion, readiness independence, and separate renderer labels. It performs no provider request and starts no scheduler.
 
 Google request-composition tests use a deterministic `safeStorage` adapter and fake HTTP responses to verify encrypted-at-rest credential files, PKCE material, browser-bootstrap composition, form-encoded refresh exchange, bearer and Ads headers, bounded explicit live guards, reauthorization state, missing-credential failure, and absence of secret propagation. They never open a browser or call Google.
 

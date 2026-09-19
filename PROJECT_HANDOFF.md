@@ -1710,3 +1710,68 @@ Exact next action:
 - Commit this Section 37 documentation checkpoint separately and fast-forward the feature branch into local `main`.
 - Audit Work Group 11 freshness/due/import-needed/on-demand behavior against the now-implemented real source modes and current Core/desktop contracts.
 - Implement only the smallest source-neutral freshness vertical supported by existing accepted evidence; do not infer unsupported provider schedules or conflate freshness with readiness, execution, or validation.
+
+---
+
+## 38. Source-neutral freshness lifecycle — 2026-09-19
+
+This section is the authoritative latest repository-state update. Earlier current-stage and next-action sections are historical.
+
+Implementation plan commit:
+
+`7d453dc docs: plan source-neutral freshness lifecycle`
+
+Technical implementation commit:
+
+`855de25 feat(core): add source-neutral freshness lifecycle`
+
+Implemented and verified:
+
+- Core now exposes the source-neutral freshness states `FRESH`, `DUE`, `STALE`, `IMPORT_NEEDED`, `ON_DEMAND`, and `UNKNOWN` independently from readiness, execution, and validation.
+- Freshness policies are unknown, on demand, manual import, or an explicit bounded interval with separate due and stale thresholds.
+- Last success is derived from the latest source Job that is completed, has an accepted artifact, and has validation status `VALID`, `LOW_DATA`, or `NO_DATA`. No new table or cached duplicate state was introduced; SQLite remains schema v8.
+- Candidate persistence, rejected/failed validation, readiness, and provider access do not advance freshness.
+- Clock-dependent evaluation uses an injected clock, exact canonical UTC timestamps, and exact due/stale boundaries. Invalid timestamps and unsafe interval configuration fail closed.
+- SerpApi is always on demand and cannot be converted to periodic tracking through source configuration.
+- İkas and Keyword Planner CSV default to manual-import semantics: `IMPORT_NEEDED` before the first accepted import and `FRESH` afterward.
+- Other sources remain `UNKNOWN` unless safe source configuration carries an explicit bounded interval policy. No provider cadence was invented.
+- Desktop source cards and Task Detail show readiness and freshness as separate labels, plus nullable last-success and next-due timestamps.
+- Freshness is informational only. It does not schedule, start, retry, or block reviewed work.
+
+TDD and regression evidence:
+
+- Initial calculator RED failed because the freshness contract/evaluator did not exist.
+- Initial accepted-history RED failed because the repository exposed no source-scoped accepted-completion query.
+- Initial desktop RED failed because source cards had no freshness fields.
+- Initial renderer RED failed because the UI did not show freshness separately from readiness.
+- `FRESHNESS-CALCULATOR-001/002`, `FRESHNESS-ACCEPTANCE-001`, `FRESHNESS-REGISTRY-001`, and `FRESHNESS-DESKTOP-001` pass.
+- Desktop UI smoke reports `PASS FRESHNESS-UI-001` alongside the existing source-specific checks.
+- Relevant generalized desktop regressions pass.
+
+Fresh deterministic verification:
+
+- `npm run test:m4:freshness`: PASS.
+- Desktop UI smoke: PASS.
+- `npx tsc --noEmit`: exit 0.
+- `npm run lint`: exit 0.
+- `git diff --check`: exit 0.
+- `npm run test:release:gate`: `PASS RELEASE-GATE-001` (exit 0).
+
+Live-provider status:
+
+- No live provider request ran. The freshness lifecycle is fully deterministic and derives state only from local accepted evidence and explicit safe policy.
+
+Stable documentation:
+
+- `ARCHITECTURE.md`, `DATA_CONTRACTS.md`, `TEST_STRATEGY.md`, and ADR-055 now record the implemented derived freshness contract and schema-v8 boundary.
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Exact next action:
+
+- Commit this Section 38 documentation checkpoint separately and fast-forward the feature branch into local `main`.
+- Audit the unified multi-source desktop workflow against Work Group 12 and implement only remaining truthful usability/visibility gaps without redesigning the application.
+- Then bind generic production dataset loading to the already-defined source-separated Data Package exporter and perform the final Release 1.0 reality/hardening pass.

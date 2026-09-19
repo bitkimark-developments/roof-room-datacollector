@@ -186,7 +186,7 @@ Raw provider evidence begins as a candidate, remains preserved after validation 
 
 ## 8. SQLite boundary
 
-Current database schema version: `6`.
+Current database schema version: `8`.
 
 Implemented tables:
 
@@ -198,9 +198,12 @@ jobs
 attempts
 artifacts
 validations
+saved_collection_presets
+workspace_last_run_settings
+workspace_source_connections
 ```
 
-There is no implemented `errors`, credentials, freshness, dataset-instance, or source catalog table. Documentation may define their semantics, but must not claim they exist.
+There is no implemented `errors`, credential-secret, freshness-cache, dataset-instance, or source catalog table. Freshness is derived from accepted completed Job history, while credential secrets remain behind the Core credential-store boundary rather than in SQLite.
 
 Schema v5 introduced multi-source Runs through `selected_sources_json`, per-Job `source_id`, composite Job uniqueness, and source-scoped artifact relationships. Schema v6 preserves those snapshots and adds required Workspace ownership, `RETRY_REQUIRED`, and the partial unique active-Run index. Pre-v6 Runs migrate to the deterministic technical development Workspace; the compatibility row does not create a nullable or implicit ownership path for new Run APIs.
 
@@ -312,23 +315,23 @@ The guarded manual smoke command is single-query and first-page only; it persist
 
 Schema v7 adds `saved_collection_presets` (Workspace-owned durable reusable JSON objects) and `workspace_last_run_settings` (one system-managed JSON object per Workspace). Presets may retain relative source rules; each reserved Run Snapshot stores resolved absolute dates and reference date. Drafts are TypeScript-only and do not persist automatically. Last Run Settings records the last attempted configuration after successful Run reservation.
 
-Freshness is a separate conceptual domain from readiness, execution, and validation.
+Freshness is an implemented domain separate from readiness, execution, and validation.
 
 The generalized desktop contract uses a temporary sanitized `RunDraft`, source-card readiness, and an immutable snapshot created by Core reservation. Multi-source packages contain separate source-keyed datasets plus `MANIFEST.json`; failed jobs never produce fabricated normalized rows, and Successful Only excludes failed datasets while retaining Run identity.
 
-It must eventually support facts such as:
+The safe derived result supports:
 
 ```text
-last successful acquisition/import time
-refresh policy
-next due time
-fresh / due / stale
-needs import
-on demand
-unknown
+last_successful_at
+explicit policy
+next_due_at
+FRESH / DUE / STALE
+IMPORT_NEEDED
+ON_DEMAND
+UNKNOWN
 ```
 
-Exact enum names, tables, and IPC types remain an implementation decision. `ON_DEMAND`-like semantics are not an error; SERP is the primary Release 1.0 example.
+Policy kinds are `UNKNOWN`, `ON_DEMAND`, `MANUAL_IMPORT`, and `INTERVAL`. No freshness table is required: `last_successful_at` is the latest completed source Job with an accepted artifact and an accepted validation status. SerpApi is always `ON_DEMAND`; manual İkas and Keyword Planner CSV sources are `IMPORT_NEEDED` before their first accepted import and `FRESH` afterward. Other sources remain `UNKNOWN` without an approved cadence, unless safe source configuration supplies an explicit bounded interval policy.
 
 ## 16. Credential/access contract
 

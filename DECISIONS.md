@@ -1789,7 +1789,9 @@ Freshness/due state is a separate Core responsibility from credential readiness,
 
 ## Consequences
 
-A source may be due but not authenticated, ready but fresh, import-needed without an access failure, or on demand without being stale. SERP remains on demand rather than a continuous rank tracker. Exact persisted values are deferred to compatible implementation design.
+A source may be due but not authenticated, ready but fresh, import-needed without an access failure, or on demand without being stale. SERP remains on demand rather than a continuous rank tracker.
+
+The implemented contract derives last success from accepted completed Job history instead of duplicating it in a freshness cache. Policies are unknown, on demand, manual import, or an explicit bounded interval. A source without an approved cadence remains unknown. Freshness is informational and never schedules or starts collection.
 
 ---
 
