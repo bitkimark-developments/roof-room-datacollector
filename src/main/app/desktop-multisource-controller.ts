@@ -28,6 +28,7 @@ import {
 import { buildDataPackage, writeDataPackage } from '../export/data-package-exporter';
 import type { DataPackage, DataPackageMode } from '../../shared/data-package';
 import type { WorkspaceFreshnessResult } from '../../shared/freshness';
+import type { ArtifactRecord } from '../../shared/artifact';
 import { ResumePlanner } from '../core/resume-planner';
 import { ReconciliationCoordinator } from '../core/reconciliation-coordinator';
 import { RetryPolicy } from '../core/retry-policy';
@@ -120,6 +121,7 @@ cancel_active_run?: (
 ) => Promise<void>;
   package_directory?: string;
   load_datasets?: (run_id: string) => Promise<Parameters<typeof buildDataPackage>[0]['datasets']>;
+  open_accepted_artifact?: (artifact: ArtifactRecord) => Promise<void>;
 }
 
 const asObject = (value: unknown): Record<string, unknown> => (
@@ -1079,6 +1081,43 @@ export class DesktopMultiSourceController {
     run_id,
   );
 }
+  async openAcceptedArtifact(
+    run_id: string,
+    job_id: string,
+  ): Promise<void> {
+    const run = this.dependencies.repository.getRun(run_id);
+    if (!run) throw new Error(`Unknown Run: ${run_id}`);
+
+    const job = this.dependencies.repository
+      .listJobs(run_id)
+      .find((candidate) => candidate.job_id === job_id);
+    if (!job) throw new Error(`Unknown Job ${job_id} in Run ${run_id}.`);
+    if (job.accepted_artifact_id === null) {
+      throw new Error(`Job ${job_id} has no accepted artifact.`);
+    }
+
+    const artifact = this.dependencies.repository
+      .getArtifact(job.accepted_artifact_id);
+    if (
+      artifact === null
+      || artifact.run_id !== run_id
+      || artifact.job_id !== job_id
+      || artifact.source_id !== job.source_id
+      || artifact.artifact_kind !== 'RAW_SOURCE_FILE'
+      || (
+        artifact.artifact_state !== 'ACCEPTED'
+        && artifact.artifact_state !== 'ACCEPTED_WITH_WARNING'
+      )
+    ) {
+      throw new Error(`Job ${job_id} accepted artifact is invalid.`);
+    }
+
+    if (!this.dependencies.open_accepted_artifact) {
+      throw new Error('Accepted evidence opening is unavailable.');
+    }
+
+    await this.dependencies.open_accepted_artifact(artifact);
+  }
   async retryFailed(run_id: string): Promise<DesktopRunState> {
     const run = this.dependencies.repository.getRun(run_id);
     if (!run) throw new Error(`Unknown Run: ${run_id}`);

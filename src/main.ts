@@ -7,6 +7,7 @@ import {
 } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
 import path from 'node:path';
+import { lstat } from 'node:fs/promises';
 import started from 'electron-squirrel-startup';
 
 import { ensureApplicationDirectories } from './main/app/application-directories';
@@ -34,6 +35,7 @@ import {
   getDatabasePath,
 } from './main/storage/database';
 import { StateRepository } from './main/storage/state-repository';
+import { StorageManager } from './main/storage/storage-manager';
 import { ElectronSafeStorageCredentialStore } from './main/core/electron-safe-storage-credential-store';
 import { ReadinessRegistry } from './main/core/readiness-registry';
 import {
@@ -620,6 +622,28 @@ const registerIpcHandlers = (
         );
     },
   );
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_OPEN_ACCEPTED_EVIDENCE,
+    async (event, input: unknown) => {
+      assertTrustedIpcSender(event);
+      if (typeof input !== 'object' || input === null) {
+        throw new Error('Accepted evidence input must be an object.');
+      }
+      const value = input as { run_id?: unknown; job_id?: unknown };
+      if (
+        typeof value.run_id !== 'string'
+        || value.run_id.trim().length === 0
+        || typeof value.job_id !== 'string'
+        || value.job_id.trim().length === 0
+      ) {
+        throw new Error('Accepted evidence input is invalid.');
+      }
+      await requireDesktopController().openAcceptedArtifact(
+        value.run_id,
+        value.job_id,
+      );
+    },
+  );
   ipcMain.handle(IPC_CHANNELS.DESKTOP_EXPORT, (event, input: unknown) => {
     assertTrustedIpcSender(event);
     if (typeof input !== 'object' || input === null) throw new Error('Export input must be an object.');
@@ -717,6 +741,7 @@ const initializeBootstrapStatus =
 
     if (database.status === 'READY') {
       desktopRepository = new StateRepository(getDatabasePath(directories));
+      const desktopStorage = new StorageManager(directories);
       const credentialStore = new ElectronSafeStorageCredentialStore(
         `${directories.app_data_root}/credentials`,
       );
@@ -887,6 +912,22 @@ const initializeBootstrapStatus =
 
           package_directory:
             directories.runs,
+
+          open_accepted_artifact:
+            async (artifact) => {
+              const absolutePath = desktopStorage.resolveRunRelativePath(
+                artifact.run_id,
+                artifact.relative_path,
+              );
+              const fileStat = await lstat(absolutePath);
+              if (!fileStat.isFile()) {
+                throw new Error('Accepted evidence is not a regular file.');
+              }
+              const openError = await shell.openPath(absolutePath);
+              if (openError.length > 0) {
+                throw new Error(`Accepted evidence could not be opened: ${openError}`);
+              }
+            },
 
           execute_run:
             async (

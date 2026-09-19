@@ -30,6 +30,44 @@ async function main() {
   assert.equal(fs.existsSync(path.join(successful.export_directory, 'serpapi_google_serp.json')), false);
   assert.equal(fs.existsSync(path.join(successful.export_directory, 'google-trends_interest_over_time.json')), true);
 
+  // DESKTOP-ACCEPTED-EVIDENCE-001
+  const openedEvidence = [];
+  const evidenceController = new DesktopMultiSourceController({
+    repository: {
+      getRun: (runId) => runId === run.run_id ? run : null,
+      listJobs: (runId) => runId === run.run_id ? [failed, accepted] : [],
+      getArtifact: (artifactId) => artifactId === 'art_ok'
+        ? {
+            artifact_id: 'art_ok',
+            run_id: run.run_id,
+            job_id: accepted.job_id,
+            source_id: accepted.source_id,
+            artifact_kind: 'RAW_SOURCE_FILE',
+            artifact_state: 'ACCEPTED',
+          }
+        : null,
+      reserveRunFromJobPlans: () => { throw new Error('unused'); },
+    },
+    readiness: { getReadiness: async () => ({ readiness_status: 'READY' }) },
+    application_version: 'test',
+    open_accepted_artifact: async (artifact) => openedEvidence.push(artifact.artifact_id),
+  });
+
+  await evidenceController.openAcceptedArtifact(run.run_id, accepted.job_id);
+  assert.deepEqual(openedEvidence, ['art_ok'], 'Accepted evidence action must resolve the exact persisted artifact through Core.');
+  await assert.rejects(
+    () => evidenceController.openAcceptedArtifact(run.run_id, failed.job_id),
+    /accepted artifact/i,
+    'A failed Job without accepted evidence must not open a file.',
+  );
+  await assert.rejects(
+    () => evidenceController.openAcceptedArtifact('rr_other', accepted.job_id),
+    /unknown run/i,
+    'Cross-Run evidence requests must fail closed.',
+  );
+
+  console.log('PASS DESKTOP-ACCEPTED-EVIDENCE-001: Run Detail evidence opening is bound to exact accepted Run/Job/artifact identity');
+
   // DESKTOP-RESUME-001
   // Persisted RUNNING work from a previous process must
   // reconcile before explicit retry. Accepted sibling

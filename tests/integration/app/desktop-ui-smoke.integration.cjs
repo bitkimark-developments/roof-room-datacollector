@@ -209,6 +209,9 @@ const main = async () => {
           openDataFolder: async () => {},
           openLatestExport: async () => {},
           openConfigFolder: async () => {},
+          openDesktopAcceptedEvidence: async (input) => {
+            window.__openedAcceptedEvidence = input;
+          },
 
           getDesktopWorkspaces: async () => ({
             workspaces: [
@@ -2123,6 +2126,31 @@ const main = async () => {
       ).count(),
       1,
       'History selection must reuse the existing Run Detail Job surface.',
+    );
+
+    const openAcceptedEvidenceButton = page.getByRole(
+      'button',
+      {
+        name: 'Open Accepted Evidence',
+        exact: true,
+      },
+    );
+
+    assert.equal(
+      await openAcceptedEvidenceButton.count(),
+      1,
+      'A completed Job with accepted evidence must expose the bounded open action.',
+    );
+
+    await openAcceptedEvidenceButton.click();
+
+    assert.deepEqual(
+      await page.evaluate(() => window.__openedAcceptedEvidence),
+      {
+        run_id: 'rr_fixture_history_001',
+        job_id: 'job_fixture_history_001',
+      },
+      'The evidence action must send only the exact persisted Run/Job identity.',
     );
 
     assert.equal(

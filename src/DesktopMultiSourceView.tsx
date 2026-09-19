@@ -1564,6 +1564,28 @@ export function DesktopMultiSourceView() {
       }
     };
 
+  const openAcceptedEvidence =
+    async (jobId: string) => {
+      if (activeRunState === null || busy === true) return;
+
+      setBusy(true);
+      setMessage(null);
+      try {
+        await window.roofroom.openDesktopAcceptedEvidence({
+          run_id: activeRunState.run.run_id,
+          job_id: jobId,
+        });
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Accepted evidence açılamadı.',
+        );
+      } finally {
+        setBusy(false);
+      }
+    };
+
   const retryActiveRun =
     async () => {
       if (
@@ -3090,6 +3112,17 @@ export function DesktopMultiSourceView() {
                         <p>
                           Attempts: {job.attempt_count}
                         </p>
+
+                        {job.accepted_artifact_id !== null
+                          && (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void openAcceptedEvidence(job.job_id)}
+                            >
+                              Open Accepted Evidence
+                            </button>
+                          )}
                       </article>
                     ),
                   )}

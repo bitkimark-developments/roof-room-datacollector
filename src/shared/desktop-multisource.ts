@@ -14,6 +14,7 @@ import type {
   WorkspaceRecord,
 } from './workspace';
 import type { FreshnessStatus } from './freshness';
+import type { ArtifactRecord } from './artifact';
 
 export const SUPPORTED_DESKTOP_SOURCE_IDS = [
   'google-trends',
@@ -126,6 +127,7 @@ export interface DesktopMultiSourceRepository {
   }): { run: RunRecord; jobs: JobRecord[] };
   listJobs(run_id: string): JobRecord[];
   getRun(run_id: string): RunRecord | null;
+  getArtifact(artifact_id: string): ArtifactRecord | null;
   listRuns?(workspace_id: string): RunRecord[];
 }
 
