@@ -19,16 +19,22 @@ async function main() {
   };
   const root = path.join(process.cwd(), '.tmp-desktop-package-fixture');
   fs.rmSync(root, { recursive: true, force: true });
-  const controller = new DesktopMultiSourceController({ repository, readiness: { getReadiness: async () => ({ readiness_status: 'READY' }) }, application_version: 'test', execute_run: async () => {}, execute_retry: async () => {}, package_directory: root, load_datasets: async () => [{ source_id: 'google-trends', dataset_type: 'INTEREST_OVER_TIME', rows: [{ query: 'ficus', value: null }] }, { source_id: 'serpapi', dataset_type: 'GOOGLE_SERP', rows: null, failure: { code: 'ERROR_NOT_DATA' } }] });
+  const controller = new DesktopMultiSourceController({ repository, readiness: { getReadiness: async () => ({ readiness_status: 'READY' }) }, application_version: 'test', execute_run: async () => {}, execute_retry: async () => {}, package_directory: root, load_datasets: async () => [{ source_id: 'google-trends', dataset_type: 'INTEREST_OVER_TIME', job_id: 'job_ok', job_key: 'GT-01', rows: [{ query: 'ficus', value: null }] }, { source_id: 'serpapi', dataset_type: 'GOOGLE_SERP', job_id: 'job_failed', job_key: 'q-2', rows: null, failure: { code: 'ERROR_NOT_DATA' } }] });
   const retried = await controller.retryFailed(run.run_id);
   assert.equal(retried.jobs.find((job) => job.job_id === failed.job_id).attempt_count, 2);
   assert.equal(retried.jobs.find((job) => job.job_id === accepted.job_id).attempt_count, 1);
+  await assert.rejects(
+    () => controller.exportRun(run.run_id, 'ALL'),
+    /not terminal/i,
+    'The privileged export boundary must reject a non-terminal Run even if invoked outside the UI.',
+  );
+  run.run_status = 'COMPLETED_WITH_WARNINGS';
   const all = await controller.exportRun(run.run_id, 'ALL');
   assert.equal(fs.existsSync(path.join(all.export_directory, 'MANIFEST.json')), true);
   assert.equal(JSON.parse(fs.readFileSync(path.join(all.export_directory, 'FAILURES.json'), 'utf8')).length, 1);
   const successful = await controller.exportRun(run.run_id, 'SUCCESSFUL_ONLY');
   assert.equal(fs.existsSync(path.join(successful.export_directory, 'serpapi_google_serp.json')), false);
-  assert.equal(fs.existsSync(path.join(successful.export_directory, 'google-trends_interest_over_time.json')), true);
+  assert.equal(fs.existsSync(path.join(successful.export_directory, 'google-trends_interest_over_time_gt-01_job_ok.json')), true);
 
   // DESKTOP-ACCEPTED-EVIDENCE-001
   const openedEvidence = [];

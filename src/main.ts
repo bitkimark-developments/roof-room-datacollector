@@ -36,6 +36,7 @@ import {
 } from './main/storage/database';
 import { StateRepository } from './main/storage/state-repository';
 import { StorageManager } from './main/storage/storage-manager';
+import { ProductionDataPackageLoader } from './main/export/production-data-package-loader';
 import { ElectronSafeStorageCredentialStore } from './main/core/electron-safe-storage-credential-store';
 import { ReadinessRegistry } from './main/core/readiness-registry';
 import {
@@ -742,6 +743,10 @@ const initializeBootstrapStatus =
     if (database.status === 'READY') {
       desktopRepository = new StateRepository(getDatabasePath(directories));
       const desktopStorage = new StorageManager(directories);
+      const productionDataPackageLoader = new ProductionDataPackageLoader(
+        desktopRepository,
+        desktopStorage,
+      );
       const credentialStore = new ElectronSafeStorageCredentialStore(
         `${directories.app_data_root}/credentials`,
       );
@@ -912,6 +917,11 @@ const initializeBootstrapStatus =
 
           package_directory:
             directories.runs,
+
+          load_datasets:
+            (run_id) =>
+              productionDataPackageLoader
+                .loadRunDatasets(run_id),
 
           open_accepted_artifact:
             async (artifact) => {

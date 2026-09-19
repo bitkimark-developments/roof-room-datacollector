@@ -72,6 +72,9 @@ bash \
   tests/integration/export/run-data-package-exporter-test.sh
 
 bash \
+  tests/integration/export/run-production-data-package-loader-test.sh
+
+bash \
   tests/integration/serpapi/run-serpapi-source-test.sh
 
 bash \

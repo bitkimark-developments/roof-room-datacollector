@@ -1429,7 +1429,11 @@ export class DesktopMultiSourceController {
 
   async exportRun(run_id: string, mode: DataPackageMode): Promise<{ export_directory: string; dataset_count: number; failed_count: number }> {
     if (!this.dependencies.package_directory) throw new Error('Data Package export is unavailable.');
-    const datasets = this.dependencies.load_datasets ? await this.dependencies.load_datasets(run_id) : [];
+    const run = this.dependencies.repository.getRun(run_id);
+    if (run === null) throw new Error(`Unknown Run: ${run_id}`);
+    if (!isTerminalRunStatus(run.run_status)) throw new Error(`Run ${run_id} is not terminal and cannot be exported.`);
+    if (!this.dependencies.load_datasets) throw new Error('Data Package dataset loading is unavailable.');
+    const datasets = await this.dependencies.load_datasets(run_id);
     const dataPackage = this.buildPackage(run_id, mode, datasets);
     const directory = `${this.dependencies.package_directory}/${run_id}/exports/${mode.toLowerCase()}`;
     await writeDataPackage(directory, dataPackage);

@@ -3,6 +3,8 @@ export type DataPackageMode = 'ALL' | 'SUCCESSFUL_ONLY';
 export interface DataPackageDataset {
   source_id: string;
   dataset_type: string;
+  job_id: string;
+  job_key: string;
   rows: Array<Record<string, unknown>>;
   provenance?: Record<string, unknown>;
 }
@@ -29,4 +31,3 @@ export interface DataPackage {
   datasets: DataPackageDataset[];
   failures: DataPackageFailure[];
 }
-

@@ -83,6 +83,7 @@
     "test:config:adapters": "bash tests/integration/config/run-query-config-adapters-test.sh",
     "test:m6:export": "bash tests/integration/export/run-google-trends-export-manager-test.sh",
     "test:m6:data-package": "bash tests/integration/export/run-data-package-exporter-test.sh",
+    "test:m6:production-data-package": "bash tests/integration/export/run-production-data-package-loader-test.sh",
     "test:release:gate": "bash tests/integration/release/run-release-gate.sh",
     "m3:live-query-diagnostic": "bash scripts/m3/run-live-google-trends-query-dom-diagnostic.sh",
     "test:m3:live-stage-command": "bash tests/integration/google-trends/run-live-stage-gate-command-test.sh",
