@@ -317,7 +317,7 @@ Schema v7 adds `saved_collection_presets` (Workspace-owned durable reusable JSON
 
 Freshness is an implemented domain separate from readiness, execution, and validation.
 
-The generalized desktop contract uses a temporary sanitized `RunDraft`, source-card readiness, and an immutable snapshot created by Core reservation. Multi-source packages contain separate source-keyed datasets plus `MANIFEST.json`; failed jobs never produce fabricated normalized rows, and Successful Only excludes failed datasets while retaining Run identity.
+The generalized desktop contract uses a temporary sanitized `RunDraft`, source-card readiness, and an immutable snapshot created by Core reservation. Multi-source packages contain separate Job-keyed source datasets plus `MANIFEST.json`, `FAILURES.json`, and `DATASETS.json`. The dataset index records output filename, Run/Job/source/dataset identity, row count, validation status, accepted raw artifact identity/checksum, acquisition time, and sanitized requested context. Failed or rejected Jobs never produce fabricated normalized rows, and Successful Only excludes failed datasets while retaining Run identity. Production export re-verifies raw file ownership, kind/state, byte size, and SHA-256 before source-native parsing.
 
 The safe derived result supports:
 

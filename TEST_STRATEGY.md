@@ -256,6 +256,8 @@ Exports must:
 - refuse unsafe overwrite/collision;
 - never turn Downloads into canonical raw storage.
 
+Generic production Data Package coverage must exercise every implemented Release 1.0 source through its accepted raw artifact and verified native parser/normalizer. It must also prove exact Job/source binding, same-source multi-Job filename separation, persisted dataset provenance, NULL preservation, terminal-Run enforcement, rejection of changed bytes/checksums and mismatched identities, failed/rejected omission from normalized datasets, and safe failure retention in Export All. These tests use sanitized local fixtures and make no provider request.
+
 ## 13. Commands and gate design
 
 The current `package.json` exposes focused deterministic scripts and `npm run test:release:gate`. Existing script names remain valid until implementation changes them.

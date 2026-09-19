@@ -1827,3 +1827,68 @@ Exact next action:
 - Commit this Section 39 documentation checkpoint separately and fast-forward the feature branch into local `main`.
 - Implement the production generic multi-source dataset loader and provenance-preserving Data Package output for accepted Jobs across the implemented Release 1.0 source set.
 - Then perform the final Release 1.0 reality audit, packaging/hardening verification, and truthfully separate deterministic completion from outstanding credentialed live acceptance.
+
+---
+
+## 40. Generic production multi-source Data Package export — 2026-09-19
+
+This section is the authoritative latest repository-state update. Earlier current-stage and next-action sections are historical.
+
+Implementation plan commit:
+
+`819aa80 docs: plan generic data package export`
+
+Technical implementation commit:
+
+`9020117 feat(export): load accepted multi-source datasets`
+
+Implemented production boundary:
+
+- `DesktopMultiSourceController` production composition now receives a real `load_datasets` dependency instead of silently exporting an empty package.
+- Export is privileged and terminal-Run-only even if IPC/UI gating is bypassed.
+- `ProductionDataPackageLoader` considers only Jobs that are completed, have `VALID`, `LOW_DATA`, or `NO_DATA` validation, and link an accepted raw artifact.
+- Every raw artifact is rechecked for exact Run/Job/source ownership, `RAW_SOURCE_FILE` kind, accepted state, regular non-symlink file, persisted byte size, and SHA-256 before parsing.
+- The loader reuses the verified source parser/normalizer for all eight production source IDs:
+  - Google Trends → `INTEREST_OVER_TIME`
+  - Google Search Console Query × Page → `QUERY_PAGE`
+  - Google Ads Search Terms → `SEARCH_TERMS`
+  - Google Keyword Planner official API → `KEYWORD_HISTORICAL_METRICS`
+  - Google Keyword Planner manual CSV → `KEYWORD_HISTORICAL_METRICS`
+  - İkas Products XLSX → `PRODUCTS`
+  - Bitkimark Sitemap/XML → `SITEMAP_URLS`
+  - SerpApi → `GOOGLE_SERP`
+- One accepted Job produces one source-native dataset. No cross-source row join or analysis output is introduced.
+- Every dataset carries exact `job_id` and `job_key`; the physical filename includes both, preventing same-source/same-dataset overwrite.
+- `DATASETS.json` persists each dataset filename, source/dataset/Job identity, row count, and provenance including raw artifact identity/checksum, validation status, acquisition time, and sanitized requested context.
+- `MANIFEST.json` and `FAILURES.json` remain explicit. Export All retains safe failed/cancelled/validation-failure context; Successful Only omits it.
+- Accepted normalized rows preserve source-native nulls, units, relative-interest semantics, query-group/Job identity, sitemap relationships, and provider-specific fields.
+- Mismatched dataset identity, unknown source loaders, changed raw bytes, unsafe paths, non-terminal Runs, and unavailable production loading fail closed.
+
+TDD and deterministic verification:
+
+- Initial Data Package identity RED showed repeated same-source datasets had no Job identity and would share one filename; no provenance index was written.
+- Initial production-loader RED failed because `production-data-package-loader.ts` did not exist.
+- `PASS DATA-PACKAGE-IDENTITY-001` proves collision-safe repeated-Job files plus durable `DATASETS.json` provenance.
+- `PASS PRODUCTION-DATA-PACKAGE-001` loads sanitized accepted artifacts for all eight sources, checks normalized semantics and NULL preservation, excludes local paths, and rejects same-size checksum tampering.
+- `PASS DATA-PACKAGE-001` continues to prove mode/failure/NULL behavior and now covers date-mismatch/cancelled failure codes plus cross-Job identity rejection.
+- `PASS DESKTOP-RETRY-EXPORT-001` covers privileged non-terminal rejection and the updated Job-keyed package files.
+- The production loader suite is wired into `tests/integration/release/run-release-gate.sh`.
+- `npx tsc --noEmit`: exit 0.
+- `npm run lint`: exit 0.
+- `git diff --check`: exit 0.
+- `npm run test:release:gate`: `PASS RELEASE-GATE-001` (exit 0).
+
+Provider safety:
+
+- No live provider request ran and no provider quota was consumed.
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Exact next action:
+
+- Commit this Section 40 documentation checkpoint separately and fast-forward the feature branch into local `main`.
+- Perform the final Release 1.0 reality audit against the specification, run packaging/build and deterministic release verification on the target Mac, inspect repository/worktree truth, and fix only concrete final hardening defects.
+- Record deterministic implementation completion separately from provider-by-provider live acceptance that remains blocked on real Workspace configuration, credentials, inputs, or explicit quota-bearing execution.
