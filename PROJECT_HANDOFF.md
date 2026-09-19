@@ -1775,3 +1775,55 @@ Exact next action:
 - Commit this Section 38 documentation checkpoint separately and fast-forward the feature branch into local `main`.
 - Audit the unified multi-source desktop workflow against Work Group 12 and implement only remaining truthful usability/visibility gaps without redesigning the application.
 - Then bind generic production dataset loading to the already-defined source-separated Data Package exporter and perform the final Release 1.0 reality/hardening pass.
+
+---
+
+## 39. Unified desktop accepted-evidence action — 2026-09-19
+
+This section is the authoritative latest repository-state update. Earlier current-stage and next-action sections are historical.
+
+Implementation plan commit:
+
+`370c1a1 docs: plan unified desktop evidence action`
+
+Technical implementation commit:
+
+`3b136aa feat(desktop): open accepted run evidence`
+
+Audit result and bounded scope:
+
+- The existing desktop already verifies the unified source catalog, readiness/freshness distinction, source-specific reviewed Quick Runs, immutable Review → Start handoff, persisted progress, manual continuation, resume/retry/cancel, Run History, validation status, and terminal export actions.
+- The remaining concrete Work Group 12 usability gap was opening canonical accepted evidence from a completed Job.
+- Run Detail now exposes `Open Accepted Evidence` only when the persisted Job has an `accepted_artifact_id`.
+- The renderer sends only exact `run_id` and `job_id`; it never receives or supplies an unrestricted filesystem path.
+- Core verifies Run existence, Job membership, the exact linked artifact identity, matching source ownership, `RAW_SOURCE_FILE` kind, and accepted/accepted-with-warning state before delegating to the privileged opener.
+- Production resolves the run-relative path through `StorageManager`, rejects missing files, directories, and symbolic links, and opens the canonical file through Electron.
+- Cross-Run, missing-Job, missing-artifact, rejected/non-raw, and unavailable-opener cases fail closed.
+- No application redesign, source behavior change, schema migration, scheduler, or provider request was introduced.
+
+TDD and verification evidence:
+
+- Controller RED: `openAcceptedArtifact` did not exist.
+- Renderer RED: a completed historical Job exposed no accepted-evidence action.
+- `PASS DESKTOP-ACCEPTED-EVIDENCE-001` proves exact Run/Job/artifact binding plus missing-evidence and cross-Run rejection.
+- Desktop UI smoke proves the button appears only for accepted evidence and sends only the persisted Run/Job identity.
+- Existing desktop resume, cancellation, retry/export, readiness/freshness, reviewed Quick Run, and source-specific UI smoke checks remain passing.
+- `npx tsc --noEmit`: exit 0.
+- `npm run lint`: exit 0.
+- `git diff --check`: exit 0.
+- `npm run test:release:gate`: `PASS RELEASE-GATE-001` (exit 0).
+
+Provider safety:
+
+- No live provider request ran and no provider quota was consumed.
+
+Historical untracked files remain intentionally untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+Exact next action:
+
+- Commit this Section 39 documentation checkpoint separately and fast-forward the feature branch into local `main`.
+- Implement the production generic multi-source dataset loader and provenance-preserving Data Package output for accepted Jobs across the implemented Release 1.0 source set.
+- Then perform the final Release 1.0 reality audit, packaging/hardening verification, and truthfully separate deterministic completion from outstanding credentialed live acceptance.
