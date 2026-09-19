@@ -7,9 +7,33 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
+const shouldIgnorePackagedPath = (file: string): boolean => {
+  if (!file) {
+    return false;
+  }
+
+  return !(
+    file.startsWith('/.vite') ||
+    file === '/node_modules' ||
+    file.startsWith('/node_modules/')
+  );
+};
+
+const localMacSignOptions = {
+  identity: '-',
+  identityValidation: false,
+  continueOnError: false,
+  optionsForFile: () => ({
+    hardenedRuntime: false,
+    signatureFlags: '0',
+  }),
+} as const;
+
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    ignore: shouldIgnorePackagedPath,
+    osxSign: localMacSignOptions,
   },
   rebuildConfig: {},
   makers: [
