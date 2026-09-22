@@ -63,6 +63,15 @@ bash \
   tests/integration/app/run-desktop-multisource-flow-test.sh
 
 bash \
+  tests/integration/app/run-desktop-connection-ipc-test.sh
+
+bash \
+  tests/integration/app/run-desktop-connection-main-ipc-test.sh
+
+bash \
+  tests/integration/app/run-desktop-credential-availability-composition-test.sh
+
+bash \
   tests/integration/app/run-production-source-composition-test.sh
 
 bash \

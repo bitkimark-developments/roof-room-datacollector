@@ -260,6 +260,36 @@ const main = async () => {
             ],
           }),
 
+          getDesktopWorkspaceConnections: async (workspaceId) => {
+            window.__desktopWorkspaceConnectionsWorkspaceId =
+              workspaceId;
+
+            return [
+              {
+                source_id: 'google-search-console-query-page',
+                credential_status: 'AVAILABLE',
+                readiness_status: 'MANUAL_ACTION_REQUIRED',
+                credential_ref: 'cred:do-not-render',
+                secret: 'do-not-leak',
+              },
+              {
+                source_id: 'google-ads-search-terms',
+                credential_status: 'MISSING',
+                readiness_status: 'CONNECTION_REQUIRED',
+              },
+              {
+                source_id: 'google-keyword-planner',
+                credential_status: 'NOT_CONFIGURED',
+                readiness_status: 'CONFIGURATION_REQUIRED',
+              },
+              {
+                source_id: 'serpapi',
+                credential_status: 'AVAILABLE',
+                readiness_status: 'READY',
+              },
+            ];
+          },
+
           getDesktopPresets: async () => [
             {
               preset_id: 'sp_fixture',
@@ -1844,6 +1874,77 @@ const main = async () => {
         exact: true,
       }).count(),
       1,
+    );
+
+    await page.getByRole(
+      'button',
+      {
+        name: 'WORKSPACE',
+        exact: true,
+      },
+    ).click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name: 'Workspace',
+        exact: true,
+      },
+    ).waitFor();
+
+    assert.equal(
+      await page.evaluate(
+        () => window.__desktopWorkspaceConnectionsWorkspaceId,
+      ),
+      'ws_fixture',
+      'Workspace view must load safe connection state for the selected Workspace.',
+    );
+
+    for (const sourceId of [
+      'google-search-console-query-page',
+      'google-ads-search-terms',
+      'google-keyword-planner',
+      'serpapi',
+    ]) {
+      assert.equal(
+        await page.getByText(sourceId, {
+          exact: true,
+        }).count(),
+        1,
+        `Workspace must expose connection state for ${sourceId}.`,
+      );
+    }
+
+    assert.equal(
+      await page.getByText('Credential: AVAILABLE', {
+        exact: true,
+      }).count(),
+      2,
+      'Credential status must be rendered separately from readiness.',
+    );
+
+    assert.equal(
+      await page.getByText('Readiness: READY', {
+        exact: true,
+      }).count(),
+      1,
+      'Readiness status must remain a separate safe state.',
+    );
+
+    assert.equal(
+      await page.getByText('cred:do-not-render', {
+        exact: false,
+      }).count(),
+      0,
+      'Credential references must never be rendered.',
+    );
+
+    assert.equal(
+      await page.getByText('do-not-leak', {
+        exact: false,
+      }).count(),
+      0,
+      'Secret material must never be rendered.',
     );
 
     await page.getByRole(

@@ -13,6 +13,7 @@ import type {
   DesktopReview,
   DesktopReadinessStatus,
   DesktopRunDraft,
+  DesktopWorkspaceConnectionView,
   DesktopWorkspaceView,
 } from './shared/desktop-multisource';
 import type { FreshnessStatus } from './shared/freshness';
@@ -622,6 +623,14 @@ export function DesktopMultiSourceView() {
     useState('');
 
   const [
+    workspaceConnections,
+    setWorkspaceConnections,
+  ] =
+    useState<
+      DesktopWorkspaceConnectionView[]
+    >([]);
+
+  const [
     presets,
     setPresets,
   ] =
@@ -951,6 +960,58 @@ export function DesktopMultiSourceView() {
         false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted =
+      true;
+
+    if (!workspaceId) {
+      setWorkspaceConnections([]);
+
+      return () => {
+        mounted =
+          false;
+      };
+    }
+
+    window.roofroom
+      .getDesktopWorkspaceConnections(
+        workspaceId,
+      )
+      .then(
+        (next) => {
+          if (mounted) {
+            setWorkspaceConnections(
+              next,
+            );
+          }
+        },
+      )
+      .catch(
+        (error) => {
+          if (!mounted) {
+            return;
+          }
+
+          setWorkspaceConnections(
+            [],
+          );
+
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : 'Workspace bağlantı durumu okunamadı.',
+          );
+        },
+      );
+
+    return () => {
+      mounted =
+        false;
+    };
+  }, [
+    workspaceId,
+  ]);
 
   useEffect(() => {
     let mounted =
@@ -3559,6 +3620,44 @@ export function DesktopMultiSourceView() {
                 <p>
                   Connections and local data live here. Task configuration does not.
                 </p>
+
+                <div
+                  className="rr-detail-sections"
+                  data-testid="workspace-connections"
+                >
+                  {workspaceConnections.map(
+                    (connection) => (
+                      <article
+                        key={
+                          connection
+                            .source_id
+                        }
+                        className="rr-panel rr-detail-panel"
+                      >
+                        <strong>
+                          {
+                            connection
+                              .source_id
+                          }
+                        </strong>
+
+                        <p>
+                          Credential: {
+                            connection
+                              .credential_status
+                          }
+                        </p>
+
+                        <p>
+                          Readiness: {
+                            connection
+                              .readiness_status
+                          }
+                        </p>
+                      </article>
+                    ),
+                  )}
+                </div>
               </section>
             )}
         </div>

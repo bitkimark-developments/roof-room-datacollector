@@ -55,6 +55,11 @@ const roofroomApi: RoofRoomApi = {
     ),
 
   getDesktopWorkspaces: () => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_WORKSPACES),
+  getDesktopWorkspaceConnections: (workspace_id) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.DESKTOP_CONNECTIONS,
+      workspace_id,
+    ),
   listDesktopRuns: (workspace_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_RUNS, workspace_id),
   getDesktopPresets: (workspace_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_PRESETS, workspace_id),
   createDesktopPreset: (input) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_CREATE_PRESET, input),

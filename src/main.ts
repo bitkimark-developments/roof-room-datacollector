@@ -47,6 +47,7 @@ import { DesktopExecutionService } from './main/app/desktop-execution-service';
 import { createProductionCollectionRuntime } from './main/app/production-collection-runtime';
 import { StructuredLogger } from './main/logging/structured-logger';
 import { DesktopMultiSourceController } from './main/app/desktop-multisource-controller';
+import { createDesktopWorkspaceConnectionsHandler } from './main/app/desktop-connection-ipc';
 import { SUPPORTED_DESKTOP_SOURCE_IDS } from './shared/desktop-multisource';
 import {
   IPC_CHANNELS,
@@ -411,6 +412,16 @@ const registerIpcHandlers = (
     assertTrustedIpcSender(event);
     return requireDesktopController().getWorkspaceView();
   });
+
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_CONNECTIONS,
+    createDesktopWorkspaceConnectionsHandler({
+      assertTrustedSender: assertTrustedIpcSender,
+      getWorkspaceConnections: (workspaceId) =>
+        requireDesktopController().getWorkspaceConnections(workspaceId),
+    }),
+  );
+
   ipcMain.handle(IPC_CHANNELS.DESKTOP_PRESETS, (event, workspaceId: unknown) => {
     assertTrustedIpcSender(event);
     if (typeof workspaceId !== 'string' || workspaceId.trim().length === 0) throw new Error('workspace_id must be a non-empty string.');
@@ -875,6 +886,9 @@ const initializeBootstrapStatus =
 
           freshness:
             freshnessRegistry,
+
+          credential_availability:
+            credentialStore,
 
           application_version:
             app.getVersion(),

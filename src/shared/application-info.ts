@@ -10,6 +10,7 @@ import type {
   DesktopReviewedRunDraft,
   DesktopRunDraft,
   DesktopRunState,
+  DesktopWorkspaceConnectionView,
   DesktopWorkspaceView,
 } from './desktop-multisource';
 import type { RunDraftOrigin } from './collection-configuration';
@@ -34,6 +35,7 @@ export const IPC_CHANNELS = {
   OPEN_CONFIG_FOLDER:
     'collection:open-config-folder',
   DESKTOP_WORKSPACES: 'desktop:workspaces',
+  DESKTOP_CONNECTIONS: 'desktop:connections',
   DESKTOP_RUNS: 'desktop:runs',
   DESKTOP_PRESETS: 'desktop:presets',
   DESKTOP_CREATE_PRESET: 'desktop:create-preset',
@@ -93,6 +95,9 @@ export interface RoofRoomApi {
   openLatestExport: () => Promise<void>;
   openConfigFolder: () => Promise<void>;
   getDesktopWorkspaces: () => Promise<DesktopWorkspaceView>;
+  getDesktopWorkspaceConnections: (
+    workspace_id: string,
+  ) => Promise<DesktopWorkspaceConnectionView[]>;
   listDesktopRuns: (
     workspace_id: string,
   ) => Promise<DesktopRunState['run'][]>;
