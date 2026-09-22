@@ -36,11 +36,31 @@ export type DesktopReadinessStatus =
   | 'FILE_REQUIRED'
   | 'MANUAL_ACTION_REQUIRED';
 
+export type DesktopReadinessRemediation =
+  | {
+      kind: 'CONFIGURE_SOURCE';
+      label: string;
+    }
+  | {
+      kind: 'CONNECT_SOURCE';
+      label: string;
+    }
+  | {
+      kind: 'SELECT_FILE';
+      label: string;
+    }
+  | {
+      kind: 'MANUAL_ACTION';
+      label: string;
+    };
+
 export interface DesktopSourceCard {
   source_id: string;
   source_name: string;
   included: boolean;
   readiness_status: DesktopReadinessStatus;
+  readiness_reason: string | null;
+  readiness_remediation: DesktopReadinessRemediation | null;
   freshness_status: FreshnessStatus;
   last_successful_at: string | null;
   next_due_at: string | null;

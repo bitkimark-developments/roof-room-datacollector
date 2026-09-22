@@ -100,6 +100,11 @@ const sourceCards = [
     source_name: 'Google Ads Search Terms',
     included: false,
     readiness_status: 'CONNECTION_REQUIRED',
+    readiness_reason: 'A Workspace connection is required before this task can be reviewed.',
+    readiness_remediation: {
+      kind: 'CONNECT_SOURCE',
+      label: 'Manage Connection',
+    },
     freshness_status: 'DUE', last_successful_at: null, next_due_at: null,
     configuration_summary: 'Search Terms',
   },
@@ -200,7 +205,32 @@ const main = async () => {
         window.roofroom = {
           // Legacy bridge methods remain available during renderer migration.
           getApplicationInfo: async () => info,
-          getBootstrapStatus: async () => bootstrap,
+          getBootstrapStatus: async () => {
+            if (
+              window.localStorage.getItem(
+                '__roofroomBootstrapThrow',
+              ) === '1'
+            ) {
+              throw new Error(
+                'Fixture bootstrap read failed.',
+              );
+            }
+
+            return window.localStorage.getItem(
+              '__roofroomBootstrapError',
+            ) === '1'
+              ? {
+                  ...bootstrap,
+                  database: {
+                    status: 'ERROR',
+                    database_path:
+                      bootstrap.database.database_path,
+                    error:
+                      'Fixture bootstrap database error.',
+                  },
+                }
+              : bootstrap;
+          },
           getCollectionState: async () => collection,
           startCollection: async () => collection,
           resumeCollection: async () => collection,
@@ -3259,6 +3289,76 @@ const main = async () => {
             .__reviewedDesktopArtifact,
       ),
       'Google Trends Start must send the exact reviewed artifact without rebuilding dates or groups.',
+    );
+
+    await page.evaluate(
+      () =>
+        window.localStorage.setItem(
+          '__roofroomBootstrapError',
+          '1',
+        ),
+    );
+    await page.reload();
+
+    assert.equal(
+      await page.getByText(
+        '● SYSTEM NOT READY',
+        { exact: true },
+      ).count(),
+      1,
+      'System status must reflect a non-ready bootstrap instead of always claiming SYSTEM READY.',
+    );
+
+    await page.evaluate(
+      () => {
+        window.localStorage.removeItem(
+          '__roofroomBootstrapError',
+        );
+        window.localStorage.setItem(
+          '__roofroomBootstrapThrow',
+          '1',
+        );
+      },
+    );
+    await page.reload();
+
+    assert.equal(
+      await page.getByText(
+        '● SYSTEM NOT READY',
+        { exact: true },
+      ).count(),
+      1,
+      'A failed bootstrap read must fail closed instead of leaving the system status checking indefinitely.',
+    );
+
+    await page.evaluate(
+      () =>
+        window.localStorage.removeItem(
+          '__roofroomBootstrapThrow',
+        ),
+    );
+    await page.reload();
+
+    const blockedAdsCard = page.getByTestId('task-card').filter({ hasText: 'Google Ads — Search Terms' });
+    await blockedAdsCard.getByText('CONNECTION REQUIRED', { exact: true }).waitFor();
+    await blockedAdsCard.click();
+
+    assert.equal(
+      await page.getByText(
+        'A Workspace connection is required before this task can be reviewed.',
+        { exact: true },
+      ).count(),
+      1,
+      'Blocked Ads Task Detail must show the source readiness reason instead of the generic blocker.',
+    );
+
+    assert.equal(
+      await page.getByText(
+        'Next step: Manage Connection',
+        { exact: true },
+      ).count(),
+      1,
+      'Blocked Ads Task Detail must expose the safe remediation label without performing the connection action.',
     );
 
     await page.addInitScript(() => { window.__adsReady = true; });

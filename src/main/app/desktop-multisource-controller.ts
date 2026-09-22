@@ -2088,6 +2088,79 @@ export class DesktopMultiSourceController {
     return sourceIds.flatMap((sourceId) => this.planner(sourceId, sourceConfig(configuration, sourceId)));
   }
 
+  private readinessPresentation(
+    sourceId: string,
+    readinessStatus: DesktopReadinessStatus,
+  ): Pick<
+    DesktopSourceCard,
+    'readiness_reason' | 'readiness_remediation'
+  > {
+    if (
+      sourceId === 'ikas-products'
+      && readinessStatus === 'FILE_REQUIRED'
+    ) {
+      return {
+        readiness_reason:
+          'A Products XLSX file is required before this task can be reviewed.',
+        readiness_remediation: {
+          kind: 'SELECT_FILE',
+          label: 'Select Products XLSX',
+        },
+      };
+    }
+
+    if (
+      sourceId === 'google-keyword-planner-csv'
+      && readinessStatus === 'FILE_REQUIRED'
+    ) {
+      return {
+        readiness_reason:
+          'A Keyword Stats CSV file is required before this task can be reviewed.',
+        readiness_remediation: {
+          kind: 'SELECT_FILE',
+          label: 'Select Keyword Stats CSV',
+        },
+      };
+    }
+
+    if (readinessStatus === 'CONNECTION_REQUIRED') {
+      return {
+        readiness_reason:
+          'A Workspace connection is required before this task can be reviewed.',
+        readiness_remediation: {
+          kind: 'CONNECT_SOURCE',
+          label: 'Manage Connection',
+        },
+      };
+    }
+
+    if (readinessStatus === 'CONFIGURATION_REQUIRED') {
+      return {
+        readiness_reason:
+          'Source configuration is required before this task can be reviewed.',
+        readiness_remediation: {
+          kind: 'CONFIGURE_SOURCE',
+          label: 'Configure Source',
+        },
+      };
+    }
+
+    if (readinessStatus === 'MANUAL_ACTION_REQUIRED') {
+      return {
+        readiness_reason:
+          'Manual action is required before this task can be reviewed.',
+        readiness_remediation: {
+          kind: 'MANUAL_ACTION',
+          label: 'Review Required Action',
+        },
+      };
+    }
+
+    return {
+      readiness_reason: null,
+      readiness_remediation: null,
+    };
+  }
   private buildCards(
     workspaceId: string,
     configuration: ReusableCollectionConfiguration,
@@ -2096,6 +2169,9 @@ export class DesktopMultiSourceController {
     const statusBySource = new Map(statuses.map((status) => [status.source_id, status.readiness_status]));
     return this.sourceOrder.map((sourceId) => {
       const config = sourceConfig(configuration, sourceId);
+      const readinessStatus =
+        statusBySource.get(sourceId)
+        ?? 'CONFIGURATION_REQUIRED';
       const freshness = this.dependencies.freshness?.getFreshness(
         workspaceId,
         sourceId,
@@ -2114,7 +2190,11 @@ export class DesktopMultiSourceController {
         source_id: sourceId,
         source_name: this.sourceNames[sourceId] ?? sourceId,
         included: included(configuration, sourceId),
-        readiness_status: statusBySource.get(sourceId) ?? 'CONFIGURATION_REQUIRED',
+        readiness_status: readinessStatus,
+        ...this.readinessPresentation(
+          sourceId,
+          readinessStatus,
+        ),
         freshness_status: freshness.freshness_status,
         last_successful_at: freshness.last_successful_at,
         next_due_at: freshness.next_due_at,

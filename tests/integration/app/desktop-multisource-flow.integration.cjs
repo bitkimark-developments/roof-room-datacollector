@@ -40,6 +40,12 @@ const createFixture = (
     new Date(
       '2026-09-14T09:30:00.000Z',
     ),
+  sourceOrder = [
+    'google-trends',
+    'google-search-console-query-page',
+    'serpapi',
+    'ikas-products',
+  ],
 ) => {
   const workspaces = [
     { workspace_id: 'ws_a', workspace_name: 'A', created_at: '2026-09-11T00:00:00.000Z' },
@@ -91,7 +97,7 @@ const createFixture = (
     repository,
     readiness,
     application_version: 'test',
-    source_order: ['google-trends', 'google-search-console-query-page', 'serpapi', 'ikas-products'],
+    source_order: sourceOrder,
     job_planner: (source_id, source_config) => [{ source_id, job_key: `${source_id}-job`, query_group_id: null, source_context: { source_config } }],
     execute_run: async (run_id) => executions.push(run_id),
     now,
@@ -1110,11 +1116,211 @@ async function main() {
     /Last Run Settings.*not available/i,
   );
 
-  const blockedController = createFixture().controller;
-  blockedController.setReadinessEvaluator(async (_workspace_id, source_id) => source_id === 'ikas-products' ? { ...READY('ws_a', source_id), readiness_status: 'FILE_REQUIRED' } : READY('ws_a', source_id));
+  const blockedController = createFixture(
+    undefined,
+    [
+      'google-trends',
+      'google-search-console-query-page',
+      'serpapi',
+      'ikas-products',
+      'google-keyword-planner-csv',
+    ],
+  ).controller;
+  blockedController.setReadinessEvaluator(
+    async (_workspace_id, source_id) => {
+      if (source_id === 'ikas-products') {
+        return {
+          ...READY('ws_a', source_id),
+          readiness_status: 'FILE_REQUIRED',
+        };
+      }
+
+      if (source_id === 'google-keyword-planner-csv') {
+        return {
+          ...READY('ws_a', source_id),
+          readiness_status: 'FILE_REQUIRED',
+        };
+      }
+
+      if (source_id === 'serpapi') {
+        return {
+          ...READY('ws_a', source_id),
+          readiness_status: 'CONNECTION_REQUIRED',
+        };
+      }
+
+      if (source_id === 'google-trends') {
+        return {
+          ...READY('ws_a', source_id),
+          readiness_status: 'CONFIGURATION_REQUIRED',
+        };
+      }
+
+      if (source_id === 'google-search-console-query-page') {
+        return {
+          ...READY('ws_a', source_id),
+          readiness_status: 'MANUAL_ACTION_REQUIRED',
+        };
+      }
+
+      return READY('ws_a', source_id);
+    },
+  );
   const blockedDraft = blockedController.createDraft({ workspace_id: 'ws_a', origin: { kind: 'SAVED_PRESET', preset_id: 'sp_a' } });
+  blockedDraft.reusable_configuration.sources['google-search-console-query-page'] = { included: true };
+  blockedDraft.reusable_configuration.sources['google-keyword-planner-csv'] = { included: true };
   const blockedReview = await blockedController.reviewDraft(blockedDraft);
   assert.equal(blockedReview.can_start, false);
+  const blockedIkasCard =
+    blockedReview.source_cards.find(
+      (card) => card.source_id === 'ikas-products',
+    );
+
+  assert.ok(blockedIkasCard);
+
+  assert.equal(
+    blockedIkasCard.readiness_status,
+    'FILE_REQUIRED',
+  );
+
+  assert.equal(
+    blockedIkasCard.readiness_reason,
+    'A Products XLSX file is required before this task can be reviewed.',
+  );
+
+  assert.deepEqual(
+    blockedIkasCard.readiness_remediation,
+    {
+      kind: 'SELECT_FILE',
+      label: 'Select Products XLSX',
+    },
+  );
+
+  assert.equal(
+    blockedIkasCard.freshness_status,
+    'IMPORT_NEEDED',
+    'Readiness remediation must not replace or alter freshness.',
+  );
+
+  const blockedKeywordPlannerCsvCard =
+    blockedReview.source_cards.find(
+      (card) => card.source_id === 'google-keyword-planner-csv',
+    );
+
+  assert.ok(blockedKeywordPlannerCsvCard);
+  assert.equal(
+    blockedKeywordPlannerCsvCard.readiness_status,
+    'FILE_REQUIRED',
+  );
+  assert.equal(
+    blockedKeywordPlannerCsvCard.readiness_reason,
+    'A Keyword Stats CSV file is required before this task can be reviewed.',
+  );
+  assert.deepEqual(
+    blockedKeywordPlannerCsvCard.readiness_remediation,
+    {
+      kind: 'SELECT_FILE',
+      label: 'Select Keyword Stats CSV',
+    },
+  );
+  assert.equal(
+    blockedKeywordPlannerCsvCard.freshness_status,
+    'IMPORT_NEEDED',
+    'File readiness remediation must remain independent from import freshness.',
+  );
+
+  const blockedSerpApiCard =
+    blockedReview.source_cards.find(
+      (card) => card.source_id === 'serpapi',
+    );
+
+  assert.ok(blockedSerpApiCard);
+
+  assert.equal(
+    blockedSerpApiCard.readiness_status,
+    'CONNECTION_REQUIRED',
+  );
+
+  assert.equal(
+    blockedSerpApiCard.readiness_reason,
+    'A Workspace connection is required before this task can be reviewed.',
+  );
+
+  assert.deepEqual(
+    blockedSerpApiCard.readiness_remediation,
+    {
+      kind: 'CONNECT_SOURCE',
+      label: 'Manage Connection',
+    },
+  );
+
+  assert.equal(
+    blockedSerpApiCard.freshness_status,
+    'ON_DEMAND',
+    'Connection readiness must remain independent from on-demand freshness.',
+  );
+
+  const blockedGoogleTrendsCard =
+    blockedReview.source_cards.find(
+      (card) => card.source_id === 'google-trends',
+    );
+
+  assert.ok(blockedGoogleTrendsCard);
+
+  assert.equal(
+    blockedGoogleTrendsCard.readiness_status,
+    'CONFIGURATION_REQUIRED',
+  );
+
+  assert.equal(
+    blockedGoogleTrendsCard.readiness_reason,
+    'Source configuration is required before this task can be reviewed.',
+  );
+
+  assert.deepEqual(
+    blockedGoogleTrendsCard.readiness_remediation,
+    {
+      kind: 'CONFIGURE_SOURCE',
+      label: 'Configure Source',
+    },
+  );
+
+  assert.equal(
+    blockedGoogleTrendsCard.freshness_status,
+    'UNKNOWN',
+    'Configuration readiness must remain independent from freshness.',
+  );
+
+  const blockedGscCard =
+    blockedReview.source_cards.find(
+      (card) => card.source_id === 'google-search-console-query-page',
+    );
+
+  assert.ok(blockedGscCard);
+
+  assert.equal(
+    blockedGscCard.readiness_status,
+    'MANUAL_ACTION_REQUIRED',
+  );
+
+  assert.equal(
+    blockedGscCard.readiness_reason,
+    'Manual action is required before this task can be reviewed.',
+  );
+
+  assert.deepEqual(
+    blockedGscCard.readiness_remediation,
+    {
+      kind: 'MANUAL_ACTION',
+      label: 'Review Required Action',
+    },
+  );
+
+  assert.equal(
+    blockedGscCard.freshness_status,
+    'UNKNOWN',
+    'Manual-action readiness must remain independent from freshness.',
+  );
   await assert.rejects(() => blockedController.startDraft(blockedDraft), /not ready/i);
 
   const runInputController = createFixture().controller;

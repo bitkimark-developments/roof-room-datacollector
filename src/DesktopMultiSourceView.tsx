@@ -651,6 +651,14 @@ export function DesktopMultiSourceView() {
     useState('');
 
   const [
+    systemReady,
+    setSystemReady,
+  ] =
+    useState<boolean | null>(
+      null,
+    );
+
+  const [
     selectedIkasFile,
     setSelectedIkasFile,
   ] =
@@ -881,11 +889,14 @@ export function DesktopMultiSourceView() {
         .getDesktopWorkspaces(),
       window.roofroom
         .getApplicationInfo(),
+      window.roofroom
+        .getBootstrapStatus(),
     ])
       .then(
         ([
           next,
           info,
+          bootstrap,
         ]) => {
           if (!mounted) {
             return;
@@ -907,6 +918,13 @@ export function DesktopMultiSourceView() {
           setVersion(
             info.version,
           );
+
+
+          setSystemReady(
+            bootstrap.query_config.status === 'READY'
+            && bootstrap.source_registry.status === 'READY'
+            && bootstrap.database.status === 'READY',
+          );
         },
       )
       .catch(
@@ -914,6 +932,10 @@ export function DesktopMultiSourceView() {
           if (!mounted) {
             return;
           }
+
+          setSystemReady(
+            false,
+          );
 
           setMessage(
             error
@@ -1044,6 +1066,30 @@ export function DesktopMultiSourceView() {
       [
         draft,
       ],
+    );
+
+  const readinessReasonBySource =
+    useMemo(
+      () =>
+        new Map(
+          (draft?.source_cards ?? []).map((card) => [
+            card.source_id,
+            card.readiness_reason,
+          ]),
+        ),
+      [draft],
+    );
+
+  const readinessRemediationLabelBySource =
+    useMemo(
+      () =>
+        new Map(
+          (draft?.source_cards ?? []).map((card) => [
+            card.source_id,
+            card.readiness_remediation?.label ?? null,
+          ]),
+        ),
+      [draft],
     );
 
   const freshnessBySource =
@@ -2047,7 +2093,11 @@ export function DesktopMultiSourceView() {
             <span
               className="rr-system"
             >
-              ● SYSTEM READY
+              {systemReady === null
+                ? '● SYSTEM CHECKING'
+                : systemReady
+                  ? '● SYSTEM READY'
+                  : '● SYSTEM NOT READY'}
             </span>
 
             {version && (
@@ -2077,6 +2127,18 @@ export function DesktopMultiSourceView() {
                 selectedTask.source_id,
               )
               ?? 'NOT_YET_AVAILABLE';
+
+            const readinessReason =
+              readinessReasonBySource.get(
+                selectedTask.source_id,
+              )
+              ?? null;
+
+            const readinessRemediationLabel =
+              readinessRemediationLabelBySource.get(
+                selectedTask.source_id,
+              )
+              ?? null;
 
             const freshness =
               freshnessBySource.get(selectedTask.source_id)
@@ -2461,10 +2523,22 @@ export function DesktopMultiSourceView() {
                   {!canReview && (
                     <p>
                       {effectiveReadiness !== 'READY'
-                        ? 'Resolve the current readiness requirement before reviewing a Quick Run.'
+                        ? readinessReason
+                          ?? 'Resolve the current readiness requirement before reviewing a Quick Run.'
                         : 'Complete the task-specific Quick Run configuration before Review.'}
                     </p>
                   )}
+
+
+                  {canReview
+                    || effectiveReadiness === 'READY'
+                    || readinessRemediationLabel === null
+                    ? null
+                    : (
+                      <p>
+                        Next step: {readinessRemediationLabel}
+                      </p>
+                    )}
 
                   <button
                     type="button"
