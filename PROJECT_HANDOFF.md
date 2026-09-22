@@ -2130,3 +2130,141 @@ UXH1 should add a safe source-neutral readiness presentation contract with under
 UXH1 must not yet implement Workspace credential onboarding (UXH2), task-detail connection workflows (UXH3), structured editors (UXH4), file-import Replace/Remove UX (UXH5), or the Bitkimark bounded selector (UXH6).
 
 The first UXH1 implementation action is a bounded audit of the desktop readiness presentation seam followed by focused deterministic RED coverage proving that a blocking readiness state exposes safe reason/remediation information while readiness and freshness remain independent.
+---
+
+## 44. UXH1 — Status & Remediation Contract closure — 2026-09-22
+
+UXH1 is complete. This slice changed only desktop readiness presentation and application-health presentation. It did not add provider onboarding, credential mutation, new source acquisition behavior, persistence migrations, validation semantics, or privileged provider actions in the renderer.
+
+### Implemented contract
+
+Desktop source cards now expose safe source-neutral readiness presentation fields:
+
+```text
+readiness_reason
+readiness_remediation
+```
+
+Supported remediation presentation kinds are:
+
+```text
+CONFIGURE_SOURCE
+CONNECT_SOURCE
+SELECT_FILE
+MANUAL_ACTION
+```
+
+A READY source exposes no readiness reason or remediation.
+
+Blocking Task Detail states now show the safe source reason and a non-executing Next step label instead of relying only on the previous generic blocker message.
+
+FILE_REQUIRED presentation is source-specific for the currently supported manual import tasks:
+
+- İkas Products → Products XLSX;
+- Keyword Planner manual import → Keyword Stats CSV.
+
+Connection-required, configuration-required, and manual-action states expose safe generic presentation without moving secrets, authentication, provider requests, or privileged operations into the renderer.
+
+### Readiness and freshness separation
+
+Readiness presentation remains independent from freshness.
+
+Deterministic coverage explicitly preserves:
+
+- İkas Products: FILE_REQUIRED + IMPORT_NEEDED;
+- Keyword Planner manual CSV: FILE_REQUIRED + IMPORT_NEEDED;
+- SerpApi: CONNECTION_REQUIRED + ON_DEMAND;
+- Google Trends: CONFIGURATION_REQUIRED + UNKNOWN;
+- Google Search Console: MANUAL_ACTION_REQUIRED + UNKNOWN.
+
+No freshness status was converted into a readiness status and no readiness remediation changes collection freshness.
+
+### Application health presentation
+
+The previous blanket renderer label:
+
+```text
+SYSTEM READY
+```
+
+was replaced with bootstrap-backed presentation using the existing safe preload contract.
+
+The header now presents:
+
+```text
+SYSTEM CHECKING
+SYSTEM READY
+SYSTEM NOT READY
+```
+
+SYSTEM READY requires the existing bootstrap query configuration, source registry, and database statuses to be READY.
+
+A bootstrap status reporting an ERROR produces SYSTEM NOT READY. A failed bootstrap read also fails closed to SYSTEM NOT READY instead of leaving the header indefinitely in SYSTEM CHECKING.
+
+This is application bootstrap health only. It does not replace task readiness, freshness, execution, or validation state.
+
+### Verification
+
+Focused RED/GREEN coverage was added for:
+
+- readiness reason presentation;
+- safe remediation-label presentation;
+- Keyword Planner CSV FILE_REQUIRED presentation;
+- non-ready bootstrap status;
+- bootstrap-read failure fail-closed behavior;
+- readiness/freshness independence.
+
+Fresh verification completed successfully:
+
+```text
+git diff --check
+npm run lint
+npx tsc --noEmit
+bash tests/integration/app/run-desktop-multisource-flow-test.sh
+bash tests/integration/app/run-desktop-ui-smoke-test.sh
+npm run test:release:gate
+```
+
+The full deterministic gate completed with:
+
+```text
+PASS RELEASE-GATE-001
+```
+
+No live provider request was required or performed for this UX slice.
+
+### Git checkpoint
+
+Technical implementation commit:
+
+```text
+1c8d513 feat: add readiness remediation presentation
+```
+
+Protected historical files remain untracked and untouched:
+
+- CODEX_HANDOFF_CURRENT.md
+- PROJECT_HANDOFF.pre-20260820.md
+
+### Scope intentionally not entered
+
+UXH1 did not implement:
+
+- Workspace connect/manage/disconnect onboarding;
+- task-specific connection workflows;
+- structured Keyword Planner or SerpApi editors;
+- file-import Replace/Remove controls;
+- Bitkimark bounded selector UX;
+- Run History redesign;
+- task-level Recent Runs;
+- Preset editing lifecycle.
+
+Verified Core lifecycle, source adapters, persistence, validation, freshness semantics, credential security, reviewed-draft behavior, and Data Package architecture remain closed unless new failing evidence requires a change.
+
+### Exact next action
+
+Begin **UXH2 — Workspace Connections**.
+
+UXH2 should expose understandable Workspace-scoped connection management through the existing secure Core credential boundary. The implementation must preserve renderer secret isolation and must not store or expose passwords, OAuth refresh tokens, API keys, developer tokens, or equivalent credential material in ordinary renderer state, configuration, logs, exports, or documentation.
+
+Start UXH2 with a bounded repository audit of the existing Workspace connection read model, credential boundary, preload/IPC contracts, and source-specific connection requirements before defining any write actions.
