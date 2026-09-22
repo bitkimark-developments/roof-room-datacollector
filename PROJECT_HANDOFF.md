@@ -2000,3 +2000,92 @@ Production composition injects `ProductionDataPackageLoader`. Fresh deterministi
 ### Exact remaining Release 1.0 state
 
 Release 1.0 local implementation, deterministic acceptance, target-Mac packaging, Google Trends/GSC/Bitkimark live acceptance, and real İkas/manual-Keyword-Planner input acceptance are complete. Provider-specific live acceptance remains `MANUAL_ACTION_REQUIRED` only for Google Ads Search Terms, Keyword Planner official API, and SerpApi because their intended Workspace connections/credentials are absent. There is no remaining local implementation blocker.
+
+---
+
+## 42. Post-R1 UX & Operations Hardening roadmap — 2026-09-22
+
+This section is the authoritative current-state update for post-R1 product hardening. Earlier implementation checkpoints remain historical.
+
+### Baseline
+
+Release 1.0 local implementation remains complete at:
+
+```text
+f43ea48 docs: record final R1 local checkpoint
+57f696c fix(package): include runtime dependencies
+```
+
+There is no reopened local R1 implementation blocker.
+
+Google Ads Search Terms, Keyword Planner Official API, and SerpApi still require their intended external Workspace connections/credentials for limited live acceptance. Those external states do not invalidate the local R1 baseline.
+
+### Approved UX hardening program
+
+Packaged-application QA identified user-journey and usability gaps without disproving the verified Core/source architecture.
+
+The active execution roadmap is `UX_OPERATIONS_HARDENING_PLAN.md`.
+
+It defines UXH0 through UXH14 in three delivery waves:
+
+```text
+Wave A — UXH0–UXH6 — make tasks understandable and runnable
+Wave B — UXH7–UXH11 — make collected work manageable
+Wave C — UXH12–UXH14 — operational dashboard, polish, integrated hardening
+```
+
+Primary QA findings include:
+
+- blocking readiness states without clear reason/remediation;
+- incomplete user-facing Workspace connection management;
+- developer-oriented primary editing flows for Keyword Planner and SerpApi;
+- incomplete file-selection feedback;
+- Bitkimark approved URLs exposed through free-form editing;
+- operationally weak Run History presentation;
+- task-level Recent Runs requiring binding verification;
+- incomplete Preset editing lifecycle;
+- editing/navigation safety requiring explicit verification;
+- readiness, freshness, and application-health terminology creating avoidable cognitive ambiguity.
+
+These findings authorize UX/product hardening only. Verified source adapters, Core lifecycle, persistence contracts, validation semantics, credential security, freshness semantics, and Data Package architecture remain closed unless new failing evidence requires a change.
+
+### Development discipline
+
+Every implementation slice continues to use:
+
+```text
+Repository audit
+→ bounded plan
+→ focused RED
+→ intended failure
+→ minimal implementation
+→ focused GREEN
+→ relevant regressions
+→ typecheck / lint / diff check
+→ full deterministic release gate
+→ package/smoke when required
+→ technical commit
+→ handoff update
+→ documentation commit
+→ fast-forward local main
+→ post-merge verification
+```
+
+### Exact next action
+
+Start **UXH0 — UX Reality Lock**.
+
+UXH0 is read-only/product-contract work:
+
+1. inspect current live repository and packaged desktop behavior;
+2. build the task-by-task capability matrix;
+3. classify observed issues as functional bug, UX gap, integration gap, or polish;
+4. identify already-correct behavior that must not be rewritten;
+5. produce the bounded UXH1 Status & Remediation implementation plan.
+
+Do not begin UXH1, Workspace Connections, or structured-editor implementation until UXH0 is complete.
+
+Protected historical files remain untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`

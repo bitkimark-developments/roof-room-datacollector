@@ -212,7 +212,34 @@ The desktop application should provide a non-technical workflow for seeing sourc
 
 Provider credentials and sensitive content must not cross into the renderer except through strictly limited safe state. Workspace-owned connection metadata persists only safe source fields and a credential reference; readiness is source-specific and reports configuration/connection/manual states without exposing secrets.
 
-Workspace selection and management UI and any new cancel/stop/resume workflow remain outside the Core persistence checkpoint. Schema v7 now provides Workspace-owned Saved Collection Presets, one logical Last Run Settings record, temporary non-persisted Run Drafts, and atomic start reservation that persists an immutable resolved Run Snapshot without storing credentials.
+Workspace selection, Saved Collection Presets, Last Run Settings, reviewed Run Drafts, explicit run controls, and Workspace-scoped connection/readiness state are implemented application capabilities over the shared Core. The renderer remains presentation-oriented: it may request these actions through trusted IPC but must not own collection execution, credential storage, or provider request construction.
+
+### 10.1 UX and operations hardening contract
+
+The desktop product must not expose a blocking state without an understandable reason and a direct user action when remediation is possible.
+
+A user-facing readiness presentation should distinguish safe concepts such as:
+
+```text
+application/system health
+connection required
+input required
+file/import required
+manual action required
+ready
+```
+
+without collapsing the underlying readiness, freshness, execution, and validation domains.
+
+Workspace is the user-facing management surface for provider connections and safe account/property labels. Secret values remain behind the Core security boundary and must not be returned to the renderer.
+
+Task editing must prefer structured controls over compact developer-oriented mini-languages. Bulk paste/import may remain as an optional convenience, but the canonical reviewed artifact must be built from explicit validated user input.
+
+Run history must communicate task/source, execution state, validation state, time, failure/retry state, evidence, and export actions without requiring the user to interpret internal IDs as the primary label.
+
+Presets are reusable configurations and therefore require a truthful create, inspect, edit, save, reopen, review, and run lifecycle. Destructive preset deletion must be explicit and confirmed.
+
+Navigation and Workspace changes must not silently discard or cross-contaminate unsaved task/preset edits.
 
 ## 11. Storage and provenance
 

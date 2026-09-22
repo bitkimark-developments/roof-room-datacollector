@@ -280,15 +280,25 @@ No ordinary gate may invoke that live command.
 For each implementation slice:
 
 ```text
-inspect current contracts
-→ write/adjust deterministic failing test
-→ implement one behavior
-→ run targeted test
-→ run relevant/full deterministic gate
+repository/live-contract audit
+→ bounded implementation plan
+→ focused deterministic RED
+→ confirm the failure is the intended failure
+→ minimal implementation
+→ focused GREEN
+→ relevant regressions
+→ typecheck / lint / diff check
+→ full deterministic release gate at the coherent slice boundary
+→ package/smoke when IPC, preload, packaging, privileged file/connection behavior, or integrated packaged journeys changed
 → review diff
-→ limited explicit live smoke if separately approved
-→ document verified evidence
+→ technical commit
+→ handoff/documentation checkpoint
+→ fast-forward local main
+→ post-merge verification
+→ limited explicit live smoke only when separately required and authorized
 ```
+
+Expensive verification is batched at coherent boundaries rather than after every small edit. A broad failing gate triggers systematic debugging: reproduce, inspect evidence, trace the root cause, test one hypothesis, apply the smallest justified fix, then rerun the affected verification.
 
 Test results are recorded as PASS only when the exact command ran successfully. Historical results remain historical and must be labeled with their checkpoint/date.
 
@@ -314,3 +324,33 @@ Target-mac packaging acceptance is separate from the deterministic release gate.
 ## 16. Governing test rule
 
 Prefer deterministic evidence. Use live providers only for the smallest explicit proof that cannot be established locally, and never turn an external account or quota into a routine regression dependency.
+
+## 17. UX & Operations Hardening test program
+
+The post-R1 UX/Operations Hardening program adds deterministic user-journey coverage without weakening the existing source/data-integrity gates.
+
+Required slices and primary proofs:
+
+- **UXH0 Reality Lock:** no feature-code change; repository/UI capability matrix must be evidence-based.
+- **UXH1 Status & Remediation:** every blocking readiness presentation has a reason and remediation action; readiness and freshness remain independent.
+- **UXH2 Workspace Connections:** safe connection state is visible; connect/manage/disconnect actions use privileged IPC/Core boundaries; secrets never reach renderer/log/export.
+- **UXH3 Task Detail Remediation:** no supported task ends at a dead-end `CONFIGURATION REQUIRED` state.
+- **UXH4 Structured Editors:** Keyword Planner/SerpApi add/edit/remove and duplicate/empty validation are deterministic; Review receives the exact normalized user intent.
+- **UXH5 File Import UX:** selected file preview/replace/remove is deterministic; path privileges remain in main/Core; original bytes remain unchanged.
+- **UXH6 Bitkimark Selector:** only approved sitemap URLs can be selected through the primary UI; selected count equals planned request count.
+- **UXH7 Run History/Detail:** task/source, execution state, validation state, failure reason, retry, evidence, and export actions derive from persisted Core state.
+- **UXH8 Task Recent Runs:** Workspace + task/source filtering is correct and cannot leak another task/workspace history.
+- **UXH9 Presets:** create/edit/rename/duplicate/delete/reopen/review/run is covered; delete confirmation and persisted content are verified.
+- **UXH10 Editing Safety:** navigation/workspace changes do not silently discard or cross-contaminate dirty edits.
+- **UXH11 Source Context:** safe property/account/scope/request/file information is displayed without secret leakage.
+- **UXH12 Dashboard:** summary counts derive from the same readiness/run/freshness truth as task/run surfaces.
+- **UXH13 Polish:** accessibility/readability changes must not alter machine contracts.
+- **UXH14 Integrated Gate:** packaged end-to-end connection/configure/review/run/evidence/export, file-import, failure/retry, preset, and Workspace-isolation journeys pass.
+
+For renderer/main boundary changes, tests must include invalid IPC input and privilege-boundary negatives.
+
+For credential UX changes, assert that OAuth tokens, API keys, developer tokens, client secrets, passwords, unrestricted paths, and raw account payloads never enter renderer state, logs, validation findings, configuration snapshots, or exports.
+
+For editing flows, use fixed deterministic inputs; do not rely on live providers.
+
+At coherent UXH slice boundaries run focused GREEN, relevant regressions, typecheck, lint, `git diff --check`, and the full deterministic release gate. Run packaging/smoke when IPC, preload, packaging, privileged file/connection behavior, or final integrated user journeys change.

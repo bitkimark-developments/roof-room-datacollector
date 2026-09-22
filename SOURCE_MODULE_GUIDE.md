@@ -64,7 +64,7 @@ The current live repository defines:
 - `CollectionValidatorRegistry` for fail-closed source-keyed validator lookup;
 - `CollectionOrchestrator` for current run/job/attempt/artifact lifecycle.
 
-The shared collection and validation contexts carry persisted JSON-compatible `source_context` without requiring a `QueryGroup`. SQLite schema version 5 allows `query_group_id = NULL` and one Run may contain Jobs from multiple source IDs. Collection and validator lookup both use each persisted Job's source identity. The Google Trends adapter reconstructs and validates its own query-group semantics from source context. Production Run configuration and desktop composition remain Google-Trends-shaped in places; new sources must not fill unrelated fields with invented values.
+The shared collection and validation contexts carry persisted JSON-compatible `source_context` without requiring a `QueryGroup`. Current SQLite schema version 8 allows `query_group_id = NULL`, persists source-neutral Job identity/context, and permits one Run to contain Jobs from multiple source IDs under one Workspace. Collection and validator lookup both use each persisted Job's source identity. The Google Trends adapter reconstructs and validates its own query-group semantics from source context. The generalized desktop composition uses source-owned reviewed context; no source may fill unrelated fields with invented compatibility values.
 
 ## 6. Required source responsibilities
 
@@ -292,6 +292,32 @@ A source is complete only when:
 11. no secret or private production payload is committed;
 12. `PROJECT_HANDOFF.md` records actual, not planned, implementation state.
 
-## 20. Governing module rule
+## 20. User-facing task integration contract
+
+Where a source is exposed through the desktop product, its task integration should provide safe source-specific information without moving provider or security responsibilities into the renderer.
+
+Where applicable, the user-facing task surface should expose:
+
+- safe readiness state and an understandable blocking reason;
+- a direct remediation route when the blocker is actionable;
+- freshness separately from readiness, execution, and validation;
+- safe connection/account/property labels without credentials or unrestricted provider payloads;
+- structured or bounded primary inputs rather than developer-oriented mini-languages;
+- a reviewed summary of the exact normalized source intent before Start;
+- expected Job/request count when it is useful for quota, cost, or bounded-acquisition awareness;
+- task-level Recent Runs scoped to the active Workspace and source/task identity;
+- accepted evidence and export actions after collection.
+
+Secrets remain behind the Core credential boundary. Task components may initiate typed remediation intent but must not own credential storage, OAuth/API-token handling, or provider request construction.
+
+Compact text or bulk-paste formats may exist as optional convenience inputs, but they must normalize into the same validated structured model used by Review and Start.
+
+`FILE_IMPORT` tasks should expose safe selected-file information plus Replace/Remove actions while filesystem privilege and raw-byte handling remain outside the renderer.
+
+Sources with an approved bounded allowlist, such as the current Bitkimark sitemap scope, should use bounded selection as the primary UI rather than unrestricted free-form input.
+
+A source is not product-complete merely because its acquisition adapter works. Its prerequisites, remediation path, reviewed intent, operational result, validation outcome, and accepted evidence/export path must be understandable and usable without weakening the source/Core boundary.
+
+## 21. Governing module rule
 
 Preserve one Core lifecycle across every acquisition mode, while keeping provider semantics, credentials, raw evidence, and validation inside clear source-specific boundaries.

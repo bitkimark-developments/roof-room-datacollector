@@ -50,6 +50,16 @@ Preload exposes a narrow, typed, allowlisted API. Inputs are validated again in 
 
 The main process owns privileged orchestration, persistence, storage, browser automation, provider/API clients, import readers, validation coordination, logging, export, and secure credential access.
 
+### User-facing configuration and remediation boundary
+
+The renderer may present safe connection/readiness state and collect structured user intent. Privileged connection operations, credential references, secret access, provider request composition, and provider execution remain behind typed allowlisted IPC in the main/Core boundary.
+
+Workspace is the user-facing context for connection management. Task surfaces may route the user to Workspace remediation, but task components must not own, persist, or expose secrets.
+
+Structured editors and bounded selectors compile validated user intent into the existing reviewed source/job context. They must not construct provider requests or create a parallel persistence model.
+
+Run History, task Recent Runs, and operational dashboards must derive from persisted Core state rather than UI-only status. Presentation improvements alone do not justify a new persistence schema.
+
 ## 4. Shared Core responsibilities
 
 Core owns reusable lifecycle behavior:
@@ -157,7 +167,7 @@ Raw writes are collision-safe and run-scoped. Derived files do not replace raw e
 
 Current schema version 8 includes `workspaces`, `runs`, `jobs`, `attempts`, `artifacts`, `validations`, Saved Presets, Last Run Settings, and Workspace source connections. Runs require `workspace_id`, persist an ordered array of selected source IDs, and use a partial unique index for the exact active status set. Jobs use `source_id + job_key` as their identity within a Run, persist JSON-compatible source context, and allow `query_group_id = NULL` for non-Google-Trends work. The same `job_key` may therefore exist under different source IDs. Existing Google Trends jobs retain `job_key === query_group_id`. Credential secrets remain outside SQLite, and freshness is derived rather than cached in a separate table.
 
-Migration from pre-Workspace schemas creates one deterministic development Workspace and attaches historical Runs to it. That row is migration/runtime compatibility only; it is not a customer-facing default, legacy mode, or product taxonomy. Workspace UI/lifecycle management, Presets, Last Run Settings, and credential work remain outside this slice.
+Migration from pre-Workspace schemas creates one deterministic development Workspace and attaches historical Runs to it. That row is migration/runtime compatibility only; it is not a customer-facing default, legacy mode, or product taxonomy. Current Workspace UI, Presets, Last Run Settings, and Workspace-scoped connection/readiness capabilities build on this persisted Workspace boundary; exact current product state belongs in PROJECT_HANDOFF.md.
 
 Legacy Google Trends snapshots and committed generic single-source snapshots remain readable without migration. New generic multi-source snapshots describe real source membership with a `sources` array; they do not copy the first Job's source to a singular Run-level `source_id` or invent a synthetic provider identity.
 
@@ -201,7 +211,7 @@ The later manual smoke entry point is `npm run m3:live-serpapi -- --confirm-live
 
 Workspace-owned reusable configuration is persisted as Saved Collection Presets and system-managed Last Run Settings. A temporary Run Draft resolves effective source-owned configuration without mutating its origin. New starts use one atomic repository reservation transaction that persists the immutable resolved Run Snapshot and updates Last Run Settings together; credentials remain outside all three stores.
 
-The desktop surface now has a generalized multi-source facade. `DesktopMultiSourceController` builds sanitized Workspace-scoped drafts and review summaries, gates included-source readiness before reservation, and delegates Run creation to the existing `reserveRunFromJobPlans` path. The renderer exposes compact HOME/RUNS/PRESETS/WORKSPACE navigation and source cards without credentials or raw provider payloads; backend recovery remains available without normal Pause/Stop/Resume controls.
+The desktop surface has a generalized multi-source facade. `DesktopMultiSourceController` builds sanitized Workspace-scoped drafts and review summaries, gates included-source readiness before reservation, and delegates Run creation to the existing `reserveRunFromJobPlans` path. The renderer exposes HOME/RUNS/PRESETS/WORKSPACE navigation and source cards without credentials or raw provider payloads, plus explicit persisted-state-driven run actions such as resume, retry, manual continuation, and cancellation where Core reports them eligible. The renderer does not own collection, retry, reconciliation, or cancellation loops.
 
 `DataPackage` exports keep source datasets separate and include a Run manifest, safe failure document, and Job-keyed dataset index. Production loading reads only completed Jobs with accepted validation and their exact accepted raw artifact, verifies file kind/state/ownership/size/SHA-256, and reuses the source's verified parser/normalizer. Each dataset file includes source/dataset/Job identity in its filename and index provenance, so repeated Jobs cannot overwrite one another. Export All may include safe failure context; Successful Only contains accepted datasets and provenance only. Raw artifacts remain immutable and no cross-source row join is performed.
 
