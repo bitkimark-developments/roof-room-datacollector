@@ -2268,3 +2268,87 @@ Begin **UXH2 — Workspace Connections**.
 UXH2 should expose understandable Workspace-scoped connection management through the existing secure Core credential boundary. The implementation must preserve renderer secret isolation and must not store or expose passwords, OAuth refresh tokens, API keys, developer tokens, or equivalent credential material in ordinary renderer state, configuration, logs, exports, or documentation.
 
 Start UXH2 with a bounded repository audit of the existing Workspace connection read model, credential boundary, preload/IPC contracts, and source-specific connection requirements before defining any write actions.
+---
+## 45. UXH2-A — Safe Workspace Connection Read Model checkpoint — 2026-09-22
+
+UXH2-A is complete as a narrow read-model slice. It adds safe Workspace connection state without entering IPC, renderer connection management, credential mutation, provider onboarding, or persistence schema changes.
+
+### Implemented contract
+
+Credential-managed desktop sources are:
+
+```text
+google-search-console-query-page
+google-ads-search-terms
+google-keyword-planner
+serpapi
+```
+
+Credential state is independent from readiness:
+
+```text
+NOT_CONFIGURED
+AVAILABLE
+MISSING
+```
+
+The safe connection view contains only `source_id`, `credential_status`, and `readiness_status`. `credential_ref` and credential values are not returned.
+
+`DesktopMultiSourceController.getWorkspaceConnections(workspace_id)` validates the Workspace, reads Workspace-scoped connection records, checks credential availability when a credential reference exists, resolves readiness separately through the existing readiness evaluator, and returns only the safe view. If a credential reference must be checked but no credential-availability reader is configured, it fails closed.
+
+The existing synchronous `getWorkspaceView()` compatibility behavior was not changed.
+
+Deterministic coverage locks:
+
+- GSC: `AVAILABLE` + `MANUAL_ACTION_REQUIRED`;
+- Google Ads Search Terms: `MISSING` + `CONNECTION_REQUIRED`;
+- Keyword Planner official API: `NOT_CONFIGURED` + `CONFIGURATION_REQUIRED`;
+- SerpApi: `AVAILABLE` + `READY`.
+
+The test also verifies the serialized safe result contains no `credential_ref`, no `cred:` reference value, and no secret-like fixture value.
+
+### Verification
+
+Focused RED failed for the intended reason: the new safe read seam was absent and returned `null`. Minimal GREEN then passed.
+
+Fresh verification passed:
+
+```text
+git diff --check
+bash tests/integration/app/run-desktop-multisource-flow-test.sh
+npx tsc --noEmit
+npm run lint
+bash tests/integration/app/run-desktop-ui-smoke-test.sh
+npm run test:release:gate
+```
+
+Full deterministic result:
+
+```text
+PASS RELEASE-GATE-001
+```
+
+No live provider request was required or performed.
+
+### Git checkpoint
+
+```text
+56443d0 feat: add safe workspace connection read model
+```
+
+Protected historical files remain untracked and untouched:
+
+- CODEX_HANDOFF_CURRENT.md
+- PROJECT_HANDOFF.pre-20260820.md
+
+### Scope intentionally not entered
+
+UXH2-A did not add IPC/preload connection methods, renderer connection-management UI, Connect/Manage/Reconnect/Disconnect actions, OAuth onboarding, SerpApi API-key provisioning, credential mutation, connection deletion, or persistence migration.
+
+### Exact next action
+
+Begin **UXH2-B — Safe Workspace Connection Read IPC**.
+
+Expose `getWorkspaceConnections(workspace_id)` through the trusted main/preload desktop boundary and render understandable read-only connection state in the Workspace page. Preserve secret isolation: no `credential_ref`, OAuth token, API key, developer token, client secret, password, unrestricted credential payload, or provider-private account payload may cross into ordinary renderer state.
+
+Start with focused deterministic RED coverage for IPC/preload and Workspace-page rendering. Do not add connection write actions until the read surface is verified.
