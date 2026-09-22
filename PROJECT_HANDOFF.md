@@ -1,14 +1,14 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Checkpoint date:** 2026-09-19
+**Checkpoint date:** 2026-09-23
 
-**Current milestone:** Release 1.0 — final local hardening and reality audit
+**Current milestone:** Post-R1 UX & Operations Hardening — UXH2 Workspace Connections
 
-**Current stage:** Local implementation, deterministic acceptance, target-Mac packaging, and all independently executable acceptance work complete
+**Current stage:** UXH2-B safe Workspace connection read IPC and read-only renderer surface complete; connection write-side actions have not started
 
-**Current goal:** Preserve the verified local Release 1.0 checkpoint; complete only provider-specific manual/live acceptance that requires credentials or external account setup
+**Current goal:** Preserve the verified UXH2-B checkpoint, reconcile canonical documentation with live repository truth, and hand off the next bounded Workspace-connection slice without reopening verified Core/source contracts
 
-**Current-state authority:** Section 41 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 41.
+**Current-state authority:** Section 46 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 46.
 
 ---
 
@@ -29,15 +29,15 @@ main
 Technical HEAD recorded before this separate handoff documentation commit:
 
 ```text
-26278fe09a1a609264e17c42165c94b16834cf4f
-26278fe feat: add workspace run ownership
+0b41d9efe1afc97fa6613dce7cb3a1c31c384a1d
+0b41d9e feat: expose safe workspace connection status
 ```
 
-The technical checkpoint contains the approved plan, implementation, deterministic tests, gate wiring, and stable contract documentation. This handoff edit is intentionally separate.
+The technical checkpoint contains the approved implementation, deterministic tests, and release-gate wiring. This separate documentation checkpoint reconciles the canonical contract documents with that verified repository state.
 
 ## 2. Working tree and protected historical files
 
-Immediately after technical commit `26278fe`, the tracked working tree was clean and only these pre-existing historical files remained untracked:
+Immediately after technical commit `0b41d9e`, the tracked working tree was clean and only these pre-existing historical files remained untracked:
 
 ```text
 ?? CODEX_HANDOFF_CURRENT.md
@@ -2352,3 +2352,126 @@ Begin **UXH2-B — Safe Workspace Connection Read IPC**.
 Expose `getWorkspaceConnections(workspace_id)` through the trusted main/preload desktop boundary and render understandable read-only connection state in the Workspace page. Preserve secret isolation: no `credential_ref`, OAuth token, API key, developer token, client secret, password, unrestricted credential payload, or provider-private account payload may cross into ordinary renderer state.
 
 Start with focused deterministic RED coverage for IPC/preload and Workspace-page rendering. Do not add connection write actions until the read surface is verified.
+---
+
+## 46. UXH2-B — Safe Workspace Connection Read IPC closure — 2026-09-23
+
+UXH2-B is complete as a read-only desktop connection-status slice. It exposes the already-implemented safe Workspace connection read model through trusted main/preload IPC and renders that safe state on the Workspace page. It does not add credential mutation, provider onboarding, connection deletion, or a persistence migration.
+
+### Implemented contract
+
+The dedicated desktop read path is:
+
+```text
+DesktopMultiSourceController.getWorkspaceConnections(workspace_id)
+→ trusted main-process DESKTOP_CONNECTIONS handler
+→ preload RoofRoomApi.getDesktopWorkspaceConnections(workspace_id)
+→ Workspace renderer
+```
+
+The renderer-visible connection payload remains limited to:
+
+```text
+source_id
+credential_status
+readiness_status
+```
+
+No `credential_ref`, OAuth token, API key, developer token, client secret, password, unrestricted credential payload, or provider-private account payload is part of this renderer contract.
+
+The four credential-managed desktop sources remain:
+
+```text
+google-search-console-query-page
+google-ads-search-terms
+google-keyword-planner
+serpapi
+```
+
+Credential status remains independent from readiness:
+
+```text
+NOT_CONFIGURED
+AVAILABLE
+MISSING
+```
+
+The main IPC handler validates the sender through the existing trusted-sender boundary, rejects a missing/blank `workspace_id`, and delegates only to the safe controller read seam. The existing legacy `getDesktopWorkspaces()` compatibility contract remains unchanged.
+
+Production composition now injects the real encrypted `credentialStore` as the controller's credential-availability reader. The Workspace renderer reloads safe connection state when the selected Workspace changes and renders credential status and readiness separately.
+
+### Verification
+
+The UXH2-B deterministic tests are wired into the full release gate:
+
+```text
+PASS DESKTOP-CONNECTION-IPC-001
+PASS DESKTOP-CONNECTION-MAIN-IPC-001
+PASS DESKTOP-CREDENTIAL-AVAILABILITY-COMPOSITION-001
+PASS DESKTOP-UI-001
+PASS RELEASE-GATE-001
+```
+
+Fresh closure verification also completed:
+
+```text
+git diff --check
+npm run lint
+npm run test:release:gate
+npm run package
+```
+
+`npm run package` successfully built the Electron main, preload, and renderer targets and packaged the application for macOS arm64. No live provider request was required or performed for UXH2-B.
+
+Technical implementation commit:
+
+```text
+0b41d9e feat: expose safe workspace connection status
+```
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Canonical documentation reconciliation
+
+All eight canonical documents were audited against live repository/source/test evidence.
+
+Updated for lasting UXH2-B contracts:
+
+- `PROJECT_HANDOFF.md`
+- `ARCHITECTURE.md`
+- `DATA_CONTRACTS.md`
+- `TEST_STRATEGY.md`
+
+Audited and intentionally unchanged because their current contracts already cover this slice:
+
+- `PROJECT_SPEC.md`
+- `VALIDATION_SPEC.md`
+- `SOURCE_MODULE_GUIDE.md`
+- `DECISIONS.md`
+
+No new ADR is required: UXH2-B implements the existing accepted Workspace connection/security and generalized desktop boundaries rather than introducing a new architectural decision.
+
+### Scope intentionally not entered
+
+UXH2-B does not implement:
+
+- Connect / Manage / Reconnect / Disconnect actions;
+- Google OAuth onboarding from the normal Workspace UI;
+- SerpApi API-key provisioning;
+- credential creation, replacement, deletion, or rotation;
+- source-connection row deletion;
+- shared-credential-reference deletion semantics;
+- new provider calls;
+- persistence schema changes;
+- UXH3 or later hardening slices.
+
+### Exact next action
+
+Hand off this verified checkpoint before starting another feature slice.
+
+The next implementation work should remain inside **UXH2 — Workspace Connections** and begin with a fresh read-only audit and bounded plan for privileged write-side connection management. That audit must resolve source-specific Connect/Manage/Reconnect/Disconnect requirements, Google OAuth versus SerpApi API-key provisioning, safe renderer intent contracts, rollback behavior, and shared credential-reference deletion semantics before any write action is implemented.
+
+Do not start UXH3, structured editors, additional providers, or Core/source redesign as part of that handoff. Preserve the existing schema-v8 persistence model, renderer secret isolation, readiness/freshness separation, and the verified safe read path unless new failing evidence requires a contract change.

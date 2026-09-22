@@ -54,6 +54,8 @@ The main process owns privileged orchestration, persistence, storage, browser au
 
 The renderer may present safe connection/readiness state and collect structured user intent. Privileged connection operations, credential references, secret access, provider request composition, and provider execution remain behind typed allowlisted IPC in the main/Core boundary.
 
+The implemented Workspace connection read path is `DesktopMultiSourceController.getWorkspaceConnections(workspace_id)` → trusted `DESKTOP_CONNECTIONS` main-process IPC → preload `getDesktopWorkspaceConnections(workspace_id)` → read-only Workspace presentation. The renderer-visible payload is limited to `source_id`, `credential_status`, and `readiness_status`; credential references and secret material do not cross the boundary.
+
 Workspace is the user-facing context for connection management. Task surfaces may route the user to Workspace remediation, but task components must not own, persist, or expose secrets.
 
 Structured editors and bounded selectors compile validated user intent into the existing reviewed source/job context. They must not construct provider requests or create a parallel persistence model.

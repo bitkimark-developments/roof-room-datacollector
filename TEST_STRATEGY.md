@@ -234,6 +234,8 @@ The Workspace preset checkpoint is covered by deterministic schema-v7 migration 
 
 Generalized desktop coverage uses a compact controller integration test for heterogeneous source planning, readiness blocking, Workspace-scoped draft sanitization, and reservation, plus a package test for separate datasets, manifest/failure evidence, Successful Only filtering, and NULL preservation. Existing UI smoke remains a localhost-only renderer check; no provider requests are part of these tests.
 
+UXH2-B adds dedicated deterministic coverage for the read-only Workspace connection boundary: preload invokes only the allowlisted `DESKTOP_CONNECTIONS` channel, the trusted main handler rejects invalid Workspace IDs before delegation, production composition supplies the real credential-availability reader, and the Workspace renderer shows credential status separately from readiness while negative sentinel credential references/secrets remain absent from the DOM. These focused tests are part of `npm run test:release:gate`.
+
 Test safe source summaries, readiness/freshness distinction, selection/import input, start/cancel/resume/retry intent, progress and validation display, unsupported/manual/quota states, canonical file opening, export opening, and strict rejection of invalid renderer inputs.
 
 The renderer must not receive tokens, API keys, unrestricted paths, raw account payloads, or browser objects.
@@ -333,7 +335,7 @@ Required slices and primary proofs:
 
 - **UXH0 Reality Lock:** no feature-code change; repository/UI capability matrix must be evidence-based.
 - **UXH1 Status & Remediation:** every blocking readiness presentation has a reason and remediation action; readiness and freshness remain independent.
-- **UXH2 Workspace Connections:** safe connection state is visible; connect/manage/disconnect actions use privileged IPC/Core boundaries; secrets never reach renderer/log/export.
+- **UXH2 Workspace Connections:** the safe read-only connection state is already covered through trusted IPC and renderer leak-negatives; future connect/manage/disconnect actions must remain behind privileged IPC/Core boundaries; secrets never reach renderer/log/export.
 - **UXH3 Task Detail Remediation:** no supported task ends at a dead-end `CONFIGURATION REQUIRED` state.
 - **UXH4 Structured Editors:** Keyword Planner/SerpApi add/edit/remove and duplicate/empty validation are deterministic; Review receives the exact normalized user intent.
 - **UXH5 File Import UX:** selected file preview/replace/remove is deterministic; path privileges remain in main/Core; original bytes remain unchanged.

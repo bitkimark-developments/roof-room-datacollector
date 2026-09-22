@@ -358,6 +358,8 @@ Ordinary configuration, logs, raw exports, and documentation must not contain pa
 
 The renderer receives only safe readiness/connection state. The secure storage reference and secret value remain inside the Core security boundary.
 
+The implemented desktop Workspace connection read contract is `DesktopWorkspaceConnectionView` with exactly `source_id`, `credential_status`, and `readiness_status`. Credential status is `NOT_CONFIGURED`, `AVAILABLE`, or `MISSING` and remains separate from desktop readiness. `credential_ref` is an internal persistence/security reference and is not part of the renderer-visible contract.
+
 ## 17. Source-specific dataset semantics
 
 The İkas Products import is `FILE_IMPORT`; the original XLSX is canonical evidence and normalized product fields remain nullable when absent. Bitkimark sitemap acquisition is `HTTP_XML`; canonical URL inventory and raw XML are preserved, with deterministic keyword annotations kept as derived data.
