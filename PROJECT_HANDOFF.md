@@ -2089,3 +2089,44 @@ Protected historical files remain untouched:
 
 - `CODEX_HANDOFF_CURRENT.md`
 - `PROJECT_HANDOFF.pre-20260820.md`
+
+## 43. UXH0 — UX Reality Lock closure — 2026-09-22
+
+UXH0 is complete as a read-only product/repository reality audit. No feature code, tests, persistence schema, source adapter, provider request path, credential behavior, or validation contract was changed.
+
+### Audit baseline
+
+Audit baseline: `1173967 docs: plan post-r1 ux operations hardening`
+
+The working tree remained clean except for the protected historical untracked files:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Locked findings
+
+- Desktop readiness exposes status but not a safe reason/remediation contract; Task Detail falls back to generic blocker copy.
+- `SYSTEM READY` is a blanket renderer label and is not an adequate representation of application health, task readiness, freshness, execution, or validation.
+- Workspace connection state is readable, but current desktop IPC/UI does not expose connect/manage/disconnect onboarding.
+- Task Detail `Recent Runs` is placeholder copy; global Runs already reads persisted Workspace-scoped Core history.
+- Presets currently support list/create/delete and preset selection for runs, but not inspect/edit/save/rename/duplicate. Current Create stores an empty `sources: {}` configuration.
+- Keyword Planner and SerpApi use developer-oriented textarea mini-languages as primary editors.
+- Bitkimark correctly enforces the verified sitemap allowlist, but the primary UI is a free-form textarea.
+- Global Run History/Detail already exposes persisted run/job state, validation, attempts, accepted evidence, eligible resume/retry/manual/cancel actions, and export; presentation remains engineering-oriented.
+- File-import selection and selected filename/path feedback already exist. UXH5 should add Replace/Remove and clearer state rather than reimplement file selection.
+- No dirty-state functional defect was proven during UXH0; UXH10 remains a later safety-verification slice.
+- No additional local Core/source functional defect was proven by UXH0.
+
+### Protected behavior
+
+UX hardening must preserve the shared Core run/job/attempt lifecycle, Workspace ownership, source-neutral persisted Job identity, readiness/freshness/execution/validation separation, exact reviewed-draft behavior before Start, persisted Core execution truth, Core-gated recovery/evidence/export actions, privileged file selection, renderer secret isolation, Bitkimark verified allowlist, immutable raw evidence, source validation/provenance, and the current persistence schema unless later failing evidence requires a contract change.
+
+### Exact next action
+
+Begin **UXH1 — Status & Remediation Contract**.
+
+UXH1 should add a safe source-neutral readiness presentation contract with understandable reason/remediation information, keep freshness separate, replace generic blocker copy, make application-health labeling truthful, and provide safe remediation-routing intent without moving credentials or privileged provider operations into the renderer.
+
+UXH1 must not yet implement Workspace credential onboarding (UXH2), task-detail connection workflows (UXH3), structured editors (UXH4), file-import Replace/Remove UX (UXH5), or the Bitkimark bounded selector (UXH6).
+
+The first UXH1 implementation action is a bounded audit of the desktop readiness presentation seam followed by focused deterministic RED coverage proving that a blocking readiness state exposes safe reason/remediation information while readiness and freshness remain independent.
