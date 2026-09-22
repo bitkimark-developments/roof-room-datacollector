@@ -16,9 +16,11 @@ import type {
   DesktopRunDraft,
   DesktopRunState,
   DesktopSourceCard,
+  DesktopWorkspaceConnectionView,
   DesktopWorkspaceView,
 } from '../../shared/desktop-multisource';
 import {
+  DESKTOP_CREDENTIAL_MANAGED_SOURCE_IDS,
   SUPPORTED_DESKTOP_SOURCE_IDS,
 } from '../../shared/desktop-multisource';
 import {
@@ -85,10 +87,17 @@ export interface DesktopFreshnessReader {
   ): WorkspaceFreshnessResult;
 }
 
+export interface DesktopCredentialAvailabilityReader {
+  hasCredential(
+    credential_ref: string,
+  ): Promise<boolean>;
+}
+
 export interface DesktopMultiSourceControllerDependencies {
   repository: DesktopMultiSourceRepository;
   readiness: DesktopReadinessReader;
   freshness?: DesktopFreshnessReader;
+  credential_availability?: DesktopCredentialAvailabilityReader;
   application_version: string;
   google_trends_query_groups?:
     readonly {
@@ -427,6 +436,84 @@ export class DesktopMultiSourceController {
         ? this.dependencies.repository.listSourceConnections(selected).map((connection) => ({ source_id: connection.source_id, configured: connection.credential_ref !== null }))
         : [],
     };
+  }
+
+  async getWorkspaceConnections(
+    workspace_id: string,
+  ): Promise<DesktopWorkspaceConnectionView[]> {
+    const workspace =
+      this.dependencies.repository.getWorkspace(
+        workspace_id,
+      );
+
+    if (!workspace) {
+      throw new Error(
+        `Unknown Workspace: ${workspace_id}`,
+      );
+    }
+
+    const connectionBySource =
+      new Map(
+        this.dependencies.repository
+          .listSourceConnections(
+            workspace_id,
+          )
+          .map(
+            (connection) => [
+              connection.source_id,
+              connection,
+            ],
+          ),
+      );
+
+    return Promise.all(
+      DESKTOP_CREDENTIAL_MANAGED_SOURCE_IDS.map(
+        async (source_id) => {
+          const connection =
+            connectionBySource.get(
+              source_id,
+            );
+
+          let credential_status:
+            DesktopWorkspaceConnectionView['credential_status'] =
+              'NOT_CONFIGURED';
+
+          if (connection?.credential_ref) {
+            const credentialAvailability =
+              this.dependencies
+                .credential_availability;
+
+            if (!credentialAvailability) {
+              throw new Error(
+                'Credential availability reader is not configured.',
+              );
+            }
+
+            credential_status =
+              await credentialAvailability
+                .hasCredential(
+                  connection.credential_ref,
+                )
+                ? 'AVAILABLE'
+                : 'MISSING';
+          }
+
+          const readiness =
+            await this.readinessEvaluator
+              .getReadiness(
+                workspace_id,
+                source_id,
+              );
+
+          return {
+            source_id,
+            credential_status,
+            readiness_status:
+              readiness.readiness_status,
+          };
+        },
+      ),
+    );
   }
 
   listPresets(workspace_id: string) {

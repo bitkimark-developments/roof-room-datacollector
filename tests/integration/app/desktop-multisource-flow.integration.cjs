@@ -46,6 +46,8 @@ const createFixture = (
     'serpapi',
     'ikas-products',
   ],
+  connectionRecords = [],
+  availableCredentialRefs = new Set(),
 ) => {
   const workspaces = [
     { workspace_id: 'ws_a', workspace_name: 'A', created_at: '2026-09-11T00:00:00.000Z' },
@@ -63,6 +65,11 @@ const createFixture = (
     listSavedCollectionPresets: (workspace_id) => presets.get(workspace_id) || [],
     getSavedCollectionPreset: (workspace_id, preset_id) => (presets.get(workspace_id) || []).find((p) => p.preset_id === preset_id) || null,
     getLastRunSettings: () => null,
+    listSourceConnections: (workspace_id) =>
+      connectionRecords.filter(
+        (connection) =>
+          connection.workspace_id === workspace_id,
+      ),
     createSavedCollectionPreset: (input) => {
       const collection = presets.get(input.workspace_id) || [];
       const preset = {
@@ -96,6 +103,13 @@ const createFixture = (
   const controller = new DesktopMultiSourceController({
     repository,
     readiness,
+    credential_availability: {
+      hasCredential:
+        async (credential_ref) =>
+          availableCredentialRefs.has(
+            credential_ref,
+          ),
+    },
     application_version: 'test',
     source_order: sourceOrder,
     job_planner: (source_id, source_config) => [{ source_id, job_key: `${source_id}-job`, query_group_id: null, source_context: { source_config } }],
@@ -1114,6 +1128,146 @@ async function main() {
       origin: { kind: 'LAST_RUN_SETTINGS' },
     }),
     /Last Run Settings.*not available/i,
+  );
+
+  const connectionFixture = createFixture(
+    undefined,
+    [
+      'google-trends',
+      'google-search-console-query-page',
+      'google-ads-search-terms',
+      'google-keyword-planner',
+      'google-keyword-planner-csv',
+      'ikas-products',
+      'bitkimark-sitemap',
+      'serpapi',
+    ],
+    [
+      {
+        workspace_id: 'ws_a',
+        source_id:
+          'google-search-console-query-page',
+        credential_ref: 'cred:google',
+      },
+      {
+        workspace_id: 'ws_a',
+        source_id:
+          'google-ads-search-terms',
+        credential_ref: 'cred:missing',
+      },
+      {
+        workspace_id: 'ws_a',
+        source_id: 'serpapi',
+        credential_ref: 'cred:serpapi',
+      },
+    ],
+    new Set([
+      'cred:google',
+      'cred:serpapi',
+    ]),
+  );
+
+  connectionFixture.controller
+    .setReadinessEvaluator(
+      async (
+        _workspace_id,
+        source_id,
+      ) => {
+        const statuses = {
+          'google-search-console-query-page':
+            'MANUAL_ACTION_REQUIRED',
+          'google-ads-search-terms':
+            'CONNECTION_REQUIRED',
+          'google-keyword-planner':
+            'CONFIGURATION_REQUIRED',
+          serpapi: 'READY',
+        };
+
+        return {
+          ...READY(
+            'ws_a',
+            source_id,
+          ),
+          readiness_status:
+            statuses[source_id]
+            ?? 'READY',
+        };
+      },
+    );
+
+  const safeConnections =
+    typeof connectionFixture
+      .controller
+      .getWorkspaceConnections
+      === 'function'
+      ? await connectionFixture
+        .controller
+        .getWorkspaceConnections(
+          'ws_a',
+        )
+      : null;
+
+  assert.deepEqual(
+    safeConnections,
+    [
+      {
+        source_id:
+          'google-search-console-query-page',
+        credential_status: 'AVAILABLE',
+        readiness_status:
+          'MANUAL_ACTION_REQUIRED',
+      },
+      {
+        source_id:
+          'google-ads-search-terms',
+        credential_status: 'MISSING',
+        readiness_status:
+          'CONNECTION_REQUIRED',
+      },
+      {
+        source_id:
+          'google-keyword-planner',
+        credential_status:
+          'NOT_CONFIGURED',
+        readiness_status:
+          'CONFIGURATION_REQUIRED',
+      },
+      {
+        source_id: 'serpapi',
+        credential_status: 'AVAILABLE',
+        readiness_status: 'READY',
+      },
+    ],
+    'Desktop connection read model must separate credential availability from readiness and include only credential-managed sources.',
+  );
+
+  const serializedConnections =
+    JSON.stringify(
+      safeConnections,
+    );
+
+  assert.equal(
+    serializedConnections.includes(
+      'credential_ref',
+    ),
+    false,
+    'Desktop connection read model must not expose credential_ref.',
+  );
+
+  assert.equal(
+    serializedConnections.includes(
+      'cred:',
+    ),
+    false,
+    'Desktop connection read model must not expose credential references.',
+  );
+
+  assert.equal(
+    serializedConnections.includes(
+      'do-not-leak',
+    ),
+    false,
+    'Desktop connection read model must not expose secret-like configuration values.',
   );
 
   const blockedController = createFixture(

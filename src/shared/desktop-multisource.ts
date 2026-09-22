@@ -36,6 +36,27 @@ export type DesktopReadinessStatus =
   | 'FILE_REQUIRED'
   | 'MANUAL_ACTION_REQUIRED';
 
+export const DESKTOP_CREDENTIAL_MANAGED_SOURCE_IDS = [
+  'google-search-console-query-page',
+  'google-ads-search-terms',
+  'google-keyword-planner',
+  'serpapi',
+] as const;
+
+export type DesktopCredentialManagedSourceId =
+  (typeof DESKTOP_CREDENTIAL_MANAGED_SOURCE_IDS)[number];
+
+export type DesktopCredentialStatus =
+  | 'NOT_CONFIGURED'
+  | 'AVAILABLE'
+  | 'MISSING';
+
+export interface DesktopWorkspaceConnectionView {
+  source_id: DesktopCredentialManagedSourceId;
+  credential_status: DesktopCredentialStatus;
+  readiness_status: DesktopReadinessStatus;
+}
+
 export type DesktopReadinessRemediation =
   | {
       kind: 'CONFIGURE_SOURCE';
