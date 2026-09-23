@@ -2905,3 +2905,81 @@ Protected historical files remain untracked and untouched:
 ### Exact next action
 
 Stop at this verified UXH2 acceptance checkpoint. Await explicit direction before beginning any new work. If distribution acceptance is requested later, scope it separately to the intended Developer ID, hardened-runtime, notarization, and delivery configuration without implying provider acceptance. Do not start UXH3, call SerpApi, modify SerpApi collection/runtime semantics, or broaden the credential flow without a separately approved task.
+
+---
+
+## 52. Post-R1 UX & Operations Hardening implementation closure — 2026-09-24
+
+The approved UX hardening roadmap is now implemented through UXH14 on top of the already verified eight-source Release 1.0 collector. No source adapter, provider contract, schema, raw-evidence rule, credential boundary, or export semantics were reopened without failing evidence. SQLite remains schema v8 and the safe `DESKTOP_CONNECTIONS` renderer payload remains exactly `source_id`, `credential_status`, and `readiness_status`.
+
+### Completed user workflows
+
+- Task Detail now turns readiness blockers into direct remediation actions instead of label-only dead ends.
+- Keyword Planner and SerpApi use structured add/edit/remove rows with inline duplicate detection; Review receives the same canonical configuration as before.
+- İkas XLSX and Keyword Planner CSV selection show safe file name/type/size metadata and support replace/remove without changing immutable evidence behavior.
+- Bitkimark uses the verified sitemap allowlist as bounded checkboxes with the root retained and request counts visible; arbitrary URL editing is removed from the primary UI.
+- Run History and Run Detail now lead with human task/source identity, human-readable times, separate execution/validation state, safe latest-attempt error codes, retry/resume/cancel actions, evidence access, and export actions. Technical IDs remain available as secondary details.
+- Task Detail Recent Runs is Workspace/task scoped and reads persisted run/job validation state.
+- Presets now support explicit task selection, create, open, configuration inspection, readiness display, edit, rename, duplicate, confirmed delete, Review, and Start through the existing saved-preset Core origin.
+- Unsaved task/preset edits warn before navigation. Accepted Workspace changes clear transient file/query/group/sitemap/preset drafts so they cannot leak between Workspaces.
+- Source-specific safe context shows fixed GSC/Ads/date scope, request/group counts, file metadata, Bitkimark bounds, and SerpApi fixed request scope without exposing connection metadata, credential references, or secrets.
+- Home now provides an actionable operational dashboard for ready, connection-required, import-required, attention-required, and recent completed work.
+
+Meaningful implementation checkpoints:
+
+```text
+d409abc feat: complete task input readiness workflows
+3780926 feat: make run history operational
+ba2f042 feat: complete preset operations and editing safety
+06b6489 feat: add operational collection dashboard
+```
+
+### Contract and boundary changes
+
+The file-selection response adds only safe `file_size_bytes` and `file_type` preview metadata. The main process verifies the selected path is a regular file before returning it.
+
+Preset updates reuse the existing schema-v8 `updateSavedCollectionPreset` repository seam through a typed trusted main/preload API. Preset configuration remains ordinary non-secret collection configuration. Secrets and `credential_ref` do not enter preset state or renderer state.
+
+Run Detail receives a safe attempt summary projection containing Job identity, attempt number, execution state, error code, and timestamps. It does not expose provider error bodies, credential material, raw content, candidate bytes, or unrestricted attempt records.
+
+### Comprehensive deterministic and package verification
+
+Fresh assembled-system verification completed successfully:
+
+```text
+npx tsc --noEmit                                      PASS
+npm run lint                                          PASS
+git diff --check                                      PASS
+npm run test:release:gate                             PASS
+PASS RELEASE-GATE-001
+npm run package                                       PASS
+macOS arm64 packaged executable bounded launch smoke  PASS
+```
+
+The first sandboxed release-gate attempt reached the Electron UI smoke and stopped only because loopback bind was denied with `listen EPERM 127.0.0.1`. The complete gate was rerun with the required local-loopback permission and passed. The first sandboxed package attempt built all Vite targets and stopped during Forge finalization because restricted DNS could not resolve `github.com`; the same package command was rerun with network permission and passed.
+
+The resulting packaged application is:
+
+```text
+out/RoofRoom Data Collector-darwin-arm64/RoofRoom Data Collector.app
+```
+
+Its packaged executable remained launched for the bounded smoke interval without bootstrap crash or error output and was then intentionally terminated with SIGINT. This is a launch smoke, not a repetition of the human SerpApi prompt acceptance in Section 51.
+
+The release gate confirms the existing eight R1 production source identities, Core lifecycle, source validators, freshness/readiness separation, credential security regressions, production multi-source Data Package export, trusted IPC boundaries, and the new UI journeys. No live provider request was made during this closure.
+
+### Remaining acceptance boundary and exact next action
+
+Local deterministic Release 1.0 implementation and the approved UX/operations hardening roadmap are closed. The following remain separate evidence activities rather than missing local implementation:
+
+- guarded, quota-conscious live acceptance for GSC, Google Ads Search Terms, Keyword Planner API, and SerpApi collection where current credentials/provider access are available;
+- any refresh of Google Trends live evidence that is actually required;
+- intended-distribution Developer ID signing, hardened runtime, notarization, and delivery-channel acceptance;
+- broader human accessibility/visual acceptance beyond the deterministic UI journeys and bounded packaged launch smoke.
+
+The exact next executable action requires explicit live-provider authorization: run one limited provider acceptance at a time using the existing guarded commands/contracts, record provider-specific evidence without broadening scope, and stop on authentication, quota, rate-limit, CAPTCHA, 2FA, or anti-bot intervention. If live-provider authorization is not given, no further implementation action is required for the local R1/UX hardening milestone.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
