@@ -1916,6 +1916,8 @@ const main = async () => {
                 canceled: false,
                 file_path: '/fixture/imports/keyword-stats.csv',
                 file_name: 'keyword-stats.csv',
+                file_size_bytes: 2048,
+                file_type: 'CSV',
               };
             }
 
@@ -1923,6 +1925,8 @@ const main = async () => {
               canceled: false,
               file_path: '/fixture/imports/ikas-products.xlsx',
               file_name: 'ikas-products.xlsx',
+              file_size_bytes: 4096,
+              file_type: 'XLSX',
             };
           },
         };
@@ -3849,13 +3853,17 @@ const main = async () => {
     );
 
     assert.equal(
-      await page.getByText(
-        'Next step: Manage Connection',
-        { exact: true },
+      await page.getByRole(
+        'button',
+        { name: 'Manage Connection', exact: true },
       ).count(),
       1,
-      'Blocked Ads Task Detail must expose the safe remediation label without performing the connection action.',
+      'Blocked Ads Task Detail must expose an actionable safe remediation.',
     );
+
+    await page.getByRole('button', { name: 'Manage Connection', exact: true }).click();
+    await page.getByRole('heading', { name: 'Workspace', exact: true }).waitFor();
+    assert.equal(await page.getByTestId('workspace-connections').count(), 1);
 
     await page.addInitScript(() => { window.__adsReady = true; });
     await page.reload();
@@ -3882,10 +3890,17 @@ const main = async () => {
     await plannerCard.click();
     const plannerReviewButton = page.getByRole('button', { name: 'Review Quick Run', exact: true });
     assert.equal(await plannerReviewButton.isEnabled(), false, 'Keyword Planner Review requires explicit groups.');
-    await page.getByLabel('Keyword groups').fill([
-      'indoor-plants | Indoor plants | ficus, monstera deliciosa',
-      'care-topics | Care topics | ficus bakımı, monstera bakımı',
-    ].join('\n'));
+    assert.equal(await page.getByLabel('Keyword groups').count(), 0, 'Keyword Planner must not require a mini-DSL textarea.');
+    await page.getByLabel('Keyword group 1 ID').fill('indoor-plants');
+    await page.getByLabel('Keyword group 1 name').fill('Indoor plants');
+    await page.getByLabel('Keyword group 1 keywords').fill('ficus, monstera deliciosa');
+    await page.getByRole('button', { name: 'Add keyword group', exact: true }).click();
+    await page.getByLabel('Keyword group 2 ID').fill('indoor-plants');
+    await page.getByLabel('Keyword group 2 name').fill('Care topics');
+    await page.getByLabel('Keyword group 2 keywords').fill('ficus bakımı, monstera bakımı');
+    assert.equal(await page.getByText('Group IDs must be unique.', { exact: true }).count(), 1);
+    assert.equal(await plannerReviewButton.isEnabled(), false, 'Duplicate group IDs must fail closed inline.');
+    await page.getByLabel('Keyword group 2 ID').fill('care-topics');
     assert.equal(await plannerReviewButton.isEnabled(), true, 'Valid explicit keyword groups make Review available.');
     await plannerReviewButton.click();
     await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();
@@ -3915,6 +3930,11 @@ const main = async () => {
       input_kind: 'KEYWORD_PLANNER_CSV',
     });
     assert.equal(await page.getByText('keyword-stats.csv', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('CSV · 2.0 KB', { exact: true }).count(), 1, 'Selected file preview must expose safe type and size metadata.');
+    assert.equal(await page.getByRole('button', { name: 'Replace Keyword Stats CSV', exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Remove Keyword Stats CSV', exact: true }).click();
+    assert.equal(await plannerCsvReviewButton.isEnabled(), false, 'Removing the selected file must fail closed.');
+    await page.getByRole('button', { name: 'Select Keyword Stats CSV', exact: true }).click();
     assert.equal(await plannerCsvReviewButton.isEnabled(), true, 'Selecting a manual export makes Review available.');
     await plannerCsvReviewButton.click();
     await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();
@@ -3932,23 +3952,17 @@ const main = async () => {
     const bitkimarkCard = page.getByTestId('task-card').filter({ hasText: 'Bitkimark — Sitemap/XML' });
     await bitkimarkCard.getByText('READY', { exact: true }).waitFor();
     await bitkimarkCard.click();
-    const sitemapInput = page.getByLabel('Sitemap URLs');
-    assert.equal(await sitemapInput.count(), 1, 'Bitkimark task must expose the bounded reviewed URL list.');
-    assert.deepEqual((await sitemapInput.inputValue()).split('\n'), [
-      'https://bitkimark.com/sitemap.xml',
-      'https://bitkimark.com/blogs.xml',
-      'https://bitkimark.com/pages.xml',
-      'https://bitkimark.com/products.xml',
-      'https://bitkimark.com/collections.xml',
-    ]);
+    assert.equal(await page.getByLabel('Sitemap URLs').count(), 0, 'Bitkimark must not expose an arbitrary URL textarea.');
+    const rootSitemap = page.getByLabel('https://bitkimark.com/sitemap.xml', { exact: true });
+    assert.equal(await rootSitemap.isChecked(), true);
+    assert.equal(await rootSitemap.isDisabled(), true, 'The evidence root must remain selected.');
+    assert.equal(await page.getByText('5 of 5 sitemap URLs selected', { exact: true }).count(), 1);
     const bitkimarkReviewButton = page.getByRole('button', { name: 'Review Quick Run', exact: true });
     assert.equal(await bitkimarkReviewButton.isEnabled(), true);
-    await sitemapInput.fill('https://example.com/sitemap.xml');
-    assert.equal(await bitkimarkReviewButton.isEnabled(), false, 'Foreign URLs must not become reviewable.');
-    await sitemapInput.fill([
-      'https://bitkimark.com/sitemap.xml',
-      'https://bitkimark.com/blogs.xml',
-    ].join('\n'));
+    await page.getByLabel('https://bitkimark.com/pages.xml', { exact: true }).uncheck();
+    await page.getByLabel('https://bitkimark.com/products.xml', { exact: true }).uncheck();
+    await page.getByLabel('https://bitkimark.com/collections.xml', { exact: true }).uncheck();
+    assert.equal(await page.getByText('2 of 5 sitemap URLs selected', { exact: true }).count(), 1);
     assert.equal(await bitkimarkReviewButton.isEnabled(), true);
     await bitkimarkReviewButton.click();
     await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();
@@ -3973,11 +3987,15 @@ const main = async () => {
     await serpApiCard.click();
     const serpApiReviewButton = page.getByRole('button', { name: 'Review Quick Run', exact: true });
     assert.equal(await serpApiReviewButton.isEnabled(), false, 'SerpApi Review requires an explicit on-demand batch.');
-    const serpApiQueries = page.getByLabel('SERP queries');
-    await serpApiQueries.fill([
-      'SERP-FICUS-001 | ficus çeşitleri',
-      'SERP-OFFICE-001 | ofis bitkileri',
-    ].join('\n'));
+    assert.equal(await page.getByLabel('SERP queries').count(), 0, 'SerpApi must not require a mini-DSL textarea.');
+    await page.getByLabel('SERP query 1 ID').fill('SERP-FICUS-001');
+    await page.getByLabel('SERP query 1 text').fill('ficus çeşitleri');
+    await page.getByRole('button', { name: 'Add SERP query', exact: true }).click();
+    await page.getByLabel('SERP query 2 ID').fill('SERP-FICUS-001');
+    await page.getByLabel('SERP query 2 text').fill('ofis bitkileri');
+    assert.equal(await page.getByText('Query IDs must be unique.', { exact: true }).count(), 1);
+    assert.equal(await serpApiReviewButton.isEnabled(), false, 'Duplicate query IDs must fail closed inline.');
+    await page.getByLabel('SERP query 2 ID').fill('SERP-OFFICE-001');
     assert.equal(await serpApiReviewButton.isEnabled(), true);
     await serpApiReviewButton.click();
     await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();

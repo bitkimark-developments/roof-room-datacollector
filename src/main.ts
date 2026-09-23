@@ -420,11 +420,23 @@ const registerIpcHandlers = (
             null,
           file_name:
             null,
+          file_size_bytes:
+            null,
+          file_type:
+            null,
         };
       }
 
       const filePath =
         result.filePaths[0];
+      const fileStat =
+        await lstat(filePath);
+
+      if (!fileStat.isFile()) {
+        throw new Error(
+          'Selected desktop input path is not a file.',
+        );
+      }
 
       return {
         canceled:
@@ -435,6 +447,12 @@ const registerIpcHandlers = (
           path.basename(
             filePath,
           ),
+        file_size_bytes:
+          fileStat.size,
+        file_type:
+          value.input_kind === 'IKAS_PRODUCTS_XLSX'
+            ? 'XLSX'
+            : 'CSV',
       };
     },
   );

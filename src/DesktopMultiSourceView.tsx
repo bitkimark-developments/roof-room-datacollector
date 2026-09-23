@@ -12,6 +12,7 @@ import {
 import type {
   DesktopReview,
   DesktopCredentialManagedSourceId,
+  DesktopReadinessRemediation,
   DesktopReadinessStatus,
   DesktopRunDraft,
   DesktopWorkspaceConnectionView,
@@ -349,37 +350,27 @@ interface KeywordPlannerInputGroup
   keywords: string[];
 }
 
-const parseKeywordPlannerGroups = (
-  value: string,
-): KeywordPlannerInputGroup[] | null => {
-  const lines =
-    value
-      .split(/\r?\n/u)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
+interface KeywordPlannerGroupDraft {
+  row_id: number;
+  group_id: string;
+  group_name: string;
+  keywords: string;
+}
 
-  if (lines.length === 0) {
+const parseKeywordPlannerGroups = (
+  drafts: readonly KeywordPlannerGroupDraft[],
+): KeywordPlannerInputGroup[] | null => {
+  if (drafts.length === 0) {
     return null;
   }
 
   const groups:
     KeywordPlannerInputGroup[] = [];
 
-  for (const line of lines) {
-    const parts =
-      line
-        .split('|')
-        .map((part) => part.trim());
-
-    if (parts.length !== 3) {
-      return null;
-    }
-
-    const [
-      groupId,
-      groupName,
-      keywordText,
-    ] = parts;
+  for (const draft of drafts) {
+    const groupId = draft.group_id.trim();
+    const groupName = draft.group_name.trim();
+    const keywordText = draft.keywords.trim();
 
     const keywords =
       keywordText
@@ -563,20 +554,20 @@ interface SerpApiInputQuery extends JsonObject {
   query: string;
 }
 
+interface SerpApiQueryDraft {
+  row_id: number;
+  job_key: string;
+  query: string;
+}
+
 const parseSerpApiQueries = (
-  value: string,
+  drafts: readonly SerpApiQueryDraft[],
 ): SerpApiInputQuery[] | null => {
-  const lines = value
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  if (lines.length === 0) return null;
+  if (drafts.length === 0) return null;
   const queries: SerpApiInputQuery[] = [];
-  for (const line of lines) {
-    const separator = line.indexOf('|');
-    if (separator < 0 || line.indexOf('|', separator + 1) >= 0) return null;
-    const jobKey = line.slice(0, separator).trim();
-    const query = line.slice(separator + 1).trim();
+  for (const draft of drafts) {
+    const jobKey = draft.job_key.trim();
+    const query = draft.query.trim();
     if (
       !/^[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$/u.test(jobKey)
       || query.length === 0
@@ -624,6 +615,20 @@ const getReviewedSerpApiQueries = (
     }
     return { job_key: value.job_key, query: value.query };
   });
+};
+
+const formatFileSize = (
+  bytes: number,
+): string => {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 export function DesktopMultiSourceView() {
@@ -724,6 +729,8 @@ export function DesktopMultiSourceView() {
     useState<{
       file_path: string;
       file_name: string;
+      file_size_bytes: number;
+      file_type: 'XLSX' | 'CSV';
     } | null>(
       null,
     );
@@ -735,15 +742,23 @@ export function DesktopMultiSourceView() {
     useState<{
       file_path: string;
       file_name: string;
+      file_size_bytes: number;
+      file_type: 'XLSX' | 'CSV';
     } | null>(
       null,
     );
 
   const [
-    keywordPlannerGroupsInput,
-    setKeywordPlannerGroupsInput,
-  ] =
-    useState('');
+    keywordPlannerGroupDrafts,
+    setKeywordPlannerGroupDrafts,
+  ] = useState<KeywordPlannerGroupDraft[]>([
+    {
+      row_id: 1,
+      group_id: '',
+      group_name: '',
+      keywords: '',
+    },
+  ]);
 
   const [
     bitkimarkSitemapUrlsInput,
@@ -753,9 +768,15 @@ export function DesktopMultiSourceView() {
   );
 
   const [
-    serpApiQueriesInput,
-    setSerpApiQueriesInput,
-  ] = useState('');
+    serpApiQueryDrafts,
+    setSerpApiQueryDrafts,
+  ] = useState<SerpApiQueryDraft[]>([
+    {
+      row_id: 1,
+      job_key: '',
+      query: '',
+    },
+  ]);
 
   const [
     quickRunReview,
@@ -1194,13 +1215,13 @@ export function DesktopMultiSourceView() {
       [draft],
     );
 
-  const readinessRemediationLabelBySource =
+  const readinessRemediationBySource =
     useMemo(
       () =>
         new Map(
           (draft?.source_cards ?? []).map((card) => [
             card.source_id,
-            card.readiness_remediation?.label ?? null,
+            card.readiness_remediation ?? null,
           ]),
         ),
       [draft],
@@ -1328,6 +1349,10 @@ export function DesktopMultiSourceView() {
             === null
           || result.file_name
             === null
+          || result.file_size_bytes
+            === null
+          || result.file_type
+            === null
         ) {
           return;
         }
@@ -1337,6 +1362,10 @@ export function DesktopMultiSourceView() {
             result.file_path,
           file_name:
             result.file_name,
+          file_size_bytes:
+            result.file_size_bytes,
+          file_type:
+            result.file_type,
         });
       } catch (error) {
         setMessage(
@@ -1367,6 +1396,8 @@ export function DesktopMultiSourceView() {
           result.canceled
           || result.file_path === null
           || result.file_name === null
+          || result.file_size_bytes === null
+          || result.file_type === null
         ) {
           return;
         }
@@ -1376,6 +1407,10 @@ export function DesktopMultiSourceView() {
             result.file_path,
           file_name:
             result.file_name,
+          file_size_bytes:
+            result.file_size_bytes,
+          file_type:
+            result.file_type,
         });
       } catch (error) {
         setMessage(
@@ -1385,6 +1420,122 @@ export function DesktopMultiSourceView() {
         );
       }
     };
+
+  const updateKeywordPlannerGroupDraft = (
+    rowId: number,
+    field: 'group_id' | 'group_name' | 'keywords',
+    value: string,
+  ) => {
+    setKeywordPlannerGroupDrafts((current) => current.map((row) => (
+      row.row_id === rowId
+        ? { ...row, [field]: value }
+        : row
+    )));
+  };
+
+  const addKeywordPlannerGroupDraft = () => {
+    setKeywordPlannerGroupDrafts((current) => [
+      ...current,
+      {
+        row_id: Math.max(0, ...current.map((row) => row.row_id)) + 1,
+        group_id: '',
+        group_name: '',
+        keywords: '',
+      },
+    ]);
+  };
+
+  const removeKeywordPlannerGroupDraft = (
+    rowId: number,
+  ) => {
+    setKeywordPlannerGroupDrafts((current) => current.filter(
+      (row) => row.row_id !== rowId,
+    ));
+  };
+
+  const updateSerpApiQueryDraft = (
+    rowId: number,
+    field: 'job_key' | 'query',
+    value: string,
+  ) => {
+    setSerpApiQueryDrafts((current) => current.map((row) => (
+      row.row_id === rowId
+        ? { ...row, [field]: value }
+        : row
+    )));
+  };
+
+  const addSerpApiQueryDraft = () => {
+    setSerpApiQueryDrafts((current) => [
+      ...current,
+      {
+        row_id: Math.max(0, ...current.map((row) => row.row_id)) + 1,
+        job_key: '',
+        query: '',
+      },
+    ]);
+  };
+
+  const removeSerpApiQueryDraft = (
+    rowId: number,
+  ) => {
+    setSerpApiQueryDrafts((current) => current.filter(
+      (row) => row.row_id !== rowId,
+    ));
+  };
+
+  const setBitkimarkSitemapSelected = (
+    url: string,
+    selected: boolean,
+  ) => {
+    const rootUrl = BITKIMARK_VERIFIED_SITEMAP_URLS[0];
+    const current = new Set(
+      bitkimarkSitemapUrlsInput
+        .split(/\r?\n/u)
+        .filter((entry) => entry.length > 0),
+    );
+
+    if (selected) {
+      current.add(url);
+    } else if (url !== rootUrl) {
+      current.delete(url);
+    }
+
+    setBitkimarkSitemapUrlsInput(
+      BITKIMARK_VERIFIED_SITEMAP_URLS
+        .filter((entry) => entry === rootUrl || current.has(entry))
+        .join('\n'),
+    );
+  };
+
+  const followReadinessRemediation = async (
+    remediation: DesktopReadinessRemediation,
+  ) => {
+    if (selectedTask === null) return;
+
+    if (remediation.kind === 'CONNECT_SOURCE') {
+      setSelectedTask(null);
+      setView('WORKSPACE');
+      return;
+    }
+
+    if (remediation.kind === 'SELECT_FILE') {
+      if (selectedTask.source_id === 'ikas-products') {
+        await selectIkasProductsFile();
+      } else if (selectedTask.source_id === 'google-keyword-planner-csv') {
+        await selectKeywordPlannerCsvFile();
+      }
+      return;
+    }
+
+    if (remediation.kind === 'MANUAL_ACTION') {
+      setSelectedTask(null);
+      setView('RUNS');
+      return;
+    }
+
+    await window.roofroom.openConfigFolder();
+  };
 
   const reviewSelectedTaskQuickRun =
     async () => {
@@ -1420,7 +1571,7 @@ export function DesktopMultiSourceView() {
         selectedTask.source_id
           === 'google-keyword-planner'
           ? parseKeywordPlannerGroups(
-              keywordPlannerGroupsInput,
+              keywordPlannerGroupDrafts,
             )
           : null;
 
@@ -1434,7 +1585,7 @@ export function DesktopMultiSourceView() {
 
       const serpApiQueries =
         selectedTask.source_id === 'serpapi'
-          ? parseSerpApiQueries(serpApiQueriesInput)
+          ? parseSerpApiQueries(serpApiQueryDrafts)
           : null;
 
       if (
@@ -2384,8 +2535,8 @@ export function DesktopMultiSourceView() {
               )
               ?? null;
 
-            const readinessRemediationLabel =
-              readinessRemediationLabelBySource.get(
+            const readinessRemediation =
+              readinessRemediationBySource.get(
                 selectedTask.source_id,
               )
               ?? null;
@@ -2443,13 +2594,29 @@ export function DesktopMultiSourceView() {
                 selectedTask.source_id
                   === 'google-keyword-planner'
                 && parseKeywordPlannerGroups(
-                  keywordPlannerGroupsInput,
+                  keywordPlannerGroupDrafts,
                 ) !== null
               )
               || (
                 selectedTask.source_id === 'serpapi'
-                && parseSerpApiQueries(serpApiQueriesInput) !== null
+                && parseSerpApiQueries(serpApiQueryDrafts) !== null
               );
+
+            const keywordPlannerGroupIds = keywordPlannerGroupDrafts
+              .map((row) => row.group_id.trim())
+              .filter((groupId) => groupId.length > 0);
+            const hasDuplicateKeywordPlannerGroupIds =
+              new Set(keywordPlannerGroupIds).size
+              !== keywordPlannerGroupIds.length;
+            const serpApiQueryIds = serpApiQueryDrafts
+              .map((row) => row.job_key.trim())
+              .filter((jobKey) => jobKey.length > 0);
+            const hasDuplicateSerpApiQueryIds =
+              new Set(serpApiQueryIds).size
+              !== serpApiQueryIds.length;
+            const selectedBitkimarkSitemapUrls = new Set(
+              bitkimarkSitemapUrlsInput.split(/\r?\n/u),
+            );
 
             const canReview =
               effectiveReadiness === 'READY'
@@ -2596,16 +2763,27 @@ export function DesktopMultiSourceView() {
                             Products XLSX input is required for this task.
                           </p>
 
-                          <button
-                            type="button"
-                            className="rr-secondary-action"
-                            onClick={
-                              () =>
-                                void selectIkasProductsFile()
-                            }
-                          >
-                            Select Products XLSX
-                          </button>
+                          <div className="rr-input-actions">
+                            <button
+                              type="button"
+                              className="rr-secondary-action"
+                              onClick={() => void selectIkasProductsFile()}
+                            >
+                              {selectedIkasFile === null
+                                ? 'Select Products XLSX'
+                                : 'Replace Products XLSX'}
+                            </button>
+
+                            {selectedIkasFile && (
+                              <button
+                                type="button"
+                                className="rr-secondary-action"
+                                onClick={() => setSelectedIkasFile(null)}
+                              >
+                                Remove Products XLSX
+                              </button>
+                            )}
+                          </div>
 
                           {selectedIkasFile && (
                             <div
@@ -2614,6 +2792,12 @@ export function DesktopMultiSourceView() {
                               <strong>
                                 {selectedIkasFile.file_name}
                               </strong>
+
+                              <span>
+                                {selectedIkasFile.file_type}
+                                {' · '}
+                                {formatFileSize(selectedIkasFile.file_size_bytes)}
+                              </span>
 
                               <code>
                                 {selectedIkasFile.file_path}
@@ -2632,16 +2816,27 @@ export function DesktopMultiSourceView() {
                               A current Keyword Stats CSV export is required for this fallback task.
                             </p>
 
-                            <button
-                              type="button"
-                              className="rr-secondary-action"
-                              onClick={
-                                () =>
-                                  void selectKeywordPlannerCsvFile()
-                              }
-                            >
-                              Select Keyword Stats CSV
-                            </button>
+                            <div className="rr-input-actions">
+                              <button
+                                type="button"
+                                className="rr-secondary-action"
+                                onClick={() => void selectKeywordPlannerCsvFile()}
+                              >
+                                {selectedKeywordPlannerCsvFile === null
+                                  ? 'Select Keyword Stats CSV'
+                                  : 'Replace Keyword Stats CSV'}
+                              </button>
+
+                              {selectedKeywordPlannerCsvFile && (
+                                <button
+                                  type="button"
+                                  className="rr-secondary-action"
+                                  onClick={() => setSelectedKeywordPlannerCsvFile(null)}
+                                >
+                                  Remove Keyword Stats CSV
+                                </button>
+                              )}
+                            </div>
 
                             {selectedKeywordPlannerCsvFile && (
                               <div
@@ -2650,6 +2845,12 @@ export function DesktopMultiSourceView() {
                                 <strong>
                                   {selectedKeywordPlannerCsvFile.file_name}
                                 </strong>
+
+                                <span>
+                                  {selectedKeywordPlannerCsvFile.file_type}
+                                  {' · '}
+                                  {formatFileSize(selectedKeywordPlannerCsvFile.file_size_bytes)}
+                                </span>
 
                                 <code>
                                   {selectedKeywordPlannerCsvFile.file_path}
@@ -2668,25 +2869,29 @@ export function DesktopMultiSourceView() {
                               One reviewed request is made for each selected evidence-backed sitemap URL. No discovered link is crawled automatically.
                             </p>
 
-                            <label>
-                              <span>
-                                Sitemap URLs
-                              </span>
+                            <strong>
+                              {selectedBitkimarkSitemapUrls.size}
+                              {' of '}
+                              {BITKIMARK_VERIFIED_SITEMAP_URLS.length}
+                              {' sitemap URLs selected'}
+                            </strong>
 
-                              <textarea
-                                aria-label="Sitemap URLs"
-                                rows={6}
-                                value={
-                                  bitkimarkSitemapUrlsInput
-                                }
-                                onChange={
-                                  (event) =>
-                                    setBitkimarkSitemapUrlsInput(
-                                      event.target.value,
-                                    )
-                                }
-                              />
-                            </label>
+                            <div className="rr-checkbox-list">
+                              {BITKIMARK_VERIFIED_SITEMAP_URLS.map((url, index) => (
+                                <label key={url}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedBitkimarkSitemapUrls.has(url)}
+                                    disabled={index === 0}
+                                    onChange={(event) => setBitkimarkSitemapSelected(
+                                      url,
+                                      event.target.checked,
+                                    )}
+                                  />
+                                  <span>{url}</span>
+                                </label>
+                              ))}
+                            </div>
                           </div>
                         )
                       : selectedTask.source_id
@@ -2696,49 +2901,134 @@ export function DesktopMultiSourceView() {
                             className="rr-file-input"
                           >
                             <p>
-                              Enter one explicit group per line: group-id | Group name | keyword one, keyword two
+                              Define explicit named groups. Separate keywords with commas.
                             </p>
 
-                            <label>
-                              <span>
-                                Keyword groups
-                              </span>
+                            <div className="rr-structured-editor">
+                              {keywordPlannerGroupDrafts.map((row, index) => (
+                                <fieldset key={row.row_id}>
+                                  <legend>Keyword group {index + 1}</legend>
+                                  <label>
+                                    <span>Group ID</span>
+                                    <input
+                                      aria-label={`Keyword group ${index + 1} ID`}
+                                      value={row.group_id}
+                                      onChange={(event) => updateKeywordPlannerGroupDraft(
+                                        row.row_id,
+                                        'group_id',
+                                        event.target.value,
+                                      )}
+                                    />
+                                  </label>
+                                  <label>
+                                    <span>Group name</span>
+                                    <input
+                                      aria-label={`Keyword group ${index + 1} name`}
+                                      value={row.group_name}
+                                      onChange={(event) => updateKeywordPlannerGroupDraft(
+                                        row.row_id,
+                                        'group_name',
+                                        event.target.value,
+                                      )}
+                                    />
+                                  </label>
+                                  <label>
+                                    <span>Keywords</span>
+                                    <input
+                                      aria-label={`Keyword group ${index + 1} keywords`}
+                                      value={row.keywords}
+                                      onChange={(event) => updateKeywordPlannerGroupDraft(
+                                        row.row_id,
+                                        'keywords',
+                                        event.target.value,
+                                      )}
+                                    />
+                                  </label>
+                                  {keywordPlannerGroupDrafts.length > 1 && (
+                                    <button
+                                      type="button"
+                                      className="rr-secondary-action"
+                                      onClick={() => removeKeywordPlannerGroupDraft(row.row_id)}
+                                    >
+                                      Remove keyword group {index + 1}
+                                    </button>
+                                  )}
+                                </fieldset>
+                              ))}
+                            </div>
 
-                              <textarea
-                                aria-label="Keyword groups"
-                                rows={6}
-                                value={
-                                  keywordPlannerGroupsInput
-                                }
-                                onChange={
-                                  (event) =>
-                                    setKeywordPlannerGroupsInput(
-                                      event.target.value,
-                                    )
-                                }
-                              />
-                            </label>
+                            {hasDuplicateKeywordPlannerGroupIds && (
+                              <p className="rr-field-error">Group IDs must be unique.</p>
+                            )}
+
+                            <button
+                              type="button"
+                              className="rr-secondary-action"
+                              onClick={addKeywordPlannerGroupDraft}
+                            >
+                              Add keyword group
+                            </button>
                           </div>
                         )
                       : selectedTask.source_id === 'serpapi'
                         ? (
                           <div className="rr-file-input">
                             <p>
-                              Enter one explicit on-demand query per line: query-id | query
+                              Define an explicit on-demand query batch with stable query IDs.
                             </p>
 
-                            <label>
-                              <span>
-                                SERP queries
-                              </span>
+                            <div className="rr-structured-editor">
+                              {serpApiQueryDrafts.map((row, index) => (
+                                <fieldset key={row.row_id}>
+                                  <legend>SERP query {index + 1}</legend>
+                                  <label>
+                                    <span>Query ID</span>
+                                    <input
+                                      aria-label={`SERP query ${index + 1} ID`}
+                                      value={row.job_key}
+                                      onChange={(event) => updateSerpApiQueryDraft(
+                                        row.row_id,
+                                        'job_key',
+                                        event.target.value,
+                                      )}
+                                    />
+                                  </label>
+                                  <label>
+                                    <span>Query text</span>
+                                    <input
+                                      aria-label={`SERP query ${index + 1} text`}
+                                      value={row.query}
+                                      onChange={(event) => updateSerpApiQueryDraft(
+                                        row.row_id,
+                                        'query',
+                                        event.target.value,
+                                      )}
+                                    />
+                                  </label>
+                                  {serpApiQueryDrafts.length > 1 && (
+                                    <button
+                                      type="button"
+                                      className="rr-secondary-action"
+                                      onClick={() => removeSerpApiQueryDraft(row.row_id)}
+                                    >
+                                      Remove SERP query {index + 1}
+                                    </button>
+                                  )}
+                                </fieldset>
+                              ))}
+                            </div>
 
-                              <textarea
-                                aria-label="SERP queries"
-                                rows={8}
-                                value={serpApiQueriesInput}
-                                onChange={(event) => setSerpApiQueriesInput(event.target.value)}
-                              />
-                            </label>
+                            {hasDuplicateSerpApiQueryIds && (
+                              <p className="rr-field-error">Query IDs must be unique.</p>
+                            )}
+
+                            <button
+                              type="button"
+                              className="rr-secondary-action"
+                              onClick={addSerpApiQueryDraft}
+                            >
+                              Add SERP query
+                            </button>
                           </div>
                         )
                       : (
@@ -2782,12 +3072,18 @@ export function DesktopMultiSourceView() {
 
                   {canReview
                     || effectiveReadiness === 'READY'
-                    || readinessRemediationLabel === null
+                    || readinessRemediation === null
                     ? null
                     : (
-                      <p>
-                        Next step: {readinessRemediationLabel}
-                      </p>
+                      <button
+                        type="button"
+                        className="rr-secondary-action"
+                        onClick={() => void followReadinessRemediation(
+                          readinessRemediation,
+                        )}
+                      >
+                        {readinessRemediation.label}
+                      </button>
                     )}
 
                   <button

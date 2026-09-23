@@ -78,6 +78,8 @@ export interface DesktopInputFileSelectionResult {
   canceled: boolean;
   file_path: string | null;
   file_name: string | null;
+  file_size_bytes: number | null;
+  file_type: 'XLSX' | 'CSV' | null;
 }
 
 export interface ApplicationInfo {
