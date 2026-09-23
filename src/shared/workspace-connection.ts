@@ -23,6 +23,10 @@ export interface RebindWorkspaceSourceConnectionsInput {
   source_ids: readonly DesktopCredentialManagedSourceId[];
   expected_credential_ref: string;
   replacement_credential_ref: string;
+  safe_metadata_updates?: readonly {
+    source_id: DesktopCredentialManagedSourceId;
+    safe_metadata: JsonObject;
+  }[];
 }
 
 export interface WorkspaceConnectionMutationRepository {

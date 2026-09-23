@@ -124,6 +124,10 @@ const rebound = repository.rebindSourceConnections({
   source_ids: ['google-ads-search-terms', 'google-keyword-planner'],
   expected_credential_ref: 'cred:shared-old',
   replacement_credential_ref: 'cred:shared-new',
+  safe_metadata_updates: [{
+    source_id: 'google-ads-search-terms',
+    safe_metadata: { customer_id: '999' },
+  }],
 });
 assert.deepEqual(
   rebound.map((row) => row.source_id),
@@ -132,7 +136,7 @@ assert.deepEqual(
 );
 assert.equal(rebound[0].credential_ref, 'cred:shared-new');
 assert.equal(rebound[1].credential_ref, 'cred:shared-new');
-assert.deepEqual(rebound[0].safe_metadata, ads.safe_metadata);
+assert.deepEqual(rebound[0].safe_metadata, { customer_id: '999' });
 assert.deepEqual(rebound[1].safe_metadata, planner.safe_metadata);
 assert.equal(rebound[0].connection_id, ads.connection_id);
 assert.equal(rebound[1].connection_id, planner.connection_id);

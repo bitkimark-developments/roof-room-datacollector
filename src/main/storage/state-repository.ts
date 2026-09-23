@@ -1725,9 +1725,26 @@ export class StateRepository {
       input.replacement_credential_ref,
       'replacement_credential_ref',
     );
+    const safeMetadataUpdates = new Map<string, JsonObject>();
+    for (const update of input.safe_metadata_updates ?? []) {
+      const sourceId = requireNonEmpty(update.source_id, 'safe_metadata_update.source_id');
+      if (!sourceIds.includes(sourceId) || safeMetadataUpdates.has(sourceId)) {
+        throw new Error('safe_metadata_updates must target unique rebound source identities.');
+      }
+      safeMetadataUpdates.set(
+        sourceId,
+        assertSafeConnectionMetadata(
+          requireJsonObject(
+            update.safe_metadata,
+            'safe_metadata_update.safe_metadata',
+          ),
+        ),
+      );
+    }
     const updatedAt = new Date().toISOString();
     this.database.exec('BEGIN IMMEDIATE');
     try {
+      const currentConnections = new Map<string, WorkspaceSourceConnectionRecord>();
       for (const sourceId of sourceIds) {
         const current = this.getSourceConnection(workspaceId, sourceId);
         if (!current) {
@@ -1736,14 +1753,20 @@ export class StateRepository {
         if (current.credential_ref !== expectedCredentialRef) {
           throw new Error(`Connection for ${sourceId} does not reference the expected credential.`);
         }
+        currentConnections.set(sourceId, current);
       }
       for (const sourceId of sourceIds) {
+        const current = currentConnections.get(sourceId);
+        if (!current) throw new Error(`Connection for ${sourceId} was not retained for rebind.`);
         const result = this.database.prepare(`
           UPDATE workspace_source_connections
-          SET credential_ref = ?, updated_at = ?
+          SET credential_ref = ?, safe_metadata_json = ?, updated_at = ?
           WHERE workspace_id = ? AND source_id = ? AND credential_ref = ?
         `).run(
           replacementCredentialRef,
+          JSON.stringify(
+            safeMetadataUpdates.get(sourceId) ?? current.safe_metadata,
+          ),
           updatedAt,
           workspaceId,
           sourceId,
