@@ -19,7 +19,8 @@ export type WorkspaceConnectionMutationAction =
   | 'MANAGE_METADATA'
   | 'DISCONNECT'
   | 'CONNECT_GOOGLE'
-  | 'RECONNECT_GOOGLE';
+  | 'RECONNECT_GOOGLE'
+  | 'PROVISION_SERPAPI';
 
 export type WorkspaceConnectionMutationErrorCode =
   | 'INVALID_CONNECTION_INTENT'
@@ -28,6 +29,9 @@ export type WorkspaceConnectionMutationErrorCode =
   | 'CONNECTION_CONFIGURATION_UNAVAILABLE'
   | 'OAUTH_MANUAL_ACTION_REQUIRED'
   | 'OAUTH_ACQUISITION_FAILED'
+  | 'SECRET_INGRESS_CANCELLED'
+  | 'SECRET_INGRESS_FAILED'
+  | 'SECRET_INPUT_INVALID'
   | 'CREDENTIAL_PERSISTENCE_FAILED'
   | 'CONNECTION_PERSISTENCE_FAILED'
   | 'CONNECTION_REBIND_FAILED'
@@ -68,6 +72,11 @@ export type ManageWorkspaceConnectionIntent = {
 export interface DisconnectWorkspaceConnectionIntent {
   workspace_id: string;
   source_id: DesktopCredentialManagedSourceId;
+}
+
+export interface ProvisionSerpApiWorkspaceConnectionIntent {
+  workspace_id: string;
+  source_id: 'serpapi';
 }
 
 export type ConnectGoogleWorkspaceConnectionIntent = {

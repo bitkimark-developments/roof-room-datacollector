@@ -11,6 +11,7 @@ import {
   type GoogleConnectionMetadataIntent,
   type GoogleSearchConsoleConnectionMetadata,
   type ManageWorkspaceConnectionIntent,
+  type ProvisionSerpApiWorkspaceConnectionIntent,
   type ReconnectGoogleWorkspaceConnectionIntent,
 } from '../../shared/workspace-connection-management';
 
@@ -176,5 +177,17 @@ export const normalizeDisconnectWorkspaceConnectionIntent = (
   return {
     workspace_id: requireTrimmedString(intent.workspace_id),
     source_id: intent.source_id,
+  };
+};
+
+export const normalizeProvisionSerpApiWorkspaceConnectionIntent = (
+  value: unknown,
+): ProvisionSerpApiWorkspaceConnectionIntent => {
+  const intent = requirePlainRecord(value);
+  requireExactKeys(intent, ['workspace_id', 'source_id']);
+  if (intent.source_id !== 'serpapi') return invalidIntent();
+  return {
+    workspace_id: requireTrimmedString(intent.workspace_id),
+    source_id: 'serpapi',
   };
 };

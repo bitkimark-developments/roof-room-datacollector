@@ -9,6 +9,7 @@ const {
   normalizeConnectGoogleWorkspaceConnectionIntent,
   normalizeDisconnectWorkspaceConnectionIntent,
   normalizeManageWorkspaceConnectionIntent,
+  normalizeProvisionSerpApiWorkspaceConnectionIntent,
   normalizeReconnectGoogleWorkspaceConnectionIntent,
 } = require(
   path.join(buildRoot, 'main', 'app', 'workspace-connection-metadata.js'),
@@ -23,6 +24,11 @@ const expectInvalid = (operation, label) => {
       assert.equal(error.message, 'Workspace connection intent is invalid.', label);
       const serialized = JSON.stringify(error);
       assert.equal(serialized.includes('sentinel-secret'), false, label);
+      assert.equal(
+        serialized.includes('rr_test_only_key_0123456789'),
+        false,
+        label,
+      );
       assert.equal(serialized.includes('credential_ref'), false, label);
       return true;
     },
@@ -89,6 +95,17 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
+  normalizeProvisionSerpApiWorkspaceConnectionIntent({
+    workspace_id: ' ws_fixture ',
+    source_id: 'serpapi',
+  }),
+  {
+    workspace_id: 'ws_fixture',
+    source_id: 'serpapi',
+  },
+);
+
+assert.deepEqual(
   normalizeDisconnectWorkspaceConnectionIntent({
     workspace_id: ' ws_fixture ',
     source_id: 'serpapi',
@@ -100,6 +117,26 @@ assert.deepEqual(
 );
 
 const invalidCases = [
+  [
+    'blank SerpApi provisioning workspace',
+    () => normalizeProvisionSerpApiWorkspaceConnectionIntent({
+      workspace_id: '   ',
+      source_id: 'serpapi',
+    }),
+  ],
+  [
+    'unsupported SerpApi provisioning source',
+    () => normalizeProvisionSerpApiWorkspaceConnectionIntent({
+      workspace_id: 'ws_fixture',
+      source_id: 'google-search-console-query-page',
+    }),
+  ],
+  [
+    'non-object SerpApi provisioning input',
+    () => normalizeProvisionSerpApiWorkspaceConnectionIntent(
+      'rr_test_only_key_0123456789',
+    ),
+  ],
   [
     'unknown top-level key',
     () => normalizeManageWorkspaceConnectionIntent({
@@ -174,6 +211,24 @@ const invalidCases = [
     () => normalizeDisconnectWorkspaceConnectionIntent('sentinel-secret'),
   ],
 ];
+
+for (const forbiddenKey of [
+  'api_key',
+  'secret',
+  'credential_ref',
+  'value',
+  'prompt',
+  'metadata',
+]) {
+  invalidCases.push([
+    `SerpApi provisioning rejects ${forbiddenKey}`,
+    () => normalizeProvisionSerpApiWorkspaceConnectionIntent({
+      workspace_id: 'ws_fixture',
+      source_id: 'serpapi',
+      [forbiddenKey]: 'rr_test_only_key_0123456789',
+    }),
+  ]);
+}
 
 for (const [label, operation] of invalidCases) {
   expectInvalid(operation, label);
