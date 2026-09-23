@@ -4,11 +4,11 @@
 
 **Current milestone:** Post-R1 UX & Operations Hardening — UXH2 Workspace Connections
 
-**Current stage:** UXH2 Workspace connection write-side foundation, Google OAuth actions, trusted IPC, and bounded renderer management complete
+**Current stage:** UXH2 SerpApi secure provisioning design and TDD implementation plan complete; production implementation not started
 
-**Current goal:** Preserve the verified UXH2 write-side closure and hand off the separate macOS secure secret-ingress decision spike without starting UXH3
+**Current goal:** Obtain explicit approval of the SerpApi secure provisioning implementation plan before Task 1 RED; do not start UXH3
 
-**Current-state authority:** Section 47 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 47.
+**Current-state authority:** Section 49 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 49.
 
 ---
 
@@ -2667,3 +2667,60 @@ Protected historical files remain untracked and untouched:
 Stop production work for explicit review of the spike recommendation. If the main-owned `/usr/bin/osascript` direction is approved, write a separate bounded SerpApi provisioning design and TDD implementation plan. That later plan may introduce a narrow main-only `SecretIngressPort` and native adapter, but must keep renderer intents secret-free, preserve schema-v8 compensation/reference semantics, add no clipboard dependency, require deterministic subprocess/store boundary tests plus an Apple Silicon packaged-app smoke and later intended-distribution signing/notarization acceptance, and remain inside UXH2.
 
 Do not implement that plan, start SerpApi provisioning, or begin UXH3 from this checkpoint without the separate approval.
+
+---
+
+## 49. UXH2 — SerpApi secure provisioning design and TDD plan — 2026-09-23
+
+Candidate A is explicitly approved as the production direction: macOS user-entered provider secrets will use a main-process-owned native masked prompt invoked through `/usr/bin/osascript`. This checkpoint designs the bounded SerpApi provisioning slice only; it changes no production behavior.
+
+### Design and plan artifacts
+
+```text
+docs/superpowers/specs/2026-09-23-serpapi-secure-provisioning-design.md
+docs/superpowers/plans/2026-09-23-serpapi-secure-provisioning-implementation-plan.md
+```
+
+The design keeps `WorkspaceConnectionManagementService` as the single serialized connection mutation boundary. A new main-only `SecretIngressPort` is implemented by a macOS adapter that supplies one fixed AppleScript program through child stdin, not argv, and captures the submitted plaintext only through a bounded private stdout pipe. A provider-specific SerpApi credential acquirer owns structural validation, fresh opaque-reference creation, and the secure-store write, so the workspace mutation service never receives plaintext.
+
+The renderer intent is exactly Workspace ID plus `source_id: 'serpapi'`. Initial provisioning, missing-key re-provisioning, and available-key replacement use one action. Replacement writes a fresh credential first, then atomically rebinds the exact SerpApi row; the old reference remains authoritative until rebind commits and is deleted only after a global zero-reference check. Cancel, ingress failure, invalid structure, store failure, publication/rebind failure, compensation failure, cleanup warning, and readiness-refresh failure all have explicit secret-free semantics.
+
+The fixed native process design uses `/usr/bin/osascript`, `shell:false`, empty argv, AppleScript through stdin, a 120-second timeout, independent 1024-byte stdout/stderr caps, fixed submitted/cancel sentinels, no clipboard, and no temporary file. Submitted SerpApi values receive only minimal offline structural validation: 1–512 printable ASCII bytes with no whitespace/control characters. Provider validity remains outside the slice.
+
+### Architecture decision
+
+`DECISIONS.md` now records ADR-066 as accepted. It captures the approved main-owned native prompt direction, renderer isolation, and deferred/rejected alternatives. The detailed process, atomicity, test, UI, and acceptance contracts remain in the new design spec.
+
+Candidate B remains deferred as an operator/recovery option. Clipboard remains rejected as the normal product contract. A custom bundled native helper remains deferred. No existing ADR history was rewritten.
+
+### Planned verification and acceptance boundary
+
+The TDD plan contains eight small working checkpoints covering exact secret-free intent normalization, deterministic native-adapter behavior, a narrow SerpApi credential acquirer, serialized fresh-reference publication/replacement, trusted IPC/preload, Workspace UI, full deterministic release gating/packaging, and documentation closure.
+
+Deterministic tests inject fake process, ingress, store, repository, and service boundaries. They make no live provider request and do not launch a real native prompt. Because main/preload/privileged connection behavior will change during implementation, the plan requires focused tests, related connection/SerpApi regressions, typecheck, lint, diff check, full deterministic release gate, and `npm run package`.
+
+Real packaged macOS arm64 prompt/store behavior is a later separately explicit acceptance run. It must cover prompt visibility/focus/masking/cancel/timeout, synthetic real-store persistence, log non-disclosure, replacement safety, cleanup, and intended-distribution signing/hardened-runtime/notarization when that configuration exists. It makes no SerpApi request.
+
+### Scope preserved
+
+- No production TypeScript, IPC, preload, renderer, schema, store, or provider behavior changed in this checkpoint.
+- `DESKTOP_CONNECTIONS` remains unchanged.
+- SQLite remains schema v8.
+- No real or synthetic credential was persisted.
+- No native prompt, provider call, release gate, or package command was run for this documentation-only task.
+- UXH3, SerpApi collection, provider validation, Google secret ingress, clipboard, external CLI provisioning, and a custom native helper remain out of scope.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Exact next action
+
+Stop before production work and obtain explicit approval of:
+
+```text
+docs/superpowers/plans/2026-09-23-serpapi-secure-provisioning-implementation-plan.md
+```
+
+Only after that separate approval should implementation begin with Task 1 RED. Do not start SerpApi collection, packaged native-prompt acceptance, or UXH3 as part of that approval.

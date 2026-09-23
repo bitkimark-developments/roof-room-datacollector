@@ -1959,6 +1959,25 @@ Missing storefront URL, sale price, stock, or attributes remain `NULL`; they are
 
 ---
 
+# ADR-066 — macOS User-Entered Secrets Use a Main-Owned Native Masked Prompt
+
+**Status:** ACCEPTED
+**Approved direction:** 2026-09-23
+
+## Decision
+
+On macOS, user-entered provider secrets enter RoofRoom through a main-process-only `SecretIngressPort` backed by the system `/usr/bin/osascript` executable and a native `display dialog ... hidden answer` prompt. The renderer sends only a declarative secret-free action. The fixed AppleScript program is supplied through child stdin rather than argv; the submitted plaintext returns through a bounded private pipe and is handed immediately to the existing credential-store boundary.
+
+The first approved production consumer is SerpApi API-key provisioning. The ingress adapter does not own provider calls, SQLite publication, logging, or persistence. Visual masking is not encryption, and JavaScript string zeroization is not guaranteed; the security contract is main-only scope, no logging, bounded execution/output, minimal plaintext lifetime, and immediate OS-backed encrypted storage.
+
+## Consequences
+
+No API key, prompt output, credential reference, clipboard operation, or raw subprocess error crosses preload or renderer IPC. External TTY provisioning remains a deferred operator/recovery option. Clipboard ingress is rejected as the normal product contract because global/history/restore risks cannot be controlled. A custom bundled native helper remains deferred because it adds build, nested-signing, notarization, and maintenance cost without current evidence that the system prompt is insufficient.
+
+Deterministic tests inject fake process/ingress/store boundaries and never open a native prompt or call a provider. A separate packaged macOS arm64 acceptance check is required for prompt visibility, focus, cancellation, real secure-store handoff with a synthetic value, log non-disclosure, and eventual intended-distribution signing/hardened-runtime/notarization behavior.
+
+---
+
 # 4. Deferred Decisions
 
 The following decisions are intentionally not locked in M0.
@@ -2377,6 +2396,7 @@ Validation is mandatory.
 | ADR-063 | SerpApi uses one Workspace-scoped query Job with raw JSON plus organic/PAA normalization | ACCEPTED |
 | ADR-064 | Generalized desktop flow delegates Workspace drafts, readiness, reservation, retry, and source-separated packages to existing Core contracts | ACCEPTED |
 | ADR-065 | İkas production XLSX mapping uses exact identity/price headers and label-based variant attributes; storefront URL is unavailable without explicit evidence | ACCEPTED |
+| ADR-066 | macOS user-entered secrets use a main-owned native masked prompt through /usr/bin/osascript | ACCEPTED |
 
 ---
 
