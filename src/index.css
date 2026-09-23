@@ -566,6 +566,46 @@ p {
   background: var(--rr-purple-strong);
 }
 
+.rr-connection-panel {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.rr-connection-panel > p {
+  margin: 0;
+}
+
+.rr-connection-fields {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.rr-connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.rr-connection-actions button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--rr-border);
+  border-radius: 8px;
+  background: var(--rr-surface-soft);
+  color: var(--rr-text);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.rr-connection-note {
+  color: var(--rr-text-soft);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
 .rr-field input {
   width: 100%;
   margin-top: 2px;

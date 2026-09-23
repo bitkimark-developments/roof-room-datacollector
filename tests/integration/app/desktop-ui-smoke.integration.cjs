@@ -202,6 +202,50 @@ const main = async () => {
         sourceCards: cards,
         draft: blankDraft,
       }) => {
+        window.__workspaceConnectionReadCount = 0;
+        window.__workspaceConnectionMutationCalls = [];
+        window.__workspaceConnectionState = [
+          {
+            source_id: 'google-search-console-query-page',
+            credential_status: 'AVAILABLE',
+            readiness_status: 'MANUAL_ACTION_REQUIRED',
+            credential_ref: 'cred:do-not-render',
+            secret: 'do-not-leak',
+          },
+          {
+            source_id: 'google-ads-search-terms',
+            credential_status: 'MISSING',
+            readiness_status: 'CONNECTION_REQUIRED',
+          },
+          {
+            source_id: 'google-keyword-planner',
+            credential_status: 'NOT_CONFIGURED',
+            readiness_status: 'CONFIGURATION_REQUIRED',
+          },
+          {
+            source_id: 'serpapi',
+            credential_status: 'AVAILABLE',
+            readiness_status: 'READY',
+          },
+        ];
+        const completeWorkspaceMutation = async (sourceId, action) => {
+          if (window.__holdWorkspaceMutation) {
+            await new Promise((resolve) => {
+              window.__releaseWorkspaceMutation = resolve;
+            });
+            window.__holdWorkspaceMutation = false;
+          }
+          const next = window.__workspaceMutationResult;
+          window.__workspaceMutationResult = null;
+          return next ?? {
+            ok: true,
+            result: {
+              source_id: sourceId,
+              action,
+              outcome: 'SUCCEEDED',
+            },
+          };
+        };
         window.roofroom = {
           // Legacy bridge methods remain available during renderer migration.
           getApplicationInfo: async () => info,
@@ -263,31 +307,42 @@ const main = async () => {
           getDesktopWorkspaceConnections: async (workspaceId) => {
             window.__desktopWorkspaceConnectionsWorkspaceId =
               workspaceId;
+            window.__workspaceConnectionReadCount += 1;
+            if (window.__nextWorkspaceConnectionState) {
+              window.__workspaceConnectionState =
+                window.__nextWorkspaceConnectionState;
+              window.__nextWorkspaceConnectionState = null;
+            }
+            return structuredClone(window.__workspaceConnectionState);
+          },
 
-            return [
-              {
-                source_id: 'google-search-console-query-page',
-                credential_status: 'AVAILABLE',
-                readiness_status: 'MANUAL_ACTION_REQUIRED',
-                credential_ref: 'cred:do-not-render',
-                secret: 'do-not-leak',
-              },
-              {
-                source_id: 'google-ads-search-terms',
-                credential_status: 'MISSING',
-                readiness_status: 'CONNECTION_REQUIRED',
-              },
-              {
-                source_id: 'google-keyword-planner',
-                credential_status: 'NOT_CONFIGURED',
-                readiness_status: 'CONFIGURATION_REQUIRED',
-              },
-              {
-                source_id: 'serpapi',
-                credential_status: 'AVAILABLE',
-                readiness_status: 'READY',
-              },
-            ];
+          manageDesktopWorkspaceConnection: async (intent) => {
+            window.__workspaceConnectionMutationCalls.push([
+              'manageDesktopWorkspaceConnection',
+              structuredClone(intent),
+            ]);
+            return completeWorkspaceMutation(intent.source_id, 'MANAGE_METADATA');
+          },
+          disconnectDesktopWorkspaceConnection: async (intent) => {
+            window.__workspaceConnectionMutationCalls.push([
+              'disconnectDesktopWorkspaceConnection',
+              structuredClone(intent),
+            ]);
+            return completeWorkspaceMutation(intent.source_id, 'DISCONNECT');
+          },
+          connectGoogleDesktopWorkspaceConnection: async (intent) => {
+            window.__workspaceConnectionMutationCalls.push([
+              'connectGoogleDesktopWorkspaceConnection',
+              structuredClone(intent),
+            ]);
+            return completeWorkspaceMutation(intent.source_id, 'CONNECT_GOOGLE');
+          },
+          reconnectGoogleDesktopWorkspaceConnection: async (intent) => {
+            window.__workspaceConnectionMutationCalls.push([
+              'reconnectGoogleDesktopWorkspaceConnection',
+              structuredClone(intent),
+            ]);
+            return completeWorkspaceMutation(intent.source_id, 'RECONNECT_GOOGLE');
           },
 
           getDesktopPresets: async () => [
@@ -1945,6 +2000,158 @@ const main = async () => {
       }).count(),
       0,
       'Secret material must never be rendered.',
+    );
+
+    const gscConnection = page.getByTestId(
+      'workspace-connection-google-search-console-query-page',
+    );
+    const adsConnection = page.getByTestId(
+      'workspace-connection-google-ads-search-terms',
+    );
+    const plannerConnection = page.getByTestId(
+      'workspace-connection-google-keyword-planner',
+    );
+    const serpApiConnection = page.getByTestId(
+      'workspace-connection-serpapi',
+    );
+
+    assert.equal(await gscConnection.getByRole('button', { name: 'Manage' }).count(), 1);
+    assert.equal(await gscConnection.getByRole('button', { name: 'Disconnect' }).count(), 1);
+    assert.equal(await adsConnection.getByRole('button', { name: 'Reconnect' }).count(), 1);
+    assert.equal(await adsConnection.getByRole('button', { name: 'Disconnect' }).count(), 1);
+    assert.equal(await plannerConnection.getByRole('button', { name: 'Connect' }).count(), 1);
+    assert.equal(await serpApiConnection.getByRole('button', { name: 'Disconnect' }).count(), 1);
+    assert.equal(await serpApiConnection.getByRole('button', { name: /Connect|Reconnect|Manage/ }).count(), 0);
+    assert.equal(await serpApiConnection.getByRole('textbox').count(), 0);
+    await serpApiConnection.getByText(
+      'Secure API-key provisioning is a separate approved flow.',
+      { exact: true },
+    ).waitFor();
+    assert.equal(await page.getByText(/clipboard/i).count(), 0);
+    assert.equal(await page.getByLabel('Site URL for google-search-console-query-page').inputValue(), '');
+    assert.equal(await page.getByLabel('Customer ID for google-ads-search-terms', { exact: true }).inputValue(), '');
+    assert.equal(await page.getByLabel('Login customer ID for google-ads-search-terms').inputValue(), '');
+    assert.equal(await page.getByLabel('Customer ID for google-keyword-planner', { exact: true }).inputValue(), '');
+    assert.equal(await page.getByLabel('Login customer ID for google-keyword-planner').inputValue(), '');
+
+    await page.getByLabel('Site URL for google-search-console-query-page').fill(
+      ' sc-domain:managed.example ',
+    );
+    await page.evaluate(() => {
+      window.__holdWorkspaceMutation = true;
+      window.__nextWorkspaceConnectionState = window.__workspaceConnectionState.map(
+        (connection) => connection.source_id === 'google-search-console-query-page'
+          ? { ...connection, readiness_status: 'READY' }
+          : connection,
+      );
+    });
+    await gscConnection.getByRole('button', { name: 'Manage' }).click();
+    await gscConnection.getByRole('button', { name: 'Manage' }).waitFor({ state: 'attached' });
+    await page.waitForFunction(() => {
+      const row = document.querySelector(
+        '[data-testid="workspace-connection-google-search-console-query-page"]',
+      );
+      return [...(row?.querySelectorAll('button') ?? [])].some(
+        (button) => button.textContent?.trim() === 'Manage' && button.disabled,
+      );
+    });
+    await gscConnection.getByRole('button', { name: 'Manage' }).evaluate((button) => button.click());
+    assert.equal(
+      await page.evaluate(() => window.__workspaceConnectionMutationCalls.length),
+      1,
+      'A pending row mutation must not double-submit.',
+    );
+    await page.evaluate(() => window.__releaseWorkspaceMutation());
+    await gscConnection.getByText('Readiness: READY', { exact: true }).waitFor();
+
+    await page.getByLabel('Customer ID for google-ads-search-terms', { exact: true }).fill(' 123 ');
+    await page.getByLabel('Login customer ID for google-ads-search-terms').fill(' 456 ');
+    await page.evaluate(() => {
+      window.__workspaceMutationResult = {
+        ok: false,
+        error: {
+          code: 'OAUTH_MANUAL_ACTION_REQUIRED',
+          source_id: 'google-ads-search-terms',
+          retryable: false,
+          raw_error: 'do-not-render-provider-error',
+        },
+      };
+      window.__nextWorkspaceConnectionState = window.__workspaceConnectionState.map(
+        (connection) => connection.source_id === 'google-ads-search-terms'
+          ? { ...connection, readiness_status: 'MANUAL_ACTION_REQUIRED' }
+          : connection,
+      );
+    });
+    await adsConnection.getByRole('button', { name: 'Reconnect' }).click();
+    await page.getByText('Google authorization needs your attention.', { exact: true }).waitFor();
+    assert.equal(await page.getByText('do-not-render-provider-error', { exact: false }).count(), 0);
+
+    await page.getByLabel('Customer ID for google-keyword-planner', { exact: true }).fill(' 789 ');
+    await page.evaluate(() => {
+      window.__workspaceMutationResult = {
+        ok: true,
+        result: {
+          source_id: 'google-keyword-planner',
+          action: 'CONNECT_GOOGLE',
+          outcome: 'SUCCEEDED_WITH_CLEANUP_WARNING',
+        },
+      };
+      window.__nextWorkspaceConnectionState = window.__workspaceConnectionState.map(
+        (connection) => connection.source_id === 'google-keyword-planner'
+          ? { ...connection, credential_status: 'AVAILABLE', readiness_status: 'READY' }
+          : connection,
+      );
+    });
+    await plannerConnection.getByRole('button', { name: 'Connect' }).click();
+    await page.getByText(
+      'Connection updated, but obsolete credential cleanup needs attention.',
+      { exact: true },
+    ).waitFor();
+
+    await page.evaluate(() => {
+      window.__nextWorkspaceConnectionState = window.__workspaceConnectionState.map(
+        (connection) => connection.source_id === 'serpapi'
+          ? { ...connection, credential_status: 'NOT_CONFIGURED', readiness_status: 'CONFIGURATION_REQUIRED' }
+          : connection,
+      );
+    });
+    await serpApiConnection.getByRole('button', { name: 'Disconnect' }).click();
+    await serpApiConnection.getByText('Credential: NOT_CONFIGURED', { exact: true }).waitFor();
+
+    assert.equal(
+      await page.evaluate(() => window.__workspaceConnectionReadCount),
+      5,
+      'Initial read plus every success, safe failure, warning, and disconnect must refresh in finally.',
+    );
+    assert.deepEqual(
+      await page.evaluate(() => window.__workspaceConnectionMutationCalls),
+      [
+        ['manageDesktopWorkspaceConnection', {
+          workspace_id: 'ws_fixture',
+          source_id: 'google-search-console-query-page',
+          metadata: { site_url: 'sc-domain:managed.example' },
+        }],
+        ['reconnectGoogleDesktopWorkspaceConnection', {
+          workspace_id: 'ws_fixture',
+          source_id: 'google-ads-search-terms',
+          metadata: { customer_id: '123', login_customer_id: '456' },
+        }],
+        ['connectGoogleDesktopWorkspaceConnection', {
+          workspace_id: 'ws_fixture',
+          source_id: 'google-keyword-planner',
+          metadata: { customer_id: '789' },
+        }],
+        ['disconnectDesktopWorkspaceConnection', {
+          workspace_id: 'ws_fixture',
+          source_id: 'serpapi',
+        }],
+      ],
+      'Each action must invoke only its dedicated typed preload method with renderer-safe metadata.',
+    );
+    assert.equal(
+      JSON.stringify(await page.evaluate(() => window.__workspaceConnectionMutationCalls))
+        .includes('credential_ref'),
+      false,
     );
 
     await page.getByRole(

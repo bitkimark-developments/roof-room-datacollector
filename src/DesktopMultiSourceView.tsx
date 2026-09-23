@@ -11,6 +11,7 @@ import {
 } from './desktop-task-catalog';
 import type {
   DesktopReview,
+  DesktopCredentialManagedSourceId,
   DesktopReadinessStatus,
   DesktopRunDraft,
   DesktopWorkspaceConnectionView,
@@ -38,6 +39,38 @@ type View =
 type UiReadiness =
   | DesktopReadinessStatus
   | 'NOT_YET_AVAILABLE';
+
+type WorkspaceConnectionDraft = {
+  site_url: string;
+  customer_id: string;
+  login_customer_id: string;
+};
+
+type WorkspaceConnectionAction =
+  | 'MANAGE'
+  | 'DISCONNECT'
+  | 'CONNECT_GOOGLE'
+  | 'RECONNECT_GOOGLE';
+
+const EMPTY_WORKSPACE_CONNECTION_DRAFT: WorkspaceConnectionDraft = {
+  site_url: '',
+  customer_id: '',
+  login_customer_id: '',
+};
+
+const CONNECTION_ERROR_COPY: Record<string, string> = {
+  INVALID_CONNECTION_INTENT: 'Connection details are invalid.',
+  CONNECTION_NOT_FOUND: 'The Workspace connection no longer exists.',
+  CONNECTION_ALREADY_EXISTS: 'This Workspace connection already exists.',
+  CONNECTION_CONFIGURATION_UNAVAILABLE: 'Main-process Google configuration is unavailable.',
+  OAUTH_MANUAL_ACTION_REQUIRED: 'Google authorization needs your attention.',
+  OAUTH_ACQUISITION_FAILED: 'Google authorization could not be completed.',
+  CREDENTIAL_PERSISTENCE_FAILED: 'The protected credential could not be saved.',
+  CONNECTION_PERSISTENCE_FAILED: 'The Workspace connection could not be saved.',
+  CONNECTION_REBIND_FAILED: 'The Workspace connection could not be replaced safely.',
+  DISCONNECT_CREDENTIAL_DELETE_FAILED: 'Disconnect could not remove the protected credential safely.',
+  DISCONNECT_COMPENSATION_FAILED: 'Disconnect could not restore the previous connection safely.',
+};
 
 const GROUPS:
   readonly DesktopTaskGroup[] = [
@@ -631,6 +664,19 @@ export function DesktopMultiSourceView() {
     >([]);
 
   const [
+    workspaceConnectionDrafts,
+    setWorkspaceConnectionDrafts,
+  ] = useState<Partial<Record<
+    DesktopCredentialManagedSourceId,
+    WorkspaceConnectionDraft
+  >>>({});
+
+  const [
+    pendingWorkspaceConnectionSource,
+    setPendingWorkspaceConnectionSource,
+  ] = useState<DesktopCredentialManagedSourceId | null>(null);
+
+  const [
     presets,
     setPresets,
   ] =
@@ -967,12 +1013,15 @@ export function DesktopMultiSourceView() {
 
     if (!workspaceId) {
       setWorkspaceConnections([]);
+      setWorkspaceConnectionDrafts({});
 
       return () => {
         mounted =
           false;
       };
     }
+
+    setWorkspaceConnectionDrafts({});
 
     window.roofroom
       .getDesktopWorkspaceConnections(
@@ -2004,6 +2053,137 @@ export function DesktopMultiSourceView() {
         );
       }
     };
+
+  const updateWorkspaceConnectionDraft = (
+    sourceId: DesktopCredentialManagedSourceId,
+    field: keyof WorkspaceConnectionDraft,
+    value: string,
+  ): void => {
+    setWorkspaceConnectionDrafts((current) => ({
+      ...current,
+      [sourceId]: {
+        ...EMPTY_WORKSPACE_CONNECTION_DRAFT,
+        ...current[sourceId],
+        [field]: value,
+      },
+    }));
+  };
+
+  const mutateWorkspaceConnection = async (
+    sourceId: DesktopCredentialManagedSourceId,
+    action: WorkspaceConnectionAction,
+  ): Promise<void> => {
+    if (
+      workspaceId.length === 0
+      || pendingWorkspaceConnectionSource !== null
+    ) {
+      return;
+    }
+
+    const draft = workspaceConnectionDrafts[sourceId]
+      ?? EMPTY_WORKSPACE_CONNECTION_DRAFT;
+    setPendingWorkspaceConnectionSource(sourceId);
+    setMessage(null);
+
+    try {
+      let response;
+      if (action === 'DISCONNECT') {
+        response = await window.roofroom.disconnectDesktopWorkspaceConnection({
+          workspace_id: workspaceId,
+          source_id: sourceId,
+        });
+      } else if (sourceId === 'serpapi') {
+        setMessage('Secure API-key provisioning requires a separately approved flow.');
+        return;
+      } else if (sourceId === 'google-search-console-query-page') {
+        const siteUrl = draft.site_url.trim();
+        if (action !== 'RECONNECT_GOOGLE' && siteUrl.length === 0) {
+          setMessage('Enter a Site URL before updating this connection.');
+          return;
+        }
+        const metadata = siteUrl.length === 0
+          ? undefined
+          : { site_url: siteUrl };
+        if (action === 'MANAGE') {
+          response = await window.roofroom.manageDesktopWorkspaceConnection({
+            workspace_id: workspaceId,
+            source_id: sourceId,
+            metadata: metadata!,
+          });
+        } else if (action === 'CONNECT_GOOGLE') {
+          response = await window.roofroom.connectGoogleDesktopWorkspaceConnection({
+            workspace_id: workspaceId,
+            source_id: sourceId,
+            metadata: metadata!,
+          });
+        } else {
+          response = await window.roofroom.reconnectGoogleDesktopWorkspaceConnection({
+            workspace_id: workspaceId,
+            source_id: sourceId,
+            ...(metadata === undefined ? {} : { metadata }),
+          });
+        }
+      } else {
+        const customerId = draft.customer_id.trim();
+        const loginCustomerId = draft.login_customer_id.trim();
+        if (action !== 'RECONNECT_GOOGLE' && customerId.length === 0) {
+          setMessage('Enter a Customer ID before updating this connection.');
+          return;
+        }
+        const metadata = customerId.length === 0
+          ? undefined
+          : {
+            customer_id: customerId,
+            ...(loginCustomerId.length === 0
+              ? {}
+              : { login_customer_id: loginCustomerId }),
+          };
+        if (action === 'MANAGE') {
+          response = await window.roofroom.manageDesktopWorkspaceConnection({
+            workspace_id: workspaceId,
+            source_id: sourceId,
+            metadata: metadata!,
+          });
+        } else if (action === 'CONNECT_GOOGLE') {
+          response = await window.roofroom.connectGoogleDesktopWorkspaceConnection({
+            workspace_id: workspaceId,
+            source_id: sourceId,
+            metadata: metadata!,
+          });
+        } else {
+          response = await window.roofroom.reconnectGoogleDesktopWorkspaceConnection({
+            workspace_id: workspaceId,
+            source_id: sourceId,
+            ...(metadata === undefined ? {} : { metadata }),
+          });
+        }
+      }
+
+      if (response.ok === false) {
+        setMessage(
+          CONNECTION_ERROR_COPY[response.error.code]
+            ?? 'The Workspace connection could not be updated.',
+        );
+      } else if (response.result.outcome === 'SUCCEEDED_WITH_CLEANUP_WARNING') {
+        setMessage(
+          'Connection updated, but obsolete credential cleanup needs attention.',
+        );
+      } else {
+        setMessage('Workspace connection updated.');
+      }
+    } catch {
+      setMessage('The Workspace connection could not be updated.');
+    } finally {
+      try {
+        const refreshed = await window.roofroom
+          .getDesktopWorkspaceConnections(workspaceId);
+        setWorkspaceConnections(refreshed);
+      } catch {
+        setMessage('Workspace connection state could not be refreshed.');
+      }
+      setPendingWorkspaceConnectionSource(null);
+    }
+  };
 
   return (
     <main
@@ -3626,36 +3806,170 @@ export function DesktopMultiSourceView() {
                   data-testid="workspace-connections"
                 >
                   {workspaceConnections.map(
-                    (connection) => (
-                      <article
-                        key={
-                          connection
-                            .source_id
-                        }
-                        className="rr-panel rr-detail-panel"
-                      >
-                        <strong>
-                          {
-                            connection
-                              .source_id
-                          }
-                        </strong>
+                    (connection) => {
+                      const draft = workspaceConnectionDrafts[
+                        connection.source_id
+                      ] ?? EMPTY_WORKSPACE_CONNECTION_DRAFT;
+                      const pending = pendingWorkspaceConnectionSource
+                        === connection.source_id;
+                      const isGoogle = connection.source_id !== 'serpapi';
+                      const requiredMetadataReady = connection.source_id
+                        === 'google-search-console-query-page'
+                        ? draft.site_url.trim().length > 0
+                        : draft.customer_id.trim().length > 0;
 
-                        <p>
-                          Credential: {
-                            connection
-                              .credential_status
-                          }
-                        </p>
+                      return (
+                        <article
+                          key={connection.source_id}
+                          className="rr-panel rr-detail-panel rr-connection-panel"
+                          data-testid={`workspace-connection-${connection.source_id}`}
+                        >
+                          <strong>
+                            {connection.source_id}
+                          </strong>
 
-                        <p>
-                          Readiness: {
-                            connection
-                              .readiness_status
-                          }
-                        </p>
-                      </article>
-                    ),
+                          <p>
+                            Credential: {connection.credential_status}
+                          </p>
+
+                          <p>
+                            Readiness: {connection.readiness_status}
+                          </p>
+
+                          {isGoogle && (
+                            <div className="rr-connection-fields">
+                              {connection.source_id
+                                === 'google-search-console-query-page'
+                                ? (
+                                  <label className="rr-field">
+                                    <span>Site URL</span>
+                                    <input
+                                      aria-label={`Site URL for ${connection.source_id}`}
+                                      type="text"
+                                      autoComplete="off"
+                                      value={draft.site_url}
+                                      onChange={(event) => {
+                                        updateWorkspaceConnectionDraft(
+                                          connection.source_id,
+                                          'site_url',
+                                          event.target.value,
+                                        );
+                                      }}
+                                    />
+                                  </label>
+                                )
+                                : (
+                                  <>
+                                    <label className="rr-field">
+                                      <span>Customer ID</span>
+                                      <input
+                                        aria-label={`Customer ID for ${connection.source_id}`}
+                                        type="text"
+                                        autoComplete="off"
+                                        value={draft.customer_id}
+                                        onChange={(event) => {
+                                          updateWorkspaceConnectionDraft(
+                                            connection.source_id,
+                                            'customer_id',
+                                            event.target.value,
+                                          );
+                                        }}
+                                      />
+                                    </label>
+                                    <label className="rr-field">
+                                      <span>Login customer ID (optional)</span>
+                                      <input
+                                        aria-label={`Login customer ID for ${connection.source_id}`}
+                                        type="text"
+                                        autoComplete="off"
+                                        value={draft.login_customer_id}
+                                        onChange={(event) => {
+                                          updateWorkspaceConnectionDraft(
+                                            connection.source_id,
+                                            'login_customer_id',
+                                            event.target.value,
+                                          );
+                                        }}
+                                      />
+                                    </label>
+                                  </>
+                                )}
+                            </div>
+                          )}
+
+                          {connection.source_id === 'serpapi' && (
+                            <p className="rr-connection-note">
+                              Secure API-key provisioning is a separate approved flow.
+                            </p>
+                          )}
+
+                          <div className="rr-connection-actions">
+                            {isGoogle
+                              && connection.credential_status === 'AVAILABLE'
+                              && (
+                                <button
+                                  type="button"
+                                  disabled={pending || !requiredMetadataReady}
+                                  onClick={() => {
+                                    void mutateWorkspaceConnection(
+                                      connection.source_id,
+                                      'MANAGE',
+                                    );
+                                  }}
+                                >
+                                  Manage
+                                </button>
+                              )}
+                            {isGoogle
+                              && connection.credential_status === 'MISSING'
+                              && (
+                                <button
+                                  type="button"
+                                  disabled={pending}
+                                  onClick={() => {
+                                    void mutateWorkspaceConnection(
+                                      connection.source_id,
+                                      'RECONNECT_GOOGLE',
+                                    );
+                                  }}
+                                >
+                                  Reconnect
+                                </button>
+                              )}
+                            {isGoogle
+                              && connection.credential_status === 'NOT_CONFIGURED'
+                              && (
+                                <button
+                                  type="button"
+                                  disabled={pending || !requiredMetadataReady}
+                                  onClick={() => {
+                                    void mutateWorkspaceConnection(
+                                      connection.source_id,
+                                      'CONNECT_GOOGLE',
+                                    );
+                                  }}
+                                >
+                                  Connect
+                                </button>
+                              )}
+                            {connection.credential_status !== 'NOT_CONFIGURED' && (
+                              <button
+                                type="button"
+                                disabled={pending}
+                                onClick={() => {
+                                  void mutateWorkspaceConnection(
+                                    connection.source_id,
+                                    'DISCONNECT',
+                                  );
+                                }}
+                              >
+                                Disconnect
+                              </button>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    },
                   )}
                 </div>
               </section>
