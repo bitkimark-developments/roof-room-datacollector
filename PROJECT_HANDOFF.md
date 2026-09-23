@@ -4,11 +4,11 @@
 
 **Current milestone:** Post-R1 UX & Operations Hardening — UXH2 Workspace Connections
 
-**Current stage:** UXH2-B safe Workspace connection read IPC and read-only renderer surface complete; connection write-side actions have not started
+**Current stage:** UXH2 Workspace connection write-side foundation, Google OAuth actions, trusted IPC, and bounded renderer management complete
 
-**Current goal:** Preserve the verified UXH2-B checkpoint, reconcile canonical documentation with live repository truth, and hand off the next bounded Workspace-connection slice without reopening verified Core/source contracts
+**Current goal:** Preserve the verified UXH2 write-side closure and hand off the separate macOS secure secret-ingress decision spike without starting UXH3
 
-**Current-state authority:** Section 46 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 46.
+**Current-state authority:** Section 47 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 47.
 
 ---
 
@@ -29,8 +29,8 @@ main
 Technical HEAD recorded before this separate handoff documentation commit:
 
 ```text
-0b41d9efe1afc97fa6613dce7cb3a1c31c384a1d
-0b41d9e feat: expose safe workspace connection status
+c79ef0a18c40dc0778d6ca3fd646aab53c921e17
+c79ef0a test: gate workspace connection writes
 ```
 
 The technical checkpoint contains the approved implementation, deterministic tests, and release-gate wiring. This separate documentation checkpoint reconciles the canonical contract documents with that verified repository state.
@@ -66,7 +66,7 @@ Collect → Preserve → Validate → Document → Export
 
 Workspace is now a first-class Core identity for brand/business isolation. Every Run belongs to exactly one Workspace, while one Run may still contain independently source-keyed Jobs from multiple sources.
 
-This checkpoint does not add Workspace UI or lifecycle screens, Presets, Last Run Settings, credential management, provider changes, multi-source application composition, generalized export, source-specific timeout work, or a new Cancel/Stop/Resume workflow.
+The authoritative current checkpoint in Section 47 adds bounded Workspace connection UI and privileged mutation management. It does not add broader Workspace lifecycle screens, SerpApi secret provisioning, provider scope, generalized export changes, source-specific timeout work, or a new Cancel/Stop/Resume workflow.
 
 Google Trends remains the reference browser source. GSC, Google Ads Search Terms, Keyword Planner, İkas, Bitkimark XML, and SERP retain approved feasibility paths; the İkas Products parser/validator now accepts and locks the verified production XLSX mapping. Semrush is not active Release 1.0 scope.
 
@@ -2475,3 +2475,147 @@ Hand off this verified checkpoint before starting another feature slice.
 The next implementation work should remain inside **UXH2 — Workspace Connections** and begin with a fresh read-only audit and bounded plan for privileged write-side connection management. That audit must resolve source-specific Connect/Manage/Reconnect/Disconnect requirements, Google OAuth versus SerpApi API-key provisioning, safe renderer intent contracts, rollback behavior, and shared credential-reference deletion semantics before any write action is implemented.
 
 Do not start UXH3, structured editors, additional providers, or Core/source redesign as part of that handoff. Preserve the existing schema-v8 persistence model, renderer secret isolation, readiness/freshness separation, and the verified safe read path unless new failing evidence requires a contract change.
+
+---
+
+## 47. UXH2 — Workspace Connection Write-Side closure — 2026-09-23
+
+UXH2 write-side implementation is complete for credential-secret-free mutation foundations, Google OAuth Connect/Reconnect, safe metadata Manage, Disconnect, trusted desktop IPC/preload, and bounded Workspace UI actions. The implementation preserves schema v8 and the verified safe read path. It does not add SerpApi secret ingress or start UXH3.
+
+### Privileged write boundary
+
+`WorkspaceConnectionManagementService` is the serialized main-process mutation boundary. Renderer requests cross only four dedicated trusted IPC/preload methods:
+
+```text
+manageDesktopWorkspaceConnection
+disconnectDesktopWorkspaceConnection
+connectGoogleDesktopWorkspaceConnection
+reconnectGoogleDesktopWorkspaceConnection
+```
+
+Main validates the trusted sender first, normalizes the entire intent as unknown data, allowlists source-specific safe metadata, and rejects unknown or secret-shaped fields before service delegation. Main also validates the service result before returning it through preload.
+
+The unchanged read path remains:
+
+```text
+DesktopMultiSourceController.getWorkspaceConnections(workspace_id)
+→ trusted DESKTOP_CONNECTIONS main IPC
+→ preload getDesktopWorkspaceConnections(workspace_id)
+→ Workspace renderer
+```
+
+Its renderer payload remains exactly:
+
+```text
+source_id
+credential_status
+readiness_status
+```
+
+Write results contain only source, action, and `SUCCEEDED` or `SUCCEEDED_WITH_CLEANUP_WARNING`. Safe failures contain only a fixed error code, optional source, and retryable flag. `credential_ref`, OAuth refresh tokens, API keys, developer tokens, client secrets, provider errors, and raw exceptions do not enter renderer state.
+
+### Schema-v8 mutation and compensation semantics
+
+No schema migration was introduced. The schema-v8 repository now supports:
+
+- exact Workspace/source connection-row deletion with the complete removed record returned for compensation;
+- restoration of that complete record;
+- global credential-reference counts across Workspaces and sources;
+- atomic exact rebind by Workspace, source allowlist, expected old reference, and replacement reference;
+- optional allowlisted safe-metadata updates in the same rebind transaction.
+
+Disconnect removes only the selected connection row. If another row still references the credential, the underlying material is retained. If it was the final reference, credential deletion is attempted; deletion or reference-count failure restores the row, with a distinct safe diagnostic if restoration itself fails.
+
+Google Connect publishes the connection row only after main-owned credential acquisition. A newly acquired credential is removed when row publication fails and no persisted reference exists. Google Reconnect acquires a replacement, then atomically rebinds the exact target. Ads Search Terms and Keyword Planner are rebound together only when the same-Workspace sibling uses the exact old reference. Old credential material is deleted only after a global zero-reference check; cleanup failure becomes a non-fatal fixed warning after the new binding has committed. Repository lookup failure now fails closed before OAuth acquisition or any partial shared rebind.
+
+### Google OAuth and deferred SerpApi ingress
+
+Google acquisition remains main-owned: system browser, PKCE, loopback callback, token exchange, encrypted credential storage, and application configuration never cross IPC. Existing encrypted bundles may provide reconnect configuration. The normal application configuration provider intentionally returns unavailable for a first Connect until a separate approved main-owned configuration path exists. A compatible same-Workspace Ads/Keyword Planner credential may be reused without another OAuth acquisition.
+
+SerpApi may be disconnected because Disconnect requires no secret ingress. SerpApi Connect, Reconnect, Manage, API-key input, clipboard access, external provisioning, and a production `SecretIngressPort` remain absent. The Workspace UI explicitly identifies secure API-key provisioning as a separate approved flow.
+
+### Workspace UI behavior
+
+The Workspace page now provides:
+
+- Google `Manage` plus `Disconnect` when credentials are available;
+- Google `Reconnect` plus `Disconnect` when credentials are missing;
+- Google `Connect` when not configured;
+- SerpApi `Disconnect` only when a row exists;
+- local renderer drafts for GSC `site_url` and Ads/Keyword Planner `customer_id` plus optional `login_customer_id`;
+- row-pending button disablement and double-submit prevention;
+- fixed safe error and cleanup-warning copy;
+- an unconditional safe connection reread in the mutation `finally` path.
+
+Metadata drafts are not reconstructed from the read payload, because the read contract intentionally contains no metadata. Malicious extra fixture fields such as credential references, secrets, or raw provider errors are not rendered.
+
+### Deterministic verification and packaging
+
+The new deterministic runners are package scripts and are wired into `npm run test:release:gate` in dependency order. Verified markers include:
+
+```text
+PASS WORKSPACE-CONNECTION-MUTATIONS-001
+PASS WORKSPACE-CONNECTION-METADATA-001
+PASS GOOGLE-OAUTH-CREDENTIAL-ACQUIRER-001
+PASS WORKSPACE-CONNECTION-MANAGEMENT-SERVICE-001
+PASS GOOGLE-WORKSPACE-CONNECTION-MANAGEMENT-001
+PASS DESKTOP-CONNECTION-WRITE-MAIN-IPC-001
+PASS DESKTOP-CONNECTION-WRITE-IPC-001
+PASS DESKTOP-CONNECTION-WRITE-COMPOSITION-001
+PASS DESKTOP-UI-001
+PASS RELEASE-GATE-001
+```
+
+After the implementation-range review found and fixed the shared-sibling lookup fail-closed issue, the affected tests, typecheck, lint, full deterministic release gate, and Electron package command were rerun. The final release gate passed, and the final package run built the main, preload, and renderer targets and packaged macOS arm64 successfully. No live provider request was required or performed.
+
+Technical implementation checkpoints end at:
+
+```text
+32add5d fix: fail closed on shared connection lookup errors
+c79ef0a test: gate workspace connection writes
+```
+
+### Canonical documentation reconciliation
+
+Updated for lasting UXH2 write-side contracts:
+
+- `PROJECT_HANDOFF.md`
+- `ARCHITECTURE.md`
+- `DATA_CONTRACTS.md`
+- `TEST_STRATEGY.md`
+
+Audited and intentionally unchanged because their existing accepted contracts remain accurate:
+
+- `PROJECT_SPEC.md`
+- `VALIDATION_SPEC.md`
+- `SOURCE_MODULE_GUIDE.md`
+- `DECISIONS.md`
+
+No new ADR is required. This slice implements the already-approved Workspace credential/security boundaries and records source-specific mutation and compensation details in the architecture/data contracts.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Scope intentionally not entered
+
+UXH2 closure does not implement:
+
+- SerpApi API-key provisioning or replacement;
+- clipboard secret ingestion;
+- a native secure-input helper;
+- an external secret provisioning command;
+- a production `SecretIngressPort`;
+- Google account/property discovery payloads;
+- schema v9 or another persistence migration;
+- live provider acceptance for these UI mutations;
+- UXH3 or later hardening slices.
+
+### Exact next action
+
+Stop feature implementation at this boundary. The next separately approved action should remain inside **UXH2 — Workspace Connections** and run a small macOS **secure secret-ingress spike**.
+
+The spike must compare repository and platform evidence for: (1) a main-owned/native secure input prompt or small OS-native helper; (2) an explicit external secure provisioning command as fallback; and (3) clipboard only as a last resort with documented reasons safer candidates are unsuitable. It must assess secret lifetime and visibility, cancellation/failure cleanup, accessibility, packaging/signing/notarization, deterministic testability, and the effect on the user's current clipboard. Its result is a new decision/approval gate, not automatic production implementation.
+
+Do not start UXH3, SerpApi provisioning, another provider, schema work, or Core/source lifecycle redesign as part of this handoff.
