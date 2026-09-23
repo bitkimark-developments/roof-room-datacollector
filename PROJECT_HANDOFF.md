@@ -2619,3 +2619,51 @@ Stop feature implementation at this boundary. The next separately approved actio
 The spike must compare repository and platform evidence for: (1) a main-owned/native secure input prompt or small OS-native helper; (2) an explicit external secure provisioning command as fallback; and (3) clipboard only as a last resort with documented reasons safer candidates are unsuitable. It must assess secret lifetime and visibility, cancellation/failure cleanup, accessibility, packaging/signing/notarization, deterministic testability, and the effect on the user's current clipboard. Its result is a new decision/approval gate, not automatic production implementation.
 
 Do not start UXH3, SerpApi provisioning, another provider, schema work, or Core/source lifecycle redesign as part of this handoff.
+
+---
+
+## 48. UXH2 — macOS secure secret-ingress feasibility spike — 2026-09-23
+
+The bounded macOS secure secret-ingress spike is complete. It changed no production code and made no live provider request. Its full evidence and recommendation are recorded in:
+
+```text
+docs/superpowers/specs/2026-09-23-macos-secure-secret-ingress-spike-report.md
+```
+
+### Recommendation awaiting approval
+
+The recommended primary path is a main-owned macOS native masked prompt implemented through the system `/usr/bin/osascript` executable with a fixed `display dialog ... hidden answer` script, `shell:false`, private captured stdio, fixed safe errors, bounded input/output, and immediate handoff to the existing `CredentialStore`.
+
+This path keeps the secret out of renderer state, renderer IPC, argv, shell history, environment, ordinary config, temporary files, URLs, and clipboard. It does not claim that visual masking encrypts the returned value: Apple documents that the result is plaintext. The required boundary is therefore main-only handling, strict non-logging, short lifetime, and immediate encrypted persistence.
+
+An external TTY/no-echo provisioning command is technically feasible and passed a synthetic fake-store probe, including fail-closed non-TTY and cancellation behavior. It is deferred as an operator/recovery fallback because the current packaged app has no CLI bootstrap and disables Electron `RunAsNode`.
+
+Clipboard ingestion remains rejected as the normal product contract. Although Electron main can access the system clipboard, clearing/restoring cannot control clipboard managers, history, Universal Clipboard, observers, or copy/clear races. The spike intentionally did not read or mutate the user's clipboard.
+
+### Direct probe evidence
+
+- Target platform: macOS 26.6.2, Apple Silicon arm64, Node v24.19.0, Electron 43.4.0.
+- `/usr/bin/osascript` is an Apple-signed system universal binary and successfully executed a secrets-free hidden-answer dialog from a direct `spawn` with `shell:false`; the dialog returned its timeout record.
+- The prompt timeout completed with exit code `0`; an explicit parent abort completed by signal with no stdout/stderr content.
+- A real-TTY raw-mode probe accepted a synthetic post-launch value without echo, kept the value out of argv/process listing, and called only a fake credential store.
+- Non-TTY invocation failed before a store call with exit code `64`; `Ctrl-C` failed before a store call with exit code `130`.
+- No probe wrote a real or synthetic credential to RoofRoom storage. No clipboard experiment was run.
+
+### Scope preserved
+
+- `DESKTOP_CONNECTIONS` and all existing write IPC/preload contracts are unchanged.
+- No secret, `credential_ref`, clipboard method, or generic secret ingress was added to renderer state.
+- Schema v8, shared credential-reference semantics, compensation behavior, Google OAuth composition, readiness separation, and the completed UXH2 write-side remain unchanged.
+- No native helper, provisioning command, SerpApi Connect/Reconnect, provider call, package change, or UXH3 work was added.
+- No ADR is marked accepted because the recommendation still requires explicit review.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Exact next action
+
+Stop production work for explicit review of the spike recommendation. If the main-owned `/usr/bin/osascript` direction is approved, write a separate bounded SerpApi provisioning design and TDD implementation plan. That later plan may introduce a narrow main-only `SecretIngressPort` and native adapter, but must keep renderer intents secret-free, preserve schema-v8 compensation/reference semantics, add no clipboard dependency, require deterministic subprocess/store boundary tests plus an Apple Silicon packaged-app smoke and later intended-distribution signing/notarization acceptance, and remain inside UXH2.
+
+Do not implement that plan, start SerpApi provisioning, or begin UXH3 from this checkpoint without the separate approval.
