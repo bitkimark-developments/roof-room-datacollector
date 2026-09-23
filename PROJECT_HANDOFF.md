@@ -4,11 +4,11 @@
 
 **Current milestone:** Post-R1 UX & Operations Hardening — UXH2 Workspace Connections
 
-**Current stage:** UXH2 SerpApi secure provisioning implementation and deterministic/package verification complete; packaged native-prompt acceptance deferred
+**Current stage:** UXH2 SerpApi secure provisioning implementation, deterministic/package verification, and local packaged native-prompt acceptance complete; distribution acceptance deferred
 
-**Current goal:** Review this implementation checkpoint, then obtain separate explicit authorization before limited packaged native-prompt acceptance; do not start UXH3
+**Current goal:** Preserve the verified UXH2 checkpoint and await explicit direction for any separate distribution acceptance or later milestone; do not start UXH3
 
-**Current-state authority:** Section 50 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 50.
+**Current-state authority:** Section 51 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 51.
 
 ---
 
@@ -2838,3 +2838,70 @@ Packaged-app native prompt acceptance has not run. This checkpoint does not clai
 Stop here and review the implementation checkpoint. The exact next action, only after separate explicit authorization, is the bounded packaged macOS arm64 acceptance described in the approved plan using a synthetic non-production value and no SerpApi request. It must verify prompt UX, real secure-store handoff with only `AVAILABLE`/`READY` returned through the safe read path, log non-disclosure, replacement rollback, and cleanup through Disconnect. Intended-distribution signing/hardened-runtime/notarization behavior remains a later repeat when that configuration exists.
 
 Do not validate the value against SerpApi, call any provider, modify SerpApi collection/runtime semantics, introduce schema changes, or start UXH3 without a separate approved task.
+
+---
+
+## 51. UXH2 — Packaged macOS SerpApi prompt acceptance closure — 2026-09-23
+
+The current packaged macOS arm64 application built from technical/documentation HEAD `792a00a` was opened from:
+
+```text
+out/RoofRoom Data Collector-darwin-arm64/RoofRoom Data Collector.app
+```
+
+This is a human-observed local packaged acceptance checkpoint. It changed no production code, tests, build inputs, schema, source lifecycle, or provider behavior.
+
+### Human-observed acceptance evidence
+
+The following local packaged behaviors are accepted:
+
+```text
+packaged application launch                         PASS
+native macOS masked prompt opens                    PASS
+prompt input masking                                PASS
+prompt focus and immediate usability                PASS
+SerpApi credential provisioning                     PASS
+safe Workspace refresh to AVAILABLE / READY         PASS
+renderer secret non-display                         PASS
+Replace API key → Cancel safe outcome               PASS
+Cancel preserves previous AVAILABLE / READY state   PASS
+ordinary application-owned file leakage check       PASS
+running process argv leakage check                  PASS
+```
+
+After successful provisioning, the Workspace presented only the safe state:
+
+```text
+Credential: AVAILABLE
+Readiness: READY
+```
+
+The renderer did not display the entered secret. Cancelling `Replace API key` produced the fixed safe cancelled outcome, retained the previous credential, and left the Workspace at `AVAILABLE / READY`.
+
+The local hidden-input leakage check placed no secret in shell history or command arguments. Its reported results were:
+
+```text
+NORMAL FILE LEAK: PASS
+PROCESS ARGV LEAK: PASS
+```
+
+The ordinary-file scan covered application-owned logs, configuration, and run data. The process check covered running-process argv. The actual secret was not recorded, reproduced, inspected, or recovered as part of this documentation closure.
+
+No SerpApi collection, SerpApi provider validation, or other provider request was initiated during acceptance. No provider quota was consumed by this checkpoint.
+
+### Acceptance boundary
+
+This local acceptance establishes packaged launch, native prompt visibility, masking, focus, successful secure provisioning, safe state refresh, renderer non-disclosure, cancellation, preservation of the existing credential after cancellation, and the reported ordinary-file/process-argv leak checks.
+
+It does not establish SerpApi provider access or collection behavior. It does not claim Developer ID distribution signing, hardened-runtime distribution behavior, notarization, or distribution-channel acceptance. Those remain separate and untested unless a future explicitly authorized acceptance run records new evidence.
+
+No deterministic release gate, typecheck, lint, or package command was rerun for this documentation-only closure because no production, test, or build input changed. The previously verified implementation/package evidence in Section 50 remains the applicable technical baseline.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Exact next action
+
+Stop at this verified UXH2 acceptance checkpoint. Await explicit direction before beginning any new work. If distribution acceptance is requested later, scope it separately to the intended Developer ID, hardened-runtime, notarization, and delivery configuration without implying provider acceptance. Do not start UXH3, call SerpApi, modify SerpApi collection/runtime semantics, or broaden the credential flow without a separately approved task.
