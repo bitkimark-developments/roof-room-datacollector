@@ -15,6 +15,7 @@ import type {
   DesktopReadinessRemediation,
   DesktopReadinessStatus,
   DesktopRunDraft,
+  DesktopRunState,
   DesktopWorkspaceConnectionView,
   DesktopWorkspaceView,
 } from './shared/desktop-multisource';
@@ -160,7 +161,11 @@ function TaskCard({
   );
 }
 
-import type { JsonObject } from './shared/run-job';
+import type {
+  JobRecord,
+  JsonObject,
+  RunRecord,
+} from './shared/run-job';
 
 const getReviewedDateSummary = (
   review: DesktopReview,
@@ -631,6 +636,89 @@ const formatFileSize = (
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const formatStatus = (
+  value: string,
+): string => value.replaceAll('_', ' ');
+
+const formatTimestamp = (
+  value: string | null,
+): string => value === null
+  ? 'Not yet'
+  : new Intl.DateTimeFormat('en', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date(value));
+
+const getRunTaskIds = (
+  run: RunRecord,
+): string[] => {
+  const snapshot = run.configuration_snapshot as JsonObject;
+  const sources = snapshot.sources;
+
+  if (
+    typeof sources !== 'object'
+    || sources === null
+    || Array.isArray(sources)
+  ) {
+    return [];
+  }
+
+  return Object.values(sources).flatMap((source) => {
+    if (
+      typeof source !== 'object'
+      || source === null
+      || Array.isArray(source)
+    ) {
+      return [];
+    }
+
+    const taskId = (source as JsonObject).task_id;
+    return typeof taskId === 'string' ? [taskId] : [];
+  });
+};
+
+const getRunDisplayName = (
+  run: RunRecord,
+): string => {
+  const taskNames = getRunTaskIds(run).map((taskId) => (
+    DESKTOP_TASK_CATALOG.find((task) => task.task_id === taskId)?.task_name
+    ?? taskId
+  ));
+
+  if (taskNames.length > 0) {
+    return taskNames.join(' · ');
+  }
+
+  return run.selected_sources.map((sourceId) => (
+    DESKTOP_TASK_CATALOG.find((task) => task.source_id === sourceId)?.task_name
+    ?? sourceId
+  )).join(' · ');
+};
+
+const runIncludesTask = (
+  run: RunRecord,
+  task: DesktopTaskDefinition,
+): boolean => {
+  const taskIds = getRunTaskIds(run);
+  return taskIds.length > 0
+    ? taskIds.includes(task.task_id)
+    : run.selected_sources.includes(task.source_id);
+};
+
+const getJobDisplayName = (
+  job: JobRecord,
+): string => {
+  const taskId = job.source_context.task_id;
+  if (typeof taskId === 'string') {
+    return DESKTOP_TASK_CATALOG.find((task) => task.task_id === taskId)?.task_name
+      ?? taskId;
+  }
+
+  return DESKTOP_TASK_CATALOG.find((task) => task.source_id === job.source_id)
+    ?.task_name
+    ?? job.source_id;
+};
+
 export function DesktopMultiSourceView() {
   const [
     view,
@@ -818,6 +906,11 @@ export function DesktopMultiSourceView() {
     );
 
   const [
+    taskRecentRunStates,
+    setTaskRecentRunStates,
+  ] = useState<Record<string, DesktopRunState>>({});
+
+  const [
     exportResult,
     setExportResult,
   ] =
@@ -855,6 +948,7 @@ export function DesktopMultiSourceView() {
   useEffect(() => {
     if (
       view !== 'RUNS'
+      && view !== 'TASKS'
       || workspaceId.length === 0
     ) {
       return;
@@ -899,6 +993,42 @@ export function DesktopMultiSourceView() {
   }, [
     view,
     workspaceId,
+  ]);
+
+  useEffect(() => {
+    if (selectedTask === null || runHistory.length === 0) {
+      setTaskRecentRunStates({});
+      return;
+    }
+
+    let mounted = true;
+    const matchingRuns = runHistory
+      .filter((run) => runIncludesTask(run, selectedTask))
+      .slice(0, 5);
+
+    void Promise.all(
+      matchingRuns.map(async (run) => {
+        try {
+          return await window.roofroom.getDesktopRunState(run.run_id);
+        } catch {
+          return null;
+        }
+      }),
+    ).then((states) => {
+      if (!mounted) return;
+      setTaskRecentRunStates(Object.fromEntries(
+        states
+          .filter((state): state is DesktopRunState => state !== null)
+          .map((state) => [state.run.run_id, state]),
+      ));
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    runHistory,
+    selectedTask,
   ]);
 
   useEffect(() => {
@@ -2617,6 +2747,9 @@ export function DesktopMultiSourceView() {
             const selectedBitkimarkSitemapUrls = new Set(
               bitkimarkSitemapUrlsInput.split(/\r?\n/u),
             );
+            const recentTaskRuns = runHistory
+              .filter((run) => runIncludesTask(run, selectedTask))
+              .slice(0, 5);
 
             const canReview =
               effectiveReadiness === 'READY'
@@ -3051,9 +3184,50 @@ export function DesktopMultiSourceView() {
                       Recent Runs
                     </h2>
 
-                    <p>
-                      Run history for this task will appear here from persisted Core state.
-                    </p>
+                    <div
+                      className="rr-operational-list"
+                      data-testid="task-recent-runs"
+                    >
+                      {recentTaskRuns.length === 0
+                        ? <p>No persisted runs for this task yet.</p>
+                        : recentTaskRuns.map((run) => {
+                            const state = taskRecentRunStates[run.run_id];
+                            const acceptedValidationCount = state?.jobs.filter((job) => (
+                              job.validation_status === 'VALID'
+                              || job.validation_status === 'LOW_DATA'
+                              || job.validation_status === 'NO_DATA'
+                            )).length ?? 0;
+                            const attentionValidationCount = state === undefined
+                              ? 0
+                              : state.jobs.length - acceptedValidationCount;
+
+                            return (
+                              <article key={run.run_id}>
+                                <strong>{formatStatus(run.run_status)}</strong>
+                                <span>Created: {formatTimestamp(run.created_at)}</span>
+                                {state && (
+                                  <span>
+                                    Validation: {acceptedValidationCount} valid
+                                    {' · '}
+                                    {attentionValidationCount} needs attention
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  className="rr-secondary-action"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    setSelectedTask(null);
+                                    setView('RUNS');
+                                    void openHistoryRun(run.run_id);
+                                  }}
+                                >
+                                  Open Run
+                                </button>
+                              </article>
+                            );
+                          })}
+                    </div>
                   </section>
                 </div>
 
@@ -3686,13 +3860,33 @@ export function DesktopMultiSourceView() {
                   Run Detail
                 </h1>
 
-                <p>
-                  {activeRunState.run.run_id}
-                </p>
+                <h2>
+                  {getRunDisplayName(activeRunState.run)}
+                </h2>
 
                 <p>
-                  Run Status: {activeRunState.run.run_status}
+                  Run Status: {formatStatus(activeRunState.run.run_status)}
                 </p>
+
+                <dl className="rr-detail-list rr-run-summary">
+                  <div>
+                    <dt>Created</dt>
+                    <dd>{formatTimestamp(activeRunState.run.created_at)}</dd>
+                  </div>
+                  <div>
+                    <dt>Started</dt>
+                    <dd>{formatTimestamp(activeRunState.run.started_at)}</dd>
+                  </div>
+                  <div>
+                    <dt>Completed</dt>
+                    <dd>{formatTimestamp(activeRunState.run.completed_at)}</dd>
+                  </div>
+                </dl>
+
+                <details className="rr-technical-details">
+                  <summary>Technical identifiers</summary>
+                  <code>{activeRunState.run.run_id}</code>
+                </details>
 
                 <p>
                   {activeRunState.completed_jobs}
@@ -3712,26 +3906,53 @@ export function DesktopMultiSourceView() {
                     (job) => (
                       <article
                         key={job.job_id}
+                        className="rr-run-job"
                       >
+                        <h3>{getJobDisplayName(job)}</h3>
+
                         <strong>
                           {job.job_key}
                         </strong>
 
                         <p>
-                          {job.source_id}
+                          Source: {job.source_id}
                         </p>
 
                         <p>
-                          {job.execution_status}
+                          Execution: {formatStatus(job.execution_status)}
                         </p>
 
                         <p>
-                          {job.validation_status}
+                          Validation: {formatStatus(job.validation_status)}
                         </p>
 
                         <p>
                           Attempts: {job.attempt_count}
                         </p>
+
+                        {activeRunState.job_attempts
+                          ?.filter((attempt) => attempt.job_id === job.job_id)
+                          .slice(-1)
+                          .map((attempt) => attempt.error_code === null
+                            ? null
+                            : (
+                              <p key={`${attempt.job_id}-${attempt.attempt_number}`}>
+                                Error: {attempt.error_code}
+                              </p>
+                            ))}
+
+                        <p>
+                          Started: {formatTimestamp(job.started_at)}
+                        </p>
+
+                        <p>
+                          Completed: {formatTimestamp(job.completed_at)}
+                        </p>
+
+                        <details className="rr-technical-details">
+                          <summary>Job identifier</summary>
+                          <code>{job.job_id}</code>
+                        </details>
 
                         {job.accepted_artifact_id !== null
                           && (
@@ -3913,7 +4134,7 @@ export function DesktopMultiSourceView() {
                     </p>
                   )
                   : (
-                    <div>
+                    <div className="rr-operational-list">
                       {runHistory.map(
                         (run) => (
                           <article
@@ -3921,6 +4142,7 @@ export function DesktopMultiSourceView() {
                           >
                             <button
                               type="button"
+                              className="rr-run-history-action"
                               disabled={
                                 busy
                               }
@@ -3931,19 +4153,17 @@ export function DesktopMultiSourceView() {
                                   )
                               }
                             >
-                              {run.run_id}
+                              <strong>{getRunDisplayName(run)}</strong>
+                              <span>{formatStatus(run.run_status)}</span>
+                              <small>{run.run_id}</small>
                             </button>
 
                             <p>
-                              {run.run_status}
+                              Created: {formatTimestamp(run.created_at)}
                             </p>
 
                             <p>
-                              {run.created_at}
-                            </p>
-
-                            <p>
-                              Sources: {run.selected_sources.length}
+                              Sources: {run.selected_sources.join(', ')}
                             </p>
                           </article>
                         ),

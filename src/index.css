@@ -961,6 +961,64 @@ p {
   font-weight: 750;
 }
 
+.rr-operational-list {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.rr-operational-list article,
+.rr-run-job {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid #e5e2f2;
+  border-radius: 10px;
+  background: #fcfbff;
+}
+
+.rr-operational-list article p,
+.rr-operational-list article span,
+.rr-run-job p {
+  margin: 0;
+}
+
+.rr-run-history-action {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.rr-run-history-action small,
+.rr-technical-details code {
+  overflow-wrap: anywhere;
+  color: #746f86;
+  font-size: 9px;
+}
+
+.rr-run-summary {
+  margin: 14px 0;
+}
+
+.rr-run-job {
+  margin-bottom: 10px;
+}
+
+.rr-technical-details {
+  margin: 8px 0;
+}
+
+.rr-technical-details summary {
+  color: #625d75;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 750;
+}
+
 /* Quick Run Review */
 
 .rr-review-page {

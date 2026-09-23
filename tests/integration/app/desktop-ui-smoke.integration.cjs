@@ -1167,7 +1167,14 @@ const main = async () => {
                   'ikas-products',
                 ],
                 requested_configuration: null,
-                configuration_snapshot: {},
+                configuration_snapshot: {
+                  sources: {
+                    'ikas-products': {
+                      included: true,
+                      task_id: 'ikas-products-import',
+                    },
+                  },
+                },
               },
               jobs: [
                 {
@@ -1250,7 +1257,14 @@ const main = async () => {
                   'ikas-products',
                 ],
                 requested_configuration: null,
-                configuration_snapshot: {},
+                configuration_snapshot: {
+                  sources: {
+                    'ikas-products': {
+                      included: true,
+                      task_id: 'ikas-products-import',
+                    },
+                  },
+                },
               },
             ];
           },
@@ -1398,7 +1412,14 @@ const main = async () => {
                     'ikas-products',
                   ],
                   requested_configuration: null,
-                  configuration_snapshot: {},
+                  configuration_snapshot: {
+                    sources: {
+                      'ikas-products': {
+                        included: true,
+                        task_id: 'ikas-products-import',
+                      },
+                    },
+                  },
                 },
                 jobs: [
                   {
@@ -1407,7 +1428,9 @@ const main = async () => {
                     source_id: 'ikas-products',
                     job_key: 'ikas-products-history',
                     query_group_id: null,
-                    source_context: {},
+                    source_context: {
+                      task_id: 'ikas-products-import',
+                    },
                     job_order: 1,
                     execution_status: 'COMPLETED',
                     validation_status: 'LOW_DATA',
@@ -1418,9 +1441,37 @@ const main = async () => {
                     started_at: '2026-09-13T12:00:01.000Z',
                     completed_at: '2026-09-13T12:00:05.000Z',
                   },
+                  {
+                    job_id: 'job_fixture_history_002',
+                    run_id: 'rr_fixture_history_001',
+                    source_id: 'ikas-products',
+                    job_key: 'ikas-products-invalid',
+                    query_group_id: null,
+                    source_context: {
+                      task_id: 'ikas-products-import',
+                    },
+                    job_order: 2,
+                    execution_status: 'FAILED',
+                    validation_status: 'INVALID_SCHEMA',
+                    attempt_count: 2,
+                    accepted_artifact_id: null,
+                    created_at: '2026-09-13T12:00:00.000Z',
+                    started_at: '2026-09-13T12:00:02.000Z',
+                    completed_at: '2026-09-13T12:00:04.000Z',
+                  },
+                ],
+                job_attempts: [
+                  {
+                    job_id: 'job_fixture_history_002',
+                    attempt_number: 2,
+                    execution_status: 'FAILED',
+                    error_code: 'INVALID_SCHEMA',
+                    started_at: '2026-09-13T12:00:02.000Z',
+                    completed_at: '2026-09-13T12:00:04.000Z',
+                  },
                 ],
                 completed_jobs: 1,
-                failed_jobs: 0,
+                failed_jobs: 1,
                 can_resume: false,
                 can_retry: false,
                 can_cancel: false,
@@ -2383,7 +2434,7 @@ const main = async () => {
 
     assert.equal(
       await page.getByText(
-        'COMPLETED_WITH_WARNINGS',
+        'COMPLETED WITH WARNINGS',
         {
           exact: true,
         },
@@ -2629,6 +2680,17 @@ const main = async () => {
       'Persisted Run History rows must be selectable.',
     );
 
+    assert.equal(
+      await page.getByText('İkas — Products Import', { exact: true }).count(),
+      1,
+      'Run History must lead with the human task identity.',
+    );
+    assert.equal(
+      await page.getByText('2026-09-13T12:00:00.000Z', { exact: true }).count(),
+      0,
+      'Run History must not lead with a raw machine timestamp.',
+    );
+
     await historyRunButton.click();
 
     await page.getByRole(
@@ -2657,6 +2719,13 @@ const main = async () => {
       1,
       'History selection must reuse the existing Run Detail Job surface.',
     );
+
+    assert.equal(await page.getByRole('heading', { level: 2, name: 'İkas — Products Import', exact: true }).count(), 1);
+    assert.equal(await page.getByText('Execution: COMPLETED', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Validation: LOW DATA', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Execution: FAILED', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Validation: INVALID SCHEMA', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Error: INVALID_SCHEMA', { exact: true }).count(), 1);
 
     const openAcceptedEvidenceButton = page.getByRole(
       'button',
@@ -2926,6 +2995,11 @@ const main = async () => {
       'Expected İkas Task Detail to expose FILE REQUIRED readiness.',
     );
 
+    const recentIkasRuns = page.getByTestId('task-recent-runs');
+    assert.equal(await recentIkasRuns.count(), 1, 'Task Detail must expose persisted recent runs.');
+    assert.equal(await recentIkasRuns.getByText('COMPLETED WITH WARNINGS', { exact: true }).count(), 1);
+    assert.equal(await recentIkasRuns.getByText('Validation: 1 valid · 1 needs attention', { exact: true }).count(), 1);
+
     assert.equal(
       await page.getByRole(
         'button',
@@ -3159,7 +3233,7 @@ const main = async () => {
 
     assert.equal(
       await page.getByText(
-        'NOT_RUN',
+        'Validation: NOT RUN',
         {
           exact: true,
         },
@@ -3211,7 +3285,7 @@ const main = async () => {
 
     assert.equal(
       await page.getByText(
-        'Run Status: MANUAL_ACTION_REQUIRED',
+        'Run Status: MANUAL ACTION REQUIRED',
         {
           exact: true,
         },
@@ -3278,7 +3352,7 @@ const main = async () => {
 
     assert.equal(
       await page.getByText(
-        'Run Status: RETRY_REQUIRED',
+        'Run Status: RETRY REQUIRED',
         {
           exact: true,
         },

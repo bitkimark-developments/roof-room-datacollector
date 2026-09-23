@@ -15,6 +15,7 @@ import type {
 } from './workspace';
 import type { FreshnessStatus } from './freshness';
 import type { ArtifactRecord } from './artifact';
+import type { AttemptRecord } from './attempt';
 
 export const SUPPORTED_DESKTOP_SOURCE_IDS = [
   'google-trends',
@@ -119,6 +120,15 @@ export interface DesktopReview {
 export interface DesktopRunState {
   run: RunRecord;
   jobs: JobRecord[];
+  job_attempts?: Array<Pick<
+    AttemptRecord,
+    | 'job_id'
+    | 'attempt_number'
+    | 'execution_status'
+    | 'error_code'
+    | 'started_at'
+    | 'completed_at'
+  >>;
   completed_jobs: number;
   failed_jobs: number;
   can_resume: boolean;
@@ -167,6 +177,7 @@ export interface DesktopMultiSourceRepository {
     job_plans: JobPlan[];
   }): { run: RunRecord; jobs: JobRecord[] };
   listJobs(run_id: string): JobRecord[];
+  listAttempts?(job_id: string): AttemptRecord[];
   getRun(run_id: string): RunRecord | null;
   getArtifact(artifact_id: string): ArtifactRecord | null;
   listRuns?(workspace_id: string): RunRecord[];

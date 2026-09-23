@@ -957,6 +957,18 @@ export class DesktopMultiSourceController {
           run_id,
         );
 
+    const job_attempts =
+      jobs.flatMap((job) => (
+        this.dependencies.repository.listAttempts?.(job.job_id) ?? []
+      )).map((attempt) => ({
+        job_id: attempt.job_id,
+        attempt_number: attempt.attempt_number,
+        execution_status: attempt.execution_status,
+        error_code: attempt.error_code,
+        started_at: attempt.started_at,
+        completed_at: attempt.completed_at,
+      }));
+
     const plan =
       new ResumePlanner(
         this.dependencies.repository as never,
@@ -1024,6 +1036,7 @@ export class DesktopMultiSourceController {
     return {
       run,
       jobs,
+      job_attempts,
       completed_jobs:
         jobs.filter(
           (job) =>
