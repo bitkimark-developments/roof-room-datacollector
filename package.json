@@ -81,6 +81,7 @@
     "test:m3:gt-period": "bash tests/integration/app/run-google-trends-period-selection-test.sh",
     "test:m5:file-access": "bash tests/integration/app/run-application-file-access-test.sh",
     "test:m5:connection-metadata": "bash tests/integration/app/run-workspace-connection-metadata-test.sh",
+    "test:m5:secret-ingress": "bash tests/integration/app/run-macos-osascript-secret-ingress-test.sh",
     "test:m5:connection-management-service": "bash tests/integration/app/run-workspace-connection-management-service-test.sh",
     "test:m5:connection-write-main-ipc": "bash tests/integration/app/run-desktop-connection-write-main-ipc-test.sh",
     "test:m5:connection-write-ipc": "bash tests/integration/app/run-desktop-connection-write-ipc-test.sh",
