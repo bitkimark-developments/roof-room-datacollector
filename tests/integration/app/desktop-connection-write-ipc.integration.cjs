@@ -22,6 +22,7 @@ const methods = [
   ['disconnectDesktopWorkspaceConnection', 'DESKTOP_CONNECTION_DISCONNECT'],
   ['connectGoogleDesktopWorkspaceConnection', 'DESKTOP_CONNECTION_CONNECT_GOOGLE'],
   ['reconnectGoogleDesktopWorkspaceConnection', 'DESKTOP_CONNECTION_RECONNECT_GOOGLE'],
+  ['provisionSerpApiDesktopWorkspaceConnection', 'DESKTOP_CONNECTION_PROVISION_SERPAPI'],
 ];
 
 for (const [method] of methods) {
@@ -45,6 +46,7 @@ async function main() {
       metadata: { customer_id: '123' },
     },
     { workspace_id: 'ws', source_id: 'google-keyword-planner' },
+    { workspace_id: 'ws', source_id: 'serpapi' },
   ];
   for (let index = 0; index < methods.length; index += 1) {
     await api[methods[index][0]](intents[index]);

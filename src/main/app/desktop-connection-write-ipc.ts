@@ -6,6 +6,7 @@ import {
   type ConnectGoogleWorkspaceConnectionIntent,
   type DisconnectWorkspaceConnectionIntent,
   type ManageWorkspaceConnectionIntent,
+  type ProvisionSerpApiWorkspaceConnectionIntent,
   type ReconnectGoogleWorkspaceConnectionIntent,
   type WorkspaceConnectionMutationAction,
   type WorkspaceConnectionMutationErrorCode,
@@ -15,6 +16,7 @@ import {
   normalizeConnectGoogleWorkspaceConnectionIntent,
   normalizeDisconnectWorkspaceConnectionIntent,
   normalizeManageWorkspaceConnectionIntent,
+  normalizeProvisionSerpApiWorkspaceConnectionIntent,
   normalizeReconnectGoogleWorkspaceConnectionIntent,
 } from './workspace-connection-metadata';
 
@@ -31,6 +33,9 @@ type ConnectionWriteService = {
   reconnectGoogle: (
     intent: ReconnectGoogleWorkspaceConnectionIntent,
   ) => Promise<WorkspaceConnectionMutationResponse>;
+  provisionSerpApi: (
+    intent: ProvisionSerpApiWorkspaceConnectionIntent,
+  ) => Promise<WorkspaceConnectionMutationResponse>;
 };
 
 export interface DesktopConnectionWriteHandlerDependencies<Event> {
@@ -45,6 +50,9 @@ const mutationErrorCodes: readonly WorkspaceConnectionMutationErrorCode[] = [
   'CONNECTION_CONFIGURATION_UNAVAILABLE',
   'OAUTH_MANUAL_ACTION_REQUIRED',
   'OAUTH_ACQUISITION_FAILED',
+  'SECRET_INGRESS_CANCELLED',
+  'SECRET_INGRESS_FAILED',
+  'SECRET_INPUT_INVALID',
   'CREDENTIAL_PERSISTENCE_FAILED',
   'CONNECTION_PERSISTENCE_FAILED',
   'CONNECTION_REBIND_FAILED',
@@ -232,6 +240,25 @@ export const createDesktopConnectionWriteHandlers = <Event>(
       response,
       normalized.intent.source_id,
       'RECONNECT_GOOGLE',
+    );
+  },
+  provisionSerpApi: async (
+    event: Event,
+    value: unknown,
+  ): Promise<WorkspaceConnectionMutationResponse> => {
+    dependencies.assertTrustedSender(event);
+    const normalized = normalizeOrInvalid(
+      value,
+      normalizeProvisionSerpApiWorkspaceConnectionIntent,
+    );
+    if (!normalized.ok) return invalidIntent();
+    const response = await dependencies.service.provisionSerpApi(
+      normalized.intent,
+    );
+    return requireSafeMutationResponse(
+      response,
+      normalized.intent.source_id,
+      'PROVISION_SERPAPI',
     );
   },
 });

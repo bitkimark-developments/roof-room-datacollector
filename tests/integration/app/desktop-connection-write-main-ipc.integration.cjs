@@ -18,6 +18,7 @@ const expectedChannels = {
   DESKTOP_CONNECTION_DISCONNECT: 'desktop:connection:disconnect',
   DESKTOP_CONNECTION_CONNECT_GOOGLE: 'desktop:connection:connect-google',
   DESKTOP_CONNECTION_RECONNECT_GOOGLE: 'desktop:connection:reconnect-google',
+  DESKTOP_CONNECTION_PROVISION_SERPAPI: 'desktop:connection:provision-serpapi',
 };
 
 for (const [name, channel] of Object.entries(expectedChannels)) {
@@ -26,7 +27,13 @@ for (const [name, channel] of Object.entries(expectedChannels)) {
 
 const calls = [];
 const service = {};
-for (const method of ['manage', 'disconnect', 'connectGoogle', 'reconnectGoogle']) {
+for (const method of [
+  'manage',
+  'disconnect',
+  'connectGoogle',
+  'reconnectGoogle',
+  'provisionSerpApi',
+]) {
   service[method] = async (intent) => {
     calls.push(['service', method, structuredClone(intent)]);
     const action = {
@@ -34,6 +41,7 @@ for (const method of ['manage', 'disconnect', 'connectGoogle', 'reconnectGoogle'
       disconnect: 'DISCONNECT',
       connectGoogle: 'CONNECT_GOOGLE',
       reconnectGoogle: 'RECONNECT_GOOGLE',
+      provisionSerpApi: 'PROVISION_SERPAPI',
     }[method];
     return {
       ok: true,
@@ -73,6 +81,10 @@ const valid = {
     workspace_id: ' ws ',
     source_id: 'google-keyword-planner',
   },
+  provisionSerpApi: {
+    workspace_id: ' ws ',
+    source_id: 'serpapi',
+  },
 };
 
 async function main() {
@@ -110,6 +122,15 @@ async function main() {
     reconnectGoogle: [
       { workspace_id: 'ws', source_id: 'serpapi' },
       { ...valid.reconnectGoogle, client_secret: 'sentinel-secret' },
+    ],
+    provisionSerpApi: [
+      { workspace_id: 'ws', source_id: 'google-keyword-planner' },
+      { ...valid.provisionSerpApi, api_key: 'sentinel-secret' },
+      { ...valid.provisionSerpApi, secret: 'sentinel-secret' },
+      { ...valid.provisionSerpApi, credential_ref: 'cred:sentinel-secret' },
+      { ...valid.provisionSerpApi, metadata: { api_key: 'sentinel-secret' } },
+      { ...valid.provisionSerpApi, prompt: 'sentinel-secret' },
+      { ...valid.provisionSerpApi, unknown: true },
     ],
   };
 
@@ -152,6 +173,7 @@ async function main() {
         workspace_id: 'ws',
         source_id: 'google-keyword-planner',
       }],
+      ['provisionSerpApi', { workspace_id: 'ws', source_id: 'serpapi' }],
     ],
   );
 
@@ -169,6 +191,19 @@ async function main() {
       disconnect: service.disconnect,
       connectGoogle: service.connectGoogle,
       reconnectGoogle: service.reconnectGoogle,
+      provisionSerpApi: async () => ({
+        ok: false,
+        error: {
+          code: 'SERPAPI_SECRET_INGRESS_FAILED',
+          retryable: true,
+          nested: {
+            native_stdout: 'sentinel-native-stdout',
+            raw_error: 'sentinel-raw-error',
+            test_only_key: 'sentinel-test-key',
+          },
+        },
+        marker: 'sentinel-response-marker',
+      }),
     },
   });
   await assert.rejects(
@@ -179,6 +214,59 @@ async function main() {
       return /invalid response/i.test(String(error));
     },
   );
+  await assert.rejects(
+    () => unsafeHandlers.provisionSerpApi(
+      { marker: 'trusted' },
+      valid.provisionSerpApi,
+    ),
+    (error) => {
+      for (const sentinel of [
+        'sentinel-native-stdout',
+        'sentinel-raw-error',
+        'sentinel-test-key',
+        'sentinel-response-marker',
+      ]) {
+        assert.equal(String(error).includes(sentinel), false);
+        assert.equal(String(error.stack).includes(sentinel), false);
+      }
+      return /invalid response/i.test(String(error));
+    },
+  );
+
+  for (const code of [
+    'SECRET_INGRESS_CANCELLED',
+    'SECRET_INGRESS_FAILED',
+    'SECRET_INPUT_INVALID',
+  ]) {
+    const safeErrorHandlers = createDesktopConnectionWriteHandlers({
+      assertTrustedSender: () => undefined,
+      service: {
+        ...service,
+        provisionSerpApi: async () => ({
+          ok: false,
+          error: {
+            code,
+            source_id: 'serpapi',
+            retryable: code === 'SECRET_INGRESS_FAILED',
+          },
+        }),
+      },
+    });
+    assert.deepEqual(
+      await safeErrorHandlers.provisionSerpApi(
+        { marker: 'trusted' },
+        valid.provisionSerpApi,
+      ),
+      {
+        ok: false,
+        error: {
+          code,
+          source_id: 'serpapi',
+          retryable: code === 'SECRET_INGRESS_FAILED',
+        },
+      },
+    );
+  }
 
   console.log(
     'PASS DESKTOP-CONNECTION-WRITE-MAIN-IPC-001: trusted write handlers validate safe intents before delegation and reject unsafe service output',

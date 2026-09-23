@@ -464,6 +464,8 @@ const registerIpcHandlers = (
         requireConnectionManagementService().connectGoogle(intent),
       reconnectGoogle: (intent) =>
         requireConnectionManagementService().reconnectGoogle(intent),
+      provisionSerpApi: (intent) =>
+        requireConnectionManagementService().provisionSerpApi(intent),
     },
   });
   ipcMain.handle(
@@ -481,6 +483,10 @@ const registerIpcHandlers = (
   ipcMain.handle(
     IPC_CHANNELS.DESKTOP_CONNECTION_RECONNECT_GOOGLE,
     connectionWriteHandlers.reconnectGoogle,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_CONNECTION_PROVISION_SERPAPI,
+    connectionWriteHandlers.provisionSerpApi,
   );
 
   ipcMain.handle(IPC_CHANNELS.DESKTOP_PRESETS, (event, workspaceId: unknown) => {
