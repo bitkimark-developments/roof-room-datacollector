@@ -87,6 +87,7 @@
     "test:m5:connection-write-main-ipc": "bash tests/integration/app/run-desktop-connection-write-main-ipc-test.sh",
     "test:m5:connection-write-ipc": "bash tests/integration/app/run-desktop-connection-write-ipc-test.sh",
     "test:m5:connection-write-composition": "bash tests/integration/app/run-desktop-connection-write-composition-test.sh",
+    "test:m5:serpapi-provisioning-security": "bash tests/integration/app/run-serpapi-provisioning-security-test.sh",
     "test:m5:desktop-ui": "bash tests/integration/app/run-desktop-ui-smoke-test.sh",
     "test:m5:desktop-multisource": "bash tests/integration/app/run-desktop-multisource-flow-test.sh",
     "test:m5:desktop-retry-export": "bash tests/integration/app/run-desktop-retry-export-test.sh",

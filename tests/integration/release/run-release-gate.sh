@@ -111,6 +111,15 @@ bash \
   tests/integration/google-api/run-google-oauth-credential-acquirer-test.sh
 
 bash \
+  tests/integration/app/run-macos-osascript-secret-ingress-test.sh
+
+bash \
+  tests/integration/serpapi/run-serpapi-credential-acquirer-test.sh
+
+bash \
+  tests/integration/app/run-serpapi-provisioning-security-test.sh
+
+bash \
   tests/integration/app/run-workspace-connection-management-service-test.sh
 
 bash \
