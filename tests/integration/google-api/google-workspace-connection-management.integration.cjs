@@ -39,9 +39,13 @@ class FakeRepository {
     this.rebinds = [];
     this.failUpsert = false;
     this.failRebind = false;
+    this.failGetFor = new Set();
   }
 
   getSourceConnection(workspaceId, sourceId) {
+    if (this.failGetFor.has(keyOf(workspaceId, sourceId))) {
+      throw new Error('sentinel-secret repository lookup failure');
+    }
     const found = this.records.get(keyOf(workspaceId, sourceId));
     return found ? clone(found) : null;
   }
@@ -284,6 +288,24 @@ async function main() {
   }
 
   {
+    const harness = createHarness();
+    harness.repository.failGetFor.add(
+      keyOf('ws_ads_lookup_fail', 'google-keyword-planner'),
+    );
+    const result = await harness.service.connectGoogle({
+      workspace_id: 'ws_ads_lookup_fail',
+      source_id: 'google-ads-search-terms',
+      metadata: { customer_id: '111' },
+    });
+    assert.equal(result.error.code, 'CONNECTION_PERSISTENCE_FAILED');
+    assert.equal(
+      harness.acquirer.calls.some(([kind]) => kind === 'acquire'),
+      false,
+      'A failed sibling lookup must fail closed before OAuth acquisition.',
+    );
+  }
+
+  {
     const sibling = record(
       'ws_ads_incompatible',
       'google-keyword-planner',
@@ -423,6 +445,37 @@ async function main() {
       'cred:old-shared-secret',
     );
     assert.deepEqual(harness.deletedCredentials, []);
+  }
+
+  {
+    const ads = record(
+      'ws_rebind_lookup_fail',
+      'google-ads-search-terms',
+      'cred:old-shared-secret',
+      { customer_id: '111' },
+    );
+    const harness = createHarness([ads]);
+    harness.repository.failGetFor.add(
+      keyOf(ads.workspace_id, 'google-keyword-planner'),
+    );
+    harness.acquirer.acquiredReferences.push('cred:must-not-be-acquired');
+    const result = await harness.service.reconnectGoogle({
+      workspace_id: ads.workspace_id,
+      source_id: ads.source_id,
+    });
+    assert.equal(result.error.code, 'CONNECTION_PERSISTENCE_FAILED');
+    assert.equal(
+      harness.acquirer.calls.some(([kind]) => kind === 'acquire'),
+      false,
+      'Shared rebind membership must be resolved before OAuth acquisition.',
+    );
+    assert.equal(
+      harness.repository.getSourceConnection(
+        ads.workspace_id,
+        ads.source_id,
+      ).credential_ref,
+      'cred:old-shared-secret',
+    );
   }
 
   {

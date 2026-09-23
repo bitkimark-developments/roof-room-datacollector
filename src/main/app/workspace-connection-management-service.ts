@@ -264,7 +264,12 @@ export class WorkspaceConnectionManagementService {
       return failure('CONNECTION_PERSISTENCE_FAILED', true, intent.source_id);
     }
 
-    const reusableCredentialRef = await this.findReusableAdsCredential(intent);
+    let reusableCredentialRef: string | null;
+    try {
+      reusableCredentialRef = await this.findReusableAdsCredential(intent);
+    } catch {
+      return failure('CONNECTION_PERSISTENCE_FAILED', true, intent.source_id);
+    }
     if (reusableCredentialRef !== null) {
       try {
         this.dependencies.repository.upsertSourceConnection({
@@ -342,6 +347,16 @@ export class WorkspaceConnectionManagementService {
       );
     }
 
+    let sourceIds: DesktopGoogleConnectionSourceId[];
+    try {
+      sourceIds = this.googleRebindSourceIds(
+        intent,
+        existing.credential_ref,
+      );
+    } catch {
+      return failure('CONNECTION_PERSISTENCE_FAILED', true, intent.source_id);
+    }
+
     const configuration = await this.readGoogleConfiguration(
       intent.source_id,
       existing.credential_ref,
@@ -360,7 +375,6 @@ export class WorkspaceConnectionManagementService {
       return this.googleAcquisitionFailure(error, intent.source_id);
     }
 
-    const sourceIds = this.googleRebindSourceIds(intent, existing.credential_ref);
     try {
       this.dependencies.repository.rebindSourceConnections({
         workspace_id: intent.workspace_id,
@@ -417,15 +431,10 @@ export class WorkspaceConnectionManagementService {
     const siblingSourceId = intent.source_id === 'google-ads-search-terms'
       ? 'google-keyword-planner'
       : 'google-ads-search-terms';
-    let sibling: WorkspaceSourceConnectionRecord | null;
-    try {
-      sibling = this.dependencies.repository.getSourceConnection(
-        intent.workspace_id,
-        siblingSourceId,
-      );
-    } catch {
-      return null;
-    }
+    const sibling = this.dependencies.repository.getSourceConnection(
+      intent.workspace_id,
+      siblingSourceId,
+    );
     if (sibling?.credential_ref === null || sibling === null) return null;
     try {
       const compatible =
@@ -449,15 +458,10 @@ export class WorkspaceConnectionManagementService {
     const siblingSourceId = intent.source_id === 'google-ads-search-terms'
       ? 'google-keyword-planner'
       : 'google-ads-search-terms';
-    let sibling: WorkspaceSourceConnectionRecord | null = null;
-    try {
-      sibling = this.dependencies.repository.getSourceConnection(
-        intent.workspace_id,
-        siblingSourceId,
-      );
-    } catch {
-      // The exact target can still be rebound safely without the sibling.
-    }
+    const sibling = this.dependencies.repository.getSourceConnection(
+      intent.workspace_id,
+      siblingSourceId,
+    );
     return sibling?.credential_ref === expectedCredentialRef
       ? [intent.source_id, siblingSourceId]
       : [intent.source_id];
