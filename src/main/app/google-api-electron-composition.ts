@@ -3,6 +3,7 @@ import * as path from 'node:path';
 
 import type { ApplicationDirectories } from '../../shared/bootstrap-status';
 import type { JsonObject } from '../../shared/run-job';
+import type { DesktopGoogleConnectionSourceId } from '../../shared/workspace-connection-management';
 import type { WorkspaceSourceConnectionRecord } from '../../shared/workspace-connection';
 import { ElectronSafeStorageCredentialStore } from '../core/electron-safe-storage-credential-store';
 import type { StateRepository } from '../storage/state-repository';
@@ -30,7 +31,7 @@ export const createElectronGoogleApiRuntimeFactory = (
 export const bootstrapGoogleOAuthInElectron = async (
   input: {
     workspace_id: string;
-    source_id: string;
+    source_id: DesktopGoogleConnectionSourceId;
     confirmation: string | undefined;
     client_id: string;
     client_secret?: string;

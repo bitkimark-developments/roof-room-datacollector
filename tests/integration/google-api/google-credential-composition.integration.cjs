@@ -61,6 +61,11 @@ const encryption = {
       records.set(`${input.workspace_id}:${input.source_id}`, record);
       return record;
     },
+    countSourceConnectionsByCredentialRef: (credentialRef) => (
+      [...records.values()].filter(
+        (record) => record.credential_ref === credentialRef,
+      ).length
+    ),
   };
 
   let expectedState;
@@ -136,6 +141,123 @@ const encryption = {
   }), /explicit confirmation/u);
   assert.equal(unconfirmedOpened, false);
   assert.equal(unconfirmedLoopbackStarted, false);
+
+  const sharedOldReference = 'google-oauth:shared-old';
+  const sharedStore = new ElectronSafeStorageCredentialStore(
+    path.join(workRoot, 'shared-credentials'),
+    encryption,
+  );
+  await sharedStore.writeCredential(sharedOldReference, JSON.stringify({
+    client_id: 'shared-client',
+    refresh_token: 'shared-refresh',
+  }));
+  repository.upsertSourceConnection({
+    workspace_id: 'workspace-shared-target',
+    source_id: GSC_QUERY_PAGE_SOURCE_ID,
+    credential_ref: sharedOldReference,
+    safe_metadata: { site_url: 'sc-domain:shared.example' },
+  });
+  repository.upsertSourceConnection({
+    workspace_id: 'workspace-shared-consumer',
+    source_id: GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID,
+    credential_ref: sharedOldReference,
+    safe_metadata: { customer_id: 'shared-customer' },
+  });
+  await bootstrapGoogleOAuth({
+    workspace_id: 'workspace-shared-target',
+    source_id: GSC_QUERY_PAGE_SOURCE_ID,
+    confirmation: GOOGLE_LIVE_ACCEPTANCE_CONFIRMATION,
+    client_id: 'client-id',
+    scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
+    safe_metadata: { site_url: 'sc-domain:shared.example' },
+  }, {
+    store: sharedStore,
+    repository,
+    requester: async () => ({
+      status: 200,
+      body: { refresh_token: 'shared-new-refresh' },
+    }),
+    openExternal: async () => undefined,
+    startLoopback: async () => ({
+      redirect_uri: 'http://127.0.0.1:43124/oauth/callback',
+      waitForCode: async () => 'shared-authorization-code',
+      close: () => undefined,
+    }),
+  });
+  assert.equal(
+    await sharedStore.hasCredential(sharedOldReference),
+    true,
+    'bootstrap cleanup must retain a credential that another row still references',
+  );
+
+  const cleanupOldReference = 'google-oauth:cleanup-old';
+  const cleanupInnerStore = new ElectronSafeStorageCredentialStore(
+    path.join(workRoot, 'cleanup-credentials'),
+    encryption,
+  );
+  await cleanupInnerStore.writeCredential(
+    cleanupOldReference,
+    JSON.stringify({
+      client_id: 'cleanup-client',
+      refresh_token: 'cleanup-refresh',
+    }),
+  );
+  repository.upsertSourceConnection({
+    workspace_id: 'workspace-cleanup-warning',
+    source_id: GSC_QUERY_PAGE_SOURCE_ID,
+    credential_ref: cleanupOldReference,
+    safe_metadata: { site_url: 'sc-domain:cleanup.example' },
+  });
+  const cleanupStore = {
+    hasCredential: (reference) => (
+      cleanupInnerStore.hasCredential(reference)
+    ),
+    readCredential: (reference) => (
+      cleanupInnerStore.readCredential(reference)
+    ),
+    writeCredential: (reference, value) => (
+      cleanupInnerStore.writeCredential(reference, value)
+    ),
+    deleteCredential: async (reference) => {
+      if (reference === cleanupOldReference) {
+        throw new Error('sentinel cleanup failure');
+      }
+      await cleanupInnerStore.deleteCredential(reference);
+    },
+  };
+  const cleanupWarnings = [];
+  const cleanupConnection = await bootstrapGoogleOAuth({
+    workspace_id: 'workspace-cleanup-warning',
+    source_id: GSC_QUERY_PAGE_SOURCE_ID,
+    confirmation: GOOGLE_LIVE_ACCEPTANCE_CONFIRMATION,
+    client_id: 'client-id',
+    scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
+    safe_metadata: { site_url: 'sc-domain:cleanup.example' },
+  }, {
+    store: cleanupStore,
+    repository,
+    requester: async () => ({
+      status: 200,
+      body: { refresh_token: 'cleanup-new-refresh' },
+    }),
+    openExternal: async () => undefined,
+    startLoopback: async () => ({
+      redirect_uri: 'http://127.0.0.1:43125/oauth/callback',
+      waitForCode: async () => 'cleanup-authorization-code',
+      close: () => undefined,
+    }),
+    recordCleanupWarning: (event) => cleanupWarnings.push(event),
+  });
+  assert.notEqual(cleanupConnection.credential_ref, cleanupOldReference);
+  assert.equal(
+    await cleanupInnerStore.hasCredential(cleanupConnection.credential_ref),
+    true,
+  );
+  assert.deepEqual(cleanupWarnings, [{
+    code: 'OBSOLETE_CREDENTIAL_CLEANUP_FAILED',
+    workspace_id: 'workspace-cleanup-warning',
+    source_id: GSC_QUERY_PAGE_SOURCE_ID,
+  }]);
 
   const gscConnection = await bootstrapGoogleOAuth({
     workspace_id: 'workspace-a',
