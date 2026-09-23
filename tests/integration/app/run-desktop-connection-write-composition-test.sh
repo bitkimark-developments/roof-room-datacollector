@@ -25,6 +25,7 @@ EOF
 
 npx tsc \
   src/main/app/google-api-electron-composition.ts \
+  src/main/app/serpapi-electron-composition.ts \
   --rootDir src \
   --outDir "$TMP_ROOT/build" \
   --module commonjs \

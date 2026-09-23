@@ -11,6 +11,8 @@ npx tsc \
   src/main/app/workspace-connection-management-service.ts \
   src/main/app/workspace-connection-metadata.ts \
   src/main/core/credential-store.ts \
+  src/main/sources/serpapi/serpapi-credential-acquirer.ts \
+  src/main/core/secret-ingress.ts \
   src/shared/workspace-connection-management.ts \
   src/shared/workspace-connection.ts \
   --rootDir src \

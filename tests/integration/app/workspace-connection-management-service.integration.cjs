@@ -27,18 +27,23 @@ class FakeRepository {
       ]),
     );
     this.calls = [];
+    this.failGet = false;
+    this.failUpsert = false;
     this.failRestore = false;
     this.failCount = false;
+    this.failRebind = false;
   }
 
   getSourceConnection(workspaceId, sourceId) {
     this.calls.push(['get', workspaceId, sourceId]);
+    if (this.failGet) throw new Error('sentinel-secret get failure');
     const record = this.records.get(keyOf(workspaceId, sourceId));
     return record ? clone(record) : null;
   }
 
   upsertSourceConnection(input) {
     this.calls.push(['upsert', clone(input)]);
+    if (this.failUpsert) throw new Error('sentinel-secret upsert failure');
     const key = keyOf(input.workspace_id, input.source_id);
     const existing = this.records.get(key);
     const record = {
@@ -80,8 +85,34 @@ class FakeRepository {
     ).length;
   }
 
-  rebindSourceConnections() {
-    throw new Error('not used in foundation tests');
+  rebindSourceConnections(input) {
+    this.calls.push(['rebind', clone(input)]);
+    if (this.failRebind) throw new Error('sentinel-secret rebind failure');
+    const records = input.source_ids.map((sourceId) => {
+      const key = keyOf(input.workspace_id, sourceId);
+      const existing = this.records.get(key);
+      if (
+        !existing
+        || existing.credential_ref !== input.expected_credential_ref
+      ) {
+        throw new Error('exact rebind mismatch');
+      }
+      return [key, existing];
+    });
+    for (const [key, existing] of records) {
+      const safeMetadataUpdate = input.safe_metadata_updates?.find(
+        (candidate) => candidate.source_id === existing.source_id,
+      );
+      this.records.set(key, {
+        ...existing,
+        credential_ref: input.replacement_credential_ref,
+        safe_metadata: safeMetadataUpdate
+          ? clone(safeMetadataUpdate.safe_metadata)
+          : clone(existing.safe_metadata),
+        updated_at: '2026-09-23T02:00:00.000Z',
+      });
+    }
+    return records.map(([key]) => clone(this.records.get(key)));
   }
 }
 
@@ -106,12 +137,14 @@ const createHarness = (
   {
     deleteCredential,
     refreshSafeState,
+    serpApiAcquire,
   } = {},
 ) => {
   const repository = new FakeRepository(records);
   const credentialCalls = [];
   const diagnostics = [];
   const refreshes = [];
+  const serpApiAcquirerCalls = [];
   const credentialStore = {
     hasCredential: async () => true,
     readCredential: async () => 'sentinel-secret',
@@ -126,6 +159,16 @@ const createHarness = (
   const service = new WorkspaceConnectionManagementService({
     repository,
     credential_store: credentialStore,
+    serpapi_credential_acquirer: {
+      acquire: async () => {
+        serpApiAcquirerCalls.push(true);
+        if (serpApiAcquire) return serpApiAcquire();
+        return {
+          status: 'ACQUIRED',
+          credential_ref: 'serpapi:fresh-default',
+        };
+      },
+    },
     refresh_safe_state: async (workspaceId) => {
       refreshes.push(workspaceId);
       if (refreshSafeState) await refreshSafeState(workspaceId);
@@ -137,6 +180,7 @@ const createHarness = (
     diagnostics,
     refreshes,
     repository,
+    serpApiAcquirerCalls,
     service,
   };
 };
@@ -526,6 +570,465 @@ async function main() {
     );
   }
 
+  {
+    const events = [];
+    const harness = createHarness([], {
+      serpApiAcquire: async () => {
+        events.push('acquire');
+        return { status: 'ACQUIRED', credential_ref: 'serpapi:fresh-new' };
+      },
+    });
+    const originalUpsert = harness.repository.upsertSourceConnection.bind(
+      harness.repository,
+    );
+    harness.repository.upsertSourceConnection = (input) => {
+      events.push('upsert');
+      return originalUpsert(input);
+    };
+    assert.deepEqual(
+      await harness.service.provisionSerpApi({
+        workspace_id: 'ws_serpapi_new',
+        source_id: 'serpapi',
+      }),
+      {
+        ok: true,
+        result: {
+          source_id: 'serpapi',
+          action: 'PROVISION_SERPAPI',
+          outcome: 'SUCCEEDED',
+        },
+      },
+    );
+    assert.deepEqual(events, ['acquire', 'upsert']);
+    assert.deepEqual(
+      harness.repository.getSourceConnection('ws_serpapi_new', 'serpapi'),
+      {
+        connection_id: 'conn_created',
+        workspace_id: 'ws_serpapi_new',
+        source_id: 'serpapi',
+        credential_ref: 'serpapi:fresh-new',
+        safe_metadata: {},
+        created_at: '2026-09-23T00:00:00.000Z',
+        updated_at: '2026-09-23T01:00:00.000Z',
+      },
+    );
+    assert.deepEqual(harness.refreshes, ['ws_serpapi_new']);
+  }
+
+  {
+    const existing = record('ws_serpapi_null', 'serpapi', null, {});
+    const harness = createHarness([existing], {
+      serpApiAcquire: async () => ({
+        status: 'ACQUIRED',
+        credential_ref: 'serpapi:fresh-null',
+      }),
+    });
+    assert.equal((await harness.service.provisionSerpApi({
+      workspace_id: existing.workspace_id,
+      source_id: 'serpapi',
+    })).ok, true);
+    const updated = harness.repository.getSourceConnection(
+      existing.workspace_id,
+      'serpapi',
+    );
+    assert.equal(updated.connection_id, existing.connection_id);
+    assert.equal(updated.credential_ref, 'serpapi:fresh-null');
+    assert.deepEqual(updated.safe_metadata, {});
+    assert.equal(
+      harness.repository.calls.some(([operation]) => operation === 'rebind'),
+      false,
+    );
+  }
+
+  for (const [workspaceId, oldRef, freshRef] of [
+    ['ws_serpapi_available', 'serpapi:old-available', 'serpapi:fresh-available'],
+    ['ws_serpapi_missing', 'serpapi:old-missing', 'serpapi:fresh-missing'],
+  ]) {
+    const existing = record(workspaceId, 'serpapi', oldRef, {});
+    const events = [];
+    const harness = createHarness([existing], {
+      serpApiAcquire: async () => {
+        events.push('acquire');
+        return { status: 'ACQUIRED', credential_ref: freshRef };
+      },
+      deleteCredential: async (credentialRef, repository) => {
+        events.push(['delete', credentialRef]);
+        assert.equal(
+          repository.getSourceConnection(workspaceId, 'serpapi').credential_ref,
+          freshRef,
+          'old credential cleanup happens only after exact rebind commits',
+        );
+      },
+    });
+    const originalRebind = harness.repository.rebindSourceConnections.bind(
+      harness.repository,
+    );
+    harness.repository.rebindSourceConnections = (input) => {
+      events.push(['rebind', clone(input)]);
+      return originalRebind(input);
+    };
+    assert.deepEqual(
+      await harness.service.provisionSerpApi({
+        workspace_id: workspaceId,
+        source_id: 'serpapi',
+      }),
+      {
+        ok: true,
+        result: {
+          source_id: 'serpapi',
+          action: 'PROVISION_SERPAPI',
+          outcome: 'SUCCEEDED',
+        },
+      },
+    );
+    assert.equal(events[0], 'acquire');
+    assert.deepEqual(events[1], ['rebind', {
+      workspace_id: workspaceId,
+      source_ids: ['serpapi'],
+      expected_credential_ref: oldRef,
+      replacement_credential_ref: freshRef,
+    }]);
+    assert.deepEqual(events[2], ['delete', oldRef]);
+    assert.equal(
+      harness.repository.getSourceConnection(workspaceId, 'serpapi').credential_ref,
+      freshRef,
+    );
+    assert.equal(
+      harness.credentialCalls.some(([, reference]) => reference === freshRef),
+      false,
+      'the newly acquired reference is never deleted after committed rebind',
+    );
+  }
+
+  {
+    const harness = createHarness([], {
+      serpApiAcquire: async () => ({ status: 'CANCELLED' }),
+    });
+    assert.deepEqual(
+      await harness.service.provisionSerpApi({
+        workspace_id: 'ws_serpapi_cancel',
+        source_id: 'serpapi',
+      }),
+      {
+        ok: false,
+        error: {
+          code: 'SECRET_INGRESS_CANCELLED',
+          source_id: 'serpapi',
+          retryable: false,
+        },
+      },
+    );
+    assert.equal(
+      harness.repository.calls.some(([operation]) => (
+        operation === 'upsert' || operation === 'rebind'
+      )),
+      false,
+    );
+    assert.deepEqual(harness.credentialCalls, []);
+    assert.deepEqual(harness.refreshes, []);
+  }
+
+  for (const [acquirerCode, retryable, diagnostic] of [
+    ['SECRET_INGRESS_FAILED', true, 'SERPAPI_SECRET_INGRESS_FAILED'],
+    ['SECRET_INPUT_INVALID', false, null],
+    ['CREDENTIAL_PERSISTENCE_FAILED', true, null],
+  ]) {
+    const harness = createHarness([], {
+      serpApiAcquire: async () => {
+        const error = new Error('rr_test_only_provisioning_key');
+        error.code = acquirerCode;
+        throw error;
+      },
+    });
+    assert.deepEqual(
+      await harness.service.provisionSerpApi({
+        workspace_id: `ws_${acquirerCode.toLowerCase()}`,
+        source_id: 'serpapi',
+      }),
+      {
+        ok: false,
+        error: {
+          code: acquirerCode,
+          source_id: 'serpapi',
+          retryable,
+        },
+      },
+    );
+    assert.equal(
+      harness.repository.calls.some(([operation]) => (
+        operation === 'upsert' || operation === 'rebind'
+      )),
+      false,
+    );
+    assert.deepEqual(
+      harness.diagnostics,
+      diagnostic === null
+        ? []
+        : [{
+          code: diagnostic,
+          workspace_id: `ws_${acquirerCode.toLowerCase()}`,
+          source_id: 'serpapi',
+        }],
+    );
+  }
+
+  {
+    const harness = createHarness();
+    harness.repository.failGet = true;
+    assert.deepEqual(
+      await harness.service.provisionSerpApi({
+        workspace_id: 'ws_serpapi_lookup_failure',
+        source_id: 'serpapi',
+      }),
+      {
+        ok: false,
+        error: {
+          code: 'CONNECTION_PERSISTENCE_FAILED',
+          source_id: 'serpapi',
+          retryable: true,
+        },
+      },
+    );
+    assert.deepEqual(harness.serpApiAcquirerCalls, []);
+  }
+
+  {
+    const harness = createHarness([], {
+      serpApiAcquire: async () => ({
+        status: 'ACQUIRED',
+        credential_ref: 'serpapi:fresh-upsert-fail',
+      }),
+    });
+    harness.repository.failUpsert = true;
+    assert.deepEqual(
+      await harness.service.provisionSerpApi({
+        workspace_id: 'ws_serpapi_upsert_failure',
+        source_id: 'serpapi',
+      }),
+      {
+        ok: false,
+        error: {
+          code: 'CONNECTION_PERSISTENCE_FAILED',
+          source_id: 'serpapi',
+          retryable: true,
+        },
+      },
+    );
+    assert.deepEqual(harness.credentialCalls, [
+      ['delete', 'serpapi:fresh-upsert-fail'],
+    ]);
+    assert.deepEqual(harness.refreshes, ['ws_serpapi_upsert_failure']);
+  }
+
+  {
+    const existing = record(
+      'ws_serpapi_rebind_failure',
+      'serpapi',
+      'serpapi:old-rebind-failure',
+      {},
+    );
+    const harness = createHarness([existing], {
+      serpApiAcquire: async () => ({
+        status: 'ACQUIRED',
+        credential_ref: 'serpapi:fresh-rebind-fail',
+      }),
+    });
+    harness.repository.failRebind = true;
+    assert.deepEqual(
+      await harness.service.provisionSerpApi({
+        workspace_id: existing.workspace_id,
+        source_id: 'serpapi',
+      }),
+      {
+        ok: false,
+        error: {
+          code: 'CONNECTION_REBIND_FAILED',
+          source_id: 'serpapi',
+          retryable: true,
+        },
+      },
+    );
+    assert.equal(
+      harness.repository.getSourceConnection(
+        existing.workspace_id,
+        'serpapi',
+      ).credential_ref,
+      existing.credential_ref,
+    );
+    assert.deepEqual(harness.credentialCalls, [
+      ['delete', 'serpapi:fresh-rebind-fail'],
+    ]);
+  }
+
+  {
+    const harness = createHarness([], {
+      serpApiAcquire: async () => ({
+        status: 'ACQUIRED',
+        credential_ref: 'serpapi:fresh-compensation-fail',
+      }),
+    });
+    harness.repository.failUpsert = true;
+    harness.repository.failCount = true;
+    const result = await harness.service.provisionSerpApi({
+      workspace_id: 'ws_serpapi_compensation_failure',
+      source_id: 'serpapi',
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, 'CONNECTION_PERSISTENCE_FAILED');
+    assert.deepEqual(harness.diagnostics, [{
+      code: 'NEW_CREDENTIAL_COMPENSATION_FAILED',
+      workspace_id: 'ws_serpapi_compensation_failure',
+      source_id: 'serpapi',
+    }]);
+  }
+
+  {
+    const selected = record(
+      'ws_serpapi_shared_a',
+      'serpapi',
+      'serpapi:old-shared',
+      {},
+    );
+    const sibling = record(
+      'ws_serpapi_shared_b',
+      'serpapi',
+      'serpapi:old-shared',
+      {},
+    );
+    const harness = createHarness([selected, sibling], {
+      serpApiAcquire: async () => ({
+        status: 'ACQUIRED',
+        credential_ref: 'serpapi:fresh-shared',
+      }),
+    });
+    assert.equal((await harness.service.provisionSerpApi({
+      workspace_id: selected.workspace_id,
+      source_id: 'serpapi',
+    })).ok, true);
+    assert.equal(
+      harness.credentialCalls.some(([, reference]) => (
+        reference === 'serpapi:old-shared'
+      )),
+      false,
+    );
+  }
+
+  for (const failureKind of ['count', 'delete']) {
+    const existing = record(
+      `ws_serpapi_cleanup_${failureKind}`,
+      'serpapi',
+      `serpapi:old-cleanup-${failureKind}`,
+      {},
+    );
+    const harness = createHarness([existing], {
+      serpApiAcquire: async () => ({
+        status: 'ACQUIRED',
+        credential_ref: `serpapi:fresh-cleanup-${failureKind}`,
+      }),
+      deleteCredential: failureKind === 'delete'
+        ? async () => { throw new Error('rr_test_only_provisioning_key'); }
+        : undefined,
+    });
+    if (failureKind === 'count') harness.repository.failCount = true;
+    const result = await harness.service.provisionSerpApi({
+      workspace_id: existing.workspace_id,
+      source_id: 'serpapi',
+    });
+    assert.deepEqual(result, {
+      ok: true,
+      result: {
+        source_id: 'serpapi',
+        action: 'PROVISION_SERPAPI',
+        outcome: 'SUCCEEDED_WITH_CLEANUP_WARNING',
+      },
+    });
+    assert.equal(
+      harness.repository.getSourceConnection(
+        existing.workspace_id,
+        'serpapi',
+      ).credential_ref,
+      `serpapi:fresh-cleanup-${failureKind}`,
+    );
+    assert.deepEqual(harness.diagnostics, [{
+      code: 'OBSOLETE_CREDENTIAL_CLEANUP_FAILED',
+      workspace_id: existing.workspace_id,
+      source_id: 'serpapi',
+    }]);
+  }
+
+  {
+    const harness = createHarness([], {
+      serpApiAcquire: async () => ({
+        status: 'ACQUIRED',
+        credential_ref: 'serpapi:fresh-refresh-fail',
+      }),
+      refreshSafeState: async () => {
+        throw new Error('rr_test_only_provisioning_key');
+      },
+    });
+    const result = await harness.service.provisionSerpApi({
+      workspace_id: 'ws_serpapi_refresh_failure',
+      source_id: 'serpapi',
+    });
+    assert.equal(result.ok, true);
+    assert.equal(
+      harness.repository.getSourceConnection(
+        'ws_serpapi_refresh_failure',
+        'serpapi',
+      ).credential_ref,
+      'serpapi:fresh-refresh-fail',
+    );
+    assert.deepEqual(harness.diagnostics, [{
+      code: 'SAFE_STATE_REFRESH_FAILED',
+      workspace_id: 'ws_serpapi_refresh_failure',
+      source_id: 'serpapi',
+    }]);
+  }
+
+  {
+    const disconnectRecord = record(
+      'ws_serpapi_serial_disconnect',
+      'serpapi',
+      'serpapi:serial-old',
+      {},
+    );
+    let releaseDelete;
+    let deleteStartedResolve;
+    const deleteStarted = new Promise((resolve) => {
+      deleteStartedResolve = resolve;
+    });
+    const harness = createHarness([disconnectRecord], {
+      deleteCredential: async () => {
+        deleteStartedResolve();
+        await new Promise((resolve) => {
+          releaseDelete = resolve;
+        });
+      },
+      serpApiAcquire: async () => ({
+        status: 'ACQUIRED',
+        credential_ref: 'serpapi:serial-fresh',
+      }),
+    });
+    const disconnectPromise = harness.service.disconnect({
+      workspace_id: disconnectRecord.workspace_id,
+      source_id: 'serpapi',
+    });
+    await deleteStarted;
+    const provisionPromise = harness.service.provisionSerpApi({
+      workspace_id: 'ws_serpapi_serial_provision',
+      source_id: 'serpapi',
+    });
+    await Promise.resolve();
+    assert.deepEqual(
+      harness.serpApiAcquirerCalls,
+      [],
+      'provisioning must wait behind the blocked Disconnect mutation',
+    );
+    releaseDelete();
+    await Promise.all([disconnectPromise, provisionPromise]);
+    assert.deepEqual(harness.serpApiAcquirerCalls, [true]);
+  }
+
   const leakHarness = createHarness();
   const leakResult = await leakHarness.service.manage({
     workspace_id: 'ws_leak',
@@ -537,10 +1040,11 @@ async function main() {
     diagnostics: leakHarness.diagnostics,
   });
   assert.equal(serialized.includes('sentinel-secret'), false);
+  assert.equal(serialized.includes('rr_test_only_provisioning_key'), false);
   assert.equal(serialized.includes('credential_ref'), false);
 
   console.log(
-    'PASS WORKSPACE-CONNECTION-MANAGEMENT-SERVICE-001: Manage and Disconnect serialize mutations, compensate failures, refresh safe state, and return secret-free results',
+    'PASS WORKSPACE-CONNECTION-MANAGEMENT-SERVICE-001: Manage, Disconnect, and SerpApi provisioning serialize mutations, compensate failures, refresh safe state, and return secret-free results',
   );
 }
 

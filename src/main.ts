@@ -56,6 +56,9 @@ import {
 import {
   createElectronGoogleOAuthCredentialAcquirer,
 } from './main/app/google-api-electron-composition';
+import {
+  createElectronSerpApiCredentialAcquirer,
+} from './main/app/serpapi-electron-composition';
 import { SUPPORTED_DESKTOP_SOURCE_IDS } from './shared/desktop-multisource';
 import {
   IPC_CHANNELS,
@@ -1101,6 +1104,10 @@ const initializeBootstrapStatus =
           credential_store: credentialStore,
           google_credential_acquirer:
             createElectronGoogleOAuthCredentialAcquirer(
+              credentialStore,
+            ),
+          serpapi_credential_acquirer:
+            createElectronSerpApiCredentialAcquirer(
               credentialStore,
             ),
           refresh_safe_state: async (workspaceId) => {

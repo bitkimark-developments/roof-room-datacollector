@@ -10,6 +10,7 @@ import type {
   ConnectGoogleWorkspaceConnectionIntent,
   DesktopGoogleConnectionSourceId,
   ManageWorkspaceConnectionIntent,
+  ProvisionSerpApiWorkspaceConnectionIntent,
   ReconnectGoogleWorkspaceConnectionIntent,
   WorkspaceConnectionMutationAction,
   WorkspaceConnectionMutationErrorCode,
@@ -20,12 +21,16 @@ import {
   normalizeConnectGoogleWorkspaceConnectionIntent,
   normalizeDisconnectWorkspaceConnectionIntent,
   normalizeManageWorkspaceConnectionIntent,
+  normalizeProvisionSerpApiWorkspaceConnectionIntent,
   normalizeReconnectGoogleWorkspaceConnectionIntent,
 } from './workspace-connection-metadata';
 import {
   GOOGLE_ADS_SCOPE,
   type GoogleOAuthCredentialAcquirer,
 } from '../sources/google-api/google-oauth-credential-acquirer';
+import type {
+  SerpApiCredentialAcquirer,
+} from '../sources/serpapi/serpapi-credential-acquirer';
 
 export type WorkspaceConnectionDiagnosticEvent =
   | {
@@ -41,7 +46,12 @@ export type WorkspaceConnectionDiagnosticEvent =
   | {
     code: 'NEW_CREDENTIAL_COMPENSATION_FAILED';
     workspace_id: string;
-    source_id: DesktopGoogleConnectionSourceId;
+    source_id: DesktopCredentialManagedSourceId;
+  }
+  | {
+    code: 'SERPAPI_SECRET_INGRESS_FAILED';
+    workspace_id: string;
+    source_id: 'serpapi';
   }
   | {
     code: 'SAFE_STATE_REFRESH_FAILED';
@@ -53,6 +63,7 @@ export interface WorkspaceConnectionManagementDependencies {
   repository: WorkspaceConnectionMutationRepository;
   credential_store: CredentialStore;
   google_credential_acquirer: GoogleOAuthCredentialAcquirer;
+  serpapi_credential_acquirer: SerpApiCredentialAcquirer;
   refresh_safe_state: (workspace_id: string) => Promise<void>;
   record_diagnostic: (event: WorkspaceConnectionDiagnosticEvent) => void;
 }
@@ -118,6 +129,16 @@ export class WorkspaceConnectionManagementService {
       return Promise.resolve(failure('INVALID_CONNECTION_INTENT', false));
     }
     return this.serialize(() => this.reconnectGoogleNormalized(intent));
+  }
+
+  provisionSerpApi(value: unknown): Promise<WorkspaceConnectionMutationResponse> {
+    let intent: ProvisionSerpApiWorkspaceConnectionIntent;
+    try {
+      intent = normalizeProvisionSerpApiWorkspaceConnectionIntent(value);
+    } catch {
+      return Promise.resolve(failure('INVALID_CONNECTION_INTENT', false));
+    }
+    return this.serialize(() => this.provisionSerpApiNormalized(intent));
   }
 
   disconnect(value: unknown): Promise<WorkspaceConnectionMutationResponse> {
@@ -248,6 +269,97 @@ export class WorkspaceConnectionManagementService {
     }
     await this.refreshSafeState(intent.workspace_id, intent.source_id);
     return response;
+  }
+
+  private async provisionSerpApiNormalized(
+    intent: ProvisionSerpApiWorkspaceConnectionIntent,
+  ): Promise<WorkspaceConnectionMutationResponse> {
+    let existing: WorkspaceSourceConnectionRecord | null;
+    try {
+      existing = this.dependencies.repository.getSourceConnection(
+        intent.workspace_id,
+        intent.source_id,
+      );
+    } catch {
+      return failure('CONNECTION_PERSISTENCE_FAILED', true, intent.source_id);
+    }
+
+    let acquiredCredentialRef: string;
+    try {
+      const acquired = await this.dependencies.serpapi_credential_acquirer
+        .acquire();
+      if (acquired.status === 'CANCELLED') {
+        return failure('SECRET_INGRESS_CANCELLED', false, intent.source_id);
+      }
+      acquiredCredentialRef = acquired.credential_ref;
+    } catch (error) {
+      return this.serpApiAcquisitionFailure(error, intent);
+    }
+
+    if (existing?.credential_ref === null || existing === null) {
+      try {
+        this.dependencies.repository.upsertSourceConnection({
+          workspace_id: intent.workspace_id,
+          source_id: intent.source_id,
+          credential_ref: acquiredCredentialRef,
+          safe_metadata: {},
+        });
+      } catch {
+        await this.compensateFreshCredential(
+          acquiredCredentialRef,
+          intent.workspace_id,
+          intent.source_id,
+        );
+        await this.refreshSafeState(intent.workspace_id, intent.source_id);
+        return failure(
+          'CONNECTION_PERSISTENCE_FAILED',
+          true,
+          intent.source_id,
+        );
+      }
+      await this.refreshSafeState(intent.workspace_id, intent.source_id);
+      return success(intent.source_id, 'PROVISION_SERPAPI');
+    }
+
+    try {
+      this.dependencies.repository.rebindSourceConnections({
+        workspace_id: intent.workspace_id,
+        source_ids: [intent.source_id],
+        expected_credential_ref: existing.credential_ref,
+        replacement_credential_ref: acquiredCredentialRef,
+      });
+    } catch {
+      await this.compensateFreshCredential(
+        acquiredCredentialRef,
+        intent.workspace_id,
+        intent.source_id,
+      );
+      await this.refreshSafeState(intent.workspace_id, intent.source_id);
+      return failure('CONNECTION_REBIND_FAILED', true, intent.source_id);
+    }
+
+    let outcome: WorkspaceConnectionMutationOutcome = 'SUCCEEDED';
+    try {
+      const remainingReferences =
+        this.dependencies.repository.countSourceConnectionsByCredentialRef(
+          existing.credential_ref,
+        );
+      if (remainingReferences === 0) {
+        await this.dependencies.credential_store.deleteCredential(
+          existing.credential_ref,
+        );
+      }
+    } catch {
+      outcome = 'SUCCEEDED_WITH_CLEANUP_WARNING';
+      this.recordDiagnostic({
+        code: 'OBSOLETE_CREDENTIAL_CLEANUP_FAILED',
+        workspace_id: intent.workspace_id,
+        source_id: intent.source_id,
+      });
+    }
+
+    await this.refreshSafeState(intent.workspace_id, intent.source_id);
+    return success(intent.source_id, 'PROVISION_SERPAPI', outcome);
   }
 
   private async connectGoogleNormalized(
@@ -522,10 +634,40 @@ export class WorkspaceConnectionManagementService {
     );
   }
 
+  private serpApiAcquisitionFailure(
+    error: unknown,
+    intent: ProvisionSerpApiWorkspaceConnectionIntent,
+  ): WorkspaceConnectionMutationResponse {
+    const candidate = typeof error === 'object' && error !== null
+      ? (error as { code?: unknown }).code
+      : undefined;
+    const supportedCodes: readonly WorkspaceConnectionMutationErrorCode[] = [
+      'SECRET_INGRESS_FAILED',
+      'SECRET_INPUT_INVALID',
+      'CREDENTIAL_PERSISTENCE_FAILED',
+    ];
+    const code = typeof candidate === 'string'
+      && supportedCodes.includes(candidate as WorkspaceConnectionMutationErrorCode)
+      ? candidate as WorkspaceConnectionMutationErrorCode
+      : 'SECRET_INGRESS_FAILED';
+    if (code === 'SECRET_INGRESS_FAILED') {
+      this.recordDiagnostic({
+        code: 'SERPAPI_SECRET_INGRESS_FAILED',
+        workspace_id: intent.workspace_id,
+        source_id: intent.source_id,
+      });
+    }
+    return failure(
+      code,
+      code !== 'SECRET_INPUT_INVALID',
+      intent.source_id,
+    );
+  }
+
   private async compensateFreshCredential(
     credentialRef: string,
     workspaceId: string,
-    sourceId: DesktopGoogleConnectionSourceId,
+    sourceId: DesktopCredentialManagedSourceId,
   ): Promise<void> {
     try {
       const referenceCount =
