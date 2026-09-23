@@ -1019,6 +1019,52 @@ p {
   font-weight: 750;
 }
 
+.rr-preset-task-list {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.rr-preset-task-list label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 9px;
+  align-items: start;
+  padding: 9px 10px;
+  border: 1px solid #e5e2f2;
+  border-radius: 8px;
+  background: #fcfbff;
+}
+
+.rr-preset-task-list input {
+  grid-row: 1 / span 2;
+  margin-top: 2px;
+}
+
+.rr-preset-task-list small {
+  color: #746f86;
+  font-size: 9px;
+}
+
+.rr-new-preset {
+  margin-top: 18px;
+}
+
+.rr-preset-review {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(24, 185, 167, 0.24);
+  border-radius: 9px;
+  background: var(--rr-turquoise-soft);
+}
+
+.rr-preset-review p {
+  margin: 0;
+}
+
 /* Quick Run Review */
 
 .rr-review-page {

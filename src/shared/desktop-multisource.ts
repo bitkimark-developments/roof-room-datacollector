@@ -163,6 +163,12 @@ export interface DesktopMultiSourceRepository {
     preset_name: string;
     reusable_configuration: ReusableCollectionConfiguration;
   }): SavedCollectionPresetRecord;
+  updateSavedCollectionPreset(input: {
+    workspace_id: string;
+    preset_id: string;
+    preset_name: string;
+    reusable_configuration: ReusableCollectionConfiguration;
+  }): SavedCollectionPresetRecord;
   deleteSavedCollectionPreset(
     workspace_id: string,
     preset_id: string,

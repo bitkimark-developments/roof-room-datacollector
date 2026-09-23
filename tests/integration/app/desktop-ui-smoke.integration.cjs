@@ -213,6 +213,24 @@ const main = async () => {
         window.__workspaceConnectionMutationSerial = 0;
         window.__workspaceConnectionReadsAfterMutation = [];
         window.__workspaceConnectionMutationCalls = [];
+        window.__presetState = [
+          {
+            preset_id: 'sp_fixture',
+            workspace_id: 'ws_fixture',
+            preset_name: 'Blog-Agentic-Beklentisi',
+            reusable_configuration: {
+              sources: {
+                'google-search-console-query-page': {
+                  included: true,
+                  task_id: 'gsc-current-90-days',
+                  date_policy: 'TODAY_MINUS_90_TO_YESTERDAY',
+                },
+              },
+            },
+            created_at: '2026-09-14T00:00:00.000Z',
+            updated_at: '2026-09-14T00:00:00.000Z',
+          },
+        ];
         window.__workspaceConnectionState = [
           {
             source_id: 'google-search-console-query-page',
@@ -308,6 +326,11 @@ const main = async () => {
                 workspace_name: 'Acceptance Workspace',
                 created_at: '2026-09-11T00:00:00.000Z',
               },
+              {
+                workspace_id: 'ws_other',
+                workspace_name: 'Other Workspace',
+                created_at: '2026-09-12T00:00:00.000Z',
+              },
             ],
             selected_workspace_id: 'ws_fixture',
             connections: [
@@ -379,21 +402,19 @@ const main = async () => {
             return completeWorkspaceMutation(intent.source_id, 'PROVISION_SERPAPI');
           },
 
-          getDesktopPresets: async () => [
-            {
-              preset_id: 'sp_fixture',
-              workspace_id: 'ws_fixture',
-              preset_name: 'Blog-Agentic-Beklentisi',
-              reusable_configuration: {
-                sources: {},
-              },
-              created_at: '2026-09-14T00:00:00.000Z',
-              updated_at: '2026-09-14T00:00:00.000Z',
-            },
-          ],
+          getDesktopPresets: async (workspaceId) => structuredClone(
+            window.__presetState.filter((preset) => preset.workspace_id === workspaceId),
+          ),
 
-          createDesktopDraft: async () => ({
+          createDesktopDraft: async (input) => {
+            const preset = input.origin.kind === 'SAVED_PRESET'
+              ? window.__presetState.find((candidate) => candidate.preset_id === input.origin.preset_id)
+              : null;
+            const reusableConfiguration = preset?.reusable_configuration ?? blankDraft.reusable_configuration;
+            return {
             ...blankDraft,
+            origin: structuredClone(input.origin),
+            reusable_configuration: structuredClone(reusableConfiguration),
             source_cards: cards.map(
               (card) =>
                 (
@@ -412,14 +433,38 @@ const main = async () => {
                     }
                   : card,
             ),
-          }),
-
-          createDesktopPreset: async () => {
-            throw new Error('Not exercised by shell smoke test.');
+          };
           },
 
-          deleteDesktopPreset: async () => {
-            throw new Error('Not exercised by shell smoke test.');
+          createDesktopPreset: async (input) => {
+            window.__createdDesktopPresetInput = structuredClone(input);
+            const created = {
+              preset_id: `sp_created_${window.__presetState.length}`,
+              workspace_id: input.workspace_id,
+              preset_name: input.preset_name,
+              reusable_configuration: structuredClone(input.reusable_configuration),
+              created_at: '2026-09-23T10:00:00.000Z',
+              updated_at: '2026-09-23T10:00:00.000Z',
+            };
+            window.__presetState.push(created);
+            return structuredClone(created);
+          },
+
+          updateDesktopPreset: async (input) => {
+            window.__updatedDesktopPresetInput = structuredClone(input);
+            const index = window.__presetState.findIndex((preset) => preset.preset_id === input.preset_id);
+            window.__presetState[index] = {
+              ...window.__presetState[index],
+              preset_name: input.preset_name,
+              reusable_configuration: structuredClone(input.reusable_configuration),
+              updated_at: '2026-09-23T10:01:00.000Z',
+            };
+            return structuredClone(window.__presetState[index]);
+          },
+
+          deleteDesktopPreset: async (input) => {
+            window.__deletedDesktopPresetInput = structuredClone(input);
+            window.__presetState = window.__presetState.filter((preset) => preset.preset_id !== input.preset_id);
           },
 
           reviewDesktopDraft: async (reviewDraft) => {
@@ -3944,6 +3989,8 @@ const main = async () => {
     const adsCard = page.getByTestId('task-card').filter({ hasText: 'Google Ads — Search Terms' });
     await adsCard.getByText('READY', { exact: true }).waitFor();
     await adsCard.click();
+    assert.equal(await page.getByText('Scope: SEARCH campaigns · search_term_view', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Date policy: 17-day reporting lag through yesterday', { exact: true }).count(), 1);
     const adsReviewButton = page.getByRole('button', { name: 'Review Quick Run', exact: true });
     assert.equal(await adsReviewButton.isEnabled(), true, 'Configured Ads task must be reviewable');
     await adsReviewButton.click();
@@ -3975,6 +4022,7 @@ const main = async () => {
     assert.equal(await page.getByText('Group IDs must be unique.', { exact: true }).count(), 1);
     assert.equal(await plannerReviewButton.isEnabled(), false, 'Duplicate group IDs must fail closed inline.');
     await page.getByLabel('Keyword group 2 ID').fill('care-topics');
+    assert.equal(await page.getByText('Prepared input: 2 groups · 4 keywords', { exact: true }).count(), 1);
     assert.equal(await plannerReviewButton.isEnabled(), true, 'Valid explicit keyword groups make Review available.');
     await plannerReviewButton.click();
     await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();
@@ -4070,6 +4118,7 @@ const main = async () => {
     assert.equal(await page.getByText('Query IDs must be unique.', { exact: true }).count(), 1);
     assert.equal(await serpApiReviewButton.isEnabled(), false, 'Duplicate query IDs must fail closed inline.');
     await page.getByLabel('SERP query 2 ID').fill('SERP-OFFICE-001');
+    assert.equal(await page.getByText('Requests prepared: 2 · 1 provider request per query', { exact: true }).count(), 1);
     assert.equal(await serpApiReviewButton.isEnabled(), true);
     await serpApiReviewButton.click();
     await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();
@@ -4087,6 +4136,85 @@ const main = async () => {
     await page.getByRole('button', { name: 'Start Run', exact: true }).click();
     assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'SerpApi Start must forward the exact reviewed on-demand batch.');
     console.log('PASS SERPAPI-REVIEW-UI-001: explicit on-demand queries are reviewed and started unchanged');
+
+    await page.getByRole('button', { name: 'PRESETS', exact: true }).click();
+    await page.getByRole('heading', { name: 'Presets', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Open', exact: true }).first().click();
+    const presetEditor = page.getByTestId('preset-editor');
+    const gscPresetTask = presetEditor.locator('label').filter({ hasText: 'GSC — Current 90 Days' });
+    assert.equal(await gscPresetTask.getByRole('checkbox').isChecked(), true);
+    assert.equal(await gscPresetTask.getByText('Readiness: READY', { exact: true }).count(), 1);
+    await presetEditor.getByLabel('Edit preset name').fill('Current GSC Daily');
+    assert.equal(await presetEditor.getByText('Unsaved preset changes.', { exact: true }).count(), 1);
+    assert.equal(await presetEditor.getByRole('button', { name: 'Review Preset', exact: true }).isDisabled(), true);
+    await presetEditor.getByRole('button', { name: 'Save Changes', exact: true }).click();
+    assert.equal(
+      await page.evaluate(() => window.__updatedDesktopPresetInput.preset_name),
+      'Current GSC Daily',
+      'Preset rename must preserve and update the selected reusable configuration.',
+    );
+    await presetEditor.getByRole('button', { name: 'Duplicate', exact: true }).click();
+    assert.equal(
+      await page.evaluate(() => window.__createdDesktopPresetInput.preset_name),
+      'Current GSC Daily copy',
+      'Duplicate must create a distinct named preset from the editor configuration.',
+    );
+    await presetEditor.getByRole('button', { name: 'Review Preset', exact: true }).click();
+    const presetReview = page.getByTestId('preset-review');
+    assert.equal(await presetReview.getByText('1 sources · 1 jobs', { exact: true }).count(), 1);
+    assert.equal(await presetReview.getByText('Google Search Console: READY', { exact: true }).count(), 1);
+    await presetReview.getByRole('button', { name: 'Start Preset Run', exact: true }).click();
+    await page.getByRole('heading', { name: 'Run Detail', exact: true }).waitFor();
+
+    await page.getByRole('button', { name: 'PRESETS', exact: true }).click();
+    const newPreset = page.getByTestId('new-preset');
+    await newPreset.getByLabel('New preset name').fill('Fresh GSC Preset');
+    await newPreset.getByLabel('GSC — Current 90 Days', { exact: true }).check();
+    await newPreset.getByRole('button', { name: 'Create Preset', exact: true }).click();
+    assert.equal(
+      await page.evaluate(() => window.__createdDesktopPresetInput.preset_name),
+      'Fresh GSC Preset',
+      'New preset creation must include explicit selected task configuration.',
+    );
+    assert.equal(
+      await page.evaluate(() => window.__createdDesktopPresetInput.reusable_configuration.sources['google-search-console-query-page'].task_id),
+      'gsc-current-90-days',
+    );
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: 'Delete', exact: true }).last().click();
+    assert.equal(
+      await page.evaluate(() => window.__deletedDesktopPresetInput.workspace_id),
+      'ws_fixture',
+      'Preset deletion must remain confirmed and Workspace-scoped.',
+    );
+
+    await page.getByTestId('preset-editor').getByLabel('Edit preset name').fill('Unsaved rename');
+    page.once('dialog', (dialog) => dialog.dismiss());
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    assert.equal(
+      await page.getByRole('heading', { name: 'Presets', exact: true }).count(),
+      1,
+      'Dismissed unsaved-edit warning must keep the user in the preset editor.',
+    );
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    await page.getByRole('heading', { name: 'Collection Operations', exact: true }).waitFor();
+
+    await page.getByRole('button', { name: 'PRESETS', exact: true }).click();
+    const isolatedNewPreset = page.getByTestId('new-preset');
+    await isolatedNewPreset.getByLabel('New preset name').fill('Workspace A draft');
+    await isolatedNewPreset.getByLabel('GSC — Current 90 Days', { exact: true }).check();
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByLabel('Active Workspace').selectOption('ws_other');
+    await page.getByRole('heading', { name: 'Collection Operations', exact: true }).waitFor();
+    assert.equal(await page.getByLabel('Active Workspace').inputValue(), 'ws_other');
+    await page.getByRole('button', { name: 'PRESETS', exact: true }).click();
+    assert.equal(
+      await page.getByTestId('new-preset').getByLabel('New preset name').inputValue(),
+      '',
+      'Workspace changes must clear transient preset drafts instead of leaking them across Workspaces.',
+    );
+    console.log('PASS PRESET-LIFECYCLE-UI-001: create, open, edit, rename, duplicate, review, run, and confirmed delete are usable');
 
     console.log(
       'PASS DESKTOP-UI-001: source-neutral operations shell and reviewed GSC + Google Trends Quick Run flows are verified',

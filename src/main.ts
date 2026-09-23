@@ -554,6 +554,46 @@ const registerIpcHandlers = (
   );
 
   ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_UPDATE_PRESET,
+    (event, input: unknown) => {
+      assertTrustedIpcSender(event);
+
+      if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+        throw new Error('Desktop preset update input must be an object.');
+      }
+
+      const value = input as {
+        workspace_id?: unknown;
+        preset_id?: unknown;
+        preset_name?: unknown;
+        reusable_configuration?: unknown;
+      };
+
+      if (
+        typeof value.workspace_id !== 'string'
+        || typeof value.preset_id !== 'string'
+        || typeof value.preset_name !== 'string'
+        || !value.workspace_id.trim()
+        || !value.preset_id.trim()
+        || !value.preset_name.trim()
+        || typeof value.reusable_configuration !== 'object'
+        || value.reusable_configuration === null
+        || Array.isArray(value.reusable_configuration)
+      ) {
+        throw new Error('Desktop preset update input is invalid.');
+      }
+
+      return requireDesktopController().updatePreset({
+        workspace_id: value.workspace_id,
+        preset_id: value.preset_id,
+        preset_name: value.preset_name,
+        reusable_configuration:
+          value.reusable_configuration as import('./shared/collection-configuration').ReusableCollectionConfiguration,
+      });
+    },
+  );
+
+  ipcMain.handle(
     IPC_CHANNELS.DESKTOP_DELETE_PRESET,
     (event, input: unknown) => {
       assertTrustedIpcSender(event);

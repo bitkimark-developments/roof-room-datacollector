@@ -84,6 +84,19 @@ const createFixture = (
       presets.set(input.workspace_id, collection);
       return preset;
     },
+    updateSavedCollectionPreset: (input) => {
+      const collection = presets.get(input.workspace_id) || [];
+      const index = collection.findIndex((preset) => preset.preset_id === input.preset_id);
+      if (index < 0) throw new Error(`Preset ${input.preset_id} not found`);
+      const updated = {
+        ...collection[index],
+        preset_name: input.preset_name,
+        reusable_configuration: input.reusable_configuration,
+        updated_at: '2026-09-11T00:00:03.000Z',
+      };
+      collection[index] = updated;
+      return updated;
+    },
     deleteSavedCollectionPreset: (workspace_id, preset_id) => {
       const collection = presets.get(workspace_id) || [];
       const next = collection.filter((preset) => preset.preset_id !== preset_id);
@@ -1105,6 +1118,23 @@ async function main() {
   assert.equal(createdPreset.workspace_id, 'ws_b');
   assert.equal(createdPreset.preset_name, 'Blog-Agentic-Beklentisi');
   assert.equal(controller.listPresets('ws_b').length, 1);
+
+  const updatedPreset = controller.updatePreset({
+    workspace_id: 'ws_b',
+    preset_id: createdPreset.preset_id,
+    preset_name: 'Renamed preset',
+    reusable_configuration: {
+      sources: {
+        'google-trends': { included: true },
+      },
+    },
+  });
+  assert.equal(updatedPreset.preset_name, 'Renamed preset');
+  assert.deepEqual(updatedPreset.reusable_configuration, {
+    sources: {
+      'google-trends': { included: true },
+    },
+  });
 
   controller.deletePreset('ws_b', createdPreset.preset_id);
   assert.equal(controller.listPresets('ws_b').length, 0);

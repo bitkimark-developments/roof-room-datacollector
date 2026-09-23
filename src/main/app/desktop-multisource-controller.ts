@@ -546,6 +546,32 @@ export class DesktopMultiSourceController {
     });
   }
 
+  updatePreset(input: {
+    workspace_id: string;
+    preset_id: string;
+    preset_name: string;
+    reusable_configuration: ReusableCollectionConfiguration;
+  }) {
+    const workspace = this.dependencies.repository.getWorkspace(
+      input.workspace_id,
+    );
+
+    if (!workspace) {
+      throw new Error(
+        `Unknown Workspace: ${input.workspace_id}`,
+      );
+    }
+
+    return this.dependencies.repository.updateSavedCollectionPreset({
+      workspace_id: input.workspace_id,
+      preset_id: input.preset_id,
+      preset_name: input.preset_name,
+      reusable_configuration: cloneConfiguration(
+        input.reusable_configuration,
+      ),
+    });
+  }
+
   deletePreset(
     workspace_id: string,
     preset_id: string,

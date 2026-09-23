@@ -21,6 +21,7 @@ import type {
 } from './shared/desktop-multisource';
 import type { FreshnessStatus } from './shared/freshness';
 import type {
+  ReusableCollectionConfiguration,
   SavedCollectionPresetRecord,
 } from './shared/collection-configuration';
 import {
@@ -719,6 +720,17 @@ const getJobDisplayName = (
     ?? job.source_id;
 };
 
+const getReusableSources = (
+  configuration: ReusableCollectionConfiguration,
+): JsonObject => {
+  const sources = configuration.sources;
+  return typeof sources === 'object'
+    && sources !== null
+    && !Array.isArray(sources)
+    ? sources as JsonObject
+    : {};
+};
+
 export function DesktopMultiSourceView() {
   const [
     view,
@@ -929,6 +941,34 @@ export function DesktopMultiSourceView() {
     setNewPresetName,
   ] =
     useState('');
+
+  const [
+    newPresetTaskIds,
+    setNewPresetTaskIds,
+  ] = useState<string[]>([]);
+
+  const [
+    presetEditorName,
+    setPresetEditorName,
+  ] = useState('');
+
+  const [
+    presetEditorConfiguration,
+    setPresetEditorConfiguration,
+  ] = useState<ReusableCollectionConfiguration>({ sources: {} });
+
+  const [
+    presetEditorDirty,
+    setPresetEditorDirty,
+  ] = useState(false);
+
+  const [
+    presetReview,
+    setPresetReview,
+  ] = useState<{
+    draft: DesktopRunDraft;
+    review: DesktopReview;
+  } | null>(null);
 
   const [
     busy,
@@ -1214,6 +1254,32 @@ export function DesktopMultiSourceView() {
         false;
     };
   }, [
+    workspaceId,
+  ]);
+
+  useEffect(() => {
+    const selectedPreset = presets.find((preset) => (
+      preset.preset_id === presetId
+      && preset.workspace_id === workspaceId
+    ));
+
+    if (selectedPreset === undefined) {
+      setPresetEditorName('');
+      setPresetEditorConfiguration({ sources: {} });
+      setPresetEditorDirty(false);
+      setPresetReview(null);
+      return;
+    }
+
+    setPresetEditorName(selectedPreset.preset_name);
+    setPresetEditorConfiguration(
+      structuredClone(selectedPreset.reusable_configuration),
+    );
+    setPresetEditorDirty(false);
+    setPresetReview(null);
+  }, [
+    presetId,
+    presets,
     workspaceId,
   ]);
 
@@ -1667,6 +1733,67 @@ export function DesktopMultiSourceView() {
     await window.roofroom.openConfigFolder();
   };
 
+  const buildCurrentTaskSourceConfiguration = (
+    task: DesktopTaskDefinition,
+  ): JsonObject | null => {
+    if (
+      (
+        task.source_id === 'google-search-console-query-page'
+        || task.source_id === 'google-trends'
+        || task.source_id === 'google-ads-search-terms'
+      )
+      && task.date_policy !== undefined
+    ) {
+      return {
+        included: true,
+        task_id: task.task_id,
+        date_policy: task.date_policy,
+      };
+    }
+
+    if (task.source_id === 'ikas-products' && selectedIkasFile !== null) {
+      return {
+        included: true,
+        task_id: task.task_id,
+        file_path: selectedIkasFile.file_path,
+      };
+    }
+
+    if (
+      task.source_id === 'google-keyword-planner-csv'
+      && selectedKeywordPlannerCsvFile !== null
+    ) {
+      return {
+        included: true,
+        task_id: task.task_id,
+        file_path: selectedKeywordPlannerCsvFile.file_path,
+      };
+    }
+
+    if (task.source_id === 'google-keyword-planner') {
+      const groups = parseKeywordPlannerGroups(keywordPlannerGroupDrafts);
+      return groups === null
+        ? null
+        : { included: true, task_id: task.task_id, groups };
+    }
+
+    if (task.source_id === 'bitkimark-sitemap') {
+      const sitemaps = parseBitkimarkSitemapUrls(bitkimarkSitemapUrlsInput);
+      return sitemaps === null
+        ? null
+        : { included: true, task_id: task.task_id, sitemaps };
+    }
+
+    if (task.source_id === 'serpapi') {
+      const queries = parseSerpApiQueries(serpApiQueryDrafts);
+      return queries === null
+        ? null
+        : { included: true, task_id: task.task_id, queries };
+    }
+
+    return null;
+  };
+
   const reviewSelectedTaskQuickRun =
     async () => {
       if (
@@ -1764,78 +1891,9 @@ export function DesktopMultiSourceView() {
               },
             });
 
-        const sourceConfiguration:
-          JsonObject =
-            (
-              selectedTask.source_id
-                === 'google-search-console-query-page'
-              || selectedTask.source_id
-                === 'google-trends'
-              || selectedTask.source_id
-                === 'google-ads-search-terms'
-            )
-            && selectedTask.date_policy
-              !== undefined
-              ? {
-                  included:
-                    true,
-                  task_id:
-                    selectedTask.task_id,
-                  date_policy:
-                    selectedTask.date_policy,
-                }
-              : selectedTask.source_id === 'ikas-products'
-            && selectedIkasFile !== null
-              ? {
-                  included: true,
-                  task_id:
-                    selectedTask.task_id,
-                  file_path:
-                    selectedIkasFile.file_path,
-                }
-              : selectedTask.source_id
-                  === 'google-keyword-planner-csv'
-                && selectedKeywordPlannerCsvFile !== null
-                ? {
-                    included:
-                      true,
-                    task_id:
-                      selectedTask.task_id,
-                    file_path:
-                      selectedKeywordPlannerCsvFile.file_path,
-                  }
-              : selectedTask.source_id
-                  === 'google-keyword-planner'
-                && keywordPlannerGroups !== null
-                ? {
-                    included:
-                      true,
-                    task_id:
-                      selectedTask.task_id,
-                    groups:
-                      keywordPlannerGroups,
-                  }
-              : selectedTask.source_id
-                  === 'bitkimark-sitemap'
-                && bitkimarkSitemaps !== null
-                ? {
-                    included:
-                      true,
-                    task_id:
-                      selectedTask.task_id,
-                      sitemaps:
-                        bitkimarkSitemaps,
-                  }
-              : selectedTask.source_id === 'serpapi'
-                && serpApiQueries !== null
-                ? {
-                    included: true,
-                    task_id: selectedTask.task_id,
-                    queries: serpApiQueries,
-                  }
-              : {
-                  included: true,
-                };
+        const sourceConfiguration =
+          buildCurrentTaskSourceConfiguration(selectedTask)
+          ?? { included: true };
 
         const nextDraft:
           DesktopRunDraft = {
@@ -1909,6 +1967,23 @@ export function DesktopMultiSourceView() {
         setSelectedTask(
           null,
         );
+
+        setSelectedIkasFile(null);
+        setSelectedKeywordPlannerCsvFile(null);
+        setKeywordPlannerGroupDrafts([{
+          row_id: 1,
+          group_id: '',
+          group_name: '',
+          keywords: '',
+        }]);
+        setBitkimarkSitemapUrlsInput(
+          BITKIMARK_VERIFIED_SITEMAP_URLS.join('\n'),
+        );
+        setSerpApiQueryDrafts([{
+          row_id: 1,
+          job_key: '',
+          query: '',
+        }]);
 
         setView(
           'RUNS',
@@ -2210,6 +2285,7 @@ export function DesktopMultiSourceView() {
       if (
         !workspaceId
         || !presetName
+        || newPresetTaskIds.length === 0
         || busy
       ) {
         return;
@@ -2223,6 +2299,19 @@ export function DesktopMultiSourceView() {
       );
 
       try {
+        const sources = Object.fromEntries(
+          newPresetTaskIds.flatMap((taskId) => {
+            const task = DESKTOP_TASK_CATALOG.find((candidate) => (
+              candidate.task_id === taskId
+            ));
+            if (task === undefined) return [];
+            const configuration = buildCurrentTaskSourceConfiguration(task);
+            return configuration === null
+              ? []
+              : [[task.source_id, configuration]];
+          }),
+        );
+
         const created =
           await window
             .roofroom
@@ -2232,8 +2321,7 @@ export function DesktopMultiSourceView() {
               preset_name:
                 presetName,
               reusable_configuration: {
-                sources:
-                  {},
+                sources,
               },
             });
 
@@ -2256,6 +2344,7 @@ export function DesktopMultiSourceView() {
         setNewPresetName(
           '',
         );
+        setNewPresetTaskIds([]);
 
         setMessage(
           `Preset kaydedildi: ${created.preset_name}`,
@@ -2273,6 +2362,126 @@ export function DesktopMultiSourceView() {
         );
       }
     };
+
+  const updatePreset = async () => {
+    if (!workspaceId || !presetId || !presetEditorName.trim() || busy) return;
+
+    setBusy(true);
+    setMessage(null);
+    try {
+      const updated = await window.roofroom.updateDesktopPreset({
+        workspace_id: workspaceId,
+        preset_id: presetId,
+        preset_name: presetEditorName.trim(),
+        reusable_configuration: presetEditorConfiguration,
+      });
+      const next = await window.roofroom.getDesktopPresets(workspaceId);
+      setPresets(next);
+      setPresetId(updated.preset_id);
+      setPresetEditorDirty(false);
+      setMessage(`Preset updated: ${updated.preset_name}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Preset could not be updated.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const duplicatePreset = async () => {
+    if (!workspaceId || !presetId || busy) return;
+
+    setBusy(true);
+    setMessage(null);
+    try {
+      const created = await window.roofroom.createDesktopPreset({
+        workspace_id: workspaceId,
+        preset_name: `${presetEditorName.trim()} copy`,
+        reusable_configuration: structuredClone(presetEditorConfiguration),
+      });
+      const next = await window.roofroom.getDesktopPresets(workspaceId);
+      setPresets(next);
+      setPresetId(created.preset_id);
+      setMessage(`Preset duplicated: ${created.preset_name}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Preset could not be duplicated.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reviewPreset = async () => {
+    if (!workspaceId || !presetId || presetEditorDirty || busy) return;
+
+    setBusy(true);
+    setMessage(null);
+    try {
+      const nextDraft = await window.roofroom.createDesktopDraft({
+        workspace_id: workspaceId,
+        origin: { kind: 'SAVED_PRESET', preset_id: presetId },
+      });
+      const review = await window.roofroom.reviewDesktopDraft(nextDraft);
+      setPresetReview({ draft: nextDraft, review });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Preset review could not be created.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startReviewedPreset = async () => {
+    if (presetReview === null || !presetReview.review.can_start || busy) return;
+
+    setBusy(true);
+    setMessage(null);
+    try {
+      const state = await window.roofroom.startDesktopDraft(
+        presetReview.review.reviewed_draft ?? presetReview.draft,
+      );
+      setActiveRunState(state);
+      setPresetReview(null);
+      setView('RUNS');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Preset run could not be started.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setPresetTaskIncluded = (
+    task: DesktopTaskDefinition,
+    included: boolean,
+  ) => {
+    const currentSources = getReusableSources(presetEditorConfiguration);
+    const nextSources = { ...currentSources };
+
+    if (included) {
+      const configuration = buildCurrentTaskSourceConfiguration(task);
+      if (configuration === null) return;
+      nextSources[task.source_id] = configuration;
+    } else {
+      delete nextSources[task.source_id];
+    }
+
+    setPresetEditorConfiguration({
+      ...presetEditorConfiguration,
+      sources: nextSources,
+    });
+    setPresetEditorDirty(true);
+    setPresetReview(null);
+  };
+
+  const toggleNewPresetTask = (
+    task: DesktopTaskDefinition,
+    included: boolean,
+  ) => {
+    setNewPresetTaskIds((current) => {
+      const withoutSameSource = current.filter((taskId) => (
+        DESKTOP_TASK_CATALOG.find((candidate) => candidate.task_id === taskId)
+          ?.source_id !== task.source_id
+      ));
+      return included ? [...withoutSameSource, task.task_id] : withoutSameSource;
+    });
+  };
 
   const deletePreset =
     async (
@@ -2475,6 +2684,85 @@ export function DesktopMultiSourceView() {
     }
   };
 
+  const presetEditorSources = getReusableSources(
+    presetEditorConfiguration,
+  );
+  const selectedPreset = presets.find((preset) => (
+    preset.preset_id === presetId
+  )) ?? null;
+
+  const hasUnsavedTaskInputs =
+    selectedIkasFile !== null
+    || selectedKeywordPlannerCsvFile !== null
+    || keywordPlannerGroupDrafts.some((row) => (
+      row.group_id.length > 0
+      || row.group_name.length > 0
+      || row.keywords.length > 0
+    ))
+    || bitkimarkSitemapUrlsInput
+      !== BITKIMARK_VERIFIED_SITEMAP_URLS.join('\n')
+    || serpApiQueryDrafts.some((row) => (
+      row.job_key.length > 0
+      || row.query.length > 0
+    ));
+  const hasUnsavedPresetInputs =
+    presetEditorDirty
+    || newPresetName.trim().length > 0
+    || newPresetTaskIds.length > 0;
+
+  const resetTransientEditors = () => {
+    setSelectedIkasFile(null);
+    setSelectedKeywordPlannerCsvFile(null);
+    setKeywordPlannerGroupDrafts([{
+      row_id: 1,
+      group_id: '',
+      group_name: '',
+      keywords: '',
+    }]);
+    setBitkimarkSitemapUrlsInput(
+      BITKIMARK_VERIFIED_SITEMAP_URLS.join('\n'),
+    );
+    setSerpApiQueryDrafts([{
+      row_id: 1,
+      job_key: '',
+      query: '',
+    }]);
+    setNewPresetName('');
+    setNewPresetTaskIds([]);
+    setPresetEditorDirty(false);
+    setPresetReview(null);
+  };
+
+  const confirmDiscardTransientEdits = () => (
+    !(hasUnsavedTaskInputs || hasUnsavedPresetInputs)
+    || window.confirm('Discard unsaved task and preset edits?')
+  );
+
+  const navigateTo = (
+    nextView: View,
+  ) => {
+    if (!confirmDiscardTransientEdits()) return;
+    if (hasUnsavedTaskInputs || hasUnsavedPresetInputs) {
+      resetTransientEditors();
+    }
+    setSelectedTask(null);
+    setQuickRunReview(null);
+    setView(nextView);
+  };
+
+  const changeWorkspace = (
+    nextWorkspaceId: string,
+  ) => {
+    if (!confirmDiscardTransientEdits()) return;
+    resetTransientEditors();
+    setWorkspaceId(nextWorkspaceId);
+    setSelectedTask(null);
+    setQuickRunReview(null);
+    setActiveRunState(null);
+    setRunHistory([]);
+    setView('HOME');
+  };
+
   return (
     <main
       className="rr-shell"
@@ -2516,19 +2804,7 @@ export function DesktopMultiSourceView() {
                     : ''
                 }
                 onClick={
-                  () => {
-                    setSelectedTask(
-                      null,
-                    );
-
-                    setQuickRunReview(
-                      null,
-                    );
-
-                    setView(
-                      item,
-                    );
-                  }
+                  () => navigateTo(item)
                 }
               >
                 {item}
@@ -2570,29 +2846,7 @@ export function DesktopMultiSourceView() {
                   workspaceId
                 }
                 onChange={
-                  (event) => {
-                    setWorkspaceId(
-                      event
-                        .target
-                        .value,
-                    );
-
-                    setSelectedTask(
-                      null,
-                    );
-
-                    setSelectedIkasFile(
-                      null,
-                    );
-
-                    setQuickRunReview(
-                      null,
-                    );
-
-                    setView(
-                      'HOME',
-                    );
-                  }
+                  (event) => changeWorkspace(event.target.value)
                 }
               >
                 {workspaceView
@@ -2747,6 +3001,12 @@ export function DesktopMultiSourceView() {
             const selectedBitkimarkSitemapUrls = new Set(
               bitkimarkSitemapUrlsInput.split(/\r?\n/u),
             );
+            const preparedKeywordPlannerGroups = parseKeywordPlannerGroups(
+              keywordPlannerGroupDrafts,
+            );
+            const preparedSerpApiQueries = parseSerpApiQueries(
+              serpApiQueryDrafts,
+            );
             const recentTaskRuns = runHistory
               .filter((run) => runIncludesTask(run, selectedTask))
               .slice(0, 5);
@@ -2762,14 +3022,7 @@ export function DesktopMultiSourceView() {
                 <button
                   type="button"
                   className="rr-back-button"
-                  onClick={() => {
-                    setSelectedTask(
-                      null,
-                    );
-                    setView(
-                      'TASKS',
-                    );
-                  }}
+                  onClick={() => navigateTo('TASKS')}
                 >
                   Back to Tasks
                 </button>
@@ -2872,6 +3125,53 @@ export function DesktopMultiSourceView() {
                     <p>
                       {selectedTask.default_summary}
                     </p>
+
+                    {selectedTask.source_id === 'google-search-console-query-page' && (
+                      <>
+                        <p>Property: managed securely in Workspace</p>
+                        <p>Date scope: {selectedTask.date_policy?.replaceAll('_', ' ')}</p>
+                      </>
+                    )}
+
+                    {selectedTask.source_id === 'google-ads-search-terms' && (
+                      <>
+                        <p>Scope: SEARCH campaigns · search_term_view</p>
+                        <p>Date policy: 17-day reporting lag through yesterday</p>
+                      </>
+                    )}
+
+                    {selectedTask.source_id === 'google-keyword-planner'
+                      && preparedKeywordPlannerGroups !== null
+                      && (
+                        <p>
+                          Prepared input: {preparedKeywordPlannerGroups.length} groups
+                          {' · '}
+                          {preparedKeywordPlannerGroups.reduce(
+                            (count, group) => count + group.keywords.length,
+                            0,
+                          )}
+                          {' keywords'}
+                        </p>
+                      )}
+
+                    {selectedTask.source_id === 'bitkimark-sitemap' && (
+                      <p>
+                        Requests prepared: {selectedBitkimarkSitemapUrls.size}
+                        {' · verified allowlist only'}
+                      </p>
+                    )}
+
+                    {selectedTask.source_id === 'serpapi'
+                      && preparedSerpApiQueries !== null
+                      && (
+                        <>
+                          <p>
+                            Requests prepared: {preparedSerpApiQueries.length}
+                            {' · 1 provider request per query'}
+                          </p>
+                          <p>Result scope: Google · Turkey · Turkish · Desktop · 10 organic</p>
+                        </>
+                      )}
                   </section>
 
                   <section
@@ -4194,9 +4494,7 @@ export function DesktopMultiSourceView() {
                   </div>
                 </div>
 
-                <div
-                  className="rr-two-column"
-                >
+                <div className="rr-two-column">
                   <section
                     className="rr-panel"
                   >
@@ -4234,6 +4532,21 @@ export function DesktopMultiSourceView() {
                               }
                             </strong>
 
+                            <span>
+                              {Object.keys(
+                                getReusableSources(preset.reusable_configuration),
+                              ).length}
+                              {' tasks'}
+                            </span>
+
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => setPresetId(preset.preset_id)}
+                            >
+                              Open
+                            </button>
+
                             <button
                               type="button"
                               disabled={
@@ -4256,12 +4569,140 @@ export function DesktopMultiSourceView() {
 
                   <section
                     className="rr-panel"
+                    data-testid="preset-editor"
                   >
                     <span
                       className="rr-kicker"
                     >
-                      NEW PRESET
+                      PRESET EDITOR
                     </span>
+
+                    {selectedPreset === null
+                      ? <p>Open a saved preset to inspect and edit it.</p>
+                      : (
+                        <>
+                          <label className="rr-field">
+                            <span>Preset name</span>
+                            <input
+                              aria-label="Edit preset name"
+                              value={presetEditorName}
+                              onChange={(event) => {
+                                setPresetEditorName(event.target.value);
+                                setPresetEditorDirty(true);
+                                setPresetReview(null);
+                              }}
+                            />
+                          </label>
+
+                          <div className="rr-preset-task-list">
+                            {DESKTOP_TASK_CATALOG.map((task) => {
+                              const configuration = presetEditorSources[task.source_id];
+                              const configuredTaskId = typeof configuration === 'object'
+                                && configuration !== null
+                                && !Array.isArray(configuration)
+                                && typeof (configuration as JsonObject).task_id === 'string'
+                                ? (configuration as JsonObject).task_id
+                                : null;
+                              const checked = configuredTaskId === task.task_id;
+                              const available = checked
+                                || buildCurrentTaskSourceConfiguration(task) !== null;
+
+                              return (
+                                <label key={task.task_id}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={!available}
+                                    onChange={(event) => setPresetTaskIncluded(
+                                      task,
+                                      event.target.checked,
+                                    )}
+                                  />
+                                  <span>{task.task_name}</span>
+                                  <small>
+                                    Readiness: {formatStatus(
+                                      readinessBySource.get(task.source_id)
+                                      ?? 'NOT_YET_AVAILABLE',
+                                    )}
+                                  </small>
+                                </label>
+                              );
+                            })}
+                          </div>
+
+                          {presetEditorDirty && (
+                            <p className="rr-field-error">Unsaved preset changes.</p>
+                          )}
+
+                          <div className="rr-input-actions">
+                            <button
+                              type="button"
+                              className="rr-primary-action"
+                              disabled={busy || !presetEditorDirty || !presetEditorName.trim()}
+                              onClick={() => void updatePreset()}
+                            >
+                              Save Changes
+                            </button>
+                            <button
+                              type="button"
+                              className="rr-secondary-action"
+                              disabled={busy}
+                              onClick={() => void duplicatePreset()}
+                            >
+                              Duplicate
+                            </button>
+                            <button
+                              type="button"
+                              className="rr-secondary-action"
+                              disabled={busy || presetEditorDirty}
+                              onClick={() => void reviewPreset()}
+                            >
+                              Review Preset
+                            </button>
+                          </div>
+
+                          {presetReview && (
+                            <div className="rr-preset-review" data-testid="preset-review">
+                              <strong>
+                                {presetReview.review.included_sources.length}
+                                {' sources · '}
+                                {presetReview.review.job_count}
+                                {' jobs'}
+                              </strong>
+                              {presetReview.review.source_cards
+                                .filter((card) => card.included)
+                                .map((card) => (
+                                  <p key={card.source_id}>
+                                    {card.source_name}: {formatStatus(card.readiness_status)}
+                                  </p>
+                                ))}
+                              {presetReview.review.blocking_sources.length > 0 && (
+                                <p className="rr-field-error">
+                                  Blocked: {presetReview.review.blocking_sources.join(', ')}
+                                </p>
+                              )}
+                              <button
+                                type="button"
+                                className="rr-primary-action"
+                                disabled={busy || !presetReview.review.can_start}
+                                onClick={() => void startReviewedPreset()}
+                              >
+                                Start Preset Run
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                  </section>
+                </div>
+
+                <section
+                  className="rr-panel rr-new-preset"
+                  data-testid="new-preset"
+                >
+                  <span className="rr-kicker">
+                    NEW PRESET
+                  </span>
 
                     <label
                       className="rr-field"
@@ -4271,6 +4712,7 @@ export function DesktopMultiSourceView() {
                       </span>
 
                       <input
+                        aria-label="New preset name"
                         value={
                           newPresetName
                         }
@@ -4285,6 +4727,26 @@ export function DesktopMultiSourceView() {
                       />
                     </label>
 
+                    <div className="rr-preset-task-list">
+                      {DESKTOP_TASK_CATALOG.map((task) => {
+                        const available = buildCurrentTaskSourceConfiguration(task) !== null;
+                        return (
+                          <label key={task.task_id}>
+                            <input
+                              type="checkbox"
+                              checked={newPresetTaskIds.includes(task.task_id)}
+                              disabled={!available}
+                              onChange={(event) => toggleNewPresetTask(
+                                task,
+                                event.target.checked,
+                              )}
+                            />
+                            <span>{task.task_name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+
                     <button
                       type="button"
                       disabled={
@@ -4292,6 +4754,7 @@ export function DesktopMultiSourceView() {
                         || !workspaceId
                         || !newPresetName
                           .trim()
+                        || newPresetTaskIds.length === 0
                       }
                       onClick={
                         () =>
@@ -4301,7 +4764,6 @@ export function DesktopMultiSourceView() {
                       Create Preset
                     </button>
                   </section>
-                </div>
               </>
             )}
 

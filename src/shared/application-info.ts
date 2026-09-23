@@ -52,6 +52,7 @@ export const IPC_CHANNELS = {
   DESKTOP_RUNS: 'desktop:runs',
   DESKTOP_PRESETS: 'desktop:presets',
   DESKTOP_CREATE_PRESET: 'desktop:create-preset',
+  DESKTOP_UPDATE_PRESET: 'desktop:update-preset',
   DESKTOP_DELETE_PRESET: 'desktop:delete-preset',
   DESKTOP_CREATE_DRAFT: 'desktop:create-draft',
   DESKTOP_REVIEW_DRAFT: 'desktop:review-draft',
@@ -134,6 +135,12 @@ export interface RoofRoomApi {
   getDesktopPresets: (workspace_id: string) => Promise<import('./collection-configuration').SavedCollectionPresetRecord[]>;
   createDesktopPreset: (input: {
     workspace_id: string;
+    preset_name: string;
+    reusable_configuration: import('./collection-configuration').ReusableCollectionConfiguration;
+  }) => Promise<import('./collection-configuration').SavedCollectionPresetRecord>;
+  updateDesktopPreset: (input: {
+    workspace_id: string;
+    preset_id: string;
     preset_name: string;
     reusable_configuration: import('./collection-configuration').ReusableCollectionConfiguration;
   }) => Promise<import('./collection-configuration').SavedCollectionPresetRecord>;
