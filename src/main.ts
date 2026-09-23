@@ -48,6 +48,14 @@ import { createProductionCollectionRuntime } from './main/app/production-collect
 import { StructuredLogger } from './main/logging/structured-logger';
 import { DesktopMultiSourceController } from './main/app/desktop-multisource-controller';
 import { createDesktopWorkspaceConnectionsHandler } from './main/app/desktop-connection-ipc';
+import { createDesktopConnectionWriteHandlers } from './main/app/desktop-connection-write-ipc';
+import {
+  WorkspaceConnectionManagementService,
+  type WorkspaceConnectionDiagnosticEvent,
+} from './main/app/workspace-connection-management-service';
+import {
+  createElectronGoogleOAuthCredentialAcquirer,
+} from './main/app/google-api-electron-composition';
 import { SUPPORTED_DESKTOP_SOURCE_IDS } from './shared/desktop-multisource';
 import {
   IPC_CHANNELS,
@@ -88,6 +96,14 @@ let googleTrendsShutdownPromise:
 let desktopMultiSourceController: DesktopMultiSourceController | null = null;
 let desktopRepository: StateRepository | null = null;
 let desktopExecutionService: DesktopExecutionService | null = null;
+let workspaceConnectionManagementService:
+  WorkspaceConnectionManagementService | null = null;
+
+const recordWorkspaceConnectionDiagnostic = (
+  event: WorkspaceConnectionDiagnosticEvent,
+): void => {
+  console.warn('Workspace connection diagnostic.', event);
+};
 
 const isTrustedIpcSender = (event: IpcMainInvokeEvent): boolean => {
   const frame = event.senderFrame;
@@ -133,6 +149,8 @@ const registerIpcHandlers = (
   controller:
     GoogleTrendsDesktopController | null,
   desktopController: DesktopMultiSourceController | null = desktopMultiSourceController,
+  connectionManagementService:
+    WorkspaceConnectionManagementService | null = workspaceConnectionManagementService,
 ): void => {
   const requireController =
     (): GoogleTrendsDesktopController => {
@@ -315,6 +333,16 @@ const registerIpcHandlers = (
     return desktopController;
   };
 
+  const requireConnectionManagementService =
+    (): WorkspaceConnectionManagementService => {
+      if (connectionManagementService === null) {
+        throw new Error(
+          'Workspace connection management is unavailable because application bootstrap is not ready.',
+        );
+      }
+      return connectionManagementService;
+    };
+
   ipcMain.handle(
     IPC_CHANNELS.DESKTOP_SELECT_INPUT_FILE,
     async (
@@ -420,6 +448,36 @@ const registerIpcHandlers = (
       getWorkspaceConnections: (workspaceId) =>
         requireDesktopController().getWorkspaceConnections(workspaceId),
     }),
+  );
+
+  const connectionWriteHandlers = createDesktopConnectionWriteHandlers({
+    assertTrustedSender: assertTrustedIpcSender,
+    service: {
+      manage: (intent) =>
+        requireConnectionManagementService().manage(intent),
+      disconnect: (intent) =>
+        requireConnectionManagementService().disconnect(intent),
+      connectGoogle: (intent) =>
+        requireConnectionManagementService().connectGoogle(intent),
+      reconnectGoogle: (intent) =>
+        requireConnectionManagementService().reconnectGoogle(intent),
+    },
+  });
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_CONNECTION_MANAGE,
+    connectionWriteHandlers.manage,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_CONNECTION_DISCONNECT,
+    connectionWriteHandlers.disconnect,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_CONNECTION_CONNECT_GOOGLE,
+    connectionWriteHandlers.connectGoogle,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_CONNECTION_RECONNECT_GOOGLE,
+    connectionWriteHandlers.reconnectGoogle,
   );
 
   ipcMain.handle(IPC_CHANNELS.DESKTOP_PRESETS, (event, workspaceId: unknown) => {
@@ -1035,6 +1093,24 @@ const initializeBootstrapStatus =
                   cancellation?.domain,
                 );
             },
+        });
+      const connectionStateController = desktopMultiSourceController;
+      workspaceConnectionManagementService =
+        new WorkspaceConnectionManagementService({
+          repository: desktopRepository,
+          credential_store: credentialStore,
+          google_credential_acquirer:
+            createElectronGoogleOAuthCredentialAcquirer(
+              credentialStore,
+            ),
+          refresh_safe_state: async (workspaceId) => {
+            await connectionStateController.getWorkspaceConnections(
+              workspaceId,
+            );
+          },
+          record_diagnostic: (event) => {
+            recordWorkspaceConnectionDiagnostic(event);
+          },
         });
       const productionRuntime = createProductionCollectionRuntime({
         repository: desktopRepository,

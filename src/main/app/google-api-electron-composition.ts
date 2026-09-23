@@ -6,10 +6,14 @@ import type { JsonObject } from '../../shared/run-job';
 import type { DesktopGoogleConnectionSourceId } from '../../shared/workspace-connection-management';
 import type { WorkspaceSourceConnectionRecord } from '../../shared/workspace-connection';
 import { ElectronSafeStorageCredentialStore } from '../core/electron-safe-storage-credential-store';
+import type { CredentialStore } from '../core/credential-store';
 import type { StateRepository } from '../storage/state-repository';
 import { createFetchApiRequester } from '../sources/google-api/api-helpers';
 import { GoogleApiRuntimeFactory } from '../sources/google-api/google-api-runtime';
 import { bootstrapGoogleOAuth } from '../sources/google-api/google-auth';
+import {
+  MainProcessGoogleOAuthCredentialAcquirer,
+} from '../sources/google-api/google-oauth-credential-acquirer';
 
 const credentialDirectory = (
   directories: ApplicationDirectories,
@@ -22,6 +26,17 @@ export const createElectronGoogleApiRuntimeFactory = (
   repository,
   new ElectronSafeStorageCredentialStore(credentialDirectory(directories)),
   createFetchApiRequester(),
+);
+
+export const createElectronGoogleOAuthCredentialAcquirer = (
+  credentialStore: CredentialStore,
+): MainProcessGoogleOAuthCredentialAcquirer => (
+  new MainProcessGoogleOAuthCredentialAcquirer({
+    store: credentialStore,
+    requester: createFetchApiRequester(),
+    openExternal: async (url) => shell.openExternal(url),
+    application_configuration_provider: async () => null,
+  })
 );
 
 /**
