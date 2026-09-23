@@ -35,6 +35,7 @@
     "test:m3:google-oauth-acquirer": "bash tests/integration/google-api/run-google-oauth-credential-acquirer-test.sh",
     "test:m3:google-connection-management": "bash tests/integration/google-api/run-google-workspace-connection-management-test.sh",
     "test:m3:serpapi": "bash tests/integration/serpapi/run-serpapi-source-test.sh",
+    "test:m3:serpapi-credential-acquirer": "bash tests/integration/serpapi/run-serpapi-credential-acquirer-test.sh",
     "test:m3:serpapi-reviewed": "bash tests/integration/serpapi/run-serpapi-reviewed-on-demand-test.sh",
     "test:m4:freshness": "bash tests/integration/freshness/run-freshness-lifecycle-test.sh",
     "test:m3:live-serpapi-command": "bash tests/integration/serpapi/run-live-serpapi-command-test.sh",
