@@ -102,6 +102,30 @@ bash \
   tests/integration/bitkimark/run-bitkimark-reviewed-http-xml-test.sh
 
 bash \
+  tests/integration/sqlite/run-workspace-connection-mutations-test.sh
+
+bash \
+  tests/integration/app/run-workspace-connection-metadata-test.sh
+
+bash \
+  tests/integration/google-api/run-google-oauth-credential-acquirer-test.sh
+
+bash \
+  tests/integration/app/run-workspace-connection-management-service-test.sh
+
+bash \
+  tests/integration/google-api/run-google-workspace-connection-management-test.sh
+
+bash \
+  tests/integration/app/run-desktop-connection-write-main-ipc-test.sh
+
+bash \
+  tests/integration/app/run-desktop-connection-write-ipc-test.sh
+
+bash \
+  tests/integration/app/run-desktop-connection-write-composition-test.sh
+
+bash \
   tests/integration/app/run-desktop-ui-smoke-test.sh
 
 echo 'PASS RELEASE-GATE-001: deterministic Core, Google Trends, desktop file access, configuration, validation, and export gates completed'
