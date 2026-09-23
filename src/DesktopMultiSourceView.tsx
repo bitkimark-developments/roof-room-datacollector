@@ -50,7 +50,8 @@ type WorkspaceConnectionAction =
   | 'MANAGE'
   | 'DISCONNECT'
   | 'CONNECT_GOOGLE'
-  | 'RECONNECT_GOOGLE';
+  | 'RECONNECT_GOOGLE'
+  | 'PROVISION_SERPAPI';
 
 const EMPTY_WORKSPACE_CONNECTION_DRAFT: WorkspaceConnectionDraft = {
   site_url: '',
@@ -65,6 +66,9 @@ const CONNECTION_ERROR_COPY: Record<string, string> = {
   CONNECTION_CONFIGURATION_UNAVAILABLE: 'Main-process Google configuration is unavailable.',
   OAUTH_MANUAL_ACTION_REQUIRED: 'Google authorization needs your attention.',
   OAUTH_ACQUISITION_FAILED: 'Google authorization could not be completed.',
+  SECRET_INGRESS_CANCELLED: 'SerpApi API-key entry was cancelled.',
+  SECRET_INGRESS_FAILED: 'SerpApi API-key entry could not be completed.',
+  SECRET_INPUT_INVALID: 'The SerpApi API key is invalid.',
   CREDENTIAL_PERSISTENCE_FAILED: 'The protected credential could not be saved.',
   CONNECTION_PERSISTENCE_FAILED: 'The Workspace connection could not be saved.',
   CONNECTION_REBIND_FAILED: 'The Workspace connection could not be replaced safely.',
@@ -2087,13 +2091,18 @@ export function DesktopMultiSourceView() {
 
     try {
       let response;
-      if (action === 'DISCONNECT') {
+      if (action === 'PROVISION_SERPAPI') {
+        response = await window.roofroom
+          .provisionSerpApiDesktopWorkspaceConnection({
+            workspace_id: workspaceId,
+            source_id: 'serpapi',
+          });
+      } else if (action === 'DISCONNECT') {
         response = await window.roofroom.disconnectDesktopWorkspaceConnection({
           workspace_id: workspaceId,
           source_id: sourceId,
         });
       } else if (sourceId === 'serpapi') {
-        setMessage('Secure API-key provisioning requires a separately approved flow.');
         return;
       } else if (sourceId === 'google-search-console-query-page') {
         const siteUrl = draft.site_url.trim();
@@ -3899,7 +3908,7 @@ export function DesktopMultiSourceView() {
 
                           {connection.source_id === 'serpapi' && (
                             <p className="rr-connection-note">
-                              Secure API-key provisioning is a separate approved flow.
+                              API-key entry opens in a native masked prompt and never enters this renderer.
                             </p>
                           )}
 
@@ -3952,6 +3961,24 @@ export function DesktopMultiSourceView() {
                                   Connect
                                 </button>
                               )}
+                            {!isGoogle && (
+                              <button
+                                type="button"
+                                disabled={pending}
+                                onClick={() => {
+                                  void mutateWorkspaceConnection(
+                                    connection.source_id,
+                                    'PROVISION_SERPAPI',
+                                  );
+                                }}
+                              >
+                                {connection.credential_status === 'AVAILABLE'
+                                  ? 'Replace API key'
+                                  : connection.credential_status === 'MISSING'
+                                    ? 'Re-provision API key'
+                                    : 'Provision API key'}
+                              </button>
+                            )}
                             {connection.credential_status !== 'NOT_CONFIGURED' && (
                               <button
                                 type="button"

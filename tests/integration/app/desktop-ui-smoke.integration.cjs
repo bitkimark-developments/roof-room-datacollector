@@ -193,6 +193,13 @@ const main = async () => {
       },
       deviceScaleFactor: 1,
     });
+    const capturedRendererOutput = [];
+    page.on('console', (message) => {
+      capturedRendererOutput.push(message.text());
+    });
+    page.on('pageerror', (error) => {
+      capturedRendererOutput.push(String(error.stack ?? error));
+    });
 
     await page.addInitScript(
       ({
@@ -203,6 +210,8 @@ const main = async () => {
         draft: blankDraft,
       }) => {
         window.__workspaceConnectionReadCount = 0;
+        window.__workspaceConnectionMutationSerial = 0;
+        window.__workspaceConnectionReadsAfterMutation = [];
         window.__workspaceConnectionMutationCalls = [];
         window.__workspaceConnectionState = [
           {
@@ -234,6 +243,11 @@ const main = async () => {
               window.__releaseWorkspaceMutation = resolve;
             });
             window.__holdWorkspaceMutation = false;
+          }
+          if (window.__workspaceMutationThrow) {
+            const message = window.__workspaceMutationThrow;
+            window.__workspaceMutationThrow = null;
+            throw new Error(message);
           }
           const next = window.__workspaceMutationResult;
           window.__workspaceMutationResult = null;
@@ -308,6 +322,14 @@ const main = async () => {
             window.__desktopWorkspaceConnectionsWorkspaceId =
               workspaceId;
             window.__workspaceConnectionReadCount += 1;
+            window.__workspaceConnectionReadsAfterMutation.push(
+              window.__workspaceConnectionMutationSerial,
+            );
+            if (window.__workspaceConnectionReadError) {
+              const message = window.__workspaceConnectionReadError;
+              window.__workspaceConnectionReadError = null;
+              throw new Error(message);
+            }
             if (window.__nextWorkspaceConnectionState) {
               window.__workspaceConnectionState =
                 window.__nextWorkspaceConnectionState;
@@ -317,6 +339,7 @@ const main = async () => {
           },
 
           manageDesktopWorkspaceConnection: async (intent) => {
+            window.__workspaceConnectionMutationSerial += 1;
             window.__workspaceConnectionMutationCalls.push([
               'manageDesktopWorkspaceConnection',
               structuredClone(intent),
@@ -324,6 +347,7 @@ const main = async () => {
             return completeWorkspaceMutation(intent.source_id, 'MANAGE_METADATA');
           },
           disconnectDesktopWorkspaceConnection: async (intent) => {
+            window.__workspaceConnectionMutationSerial += 1;
             window.__workspaceConnectionMutationCalls.push([
               'disconnectDesktopWorkspaceConnection',
               structuredClone(intent),
@@ -331,6 +355,7 @@ const main = async () => {
             return completeWorkspaceMutation(intent.source_id, 'DISCONNECT');
           },
           connectGoogleDesktopWorkspaceConnection: async (intent) => {
+            window.__workspaceConnectionMutationSerial += 1;
             window.__workspaceConnectionMutationCalls.push([
               'connectGoogleDesktopWorkspaceConnection',
               structuredClone(intent),
@@ -338,11 +363,20 @@ const main = async () => {
             return completeWorkspaceMutation(intent.source_id, 'CONNECT_GOOGLE');
           },
           reconnectGoogleDesktopWorkspaceConnection: async (intent) => {
+            window.__workspaceConnectionMutationSerial += 1;
             window.__workspaceConnectionMutationCalls.push([
               'reconnectGoogleDesktopWorkspaceConnection',
               structuredClone(intent),
             ]);
             return completeWorkspaceMutation(intent.source_id, 'RECONNECT_GOOGLE');
+          },
+          provisionSerpApiDesktopWorkspaceConnection: async (intent) => {
+            window.__workspaceConnectionMutationSerial += 1;
+            window.__workspaceConnectionMutationCalls.push([
+              'provisionSerpApiDesktopWorkspaceConnection',
+              structuredClone(intent),
+            ]);
+            return completeWorkspaceMutation(intent.source_id, 'PROVISION_SERPAPI');
           },
 
           getDesktopPresets: async () => [
@@ -2020,11 +2054,11 @@ const main = async () => {
     assert.equal(await adsConnection.getByRole('button', { name: 'Reconnect' }).count(), 1);
     assert.equal(await adsConnection.getByRole('button', { name: 'Disconnect' }).count(), 1);
     assert.equal(await plannerConnection.getByRole('button', { name: 'Connect' }).count(), 1);
+    assert.equal(await serpApiConnection.getByRole('button', { name: 'Replace API key' }).count(), 1);
     assert.equal(await serpApiConnection.getByRole('button', { name: 'Disconnect' }).count(), 1);
-    assert.equal(await serpApiConnection.getByRole('button', { name: /Connect|Reconnect|Manage/ }).count(), 0);
-    assert.equal(await serpApiConnection.getByRole('textbox').count(), 0);
+    assert.equal(await serpApiConnection.locator('input[type="text"], input[type="password"]').count(), 0);
     await serpApiConnection.getByText(
-      'Secure API-key provisioning is a separate approved flow.',
+      'API-key entry opens in a native masked prompt and never enters this renderer.',
       { exact: true },
     ).waitFor();
     assert.equal(await page.getByText(/clipboard/i).count(), 0);
@@ -2109,6 +2143,144 @@ const main = async () => {
     ).waitFor();
 
     await page.evaluate(() => {
+      window.__holdWorkspaceMutation = true;
+      window.__nextWorkspaceConnectionState = window.__workspaceConnectionState.map(
+        (connection) => connection.source_id === 'serpapi'
+          ? { ...connection, credential_status: 'AVAILABLE', readiness_status: 'READY' }
+          : connection,
+      );
+    });
+    await serpApiConnection.getByRole('button', { name: 'Replace API key' }).click();
+    await page.waitForFunction(() => {
+      const row = document.querySelector('[data-testid="workspace-connection-serpapi"]');
+      return [...(row?.querySelectorAll('button') ?? [])].some(
+        (button) => button.textContent?.trim() === 'Replace API key' && button.disabled,
+      );
+    });
+    await serpApiConnection.getByRole('button', { name: 'Replace API key' })
+      .evaluate((button) => button.click());
+    assert.equal(
+      await page.evaluate(() => window.__workspaceConnectionMutationCalls.length),
+      4,
+      'A pending SerpApi provisioning action must not double-submit.',
+    );
+    await page.evaluate(() => window.__releaseWorkspaceMutation());
+    await serpApiConnection.getByText('Readiness: READY', { exact: true }).waitFor();
+
+    await page.evaluate(() => {
+      window.__workspaceMutationResult = {
+        ok: false,
+        error: {
+          code: 'SECRET_INGRESS_CANCELLED',
+          source_id: 'serpapi',
+          retryable: false,
+          native_stdout: 'sentinel-native-stdout',
+        },
+      };
+      window.__nextWorkspaceConnectionState = window.__workspaceConnectionState.map(
+        (connection) => connection.source_id === 'serpapi'
+          ? { ...connection, credential_status: 'MISSING', readiness_status: 'CONNECTION_REQUIRED' }
+          : connection,
+      );
+    });
+    await serpApiConnection.getByRole('button', { name: 'Replace API key' }).click();
+    await page.getByText('SerpApi API-key entry was cancelled.', { exact: true }).waitFor();
+    await serpApiConnection.getByRole('button', { name: 'Re-provision API key' }).waitFor();
+    assert.equal(await serpApiConnection.getByRole('button', { name: 'Disconnect' }).count(), 1);
+
+    const serpApiSafeErrors = [
+      ['SECRET_INGRESS_FAILED', 'SerpApi API-key entry could not be completed.'],
+      ['SECRET_INPUT_INVALID', 'The SerpApi API key is invalid.'],
+      ['CREDENTIAL_PERSISTENCE_FAILED', 'The protected credential could not be saved.'],
+      ['CONNECTION_PERSISTENCE_FAILED', 'The Workspace connection could not be saved.'],
+      ['CONNECTION_REBIND_FAILED', 'The Workspace connection could not be replaced safely.'],
+    ];
+    for (let index = 0; index < serpApiSafeErrors.length; index += 1) {
+      const [code, copy] = serpApiSafeErrors[index];
+      await page.evaluate(
+        ({ errorCode, moveToNotConfigured }) => {
+          window.__workspaceMutationResult = {
+            ok: false,
+            error: {
+              code: errorCode,
+              source_id: 'serpapi',
+              retryable: errorCode === 'SECRET_INGRESS_FAILED',
+              raw_error: 'sentinel-raw-error',
+              credential_ref: 'cred:sentinel-reference',
+            },
+          };
+          if (moveToNotConfigured) {
+            window.__nextWorkspaceConnectionState = window.__workspaceConnectionState.map(
+              (connection) => connection.source_id === 'serpapi'
+                ? {
+                    ...connection,
+                    credential_status: 'NOT_CONFIGURED',
+                    readiness_status: 'CONFIGURATION_REQUIRED',
+                  }
+                : connection,
+            );
+          }
+        },
+        {
+          errorCode: code,
+          moveToNotConfigured: index === serpApiSafeErrors.length - 1,
+        },
+      );
+      await serpApiConnection.getByRole('button', { name: 'Re-provision API key' }).click();
+      await page.getByText(copy, { exact: true }).waitFor();
+    }
+
+    await serpApiConnection.getByRole('button', { name: 'Provision API key' }).waitFor();
+    assert.equal(await serpApiConnection.getByRole('button', { name: 'Disconnect' }).count(), 0);
+
+    await page.evaluate(() => {
+      window.__workspaceMutationThrow = 'sentinel-api-key sentinel-native-stdout sentinel-raw-error';
+    });
+    await serpApiConnection.getByRole('button', { name: 'Provision API key' }).click();
+    await page.getByText('The Workspace connection could not be updated.', { exact: true }).waitFor();
+
+    await page.evaluate(() => {
+      window.__nextWorkspaceConnectionState = window.__workspaceConnectionState.map(
+        (connection) => connection.source_id === 'serpapi'
+          ? { ...connection, credential_status: 'AVAILABLE', readiness_status: 'READY' }
+          : connection,
+      );
+    });
+    await serpApiConnection.getByRole('button', { name: 'Provision API key' }).click();
+    await serpApiConnection.getByText('Credential: AVAILABLE', { exact: true }).waitFor();
+    await serpApiConnection.getByText('Readiness: READY', { exact: true }).waitFor();
+
+    await page.evaluate(() => {
+      window.__workspaceMutationResult = {
+        ok: true,
+        result: {
+          source_id: 'serpapi',
+          action: 'PROVISION_SERPAPI',
+          outcome: 'SUCCEEDED_WITH_CLEANUP_WARNING',
+        },
+      };
+    });
+    await serpApiConnection.getByRole('button', { name: 'Replace API key' }).click();
+    await page.getByText(
+      'Connection updated, but obsolete credential cleanup needs attention.',
+      { exact: true },
+    ).waitFor();
+
+    await page.evaluate(() => {
+      window.__workspaceConnectionReadError = 'sentinel-read-error';
+    });
+    await serpApiConnection.getByRole('button', { name: 'Replace API key' }).click();
+    await page.getByText(
+      'Workspace connection state could not be refreshed.',
+      { exact: true },
+    ).waitFor();
+    assert.equal(
+      await page.getByText('Workspace connection updated.', { exact: true }).count(),
+      0,
+      'A failed reread after committed success must show only the safe refresh message.',
+    );
+
+    await page.evaluate(() => {
       window.__nextWorkspaceConnectionState = window.__workspaceConnectionState.map(
         (connection) => connection.source_id === 'serpapi'
           ? { ...connection, credential_status: 'NOT_CONFIGURED', readiness_status: 'CONFIGURATION_REQUIRED' }
@@ -2120,8 +2292,13 @@ const main = async () => {
 
     assert.equal(
       await page.evaluate(() => window.__workspaceConnectionReadCount),
-      5,
-      'Initial read plus every success, safe failure, warning, and disconnect must refresh in finally.',
+      16,
+      'Initial read plus every success, safe failure, cancel, thrown error, warning, refresh failure, and disconnect must reread exactly once.',
+    );
+    assert.deepEqual(
+      await page.evaluate(() => window.__workspaceConnectionReadsAfterMutation),
+      Array.from({ length: 16 }, (_, index) => index),
+      'Every mutation branch must perform exactly one final reread, including cancellation, thrown errors, and reread failure.',
     );
     assert.deepEqual(
       await page.evaluate(() => window.__workspaceConnectionMutationCalls),
@@ -2141,6 +2318,13 @@ const main = async () => {
           source_id: 'google-keyword-planner',
           metadata: { customer_id: '789' },
         }],
+        ...Array.from({ length: 11 }, () => [
+          'provisionSerpApiDesktopWorkspaceConnection',
+          {
+            workspace_id: 'ws_fixture',
+            source_id: 'serpapi',
+          },
+        ]),
         ['disconnectDesktopWorkspaceConnection', {
           workspace_id: 'ws_fixture',
           source_id: 'serpapi',
@@ -2149,9 +2333,13 @@ const main = async () => {
       'Each action must invoke only its dedicated typed preload method with renderer-safe metadata.',
     );
     assert.equal(
-      JSON.stringify(await page.evaluate(() => window.__workspaceConnectionMutationCalls))
-        .includes('credential_ref'),
+      [
+        await page.locator('body').innerText(),
+        JSON.stringify(await page.evaluate(() => window.__workspaceConnectionMutationCalls)),
+        capturedRendererOutput.join('\n'),
+      ].some((value) => /sentinel-api-key|credential_ref|sentinel-native-stdout|sentinel-raw-error/.test(value)),
       false,
+      'DOM, typed invocation records, visible messages, and captured renderer output must contain no secret or native-process details.',
     );
 
     await page.getByRole(
