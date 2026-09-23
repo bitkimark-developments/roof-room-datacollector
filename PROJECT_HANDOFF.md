@@ -4,11 +4,11 @@
 
 **Current milestone:** Post-R1 UX & Operations Hardening — UXH2 Workspace Connections
 
-**Current stage:** UXH2 SerpApi secure provisioning design and TDD implementation plan complete; production implementation not started
+**Current stage:** UXH2 SerpApi secure provisioning implementation and deterministic/package verification complete; packaged native-prompt acceptance deferred
 
-**Current goal:** Obtain explicit approval of the SerpApi secure provisioning implementation plan before Task 1 RED; do not start UXH3
+**Current goal:** Review this implementation checkpoint, then obtain separate explicit authorization before limited packaged native-prompt acceptance; do not start UXH3
 
-**Current-state authority:** Section 49 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 49.
+**Current-state authority:** Section 50 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 50.
 
 ---
 
@@ -29,15 +29,15 @@ main
 Technical HEAD recorded before this separate handoff documentation commit:
 
 ```text
-c79ef0a18c40dc0778d6ca3fd646aab53c921e17
-c79ef0a test: gate workspace connection writes
+63d8541773519068c9ec0c646203e72144f0dda5
+63d8541 test: gate secure serpapi provisioning
 ```
 
 The technical checkpoint contains the approved implementation, deterministic tests, and release-gate wiring. This separate documentation checkpoint reconciles the canonical contract documents with that verified repository state.
 
 ## 2. Working tree and protected historical files
 
-Immediately after technical commit `0b41d9e`, the tracked working tree was clean and only these pre-existing historical files remained untracked:
+Immediately after technical commit `63d8541`, the tracked working tree was clean and only these pre-existing historical files remained untracked:
 
 ```text
 ?? CODEX_HANDOFF_CURRENT.md
@@ -66,7 +66,7 @@ Collect → Preserve → Validate → Document → Export
 
 Workspace is now a first-class Core identity for brand/business isolation. Every Run belongs to exactly one Workspace, while one Run may still contain independently source-keyed Jobs from multiple sources.
 
-The authoritative current checkpoint in Section 47 adds bounded Workspace connection UI and privileged mutation management. It does not add broader Workspace lifecycle screens, SerpApi secret provisioning, provider scope, generalized export changes, source-specific timeout work, or a new Cancel/Stop/Resume workflow.
+The authoritative current checkpoint in Section 50 completes bounded SerpApi API-key provisioning through a main-owned native masked prompt while preserving the safe Workspace read/write boundaries. It does not add broader Workspace lifecycle screens, provider-validation calls, generalized export changes, source-specific collection/runtime changes, or UXH3 work.
 
 Google Trends remains the reference browser source. GSC, Google Ads Search Terms, Keyword Planner, İkas, Bitkimark XML, and SERP retain approved feasibility paths; the İkas Products parser/validator now accepts and locks the verified production XLSX mapping. Semrush is not active Release 1.0 scope.
 
@@ -2724,3 +2724,117 @@ docs/superpowers/plans/2026-09-23-serpapi-secure-provisioning-implementation-pla
 ```
 
 Only after that separate approval should implementation begin with Task 1 RED. Do not start SerpApi collection, packaged native-prompt acceptance, or UXH3 as part of that approval.
+
+---
+
+## 50. UXH2 — SerpApi secure provisioning implementation closure — 2026-09-23
+
+The approved SerpApi secure provisioning plan is implemented and deterministically verified. The slice adds a main-owned macOS masked-prompt ingress, main-only credential acquisition, serialized fresh-reference publication/replacement, one secret-free trusted IPC/preload action, and status-specific Workspace UI. SQLite remains schema v8, the existing `DESKTOP_CONNECTIONS` read contract is unchanged, and no provider request or real native prompt ran during deterministic verification.
+
+### Main-only secret ingress and credential acquisition
+
+`SecretIngressPort` is implemented by `MacOsascriptSecretIngress`. It starts `/usr/bin/osascript` with `shell:false`, sends one fixed AppleScript program through stdin, uses empty secret argv, and reads only a fixed submitted/cancel protocol through private pipes. Execution has a 120-second timeout and independent 1024-byte stdout/stderr caps. Timeout, abort, stdin failure, process failure, malformed protocol, and output overflow return fixed secret-free outcomes. Clipboard, environment-secret, URL, temporary-file, and renderer secret paths were not added.
+
+AppleScript's masked answer returns plaintext to the main process. The implementation therefore claims containment, not encryption or guaranteed JavaScript string zeroization: no logging, bounded pipes, short main-only lifetime, offline validation, and immediate OS-backed credential-store handoff.
+
+`MainProcessSerpApiCredentialAcquirer` accepts only 1–512 printable non-whitespace ASCII bytes, creates a fresh opaque reference, writes through the existing `CredentialStore`, and best-effort removes the fresh reference if the write fails. It returns only acquired-reference or cancelled state to the mutation service; plaintext does not enter `WorkspaceConnectionManagementService`, SQLite, preload, renderer, ordinary configuration, logs, validation, raw evidence, or export.
+
+### Provision/re-provision/replace mutation contract
+
+The renderer intent is exactly:
+
+```text
+workspace_id
+source_id: serpapi
+```
+
+`DESKTOP_CONNECTION_PROVISION_SERPAPI` is trust-first and rejects extra API-key, secret, credential-reference, metadata, prompt, or unknown fields before delegation. Main validates the returned mutation response against the existing safe allowlist plus `PROVISION_SERPAPI` and the three fixed ingress/input error codes. The preload exposes only `provisionSerpApiDesktopWorkspaceConnection`; no generic invoke, process, clipboard, or secret method was added.
+
+For a missing row or a row with no reference, the service writes the fresh credential before publishing the exact SerpApi connection. For replacement, it writes a fresh credential and atomically rebinds the exact existing row. Publication/rebind failure compensates by deleting the new unreferenced credential; the old binding remains authoritative until rebind commits. Old material is deleted only after a global zero-reference result. Failed obsolete-credential cleanup returns `SUCCEEDED_WITH_CLEANUP_WARNING`; refresh and diagnostic failures remain fixed and secret-free. Connection mutations remain serialized.
+
+### Workspace presentation
+
+The Workspace row presents:
+
+```text
+NOT_CONFIGURED → Provision API key
+MISSING        → Re-provision API key + Disconnect
+AVAILABLE      → Replace API key + Disconnect
+```
+
+The row explains that entry occurs in a native masked prompt. It contains no text/password input, secret draft/state, reveal/copy control, clipboard action, or credential reference. Pending state disables the row and prevents double submission. Cancel, ingress failure, invalid input, store/publication/rebind failure, cleanup warning, thrown error, and reread failure use fixed copy. Every mutation path performs exactly one final safe connection reread; a committed mutation followed by reread failure shows only the safe refresh message.
+
+### Deterministic verification and packaging
+
+New or expanded deterministic markers include:
+
+```text
+PASS MACOS-OSASCRIPT-SECRET-INGRESS-001
+PASS SERPAPI-CREDENTIAL-ACQUIRER-001
+PASS WORKSPACE-CONNECTION-METADATA-001
+PASS WORKSPACE-CONNECTION-MANAGEMENT-SERVICE-001
+PASS DESKTOP-CONNECTION-WRITE-MAIN-IPC-001
+PASS DESKTOP-CONNECTION-WRITE-IPC-001
+PASS DESKTOP-CONNECTION-WRITE-COMPOSITION-001
+PASS SERPAPI-PROVISIONING-SECURITY-001
+PASS DESKTOP-CONNECTION-MAIN-IPC-001
+PASS DESKTOP-CONNECTION-IPC-001
+PASS SERPAPI-001
+PASS DESKTOP-UI-001
+PASS RELEASE-GATE-001
+```
+
+The security regression drives fake ingress through the real acquirer, mutation service, and trusted handler. Its synthetic key reaches the privileged fake store exactly once and is absent from renderer intent, handler response, diagnostics, captured logs, ordinary config/export writes, and serialized safe-read state.
+
+Fresh closure verification completed successfully:
+
+```text
+npx tsc --noEmit
+npm run lint
+git diff --check
+npm run test:release:gate
+npm run package
+```
+
+`npm run package` built Electron main, preload, and renderer targets and packaged macOS arm64. It did not launch the native prompt. No deterministic test opened a real prompt, persisted a real credential, called SerpApi, or consumed provider quota.
+
+Technical checkpoints:
+
+```text
+63ce190 feat: define safe serpapi provisioning intent
+4ffe799 feat: add native macos secret ingress
+3017a99 feat: acquire serpapi credentials in main
+3317ff0 feat: provision serpapi workspace credentials
+e4220c0 feat: expose safe serpapi provision intent
+1e92fc3 feat: present secure serpapi provisioning
+63d8541 test: gate secure serpapi provisioning
+```
+
+### Canonical documentation reconciliation
+
+Updated for the verified implementation:
+
+- `PROJECT_HANDOFF.md`
+- `ARCHITECTURE.md`
+- `DATA_CONTRACTS.md`
+- `TEST_STRATEGY.md`
+
+Audited and intentionally unchanged because their current contracts remain accurate:
+
+- `PROJECT_SPEC.md`
+- `VALIDATION_SPEC.md`
+- `SOURCE_MODULE_GUIDE.md`
+- `DECISIONS.md`
+
+ADR-066 already records the approved design; it was not duplicated or rewritten. Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Deferred acceptance and exact next action
+
+Packaged-app native prompt acceptance has not run. This checkpoint does not claim packaged prompt visibility/ownership/branding, focus, masking, keyboard navigation, Cancel/timeout UX, real `safeStorage` end-to-end persistence, log inspection under a launched package, forced pre-publication failure behavior in the packaged app, Developer ID signing, hardened runtime, notarization, or accessibility acceptance.
+
+Stop here and review the implementation checkpoint. The exact next action, only after separate explicit authorization, is the bounded packaged macOS arm64 acceptance described in the approved plan using a synthetic non-production value and no SerpApi request. It must verify prompt UX, real secure-store handoff with only `AVAILABLE`/`READY` returned through the safe read path, log non-disclosure, replacement rollback, and cleanup through Disconnect. Intended-distribution signing/hardened-runtime/notarization behavior remains a later repeat when that configuration exists.
+
+Do not validate the value against SerpApi, call any provider, modify SerpApi collection/runtime semantics, introduce schema changes, or start UXH3 without a separate approved task.
