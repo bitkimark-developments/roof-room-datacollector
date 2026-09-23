@@ -989,6 +989,7 @@ export function DesktopMultiSourceView() {
     if (
       view !== 'RUNS'
       && view !== 'TASKS'
+      && view !== 'HOME'
       || workspaceId.length === 0
     ) {
       return;
@@ -2690,6 +2691,24 @@ export function DesktopMultiSourceView() {
   const selectedPreset = presets.find((preset) => (
     preset.preset_id === presetId
   )) ?? null;
+  const dashboardSourceCards = draft?.source_cards ?? [];
+  const dashboardReadyCount = dashboardSourceCards.filter((card) => (
+    card.readiness_status === 'READY'
+  )).length;
+  const dashboardConnectionCount = dashboardSourceCards.filter((card) => (
+    card.readiness_status === 'CONNECTION_REQUIRED'
+  )).length;
+  const dashboardImportCount = dashboardSourceCards.filter((card) => (
+    card.readiness_status === 'FILE_REQUIRED'
+  )).length;
+  const dashboardAttentionCount = dashboardSourceCards.filter((card) => (
+    card.readiness_status === 'CONFIGURATION_REQUIRED'
+    || card.readiness_status === 'MANUAL_ACTION_REQUIRED'
+  )).length;
+  const recentCompletedRun = runHistory.find((run) => (
+    run.run_status === 'COMPLETED'
+    || run.run_status === 'COMPLETED_WITH_WARNINGS'
+  )) ?? null;
 
   const hasUnsavedTaskInputs =
     selectedIkasFile !== null
@@ -4028,6 +4047,44 @@ export function DesktopMultiSourceView() {
                     </p>
                   </div>
                 </div>
+
+                <section
+                  className="rr-dashboard"
+                  data-testid="operations-dashboard"
+                >
+                  <button type="button" onClick={() => navigateTo('TASKS')}>
+                    <strong>{dashboardReadyCount} ready</strong>
+                    <span>Open runnable sources</span>
+                  </button>
+                  <button type="button" onClick={() => navigateTo('WORKSPACE')}>
+                    <strong>{dashboardConnectionCount} need connection</strong>
+                    <span>Manage source access</span>
+                  </button>
+                  <button type="button" onClick={() => navigateTo('TASKS')}>
+                    <strong>{dashboardImportCount} need import</strong>
+                    <span>Select current provider files</span>
+                  </button>
+                  <button type="button" onClick={() => navigateTo('TASKS')}>
+                    <strong>{dashboardAttentionCount} needs attention</strong>
+                    <span>Resolve configuration or manual action</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={recentCompletedRun === null}
+                    onClick={() => {
+                      if (recentCompletedRun === null) return;
+                      setView('RUNS');
+                      void openHistoryRun(recentCompletedRun.run_id);
+                    }}
+                  >
+                    <strong>Recent completed work</strong>
+                    <span>
+                      {recentCompletedRun === null
+                        ? 'No completed runs yet'
+                        : `${getRunDisplayName(recentCompletedRun)} · ${formatTimestamp(recentCompletedRun.completed_at)}`}
+                    </span>
+                  </button>
+                </section>
 
                 <section
                   className="rr-preset-run"

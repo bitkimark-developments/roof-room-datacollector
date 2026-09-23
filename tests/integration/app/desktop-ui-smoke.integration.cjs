@@ -2042,6 +2042,13 @@ const main = async () => {
       name: 'Collection Operations',
     }).waitFor();
 
+    const dashboard = page.getByTestId('operations-dashboard');
+    assert.equal(await dashboard.getByText('3 ready', { exact: true }).count(), 1);
+    assert.equal(await dashboard.getByText('2 need connection', { exact: true }).count(), 1);
+    assert.equal(await dashboard.getByText('2 need import', { exact: true }).count(), 1);
+    assert.equal(await dashboard.getByText('1 needs attention', { exact: true }).count(), 1);
+    assert.equal(await dashboard.getByText('Recent completed work', { exact: true }).count(), 1);
+
     for (const navigationItem of [
       'HOME',
       'TASKS',
@@ -2052,6 +2059,7 @@ const main = async () => {
       assert.equal(
         await page.getByRole('button', {
           name: navigationItem,
+          exact: true,
         }).count(),
         1,
         `Expected navigation item ${navigationItem}`,
