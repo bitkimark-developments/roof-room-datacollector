@@ -41,6 +41,7 @@ import type {
   SavedCollectionPresetRecord,
 } from '../../shared/collection-configuration';
 import type {
+  RebindWorkspaceSourceConnectionsInput,
   UpsertWorkspaceSourceConnectionInput,
   WorkspaceSourceConnectionRecord,
 } from '../../shared/workspace-connection';
@@ -1622,6 +1623,147 @@ export class StateRepository {
       FROM workspace_source_connections
       WHERE workspace_id = ? ORDER BY source_id ASC
     `).all(workspaceId).map(mapWorkspaceSourceConnectionRow);
+  }
+
+  deleteSourceConnection(
+    workspaceId: string,
+    sourceId: string,
+  ): WorkspaceSourceConnectionRecord | null {
+    const normalizedWorkspaceId = requireNonEmpty(workspaceId, 'workspace_id');
+    const normalizedSourceId = requireNonEmpty(sourceId, 'source_id');
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      const row = this.database.prepare(`
+        SELECT connection_id, workspace_id, source_id, credential_ref,
+          safe_metadata_json, created_at, updated_at
+        FROM workspace_source_connections
+        WHERE workspace_id = ? AND source_id = ?
+      `).get(normalizedWorkspaceId, normalizedSourceId);
+      if (row === undefined) {
+        this.database.exec('COMMIT');
+        return null;
+      }
+      const removed = mapWorkspaceSourceConnectionRow(row);
+      const result = this.database.prepare(`
+        DELETE FROM workspace_source_connections
+        WHERE workspace_id = ? AND source_id = ?
+      `).run(normalizedWorkspaceId, normalizedSourceId);
+      if (Number(result.changes) !== 1) {
+        throw new Error(`Connection for ${normalizedSourceId} was not deleted.`);
+      }
+      this.database.exec('COMMIT');
+      return removed;
+    } catch (error: unknown) {
+      try { this.database.exec('ROLLBACK'); } catch { /* preserve original */ }
+      throw error;
+    }
+  }
+
+  restoreSourceConnection(
+    record: WorkspaceSourceConnectionRecord,
+  ): WorkspaceSourceConnectionRecord {
+    const connectionId = requireNonEmpty(record.connection_id, 'connection_id');
+    const workspaceId = requireNonEmpty(record.workspace_id, 'workspace_id');
+    const sourceId = requireNonEmpty(record.source_id, 'source_id');
+    const credentialRef = record.credential_ref === null
+      ? null
+      : requireNonEmpty(record.credential_ref, 'credential_ref');
+    const safeMetadata = assertSafeConnectionMetadata(
+      requireJsonObject(record.safe_metadata, 'safe_metadata'),
+    );
+    const createdAt = requireUtcTimestamp(record.created_at, 'created_at');
+    const updatedAt = requireUtcTimestamp(record.updated_at, 'updated_at');
+    if (this.getSourceConnection(workspaceId, sourceId) !== null) {
+      throw new Error(`Cannot restore connection for ${sourceId}: a row already exists.`);
+    }
+    this.database.prepare(`
+      INSERT INTO workspace_source_connections (
+        connection_id, workspace_id, source_id, credential_ref,
+        safe_metadata_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      connectionId,
+      workspaceId,
+      sourceId,
+      credentialRef,
+      JSON.stringify(safeMetadata),
+      createdAt,
+      updatedAt,
+    );
+    const restored = this.getSourceConnection(workspaceId, sourceId);
+    if (!restored) throw new Error(`Connection for ${sourceId} was not readable after restore.`);
+    return restored;
+  }
+
+  countSourceConnectionsByCredentialRef(credentialRef: string): number {
+    const normalizedCredentialRef = requireNonEmpty(credentialRef, 'credential_ref');
+    const row = requireRecord(this.database.prepare(`
+      SELECT COUNT(*) AS count
+      FROM workspace_source_connections
+      WHERE credential_ref = ?
+    `).get(normalizedCredentialRef), 'workspace source connection count');
+    const count = row.count;
+    if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
+      throw new Error('Workspace source connection count is invalid.');
+    }
+    return count;
+  }
+
+  rebindSourceConnections(
+    input: RebindWorkspaceSourceConnectionsInput,
+  ): readonly WorkspaceSourceConnectionRecord[] {
+    const workspaceId = requireNonEmpty(input.workspace_id, 'workspace_id');
+    const sourceIds = input.source_ids.map((sourceId) => requireNonEmpty(sourceId, 'source_id'));
+    if (sourceIds.length === 0 || new Set(sourceIds).size !== sourceIds.length) {
+      throw new Error('source_ids must contain at least one unique source identity.');
+    }
+    const expectedCredentialRef = requireNonEmpty(
+      input.expected_credential_ref,
+      'expected_credential_ref',
+    );
+    const replacementCredentialRef = requireNonEmpty(
+      input.replacement_credential_ref,
+      'replacement_credential_ref',
+    );
+    const updatedAt = new Date().toISOString();
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      for (const sourceId of sourceIds) {
+        const current = this.getSourceConnection(workspaceId, sourceId);
+        if (!current) {
+          throw new Error(`Connection for ${sourceId} was not found for rebind.`);
+        }
+        if (current.credential_ref !== expectedCredentialRef) {
+          throw new Error(`Connection for ${sourceId} does not reference the expected credential.`);
+        }
+      }
+      for (const sourceId of sourceIds) {
+        const result = this.database.prepare(`
+          UPDATE workspace_source_connections
+          SET credential_ref = ?, updated_at = ?
+          WHERE workspace_id = ? AND source_id = ? AND credential_ref = ?
+        `).run(
+          replacementCredentialRef,
+          updatedAt,
+          workspaceId,
+          sourceId,
+          expectedCredentialRef,
+        );
+        if (Number(result.changes) !== 1) {
+          throw new Error(`Connection for ${sourceId} changed before rebind completed.`);
+        }
+      }
+      const rebound = sourceIds.map((sourceId) => {
+        const connection = this.getSourceConnection(workspaceId, sourceId);
+        if (!connection) throw new Error(`Connection for ${sourceId} was not readable after rebind.`);
+        return connection;
+      });
+      this.database.exec('COMMIT');
+      return rebound;
+    } catch (error: unknown) {
+      try { this.database.exec('ROLLBACK'); } catch { /* preserve original */ }
+      throw error;
+    }
   }
 
   createRunFromQueryConfig(
