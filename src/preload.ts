@@ -60,6 +60,26 @@ const roofroomApi: RoofRoomApi = {
       IPC_CHANNELS.DESKTOP_CONNECTIONS,
       workspace_id,
     ),
+  manageDesktopWorkspaceConnection: (intent) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.DESKTOP_CONNECTION_MANAGE,
+      intent,
+    ),
+  disconnectDesktopWorkspaceConnection: (intent) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.DESKTOP_CONNECTION_DISCONNECT,
+      intent,
+    ),
+  connectGoogleDesktopWorkspaceConnection: (intent) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.DESKTOP_CONNECTION_CONNECT_GOOGLE,
+      intent,
+    ),
+  reconnectGoogleDesktopWorkspaceConnection: (intent) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.DESKTOP_CONNECTION_RECONNECT_GOOGLE,
+      intent,
+    ),
   listDesktopRuns: (workspace_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_RUNS, workspace_id),
   getDesktopPresets: (workspace_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_PRESETS, workspace_id),
   createDesktopPreset: (input) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_CREATE_PRESET, input),

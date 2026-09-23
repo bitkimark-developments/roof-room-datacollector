@@ -14,6 +14,13 @@ import type {
   DesktopWorkspaceView,
 } from './desktop-multisource';
 import type { RunDraftOrigin } from './collection-configuration';
+import type {
+  ConnectGoogleWorkspaceConnectionIntent,
+  DisconnectWorkspaceConnectionIntent,
+  ManageWorkspaceConnectionIntent,
+  ReconnectGoogleWorkspaceConnectionIntent,
+  WorkspaceConnectionMutationResponse,
+} from './workspace-connection-management';
 
 export const IPC_CHANNELS = {
   GET_APPLICATION_INFO: 'app:get-application-info',
@@ -36,6 +43,10 @@ export const IPC_CHANNELS = {
     'collection:open-config-folder',
   DESKTOP_WORKSPACES: 'desktop:workspaces',
   DESKTOP_CONNECTIONS: 'desktop:connections',
+  DESKTOP_CONNECTION_MANAGE: 'desktop:connection:manage',
+  DESKTOP_CONNECTION_DISCONNECT: 'desktop:connection:disconnect',
+  DESKTOP_CONNECTION_CONNECT_GOOGLE: 'desktop:connection:connect-google',
+  DESKTOP_CONNECTION_RECONNECT_GOOGLE: 'desktop:connection:reconnect-google',
   DESKTOP_RUNS: 'desktop:runs',
   DESKTOP_PRESETS: 'desktop:presets',
   DESKTOP_CREATE_PRESET: 'desktop:create-preset',
@@ -98,6 +109,18 @@ export interface RoofRoomApi {
   getDesktopWorkspaceConnections: (
     workspace_id: string,
   ) => Promise<DesktopWorkspaceConnectionView[]>;
+  manageDesktopWorkspaceConnection: (
+    intent: ManageWorkspaceConnectionIntent,
+  ) => Promise<WorkspaceConnectionMutationResponse>;
+  disconnectDesktopWorkspaceConnection: (
+    intent: DisconnectWorkspaceConnectionIntent,
+  ) => Promise<WorkspaceConnectionMutationResponse>;
+  connectGoogleDesktopWorkspaceConnection: (
+    intent: ConnectGoogleWorkspaceConnectionIntent,
+  ) => Promise<WorkspaceConnectionMutationResponse>;
+  reconnectGoogleDesktopWorkspaceConnection: (
+    intent: ReconnectGoogleWorkspaceConnectionIntent,
+  ) => Promise<WorkspaceConnectionMutationResponse>;
   listDesktopRuns: (
     workspace_id: string,
   ) => Promise<DesktopRunState['run'][]>;
