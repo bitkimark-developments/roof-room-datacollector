@@ -14,6 +14,12 @@ const {
   bootstrapGoogleOAuth,
 } = require(path.join(buildRoot, 'main/sources/google-api/google-auth.js'));
 const {
+  GOOGLE_PROVIDER_CONFIGURATION_CREDENTIAL_REF,
+} = require(path.join(
+  buildRoot,
+  'main/sources/google-api/google-provider-configuration.js',
+));
+const {
   GOOGLE_LIVE_ACCEPTANCE_CONFIRMATION,
   GoogleApiRuntimeFactory,
   assertGoogleLiveAcceptanceConfirmation,
@@ -309,6 +315,15 @@ const encryption = {
   assert.equal(encryptedBytes.includes('refresh-secret'), false);
   assert.equal(encryptedBytes.includes('client-secret'), false);
   assert.equal(encryptedBytes.includes('developer-secret'), false);
+
+  await store.writeCredential(
+    GOOGLE_PROVIDER_CONFIGURATION_CREDENTIAL_REF,
+    JSON.stringify({
+      client_id: 'client-id',
+      client_secret: 'client-secret',
+      developer_token: 'developer-secret',
+    }),
+  );
 
   for (const sourceId of [
     GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID,

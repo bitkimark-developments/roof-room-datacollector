@@ -49,13 +49,16 @@ import { StructuredLogger } from './main/logging/structured-logger';
 import { DesktopMultiSourceController } from './main/app/desktop-multisource-controller';
 import { createDesktopWorkspaceConnectionsHandler } from './main/app/desktop-connection-ipc';
 import { createDesktopConnectionWriteHandlers } from './main/app/desktop-connection-write-ipc';
+import { createGoogleProviderConfigurationHandlers } from './main/app/google-provider-configuration-ipc';
 import {
   WorkspaceConnectionManagementService,
   type WorkspaceConnectionDiagnosticEvent,
 } from './main/app/workspace-connection-management-service';
 import {
   createElectronGoogleOAuthCredentialAcquirer,
+  createElectronGoogleProviderConfigurationService,
 } from './main/app/google-api-electron-composition';
+import type { GoogleProviderConfigurationService } from './main/sources/google-api/google-provider-configuration';
 import {
   createElectronSerpApiCredentialAcquirer,
 } from './main/app/serpapi-electron-composition';
@@ -79,6 +82,10 @@ import {
   type DesktopRunDraft,
 } from './shared/desktop-multisource';
 import type { RunDraftOrigin } from './shared/collection-configuration';
+import {
+  DESKTOP_GOOGLE_CONNECTION_SOURCE_IDS,
+  type DesktopGoogleConnectionSourceId,
+} from './shared/workspace-connection-management';
 
 if (started) {
   app.quit();
@@ -101,6 +108,8 @@ let desktopRepository: StateRepository | null = null;
 let desktopExecutionService: DesktopExecutionService | null = null;
 let workspaceConnectionManagementService:
   WorkspaceConnectionManagementService | null = null;
+let googleProviderConfigurationService:
+  GoogleProviderConfigurationService | null = null;
 
 const recordWorkspaceConnectionDiagnostic = (
   event: WorkspaceConnectionDiagnosticEvent,
@@ -154,6 +163,8 @@ const registerIpcHandlers = (
   desktopController: DesktopMultiSourceController | null = desktopMultiSourceController,
   connectionManagementService:
     WorkspaceConnectionManagementService | null = workspaceConnectionManagementService,
+  providerConfigurationService:
+    GoogleProviderConfigurationService | null = googleProviderConfigurationService,
 ): void => {
   const requireController =
     (): GoogleTrendsDesktopController => {
@@ -346,6 +357,16 @@ const registerIpcHandlers = (
       return connectionManagementService;
     };
 
+  const requireGoogleProviderConfigurationService =
+    (): GoogleProviderConfigurationService => {
+      if (providerConfigurationService === null) {
+        throw new Error(
+          'Google provider configuration is unavailable because application bootstrap is not ready.',
+        );
+      }
+      return providerConfigurationService;
+    };
+
   ipcMain.handle(
     IPC_CHANNELS.DESKTOP_SELECT_INPUT_FILE,
     async (
@@ -505,6 +526,24 @@ const registerIpcHandlers = (
   ipcMain.handle(
     IPC_CHANNELS.DESKTOP_CONNECTION_PROVISION_SERPAPI,
     connectionWriteHandlers.provisionSerpApi,
+  );
+
+  const googleProviderHandlers = createGoogleProviderConfigurationHandlers({
+    assertTrustedSender: assertTrustedIpcSender,
+    service: {
+      getStatus: () => requireGoogleProviderConfigurationService().getStatus(),
+      configure: (intent) => (
+        requireGoogleProviderConfigurationService().configure(intent)
+      ),
+    },
+  });
+  ipcMain.handle(
+    IPC_CHANNELS.GOOGLE_PROVIDER_CONFIGURATION,
+    googleProviderHandlers.getStatus,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.GOOGLE_PROVIDER_CONFIGURE,
+    googleProviderHandlers.configure,
   );
 
   ipcMain.handle(IPC_CHANNELS.DESKTOP_PRESETS, (event, workspaceId: unknown) => {
@@ -886,6 +925,9 @@ const initializeBootstrapStatus =
       const credentialStore = new ElectronSafeStorageCredentialStore(
         `${directories.app_data_root}/credentials`,
       );
+      const providerConfigurationService =
+        createElectronGoogleProviderConfigurationService(credentialStore);
+      googleProviderConfigurationService = providerConfigurationService;
       const readinessRegistry = new ReadinessRegistry(desktopRepository, credentialStore);
       const freshnessRegistry = new FreshnessRegistry(desktopRepository);
       for (const sourceId of SUPPORTED_DESKTOP_SOURCE_IDS) {
@@ -1001,12 +1043,26 @@ const initializeBootstrapStatus =
               workspace_id,
               source_id,
               source_config,
-            ) =>
-              readinessRegistry.getReadiness(
+            ) => {
+              const readiness = await readinessRegistry.getReadiness(
                 workspace_id,
                 source_id,
                 source_config,
-              ),
+              );
+              if (
+                (DESKTOP_GOOGLE_CONNECTION_SOURCE_IDS as readonly string[])
+                  .includes(source_id)
+                && !await providerConfigurationService.isReadyForSource(
+                  source_id as DesktopGoogleConnectionSourceId,
+                )
+              ) {
+                return {
+                  ...readiness,
+                  readiness_status: 'CONFIGURATION_REQUIRED',
+                };
+              }
+              return readiness;
+            },
           },
 
           freshness:

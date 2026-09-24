@@ -10,6 +10,7 @@ if (!buildRoot || !projectRoot) {
 
 const {
   createElectronGoogleOAuthCredentialAcquirer,
+  createElectronGoogleProviderConfigurationService,
 } = require(
   path.join(buildRoot, 'main', 'app', 'google-api-electron-composition.js'),
 );
@@ -23,6 +24,11 @@ assert.equal(
   typeof createElectronGoogleOAuthCredentialAcquirer,
   'function',
   'Production must expose a main-owned Google OAuth acquirer composition.',
+);
+assert.equal(
+  typeof createElectronGoogleProviderConfigurationService,
+  'function',
+  'Production must expose a main-owned Google provider provisioning composition.',
 );
 assert.equal(
   typeof createElectronSerpApiCredentialAcquirer,
@@ -40,8 +46,15 @@ const existingBundle = JSON.stringify({
 const store = {
   async hasCredential() { return true; },
   async readCredential(reference) {
-    assert.equal(reference, 'cred:existing');
-    return existingBundle;
+    if (reference === 'provider:google:configuration:v1') {
+      return JSON.stringify({
+        client_id: 'provider-client',
+        client_secret: 'sentinel-provider-secret',
+        developer_token: 'sentinel-provider-developer-token',
+      });
+    }
+    if (reference === 'cred:existing') return existingBundle;
+    throw new Error('missing');
   },
   async writeCredential() { throw new Error('not expected'); },
   async deleteCredential() { throw new Error('not expected'); },
@@ -49,22 +62,31 @@ const store = {
 
 async function main() {
   const acquirer = createElectronGoogleOAuthCredentialAcquirer(store);
+  const providerService = createElectronGoogleProviderConfigurationService(store);
   const serpApiAcquirer = createElectronSerpApiCredentialAcquirer(store);
   assert.equal(typeof serpApiAcquirer.acquire, 'function');
-  assert.equal(
+  assert.deepEqual(
     await acquirer.readApplicationConfiguration(),
-    null,
-    'Normal application Connect must fail closed until main owns approved configuration.',
+    {
+      client_id: 'provider-client',
+      client_secret: 'sentinel-provider-secret',
+      developer_token: 'sentinel-provider-developer-token',
+    },
+    'Normal application Connect must read the main-owned encrypted provider configuration.',
   );
   assert.deepEqual(
     await acquirer.readApplicationConfiguration('cred:existing'),
     {
-      client_id: 'existing-main-client',
-      client_secret: 'sentinel-client-secret',
-      developer_token: 'sentinel-developer-token',
+      client_id: 'provider-client',
+      client_secret: 'sentinel-provider-secret',
+      developer_token: 'sentinel-provider-developer-token',
     },
-    'Reconnect may recover application configuration only from the encrypted existing bundle.',
+    'Provider configuration must take precedence over copied legacy bundle values.',
   );
+  assert.deepEqual(await providerService.getStatus(), {
+    oauth_application_status: 'AVAILABLE',
+    ads_developer_token_status: 'AVAILABLE',
+  });
 
   const mainSource = fs.readFileSync(path.join(projectRoot, 'src', 'main.ts'), 'utf8');
   const googleCompositionSource = fs.readFileSync(
@@ -93,6 +115,7 @@ async function main() {
   assert.match(mainSource, /repository:\s*desktopRepository/);
   assert.match(mainSource, /credential_store:\s*credentialStore/);
   assert.match(mainSource, /createElectronGoogleOAuthCredentialAcquirer\s*\(\s*credentialStore\s*,?\s*\)/);
+  assert.match(mainSource, /createElectronGoogleProviderConfigurationService\s*\(\s*credentialStore\s*,?\s*\)/);
   assert.match(
     mainSource,
     /serpapi_credential_acquirer:\s*createElectronSerpApiCredentialAcquirer\s*\(\s*credentialStore\s*,?\s*\)/,
@@ -108,6 +131,8 @@ async function main() {
     'DESKTOP_CONNECTION_DISCONNECT',
     'DESKTOP_CONNECTION_CONNECT_GOOGLE',
     'DESKTOP_CONNECTION_RECONNECT_GOOGLE',
+    'GOOGLE_PROVIDER_CONFIGURATION',
+    'GOOGLE_PROVIDER_CONFIGURE',
   ]) {
     assert.match(mainSource, new RegExp('ipcMain\\.handle\\(\\s*IPC_CHANNELS\\.' + channelName));
   }
@@ -142,9 +167,7 @@ async function main() {
     mainSource + serpApiCompositionSource,
   ), false);
 
-  const serialized = JSON.stringify({
-    unavailable: await acquirer.readApplicationConfiguration(),
-  });
+  const serialized = JSON.stringify(await providerService.getStatus());
   assert.equal(serialized.includes('sentinel-'), false);
 
   console.log(

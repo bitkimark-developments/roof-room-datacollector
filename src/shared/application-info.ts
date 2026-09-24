@@ -22,6 +22,11 @@ import type {
   ReconnectGoogleWorkspaceConnectionIntent,
   WorkspaceConnectionMutationResponse,
 } from './workspace-connection-management';
+import type {
+  ConfigureGoogleProviderIntent,
+  GoogleProviderConfigurationResponse,
+  GoogleProviderConfigurationStatus,
+} from './google-provider-configuration';
 
 export const IPC_CHANNELS = {
   GET_APPLICATION_INFO: 'app:get-application-info',
@@ -49,6 +54,8 @@ export const IPC_CHANNELS = {
   DESKTOP_CONNECTION_CONNECT_GOOGLE: 'desktop:connection:connect-google',
   DESKTOP_CONNECTION_RECONNECT_GOOGLE: 'desktop:connection:reconnect-google',
   DESKTOP_CONNECTION_PROVISION_SERPAPI: 'desktop:connection:provision-serpapi',
+  GOOGLE_PROVIDER_CONFIGURATION: 'desktop:google-provider:configuration',
+  GOOGLE_PROVIDER_CONFIGURE: 'desktop:google-provider:configure',
   DESKTOP_RUNS: 'desktop:runs',
   DESKTOP_PRESETS: 'desktop:presets',
   DESKTOP_CREATE_PRESET: 'desktop:create-preset',
@@ -129,6 +136,11 @@ export interface RoofRoomApi {
   provisionSerpApiDesktopWorkspaceConnection: (
     intent: ProvisionSerpApiWorkspaceConnectionIntent,
   ) => Promise<WorkspaceConnectionMutationResponse>;
+  getGoogleProviderConfigurationStatus: (
+  ) => Promise<GoogleProviderConfigurationStatus>;
+  configureGoogleProvider: (
+    intent: ConfigureGoogleProviderIntent,
+  ) => Promise<GoogleProviderConfigurationResponse>;
   listDesktopRuns: (
     workspace_id: string,
   ) => Promise<DesktopRunState['run'][]>;

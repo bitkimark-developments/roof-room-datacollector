@@ -14,6 +14,7 @@ import {
   type GoogleCredentialBundle,
   type GoogleOAuthLoopback,
 } from './google-oauth-credential-acquirer';
+import { readGoogleProviderConfiguration } from './google-provider-configuration';
 
 export {
   GOOGLE_ADS_SCOPE,
@@ -120,6 +121,25 @@ export class GoogleOAuthClient {
       );
     }
 
+    const providerConfiguration = await readGoogleProviderConfiguration(
+      this.store,
+    );
+    const providerOAuthReady =
+      providerConfiguration?.client_id !== undefined
+      && providerConfiguration.client_secret !== undefined;
+    const clientId = providerOAuthReady
+      ? providerConfiguration.client_id
+      : bundle.client_id;
+    const clientSecret = providerOAuthReady
+      ? providerConfiguration.client_secret
+      : bundle.client_secret;
+    if (clientId === undefined) {
+      throw new GoogleCredentialError(
+        'MISSING_SECURE_CREDENTIAL',
+        'Google provider configuration is unavailable from secure storage.',
+      );
+    }
+
     let response: ApiResponse;
     try {
       response = await this.requester({
@@ -129,8 +149,8 @@ export class GoogleOAuthClient {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: encodeTokenRequest({
-          client_id: bundle.client_id,
-          client_secret: bundle.client_secret,
+          client_id: clientId,
+          client_secret: clientSecret,
           refresh_token: bundle.refresh_token,
           grant_type: 'refresh_token',
         }),
@@ -176,7 +196,10 @@ export class GoogleOAuthClient {
       : 3600;
     this.cachedCredential = {
       access_token: body.access_token,
-      developer_token: bundle.developer_token ?? null,
+      developer_token:
+        providerConfiguration?.developer_token
+        ?? bundle.developer_token
+        ?? null,
       expires_at: Date.now() + (Math.max(0, expiresIn) * 1000),
     };
     return this.cachedCredential;

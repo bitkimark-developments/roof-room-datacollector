@@ -25,7 +25,15 @@ const methods = [
   ['provisionSerpApiDesktopWorkspaceConnection', 'DESKTOP_CONNECTION_PROVISION_SERPAPI'],
 ];
 
+const googleProviderMethods = [
+  ['getGoogleProviderConfigurationStatus', 'GOOGLE_PROVIDER_CONFIGURATION'],
+  ['configureGoogleProvider', 'GOOGLE_PROVIDER_CONFIGURE'],
+];
+
 for (const [method] of methods) {
+  assert.equal(typeof api?.[method], 'function', method + ' must be exposed.');
+}
+for (const [method] of googleProviderMethods) {
   assert.equal(typeof api?.[method], 'function', method + ' must be exposed.');
 }
 assert.equal(typeof api?.getDesktopWorkspaceConnections, 'function');
@@ -51,6 +59,8 @@ async function main() {
   for (let index = 0; index < methods.length; index += 1) {
     await api[methods[index][0]](intents[index]);
   }
+  await api.getGoogleProviderConfigurationStatus();
+  await api.configureGoogleProvider({ component: 'OAUTH_APPLICATION' });
   await api.getDesktopWorkspaceConnections('ws');
 
   assert.deepEqual(
@@ -60,6 +70,11 @@ async function main() {
         IPC_CHANNELS[channelName],
         intents[index],
       ]),
+      [IPC_CHANNELS.GOOGLE_PROVIDER_CONFIGURATION],
+      [
+        IPC_CHANNELS.GOOGLE_PROVIDER_CONFIGURE,
+        { component: 'OAUTH_APPLICATION' },
+      ],
       [IPC_CHANNELS.DESKTOP_CONNECTIONS, 'ws'],
     ],
   );

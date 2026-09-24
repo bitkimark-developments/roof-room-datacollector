@@ -125,6 +125,7 @@ const createHarness = (records = []) => {
     defaultConfiguration: {
       client_id: 'main-owned-client',
       client_secret: 'sentinel-client-secret',
+      developer_token: 'sentinel-developer-token',
     },
     acquiredReferences: [],
     calls: [],
@@ -231,6 +232,44 @@ async function main() {
       false,
     );
     assert.deepEqual(harness.repository.upserts, []);
+  }
+
+  for (const [sourceId, configuration] of [
+    [
+      'google-search-console-query-page',
+      { client_id: 'provider-client-without-required-secret' },
+    ],
+    [
+      'google-ads-search-terms',
+      {
+        client_id: 'provider-client',
+        client_secret: 'sentinel-client-secret',
+      },
+    ],
+    [
+      'google-keyword-planner',
+      {
+        client_id: 'provider-client',
+        client_secret: 'sentinel-client-secret',
+      },
+    ],
+  ]) {
+    const harness = createHarness();
+    harness.acquirer.defaultConfiguration = configuration;
+    const result = await harness.service.connectGoogle({
+      workspace_id: `ws_provider_required_${sourceId}`,
+      source_id: sourceId,
+      metadata: sourceId === 'google-search-console-query-page'
+        ? { site_url: 'sc-domain:example.com' }
+        : { customer_id: '123' },
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, 'CONNECTION_CONFIGURATION_UNAVAILABLE');
+    assert.equal(
+      harness.acquirer.calls.some(([kind]) => kind === 'acquire'),
+      false,
+      `${sourceId} must not start OAuth before all provider-level requirements exist.`,
+    );
   }
 
   {

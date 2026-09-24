@@ -45,7 +45,7 @@ export interface GoogleOAuthCredentialAcquirer {
 }
 
 export interface GoogleCredentialBundle {
-  client_id: string;
+  client_id?: string;
   client_secret?: string;
   refresh_token: string;
   developer_token?: string;
@@ -82,10 +82,12 @@ export const parseGoogleCredentialBundle = (
 ): GoogleCredentialBundle => {
   const raw = JSON.parse(value) as Partial<GoogleCredentialBundle>;
   if (
-    typeof raw.client_id !== 'string'
-    || raw.client_id.length === 0
-    || typeof raw.refresh_token !== 'string'
+    typeof raw.refresh_token !== 'string'
     || raw.refresh_token.length === 0
+    || (
+      raw.client_id !== undefined
+      && (typeof raw.client_id !== 'string' || raw.client_id.length === 0)
+    )
     || (
       raw.granted_scopes !== undefined
       && (
@@ -239,10 +241,7 @@ export const exchangeGoogleAuthorizationCode = async (
 ): Promise<void> => {
   const refreshToken = await requestGoogleRefreshToken(input, requester);
   await store.writeCredential(input.credential_ref, JSON.stringify({
-    client_id: input.client_id,
-    client_secret: input.client_secret,
     refresh_token: refreshToken,
-    developer_token: input.developer_token,
     granted_scopes: input.granted_scopes === undefined
       ? undefined
       : [...input.granted_scopes],
@@ -405,10 +404,7 @@ implements GoogleOAuthCredentialAcquirer {
       await this.dependencies.store.writeCredential(
         credentialRef,
         JSON.stringify({
-          client_id: configuration.client_id,
-          client_secret: configuration.client_secret,
           refresh_token: refreshToken,
-          developer_token: configuration.developer_token,
           granted_scopes: [...scopes],
         } satisfies GoogleCredentialBundle),
       );
@@ -426,6 +422,13 @@ implements GoogleOAuthCredentialAcquirer {
   async readApplicationConfiguration(
     existingCredentialRef?: string,
   ): Promise<GoogleOAuthApplicationConfiguration | null> {
+    const provided = await (
+      this.dependencies.application_configuration_provider
+      ?? (async () => null)
+    )();
+    const normalizedProvided = normalizeApplicationConfiguration(provided);
+    if (normalizedProvided !== null) return normalizedProvided;
+
     if (existingCredentialRef !== undefined) {
       try {
         const bundle = parseGoogleCredentialBundle(
@@ -433,6 +436,7 @@ implements GoogleOAuthCredentialAcquirer {
             existingCredentialRef,
           ),
         );
+        if (bundle.client_id === undefined) return null;
         return {
           client_id: bundle.client_id,
           ...(bundle.client_secret === undefined
@@ -443,14 +447,10 @@ implements GoogleOAuthCredentialAcquirer {
             : { developer_token: bundle.developer_token }),
         };
       } catch {
-        // Fall through to the main-owned provider.
+        return null;
       }
     }
-    const provided = await (
-      this.dependencies.application_configuration_provider
-      ?? (async () => null)
-    )();
-    return normalizeApplicationConfiguration(provided);
+    return null;
   }
 
   async isCompatible(

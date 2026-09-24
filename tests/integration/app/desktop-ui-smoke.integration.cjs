@@ -213,6 +213,11 @@ const main = async () => {
         window.__workspaceConnectionMutationSerial = 0;
         window.__workspaceConnectionReadsAfterMutation = [];
         window.__workspaceConnectionMutationCalls = [];
+        window.__googleProviderConfigurationCalls = [];
+        window.__googleProviderConfigurationStatus = {
+          oauth_application_status: 'NOT_CONFIGURED',
+          ads_developer_token_status: 'NOT_CONFIGURED',
+        };
         window.__presetState = [
           {
             preset_id: 'sp_fixture',
@@ -400,6 +405,34 @@ const main = async () => {
               structuredClone(intent),
             ]);
             return completeWorkspaceMutation(intent.source_id, 'PROVISION_SERPAPI');
+          },
+          getGoogleProviderConfigurationStatus: async () => structuredClone(
+            window.__googleProviderConfigurationStatus,
+          ),
+          configureGoogleProvider: async (intent) => {
+            window.__googleProviderConfigurationCalls.push(
+              structuredClone(intent),
+            );
+            if (intent.component === 'OAUTH_APPLICATION') {
+              window.__googleProviderConfigurationStatus = {
+                ...window.__googleProviderConfigurationStatus,
+                oauth_application_status: 'AVAILABLE',
+              };
+            } else {
+              window.__googleProviderConfigurationStatus = {
+                ...window.__googleProviderConfigurationStatus,
+                ads_developer_token_status: 'AVAILABLE',
+              };
+            }
+            return {
+              ok: true,
+              result: {
+                component: intent.component,
+                status: structuredClone(
+                  window.__googleProviderConfigurationStatus,
+                ),
+              },
+            };
           },
 
           getDesktopPresets: async (workspaceId) => structuredClone(
@@ -2157,6 +2190,75 @@ const main = async () => {
       'workspace-connection-serpapi',
     );
 
+    const googleProviderConfiguration = page.getByTestId(
+      'google-provider-configuration',
+    );
+    await googleProviderConfiguration.getByRole('heading', {
+      name: 'Application / Provider Credentials',
+      exact: true,
+    }).waitFor();
+    await googleProviderConfiguration.getByText(
+      'OAuth application: NOT_CONFIGURED',
+      { exact: true },
+    ).waitFor();
+    await googleProviderConfiguration.getByText(
+      'Google Ads developer token: NOT_CONFIGURED',
+      { exact: true },
+    ).waitFor();
+    assert.equal(
+      await googleProviderConfiguration.locator('input').count(),
+      0,
+      'Provider credentials must never enter renderer inputs.',
+    );
+    assert.equal(
+      await plannerConnection.getByRole('button', { name: 'Connect' }).isDisabled(),
+      true,
+      'Ads-backed Connect must wait for shared provider setup.',
+    );
+    await googleProviderConfiguration.getByRole('button', {
+      name: 'Configure OAuth application',
+      exact: true,
+    }).click();
+    await googleProviderConfiguration.getByText(
+      'OAuth application: AVAILABLE',
+      { exact: true },
+    ).waitFor();
+    await googleProviderConfiguration.getByRole('button', {
+      name: 'Configure Google Ads developer token',
+      exact: true,
+    }).click();
+    await googleProviderConfiguration.getByText(
+      'Google Ads developer token: AVAILABLE',
+      { exact: true },
+    ).waitFor();
+    assert.deepEqual(
+      await page.evaluate(() => window.__googleProviderConfigurationCalls),
+      [
+        { component: 'OAUTH_APPLICATION' },
+        { component: 'ADS_DEVELOPER_TOKEN' },
+      ],
+      'Renderer sends only fixed component intents; native prompts own all submitted values.',
+    );
+    assert.equal(
+      await googleProviderConfiguration.getByRole('button', {
+        name: 'Replace OAuth application',
+        exact: true,
+      }).count(),
+      1,
+    );
+    assert.equal(
+      await googleProviderConfiguration.getByRole('button', {
+        name: 'Replace Google Ads developer token',
+        exact: true,
+      }).count(),
+      1,
+    );
+    assert.equal(
+      await plannerConnection.getByRole('button', { name: 'Connect' }).isEnabled(),
+      false,
+      'Workspace metadata is still required after provider setup.',
+    );
+
     assert.equal(await gscConnection.getByRole('button', { name: 'Manage' }).count(), 1);
     assert.equal(await gscConnection.getByRole('button', { name: 'Disconnect' }).count(), 1);
     assert.equal(await adsConnection.getByRole('button', { name: 'Reconnect' }).count(), 1);
@@ -2400,13 +2502,13 @@ const main = async () => {
 
     assert.equal(
       await page.evaluate(() => window.__workspaceConnectionReadCount),
-      16,
-      'Initial read plus every success, safe failure, cancel, thrown error, warning, refresh failure, and disconnect must reread exactly once.',
+      18,
+      'Initial read, both provider updates, and every connection mutation must reread exactly once.',
     );
     assert.deepEqual(
       await page.evaluate(() => window.__workspaceConnectionReadsAfterMutation),
-      Array.from({ length: 16 }, (_, index) => index),
-      'Every mutation branch must perform exactly one final reread, including cancellation, thrown errors, and reread failure.',
+      [0, 0, 0, ...Array.from({ length: 15 }, (_, index) => index + 1)],
+      'Provider updates and every connection mutation branch must perform exactly one final reread.',
     );
     assert.deepEqual(
       await page.evaluate(() => window.__workspaceConnectionMutationCalls),

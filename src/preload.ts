@@ -85,6 +85,15 @@ const roofroomApi: RoofRoomApi = {
       IPC_CHANNELS.DESKTOP_CONNECTION_PROVISION_SERPAPI,
       intent,
     ),
+  getGoogleProviderConfigurationStatus: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.GOOGLE_PROVIDER_CONFIGURATION,
+    ),
+  configureGoogleProvider: (intent) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.GOOGLE_PROVIDER_CONFIGURE,
+      intent,
+    ),
   listDesktopRuns: (workspace_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_RUNS, workspace_id),
   getDesktopPresets: (workspace_id) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_PRESETS, workspace_id),
   createDesktopPreset: (input) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_CREATE_PRESET, input),

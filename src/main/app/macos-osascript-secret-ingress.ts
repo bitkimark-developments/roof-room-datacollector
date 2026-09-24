@@ -5,6 +5,7 @@ import {
 
 import type {
   SecretIngressPort,
+  SecretIngressPurpose,
   SecretIngressResult,
 } from '../core/secret-ingress';
 
@@ -14,8 +15,15 @@ const MAX_OUTPUT_BYTES = 1024 as const;
 const CANCEL_SENTINEL = 'ROOFROOM_SECRET_CANCELLED';
 const SUBMITTED_PREFIX = 'ROOFROOM_SECRET_SUBMITTED:';
 
-const SERPAPI_PROMPT_SCRIPT = `try
-  set promptResult to display dialog "Enter the SerpApi API key for RoofRoom." ¬
+const PROMPT_COPY: Record<SecretIngressPurpose, string> = {
+  SERPAPI_API_KEY: 'Enter the SerpApi API key for RoofRoom.',
+  GOOGLE_OAUTH_CLIENT_ID: 'Enter the Google OAuth Client ID for RoofRoom.',
+  GOOGLE_OAUTH_CLIENT_SECRET: 'Enter the Google OAuth Client Secret for RoofRoom.',
+  GOOGLE_ADS_DEVELOPER_TOKEN: 'Enter the Google Ads Developer Token for RoofRoom.',
+};
+
+const promptScript = (purpose: SecretIngressPurpose): string => `try
+  set promptResult to display dialog "${PROMPT_COPY[purpose]}" ¬
     default answer "" ¬
     buttons {"Cancel", "Continue"} ¬
     default button "Continue" ¬
@@ -189,9 +197,9 @@ export class MacOsascriptSecretIngress implements SecretIngressPort {
   ) {}
 
   async requestSecret(
-    input: { purpose: 'SERPAPI_API_KEY' },
+    input: { purpose: SecretIngressPurpose },
   ): Promise<SecretIngressResult> {
-    if (input.purpose !== 'SERPAPI_API_KEY') {
+    if (!Object.hasOwn(PROMPT_COPY, input.purpose)) {
       return { status: 'FAILED', code: 'INVALID_OUTPUT' };
     }
 
@@ -201,7 +209,7 @@ export class MacOsascriptSecretIngress implements SecretIngressPort {
         executable: OSA_SCRIPT_PATH,
         argv: [],
         shell: false,
-        script: SERPAPI_PROMPT_SCRIPT,
+        script: promptScript(input.purpose),
         timeout_ms: PROCESS_TIMEOUT_MS,
         max_output_bytes: MAX_OUTPUT_BYTES,
       });

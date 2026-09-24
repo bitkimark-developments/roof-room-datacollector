@@ -89,6 +89,27 @@ const main = async () => {
   assert.match(calls[0].script, /with hidden answer/);
   assert.equal(calls[0].script.includes(syntheticKey), false);
 
+  const googlePrompts = [
+    ['GOOGLE_OAUTH_CLIENT_ID', /Google OAuth Client ID/],
+    ['GOOGLE_OAUTH_CLIENT_SECRET', /Google OAuth Client Secret/],
+    ['GOOGLE_ADS_DEVELOPER_TOKEN', /Google Ads Developer Token/],
+  ];
+  for (const [purpose, expectedPrompt] of googlePrompts) {
+    let promptRequest;
+    const googleIngress = new MacOsascriptSecretIngress(async (request) => {
+      promptRequest = request;
+      return processResult();
+    });
+    assert.deepEqual(
+      await googleIngress.requestSecret({ purpose }),
+      { status: 'SUBMITTED', secret: syntheticKey },
+    );
+    assert.match(promptRequest.script, expectedPrompt);
+    assert.match(promptRequest.script, /with hidden answer/);
+    assert.deepEqual(promptRequest.argv, []);
+    assert.equal(promptRequest.script.includes(syntheticKey), false);
+  }
+
   const cancellation = new MacOsascriptSecretIngress(async () => processResult({
     stdout: Buffer.from(`${cancelSentinel}\n`),
   }));

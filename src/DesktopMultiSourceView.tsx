@@ -27,6 +27,10 @@ import type {
 import {
   BITKIMARK_VERIFIED_SITEMAP_URLS,
 } from './shared/bitkimark-sitemap';
+import type {
+  GoogleProviderConfigurationComponent,
+  GoogleProviderConfigurationStatus,
+} from './shared/google-provider-configuration';
 
 const NAV_ITEMS = [
   'HOME',
@@ -786,6 +790,16 @@ export function DesktopMultiSourceView() {
   ] = useState<DesktopCredentialManagedSourceId | null>(null);
 
   const [
+    googleProviderConfiguration,
+    setGoogleProviderConfiguration,
+  ] = useState<GoogleProviderConfigurationStatus | null>(null);
+
+  const [
+    pendingGoogleProviderComponent,
+    setPendingGoogleProviderComponent,
+  ] = useState<GoogleProviderConfigurationComponent | null>(null);
+
+  const [
     presets,
     setPresets,
   ] =
@@ -1257,6 +1271,23 @@ export function DesktopMultiSourceView() {
   }, [
     workspaceId,
   ]);
+
+  useEffect(() => {
+    let mounted = true;
+    window.roofroom.getGoogleProviderConfigurationStatus()
+      .then((status) => {
+        if (mounted) setGoogleProviderConfiguration(status);
+      })
+      .catch(() => {
+        if (mounted) {
+          setGoogleProviderConfiguration(null);
+          setMessage('Google provider configuration status could not be read.');
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const selectedPreset = presets.find((preset) => (
@@ -2562,6 +2593,54 @@ export function DesktopMultiSourceView() {
         [field]: value,
       },
     }));
+  };
+
+  const configureGoogleProvider = async (
+    component: GoogleProviderConfigurationComponent,
+  ): Promise<void> => {
+    if (pendingGoogleProviderComponent !== null) return;
+    setPendingGoogleProviderComponent(component);
+    setMessage(null);
+    try {
+      const response = await window.roofroom.configureGoogleProvider({
+        component,
+      });
+      if (response.ok === true) {
+        setGoogleProviderConfiguration(response.result.status);
+        setMessage('Google provider configuration updated.');
+      } else {
+        const copy: Record<string, string> = {
+          INVALID_PROVIDER_CONFIGURATION_INTENT:
+            'Google provider setup request is invalid.',
+          SECRET_INGRESS_CANCELLED:
+            'Provider credential entry was cancelled. Existing configuration was preserved.',
+          SECRET_INGRESS_FAILED:
+            'Provider credential entry could not be completed.',
+          SECRET_INPUT_INVALID:
+            'The provider credential value is invalid.',
+          CREDENTIAL_PERSISTENCE_FAILED:
+            'The protected provider configuration could not be saved.',
+        };
+        setMessage(copy[response.error.code]
+          ?? 'Google provider configuration could not be updated.');
+      }
+    } catch {
+      setMessage('Google provider configuration could not be updated.');
+    } finally {
+      try {
+        const status = await window.roofroom
+          .getGoogleProviderConfigurationStatus();
+        setGoogleProviderConfiguration(status);
+        if (workspaceId.length > 0) {
+          const refreshed = await window.roofroom
+            .getDesktopWorkspaceConnections(workspaceId);
+          setWorkspaceConnections(refreshed);
+        }
+      } catch {
+        setMessage('Google provider configuration state could not be refreshed.');
+      }
+      setPendingGoogleProviderComponent(null);
+    }
   };
 
   const mutateWorkspaceConnection = async (
@@ -4845,6 +4924,50 @@ export function DesktopMultiSourceView() {
                   Connections and local data live here. Task configuration does not.
                 </p>
 
+                <article
+                  className="rr-panel rr-detail-panel rr-connection-panel"
+                  data-testid="google-provider-configuration"
+                >
+                  <h2>Application / Provider Credentials</h2>
+                  <p>
+                    Shared Google credentials are stored by the main process. Values never enter this page.
+                  </p>
+                  <p>
+                    OAuth application: {googleProviderConfiguration
+                      ?.oauth_application_status ?? 'NOT_CONFIGURED'}
+                  </p>
+                  <p>
+                    Google Ads developer token: {googleProviderConfiguration
+                      ?.ads_developer_token_status ?? 'NOT_CONFIGURED'}
+                  </p>
+                  <div className="rr-connection-actions">
+                    <button
+                      type="button"
+                      disabled={pendingGoogleProviderComponent !== null}
+                      onClick={() => {
+                        void configureGoogleProvider('OAUTH_APPLICATION');
+                      }}
+                    >
+                      {googleProviderConfiguration?.oauth_application_status
+                        === 'AVAILABLE'
+                        ? 'Replace OAuth application'
+                        : 'Configure OAuth application'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pendingGoogleProviderComponent !== null}
+                      onClick={() => {
+                        void configureGoogleProvider('ADS_DEVELOPER_TOKEN');
+                      }}
+                    >
+                      {googleProviderConfiguration?.ads_developer_token_status
+                        === 'AVAILABLE'
+                        ? 'Replace Google Ads developer token'
+                        : 'Configure Google Ads developer token'}
+                    </button>
+                  </div>
+                </article>
+
                 <div
                   className="rr-detail-sections"
                   data-testid="workspace-connections"
@@ -4861,6 +4984,14 @@ export function DesktopMultiSourceView() {
                         === 'google-search-console-query-page'
                         ? draft.site_url.trim().length > 0
                         : draft.customer_id.trim().length > 0;
+                      const providerReady = connection.source_id
+                        === 'google-search-console-query-page'
+                        ? googleProviderConfiguration
+                          ?.oauth_application_status === 'AVAILABLE'
+                        : googleProviderConfiguration
+                          ?.oauth_application_status === 'AVAILABLE'
+                          && googleProviderConfiguration
+                            .ads_developer_token_status === 'AVAILABLE';
 
                       return (
                         <article
@@ -4969,7 +5100,7 @@ export function DesktopMultiSourceView() {
                               && (
                                 <button
                                   type="button"
-                                  disabled={pending}
+                                  disabled={pending || !providerReady}
                                   onClick={() => {
                                     void mutateWorkspaceConnection(
                                       connection.source_id,
@@ -4985,7 +5116,7 @@ export function DesktopMultiSourceView() {
                               && (
                                 <button
                                   type="button"
-                                  disabled={pending || !requiredMetadataReady}
+                                  disabled={pending || !requiredMetadataReady || !providerReady}
                                   onClick={() => {
                                     void mutateWorkspaceConnection(
                                       connection.source_id,

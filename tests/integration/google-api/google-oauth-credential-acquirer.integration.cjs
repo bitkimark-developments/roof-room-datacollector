@@ -23,6 +23,15 @@ const {
 } = require(
   path.join(buildRoot, 'main', 'sources', 'google-api', 'google-auth.js'),
 );
+const {
+  GOOGLE_PROVIDER_CONFIGURATION_CREDENTIAL_REF,
+} = require(path.join(
+  buildRoot,
+  'main',
+  'sources',
+  'google-api',
+  'google-provider-configuration.js',
+));
 
 class MemoryCredentialStore {
   constructor() {
@@ -165,10 +174,11 @@ async function main() {
       await harness.store.readCredential(credentialRef),
     );
     assert.deepEqual(storedBundle.granted_scopes, expectedScopes);
-    assert.equal(storedBundle.client_id, 'main-owned-client-id');
-    assert.equal(storedBundle.client_secret, 'sentinel-client-secret');
-    assert.equal(storedBundle.developer_token, 'sentinel-developer-secret');
     assert.equal(storedBundle.refresh_token, 'sentinel-refresh-secret');
+    assert.deepEqual(Object.keys(storedBundle).sort(), [
+      'granted_scopes',
+      'refresh_token',
+    ]);
     assert.equal(
       await harness.acquirer.isCompatible(credentialRef, expectedScopes),
       true,
@@ -180,13 +190,9 @@ async function main() {
       ),
       false,
     );
-    assert.deepEqual(
+    assert.equal(
       await harness.acquirer.readApplicationConfiguration(credentialRef),
-      {
-        client_id: 'main-owned-client-id',
-        client_secret: 'sentinel-client-secret',
-        developer_token: 'sentinel-developer-secret',
-      },
+      null,
     );
   }
 
@@ -227,11 +233,19 @@ async function main() {
   }
 
   {
-    const harness = createHarness();
+    const harness = createHarness({
+      configurationProvider: async () => ({
+        client_id: 'replacement-provider-client',
+        client_secret: 'replacement-provider-secret',
+        developer_token: 'replacement-provider-developer-token',
+      }),
+    });
     await harness.store.writeCredential(
       'google-oauth:legacy',
       JSON.stringify({
         client_id: 'legacy-client',
+        client_secret: 'legacy-secret',
+        developer_token: 'legacy-developer-token',
         refresh_token: 'legacy-refresh',
       }),
     );
@@ -244,20 +258,51 @@ async function main() {
       'legacy bundles without scopes must not be assumed compatible',
     );
 
+    await harness.store.writeCredential(
+      GOOGLE_PROVIDER_CONFIGURATION_CREDENTIAL_REF,
+      JSON.stringify({
+        client_id: 'replacement-provider-client',
+        client_secret: 'replacement-provider-secret',
+        developer_token: 'replacement-provider-developer-token',
+      }),
+    );
+    let refreshRequest;
     const runtimeClient = new GoogleOAuthClient(
       harness.store,
       'google-oauth:legacy',
-      async () => ({
-        status: 200,
-        body: {
-          access_token: 'runtime-access',
-          expires_in: 3600,
-        },
-      }),
+      async (request) => {
+        refreshRequest = request;
+        return {
+          status: 200,
+          body: {
+            access_token: 'runtime-access',
+            expires_in: 3600,
+          },
+        };
+      },
     );
     const runtimeCredential = await runtimeClient.getAccessToken();
     assert.equal(runtimeCredential.access_token, 'runtime-access');
-    assert.equal(runtimeCredential.developer_token, null);
+    assert.equal(
+      runtimeCredential.developer_token,
+      'replacement-provider-developer-token',
+    );
+    const refreshBody = new URLSearchParams(refreshRequest.body);
+    assert.equal(refreshBody.get('client_id'), 'replacement-provider-client');
+    assert.equal(refreshBody.get('client_secret'), 'replacement-provider-secret');
+    assert.equal(refreshBody.get('refresh_token'), 'legacy-refresh');
+    assert.notEqual(refreshBody.get('client_id'), 'legacy-client');
+    assert.deepEqual(
+      await harness.acquirer.readApplicationConfiguration(
+        'google-oauth:legacy',
+      ),
+      {
+        client_id: 'replacement-provider-client',
+        client_secret: 'replacement-provider-secret',
+        developer_token: 'replacement-provider-developer-token',
+      },
+      'Provider-level replacement must take precedence over copied legacy application values.',
+    );
   }
 
   assert.equal(

@@ -595,7 +595,14 @@ export class WorkspaceConnectionManagementService {
       const configuration =
         await this.dependencies.google_credential_acquirer
           .readApplicationConfiguration(existingCredentialRef);
-      if (configuration !== null) return { ok: true, value: configuration };
+      if (
+        configuration !== null
+        && configuration.client_secret !== undefined
+        && (
+          sourceId === 'google-search-console-query-page'
+          || configuration.developer_token !== undefined
+        )
+      ) return { ok: true, value: configuration };
     } catch {
       // Configuration access fails closed with a safe error code.
     }

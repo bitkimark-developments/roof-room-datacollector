@@ -14,6 +14,11 @@ import { bootstrapGoogleOAuth } from '../sources/google-api/google-auth';
 import {
   MainProcessGoogleOAuthCredentialAcquirer,
 } from '../sources/google-api/google-oauth-credential-acquirer';
+import {
+  GoogleProviderConfigurationService,
+  readGoogleProviderConfiguration,
+} from '../sources/google-api/google-provider-configuration';
+import { MacOsascriptSecretIngress } from './macos-osascript-secret-ingress';
 
 const credentialDirectory = (
   directories: ApplicationDirectories,
@@ -35,7 +40,30 @@ export const createElectronGoogleOAuthCredentialAcquirer = (
     store: credentialStore,
     requester: createFetchApiRequester(),
     openExternal: async (url) => shell.openExternal(url),
-    application_configuration_provider: async () => null,
+    application_configuration_provider: async () => {
+      const configuration = await readGoogleProviderConfiguration(
+        credentialStore,
+      );
+      return configuration?.client_id !== undefined
+        && configuration.client_secret !== undefined
+        ? {
+          client_id: configuration.client_id,
+          client_secret: configuration.client_secret,
+          ...(configuration.developer_token === undefined
+            ? {}
+            : { developer_token: configuration.developer_token }),
+        }
+        : null;
+    },
+  })
+);
+
+export const createElectronGoogleProviderConfigurationService = (
+  credentialStore: CredentialStore,
+): GoogleProviderConfigurationService => (
+  new GoogleProviderConfigurationService({
+    credential_store: credentialStore,
+    secret_ingress: new MacOsascriptSecretIngress(),
   })
 );
 

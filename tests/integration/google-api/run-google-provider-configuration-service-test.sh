@@ -8,10 +8,7 @@ TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 npx tsc \
-  src/main/sources/google-api/google-oauth-credential-acquirer.ts \
-  src/main/sources/google-api/google-auth.ts \
   src/main/sources/google-api/google-provider-configuration.ts \
-  src/main/sources/google-api/api-helpers.ts \
   src/main/core/credential-store.ts \
   src/main/core/secret-ingress.ts \
   src/shared/google-provider-configuration.ts \
@@ -24,5 +21,5 @@ npx tsc \
   --skipLibCheck
 
 node \
-  tests/integration/google-api/google-oauth-credential-acquirer.integration.cjs \
+  tests/integration/google-api/google-provider-configuration-service.integration.cjs \
   "$TMP_ROOT/build"
