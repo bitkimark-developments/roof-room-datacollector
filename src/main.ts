@@ -1261,7 +1261,6 @@ app.on('before-quit', (event) => {
     googleTrendsController;
 
   if (runtime === null) {
-    desktopRepository?.close();
     return;
   }
 
@@ -1295,7 +1294,6 @@ app.on('before-quit', (event) => {
 
       await runtime.browser_manager
         .close();
-      desktopRepository?.close();
     })()
       .catch(
         (): void => {
@@ -1310,6 +1308,10 @@ app.on('before-quit', (event) => {
           null;
         app.quit();
       });
+});
+
+app.on('quit', () => {
+  desktopRepository?.close();
 });
 
 app.on('window-all-closed', () => {

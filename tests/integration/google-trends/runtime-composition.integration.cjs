@@ -246,6 +246,54 @@ const main = async () => {
   console.log(
     'PASS GT-RUNTIME-005: Electron before-quit waits for BrowserManager.close() and then re-enters app.quit() after async shutdown',
   );
+
+  const beforeQuitEndIndex =
+    mainSource.indexOf(
+      "app.on('window-all-closed'",
+      beforeQuitIndex,
+    );
+
+  assert.notEqual(
+    beforeQuitEndIndex,
+    -1,
+  );
+
+  const quitHandlerIndex =
+    mainSource.indexOf(
+      "app.on('quit'",
+      beforeQuitIndex,
+    );
+
+  const beforeQuitSource =
+    mainSource.slice(
+      beforeQuitIndex,
+      quitHandlerIndex === -1
+        ? beforeQuitEndIndex
+        : quitHandlerIndex,
+    );
+
+  assert.doesNotMatch(
+    beforeQuitSource,
+    /desktopRepository\?\.close\(\)/u,
+    'The shared application repository must remain open while a quit attempt can still be cancelled.',
+  );
+
+  assert.notEqual(
+    quitHandlerIndex,
+    -1,
+  );
+
+  assert.match(
+    mainSource.slice(
+      quitHandlerIndex,
+      beforeQuitEndIndex,
+    ),
+    /desktopRepository\?\.close\(\)/u,
+  );
+
+  console.log(
+    'PASS GT-RUNTIME-006: the shared application database remains open through cancellable quit preparation and closes only on final application quit',
+  );
 };
 
 main().catch((error) => {

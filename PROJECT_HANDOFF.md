@@ -2983,3 +2983,36 @@ Protected historical files remain untracked and untouched:
 
 - `CODEX_HANDOFF_CURRENT.md`
 - `PROJECT_HANDOFF.pre-20260820.md`
+
+---
+
+## 53. Desktop application database lifecycle fix — 2026-09-24
+
+A real packaged-app failure produced `Error invoking remote method 'desktop:workspaces': Error: database is not open` while the Electron process could remain active. The shared `StateRepository` was being closed during the cancellable `before-quit` phase. Workspace and preset IPC handlers retained their long-lived controller, which in turn retained that closed repository instance; a surviving or reactivated application window therefore reached a closed `node:sqlite` database.
+
+The root-cause fix keeps the application repository open throughout cancellable quit preparation and Google Trends browser shutdown. It now closes only on Electron's final `quit` event. No repository reopen loop, database deletion, schema migration, persistence rewrite, or swallowed database error was introduced.
+
+Fresh verification:
+
+```text
+focused lifecycle RED                              expected failure
+PASS GT-RUNTIME-006                               lifecycle regression GREEN
+PASS DESKTOP-CONNECTION-MAIN-IPC-001              safe Workspace read IPC
+PASS DESKTOP-MULTISOURCE-001                      Workspace/preset controller flow
+PASS PRESET-RUN-001                               SQLite preset persistence
+PASS PRESET-LIFECYCLE-UI-001                      create/open/edit preset UI flow
+npx tsc --noEmit                                  PASS
+npm run lint                                      PASS
+git diff --check                                  PASS
+npm run test:release:gate                         PASS RELEASE-GATE-001
+npm run package                                   PASS
+```
+
+The freshly packaged macOS arm64 application opened with `SYSTEM READY`; Workspace loaded without the closed-database error, existing presets were readable, a new preset was created and opened successfully, and source connection fields were usable. No provider call ran. Existing application data and schema-v8 state were preserved. The smoke-created `Lifecycle Smoke 2026-09-24` preset remains in the Development migration Workspace so its deletion stays under explicit user control.
+
+Exact next action: the user may manually confirm Workspace, Preset, and source-configuration behavior in the currently open packaged application. Do not resume GSC live acceptance automatically; begin it only under a separate explicit continuation after local confirmation and credential readiness.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
