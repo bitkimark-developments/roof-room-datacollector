@@ -6,9 +6,9 @@
 
 **Current stage:** UXH2 SerpApi secure provisioning implementation, deterministic/package verification, and local packaged native-prompt acceptance complete; distribution acceptance deferred
 
-**Current goal:** Preserve the verified UXH2 checkpoint and await explicit direction for any separate distribution acceptance or later milestone; do not start UXH3
+**Current goal:** Complete the remaining packaged Google Ads Developer Token / Ads / Keyword Planner setup acceptance without collection, then await explicit authorization for the first bounded GSC live collection acceptance; do not start UXH3
 
-**Current-state authority:** Section 51 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 51.
+**Current-state authority:** Section 54 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 54.
 
 ---
 
@@ -3011,6 +3011,76 @@ npm run package                                   PASS
 The freshly packaged macOS arm64 application opened with `SYSTEM READY`; Workspace loaded without the closed-database error, existing presets were readable, a new preset was created and opened successfully, and source connection fields were usable. No provider call ran. Existing application data and schema-v8 state were preserved. The smoke-created `Lifecycle Smoke 2026-09-24` preset remains in the Development migration Workspace so its deletion stays under explicit user control.
 
 Exact next action: the user may manually confirm Workspace, Preset, and source-configuration behavior in the currently open packaged application. Do not resume GSC live acceptance automatically; begin it only under a separate explicit continuation after local confirmation and credential readiness.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+---
+
+## 54. Production Google provider credential provisioning — 2026-09-24
+
+The packaged application no longer depends on the unfinished `application_configuration_provider: async () => null` seam that produced `Main-process Google configuration is unavailable`. Release 1.0 now has a normal Workspace UI path for shared Google provider credentials, using the existing privileged credential boundary.
+
+Technical checkpoint:
+
+```text
+7d07c45 feat: add google provider credential provisioning
+```
+
+### Credential model and security boundary
+
+- Google OAuth Client ID and Client Secret are stored once as provider-level application configuration and are shared by GSC, Google Ads Search Terms, and Google Keyword Planner API.
+- The Google Ads Developer Token is stored once at provider scope and is shared only by Google Ads Search Terms and Google Keyword Planner API.
+- GSC Site URL, Google Ads Customer ID, and optional Login Customer ID remain ordinary safe Workspace/account metadata.
+- OAuth refresh tokens and granted scopes remain account-authorization credentials. New account bundles no longer duplicate application-level Google secrets; legacy bundles remain readable for compatibility.
+- Renderer actions contain only a fixed provider component identifier. Secret values flow from a main-owned native macOS masked prompt through private pipes into the safeStorage-backed credential store. The renderer receives only `NOT_CONFIGURED` / `AVAILABLE` provider state and fixed safe outcomes.
+- Encrypted credential replacement uses same-directory staging plus atomic activation. Cancellation or persistence failure leaves the previously active provider configuration intact.
+- The safe `DESKTOP_CONNECTIONS` response remains exactly `source_id`, `credential_status`, and `readiness_status`. SQLite remains schema v8.
+
+GSC readiness requires the shared OAuth application configuration. Google Ads and Keyword Planner readiness require both that OAuth configuration and the shared Developer Token. Missing provider setup now produces actionable `CONFIGURATION_REQUIRED` UI state before OAuth acquisition instead of the former opaque main-process configuration error.
+
+### Deterministic and package verification
+
+Focused verification passed for provider provisioning, native secret ingress, trusted IPC/preload, OAuth bundle/runtime composition, source-specific connection eligibility, atomic encrypted replacement, Workspace UI, and the existing SerpApi boundary. The Google runtime composition fixture was updated to persist the synthetic provider-level configuration before constructing the runtime; its focused regression passed.
+
+Fresh assembled evidence for this implementation:
+
+```text
+GOOGLE-PROVIDER-CONFIGURATION-001               PASS
+MACOS-OSASCRIPT-SECRET-INGRESS-001              PASS
+GOOGLE-PROVIDER-CONFIGURATION-MAIN-IPC-001      PASS
+GOOGLE-OAUTH-CREDENTIAL-ACQUIRER-001            PASS
+GOOGLE-WORKSPACE-CONNECTION-MANAGEMENT-001      PASS
+DESKTOP-CONNECTION-WRITE-IPC-001                PASS
+DESKTOP-CONNECTION-WRITE-COMPOSITION-001        PASS
+ELECTRON-SAFE-STORAGE-ATOMIC-001                PASS
+DESKTOP-UI-001                                  PASS
+npx tsc --noEmit                                PASS
+npm run lint                                    PASS
+git diff --check                                PASS
+npm run test:release:gate                       PASS RELEASE-GATE-001
+npm run package                                 PASS
+```
+
+The release gate continued to pass `GT-RUNTIME-006`; the final-quit database lifecycle fix remains intact. The packaged application is:
+
+```text
+out/RoofRoom Data Collector-darwin-arm64/RoofRoom Data Collector.app
+```
+
+### Packaged acceptance status
+
+The packaged macOS arm64 application exposed a distinct `Application / Provider Credentials` section. No secret value was displayed in the renderer. Google OAuth application provisioning completed and refreshed the safe status to `AVAILABLE`. After entering the safe GSC Site URL metadata, Connect became usable, the supported system-browser OAuth flow began and completed, and the Workspace refreshed to `Credential: AVAILABLE` and `Readiness: READY`. The former opaque configuration error did not recur.
+
+The Google Ads Developer Token action reached the native ingress wait, but no value was submitted during this acceptance. It ended through the bounded safe timeout, returned only the fixed safe UI error, preserved the existing OAuth application configuration, and remained `NOT_CONFIGURED`. Consequently Google Ads and Keyword Planner correctly remained `CONFIGURATION_REQUIRED` with Connect disabled. Computer Use could not independently inspect the separate osascript dialog, so Google-specific prompt masking/focus is not recorded as a new human-observed PASS here; deterministic coverage verifies the fixed `with hidden answer` scripts and empty argv boundary.
+
+The existing SerpApi connection remained `AVAILABLE / READY` and was not replaced, removed, or called. No GSC, Google Ads, Keyword Planner, or SerpApi collection job ran. OAuth authorization is not provider data-collection acceptance and no collection acceptance claim is added. Developer ID signing, hardened-runtime distribution behavior, notarization, and delivery-channel acceptance also remain separate and untested.
+
+### Exact next action
+
+Complete the remaining packaged provider-setup acceptance by entering the Google Ads Developer Token through the native masked prompt, then enter safe Customer ID metadata for Google Ads Search Terms and Keyword Planner and confirm each Connect action can begin the intended OAuth flow without starting collection. After that explicit setup acceptance, the next product phase is one guarded Google Search Console Current 90 Days live collection acceptance, only with separate user authorization. Stop on authentication, quota, rate-limit, CAPTCHA, 2FA, or anti-bot intervention.
 
 Protected historical files remain untracked and untouched:
 
