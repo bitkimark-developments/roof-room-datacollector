@@ -7,6 +7,13 @@ import type {
 import type { CredentialStore } from '../../core/credential-store';
 import type {
   ApiRequester,
+  GoogleOAuthProviderErrorCode,
+  GoogleOAuthProviderErrorDescriptionClass,
+} from './api-helpers';
+import {
+  GoogleApiTransportError,
+  safeGoogleOAuthProviderErrorCode,
+  safeGoogleOAuthProviderErrorDescriptionClass,
 } from './api-helpers';
 
 export const GOOGLE_SEARCH_CONSOLE_READONLY_SCOPE =
@@ -64,12 +71,36 @@ export interface GoogleOAuthLoopback {
   close: () => void;
 }
 
+export interface GoogleOAuthSafeDiagnosticEvent {
+  code: 'GOOGLE_OAUTH_TOKEN_EXCHANGE_FAILED';
+  source_id: DesktopGoogleConnectionSourceId;
+  callback_received: true;
+  client_id_match: boolean;
+  client_secret_present: boolean;
+  redirect_uri_auth: string;
+  redirect_uri_token: string;
+  redirect_uri_match: boolean;
+  code_verifier_present: boolean;
+  code_verifier_length: number;
+  token_exchange_attempt_count: number;
+  http_status: number | null;
+  provider_error_code: GoogleOAuthProviderErrorCode | 'unknown';
+  provider_error_description_class:
+    GoogleOAuthProviderErrorDescriptionClass;
+  credential_write_reached: false;
+}
+
 export class GoogleOAuthAcquisitionError extends Error {
   constructor(
     public readonly code:
       | 'CONNECTION_CONFIGURATION_UNAVAILABLE'
       | 'OAUTH_MANUAL_ACTION_REQUIRED'
       | 'OAUTH_ACQUISITION_FAILED'
+      | 'OAUTH_TOKEN_EXCHANGE_REJECTED'
+      | 'OAUTH_TOKEN_EXCHANGE_UNAVAILABLE'
+      | 'OAUTH_REFRESH_TOKEN_UNAVAILABLE'
+      | 'OAUTH_CLIENT_REJECTED'
+      | 'OAUTH_AUTHORIZATION_GRANT_REJECTED'
       | 'CREDENTIAL_PERSISTENCE_FAILED',
   ) {
     super('Google OAuth credential acquisition failed.');
@@ -132,8 +163,10 @@ const normalizeApplicationConfiguration = (
   for (const key of ['client_secret', 'developer_token'] as const) {
     const candidate = raw[key];
     if (candidate === undefined) continue;
-    if (typeof candidate !== 'string' || candidate.length === 0) return null;
-    normalized[key] = candidate;
+    if (typeof candidate !== 'string') return null;
+    const normalizedCandidate = candidate.trim();
+    if (normalizedCandidate.length === 0) return null;
+    normalized[key] = normalizedCandidate;
   }
   return normalized;
 };
@@ -145,6 +178,17 @@ const requiredScopesForSource = (
     ? [GOOGLE_SEARCH_CONSOLE_READONLY_SCOPE]
     : [GOOGLE_ADS_SCOPE]
 );
+
+const recordSafeDiagnostic = (
+  recorder: ((event: GoogleOAuthSafeDiagnosticEvent) => void) | undefined,
+  event: GoogleOAuthSafeDiagnosticEvent,
+): void => {
+  try {
+    recorder?.(event);
+  } catch {
+    // Diagnostics must not replace the OAuth result.
+  }
+};
 
 export const createGoogleOAuthAuthorization = (input: {
   client_id: string;
@@ -185,9 +229,56 @@ const requestGoogleRefreshToken = async (
     redirect_uri: string;
     client_id: string;
     client_secret?: string;
+    diagnostic_context?: Omit<
+      GoogleOAuthSafeDiagnosticEvent,
+      | 'code'
+      | 'http_status'
+      | 'provider_error_code'
+      | 'provider_error_description_class'
+      | 'credential_write_reached'
+    >;
   },
   requester: ApiRequester,
+  recordDiagnostic?: (event: GoogleOAuthSafeDiagnosticEvent) => void,
 ): Promise<string> => {
+  const rejectedCode = (
+    providerCode: unknown,
+  ): GoogleOAuthAcquisitionError['code'] => {
+    if (
+      providerCode === 'invalid_client'
+      || providerCode === 'unauthorized_client'
+    ) return 'OAUTH_CLIENT_REJECTED';
+    if (providerCode === 'invalid_grant') {
+      return 'OAUTH_AUTHORIZATION_GRANT_REJECTED';
+    }
+    return 'OAUTH_TOKEN_EXCHANGE_REJECTED';
+  };
+  const tokenRequestBody = encodeTokenRequest({
+    code: input.code,
+    code_verifier: input.code_verifier,
+    client_id: input.client_id,
+    client_secret: input.client_secret,
+    redirect_uri: input.redirect_uri,
+    grant_type: 'authorization_code',
+  });
+  const tokenRequest = new URLSearchParams(tokenRequestBody);
+  const diagnosticContext = input.diagnostic_context === undefined
+    ? undefined
+    : {
+      ...input.diagnostic_context,
+      client_id_match: input.diagnostic_context.client_id_match
+        && tokenRequest.get('client_id') === input.client_id,
+      client_secret_present:
+        (tokenRequest.get('client_secret')?.length ?? 0) > 0,
+      redirect_uri_token: tokenRequest.get('redirect_uri') ?? '',
+      redirect_uri_match:
+        input.diagnostic_context.redirect_uri_auth
+        === tokenRequest.get('redirect_uri'),
+      code_verifier_present:
+        (tokenRequest.get('code_verifier')?.length ?? 0) > 0,
+      code_verifier_length:
+        tokenRequest.get('code_verifier')?.length ?? 0,
+    };
   let response;
   try {
     response = await requester({
@@ -196,21 +287,49 @@ const requestGoogleRefreshToken = async (
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: encodeTokenRequest({
-        code: input.code,
-        code_verifier: input.code_verifier,
-        client_id: input.client_id,
-        client_secret: input.client_secret,
-        redirect_uri: input.redirect_uri,
-        grant_type: 'authorization_code',
-      }),
+      body: tokenRequestBody,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof GoogleApiTransportError) {
+      if (
+        error.code === 'PROVIDER_AUTHORIZATION_FAILED'
+        && diagnosticContext !== undefined
+      ) {
+        recordSafeDiagnostic(recordDiagnostic, {
+          code: 'GOOGLE_OAUTH_TOKEN_EXCHANGE_FAILED',
+          ...diagnosticContext,
+          http_status: error.http_status ?? null,
+          provider_error_code: error.provider_code ?? 'unknown',
+          provider_error_description_class:
+            error.provider_error_description_class ?? 'OTHER',
+          credential_write_reached: false,
+        });
+      }
+      throw new GoogleOAuthAcquisitionError(
+        error.code === 'PROVIDER_AUTHORIZATION_FAILED'
+          ? rejectedCode(error.provider_code)
+          : 'OAUTH_TOKEN_EXCHANGE_UNAVAILABLE',
+      );
+    }
     throw new GoogleOAuthAcquisitionError('OAUTH_ACQUISITION_FAILED');
   }
   if (response.status < 200 || response.status >= 300) {
+    const providerCode = safeGoogleOAuthProviderErrorCode(response.body);
+    if (diagnosticContext !== undefined) {
+      recordSafeDiagnostic(recordDiagnostic, {
+        code: 'GOOGLE_OAUTH_TOKEN_EXCHANGE_FAILED',
+        ...diagnosticContext,
+        http_status: response.status,
+        provider_error_code: providerCode ?? 'unknown',
+      provider_error_description_class:
+          safeGoogleOAuthProviderErrorDescriptionClass(response.body),
+        credential_write_reached: false,
+      });
+    }
     throw new GoogleOAuthAcquisitionError(
-      'OAUTH_MANUAL_ACTION_REQUIRED',
+      response.status >= 400 && response.status < 500
+        ? rejectedCode(providerCode)
+        : 'OAUTH_TOKEN_EXCHANGE_UNAVAILABLE',
     );
   }
   const body = response.body as { refresh_token?: unknown };
@@ -219,7 +338,7 @@ const requestGoogleRefreshToken = async (
     || body.refresh_token.length === 0
   ) {
     throw new GoogleOAuthAcquisitionError(
-      'OAUTH_MANUAL_ACTION_REQUIRED',
+      'OAUTH_REFRESH_TOKEN_UNAVAILABLE',
     );
   }
   return body.refresh_token;
@@ -336,6 +455,7 @@ export interface MainProcessGoogleOAuthCredentialAcquirerDependencies {
   application_configuration_provider?: () =>
     Promise<GoogleOAuthApplicationConfiguration | null>;
   credential_ref_factory?: () => string;
+  record_diagnostic?: (event: GoogleOAuthSafeDiagnosticEvent) => void;
 }
 
 export class MainProcessGoogleOAuthCredentialAcquirer
@@ -395,7 +515,22 @@ implements GoogleOAuthCredentialAcquirer {
       redirect_uri: loopback.redirect_uri,
       client_id: configuration.client_id,
       client_secret: configuration.client_secret,
-    }, this.dependencies.requester);
+      diagnostic_context: {
+        source_id: input.source_id,
+        callback_received: true,
+        client_id_match: new URL(authorization.url)
+          .searchParams.get('client_id') === configuration.client_id,
+        client_secret_present: configuration.client_secret !== undefined,
+        redirect_uri_auth: new URL(authorization.url)
+          .searchParams.get('redirect_uri') ?? '',
+        redirect_uri_token: loopback.redirect_uri,
+        redirect_uri_match: new URL(authorization.url)
+          .searchParams.get('redirect_uri') === loopback.redirect_uri,
+        code_verifier_present: authorization.code_verifier.length > 0,
+        code_verifier_length: authorization.code_verifier.length,
+        token_exchange_attempt_count: 1,
+      },
+    }, this.dependencies.requester, this.dependencies.record_diagnostic);
     const credentialRef = (
       this.dependencies.credential_ref_factory
       ?? (() => `google-oauth:${base64url(randomBytes(24))}`)

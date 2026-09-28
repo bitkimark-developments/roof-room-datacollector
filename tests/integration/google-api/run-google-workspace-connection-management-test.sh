@@ -11,6 +11,7 @@ npx tsc \
   src/main/app/workspace-connection-management-service.ts \
   src/main/app/workspace-connection-metadata.ts \
   src/main/sources/google-api/google-oauth-credential-acquirer.ts \
+  src/main/sources/google-api/google-api-readiness.ts \
   src/main/core/credential-store.ts \
   src/shared/workspace-connection-management.ts \
   src/shared/workspace-connection.ts \

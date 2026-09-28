@@ -24,6 +24,12 @@ const {
   path.join(buildRoot, 'main', 'sources', 'google-api', 'google-auth.js'),
 );
 const {
+  createFetchApiRequester,
+  GoogleApiTransportError,
+} = require(
+  path.join(buildRoot, 'main', 'sources', 'google-api', 'api-helpers.js'),
+);
+const {
   GOOGLE_PROVIDER_CONFIGURATION_CREDENTIAL_REF,
 } = require(path.join(
   buildRoot,
@@ -63,15 +69,21 @@ class MemoryCredentialStore {
 const createHarness = ({
   credentialRef = 'google-oauth:opaque-fixture',
   configurationProvider = async () => null,
+  tokenResponse = {
+    status: 200,
+    body: { refresh_token: 'sentinel-refresh-secret' },
+  },
+  tokenError = null,
+  requesterOverride = null,
 } = {}) => {
   const store = new MemoryCredentialStore();
   const calls = [];
+  const diagnostics = [];
   const requester = async (request) => {
     calls.push(['request', request]);
-    return {
-      status: 200,
-      body: { refresh_token: 'sentinel-refresh-secret' },
-    };
+    if (requesterOverride !== null) return requesterOverride(request);
+    if (tokenError !== null) throw tokenError;
+    return tokenResponse;
   };
   const acquirer = new MainProcessGoogleOAuthCredentialAcquirer({
     store,
@@ -91,8 +103,9 @@ const createHarness = ({
     },
     application_configuration_provider: configurationProvider,
     credential_ref_factory: () => credentialRef,
+    record_diagnostic: (event) => diagnostics.push(structuredClone(event)),
   });
-  return { acquirer, calls, store };
+  return { acquirer, calls, diagnostics, store };
 };
 
 async function expectAcquisitionError(operation, expectedCode) {
@@ -230,6 +243,210 @@ async function main() {
       await harness.store.hasCredential('google-oauth:write-fail'),
       false,
     );
+  }
+
+  for (const [tokenError, expectedCode] of [
+    [
+      new GoogleApiTransportError(
+        'PROVIDER_AUTHORIZATION_FAILED',
+        'sentinel-secret provider rejection',
+        'invalid_client',
+      ),
+      'OAUTH_CLIENT_REJECTED',
+    ],
+    [
+      new GoogleApiTransportError(
+        'REQUEST_TIMEOUT',
+        'sentinel-secret timeout detail',
+      ),
+      'OAUTH_TOKEN_EXCHANGE_UNAVAILABLE',
+    ],
+    [
+      new GoogleApiTransportError(
+        'NETWORK_OR_PROVIDER_FAILED',
+        'sentinel-secret provider detail',
+      ),
+      'OAUTH_TOKEN_EXCHANGE_UNAVAILABLE',
+    ],
+  ]) {
+    const harness = createHarness({ tokenError });
+    await expectAcquisitionError(
+      () => harness.acquirer.acquire({
+        workspace_id: 'ws_exchange_failure',
+        source_id: 'google-ads-search-terms',
+        application_configuration: {
+          client_id: 'main-owned-client-id',
+          client_secret: 'sentinel-client-secret',
+          developer_token: 'sentinel-developer-secret',
+        },
+      }),
+      expectedCode,
+    );
+    assert.deepEqual(harness.store.writes, []);
+  }
+
+  {
+    const requester = createFetchApiRequester(async () => new Response(
+      JSON.stringify({
+        error: 'invalid_client',
+        error_description: 'sentinel-secret provider detail',
+      }),
+      {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    ));
+    await assert.rejects(
+      () => requester({
+        url: 'https://oauth2.googleapis.com/token',
+        method: 'POST',
+      }),
+      (error) => {
+        assert.ok(error instanceof GoogleApiTransportError);
+        assert.equal(error.code, 'PROVIDER_AUTHORIZATION_FAILED');
+        assert.equal(error.provider_code, 'invalid_client');
+        assert.equal(JSON.stringify(error).includes('sentinel-secret'), false);
+        return true;
+      },
+    );
+  }
+
+  {
+    const harness = createHarness({
+      requesterOverride: createFetchApiRequester(async () => new Response(
+        JSON.stringify({
+          error: 'invalid_client',
+          error_description: 'The OAuth client was rejected; sentinel-secret must not escape.',
+        }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      )),
+    });
+    await expectAcquisitionError(
+      () => harness.acquirer.acquire({
+        workspace_id: 'ws_transport_rejected',
+        source_id: 'google-ads-search-terms',
+        application_configuration: {
+          client_id: 'main-owned-client-id',
+          client_secret: 'sentinel-client-secret',
+          developer_token: 'sentinel-developer-secret',
+        },
+      }),
+      'OAUTH_CLIENT_REJECTED',
+    );
+    assert.deepEqual(harness.diagnostics, [{
+      code: 'GOOGLE_OAUTH_TOKEN_EXCHANGE_FAILED',
+      source_id: 'google-ads-search-terms',
+      callback_received: true,
+      client_id_match: true,
+      client_secret_present: true,
+      redirect_uri_auth: 'http://127.0.0.1:43123/oauth/callback',
+      redirect_uri_token: 'http://127.0.0.1:43123/oauth/callback',
+      redirect_uri_match: true,
+      code_verifier_present: true,
+      code_verifier_length: 64,
+      token_exchange_attempt_count: 1,
+      http_status: 401,
+      provider_error_code: 'invalid_client',
+      provider_error_description_class: 'CLIENT_REJECTED',
+      credential_write_reached: false,
+    }]);
+    assert.equal(
+      JSON.stringify(harness.diagnostics).includes('sentinel-secret'),
+      false,
+    );
+  }
+
+  {
+    const harness = createHarness({
+      tokenResponse: {
+        status: 400,
+        body: {
+          error: 'invalid_request',
+          error_description: 'PKCE code_verifier was rejected; sentinel-secret must not escape.',
+        },
+      },
+    });
+    await expectAcquisitionError(
+      () => harness.acquirer.acquire({
+        workspace_id: 'ws_exchange_rejected',
+        source_id: 'google-ads-search-terms',
+        application_configuration: {
+          client_id: 'main-owned-client-id',
+          client_secret: 'sentinel-client-secret',
+          developer_token: 'sentinel-developer-secret',
+        },
+      }),
+      'OAUTH_TOKEN_EXCHANGE_REJECTED',
+    );
+    assert.deepEqual(harness.store.writes, []);
+    assert.deepEqual(harness.diagnostics, [{
+      code: 'GOOGLE_OAUTH_TOKEN_EXCHANGE_FAILED',
+      source_id: 'google-ads-search-terms',
+      callback_received: true,
+      client_id_match: true,
+      client_secret_present: true,
+      redirect_uri_auth: 'http://127.0.0.1:43123/oauth/callback',
+      redirect_uri_token: 'http://127.0.0.1:43123/oauth/callback',
+      redirect_uri_match: true,
+      code_verifier_present: true,
+      code_verifier_length: 64,
+      token_exchange_attempt_count: 1,
+      http_status: 400,
+      provider_error_code: 'invalid_request',
+      provider_error_description_class: 'CODE_VERIFIER_REJECTED',
+      credential_write_reached: false,
+    }]);
+    assert.equal(
+      JSON.stringify(harness.diagnostics).includes('sentinel-secret'),
+      false,
+    );
+  }
+
+  {
+    const harness = createHarness({
+      tokenResponse: {
+        status: 400,
+        body: { error: 'invalid_grant' },
+      },
+    });
+    await expectAcquisitionError(
+      () => harness.acquirer.acquire({
+        workspace_id: 'ws_grant_rejected',
+        source_id: 'google-ads-search-terms',
+        application_configuration: {
+          client_id: 'main-owned-client-id',
+          client_secret: 'sentinel-client-secret',
+          developer_token: 'sentinel-developer-secret',
+        },
+      }),
+      'OAUTH_AUTHORIZATION_GRANT_REJECTED',
+    );
+    assert.deepEqual(harness.store.writes, []);
+  }
+
+  {
+    const harness = createHarness({
+      tokenResponse: {
+        status: 200,
+        body: { access_token: 'sentinel-secret-access-token' },
+      },
+    });
+    await expectAcquisitionError(
+      () => harness.acquirer.acquire({
+        workspace_id: 'ws_refresh_missing',
+        source_id: 'google-ads-search-terms',
+        application_configuration: {
+          client_id: 'main-owned-client-id',
+          client_secret: 'sentinel-client-secret',
+          developer_token: 'sentinel-developer-secret',
+        },
+      }),
+      'OAUTH_REFRESH_TOKEN_UNAVAILABLE',
+    );
+    assert.deepEqual(harness.store.writes, []);
   }
 
   {

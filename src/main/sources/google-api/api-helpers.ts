@@ -1,10 +1,77 @@
 export interface ApiResponse { status: number; body: unknown; raw_body?: Uint8Array; }
 export type ApiRequester = (request: { url: string; method: 'GET' | 'POST'; body?: unknown; headers?: Record<string, string> }) => Promise<ApiResponse>;
 
+export type GoogleOAuthProviderErrorCode =
+  | 'access_denied'
+  | 'invalid_client'
+  | 'invalid_grant'
+  | 'invalid_request'
+  | 'invalid_scope'
+  | 'unauthorized_client'
+  | 'unsupported_grant_type';
+
+export type GoogleOAuthProviderErrorDescriptionClass =
+  | 'CODE_VERIFIER_REJECTED'
+  | 'REDIRECT_URI_REJECTED'
+  | 'CLIENT_REJECTED'
+  | 'AUTHORIZATION_CODE_REJECTED'
+  | 'MISSING_PARAMETER'
+  | 'OTHER';
+
+const googleOAuthProviderErrorCodes:
+readonly GoogleOAuthProviderErrorCode[] = [
+  'access_denied',
+  'invalid_client',
+  'invalid_grant',
+  'invalid_request',
+  'invalid_scope',
+  'unauthorized_client',
+  'unsupported_grant_type',
+];
+
+export const safeGoogleOAuthProviderErrorCode = (
+  value: unknown,
+): GoogleOAuthProviderErrorCode | undefined => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const candidate = (value as { error?: unknown }).error;
+  return typeof candidate === 'string'
+    && (googleOAuthProviderErrorCodes as readonly string[]).includes(candidate)
+    ? candidate as GoogleOAuthProviderErrorCode
+    : undefined;
+};
+
+export const safeGoogleOAuthProviderErrorDescriptionClass = (
+  value: unknown,
+): GoogleOAuthProviderErrorDescriptionClass => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return 'OTHER';
+  }
+  const candidate = (value as { error_description?: unknown })
+    .error_description;
+  if (typeof candidate !== 'string') return 'OTHER';
+  const normalized = candidate.toLowerCase();
+  if (normalized.includes('code_verifier')) return 'CODE_VERIFIER_REJECTED';
+  if (normalized.includes('redirect_uri')) return 'REDIRECT_URI_REJECTED';
+  if (normalized.includes('client')) return 'CLIENT_REJECTED';
+  if (normalized.includes('authorization code')) {
+    return 'AUTHORIZATION_CODE_REJECTED';
+  }
+  if (normalized.includes('missing') || normalized.includes('required')) {
+    return 'MISSING_PARAMETER';
+  }
+  return 'OTHER';
+};
+
 export class GoogleApiTransportError extends Error {
   constructor(
     public readonly code: 'PROVIDER_AUTHORIZATION_FAILED' | 'RATE_OR_QUOTA_FAILED' | 'NETWORK_OR_PROVIDER_FAILED' | 'REQUEST_TIMEOUT',
     message: string,
+    public readonly provider_code?: GoogleOAuthProviderErrorCode,
+    public readonly http_status?: number,
+    public readonly provider_error_description_class?:
+      GoogleOAuthProviderErrorDescriptionClass,
   ) {
     super(message);
     this.name = 'GoogleApiTransportError';
@@ -55,10 +122,13 @@ export const createFetchApiRequester = (
   }
 
   if (response.status === 401 || response.status === 403) {
-    throw new GoogleApiTransportError(
-      'PROVIDER_AUTHORIZATION_FAILED',
-      `Google API authorization failed with HTTP ${response.status}.`,
-    );
+      throw new GoogleApiTransportError(
+        'PROVIDER_AUTHORIZATION_FAILED',
+        `Google API authorization failed with HTTP ${response.status}.`,
+        safeGoogleOAuthProviderErrorCode(body),
+        response.status,
+        safeGoogleOAuthProviderErrorDescriptionClass(body),
+      );
   }
   if (response.status === 429) {
     throw new GoogleApiTransportError(

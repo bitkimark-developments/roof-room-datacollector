@@ -177,6 +177,43 @@ async function main() {
     ],
   );
 
+  for (const [code, retryable] of [
+    ['OAUTH_TOKEN_EXCHANGE_REJECTED', false],
+    ['OAUTH_TOKEN_EXCHANGE_UNAVAILABLE', true],
+    ['OAUTH_REFRESH_TOKEN_UNAVAILABLE', false],
+    ['OAUTH_CLIENT_REJECTED', false],
+    ['OAUTH_AUTHORIZATION_GRANT_REJECTED', false],
+  ]) {
+    const safeFailureHandlers = createDesktopConnectionWriteHandlers({
+      assertTrustedSender: () => undefined,
+      service: {
+        ...service,
+        connectGoogle: async (intent) => ({
+          ok: false,
+          error: {
+            code,
+            source_id: intent.source_id,
+            retryable,
+          },
+        }),
+      },
+    });
+    assert.deepEqual(
+      await safeFailureHandlers.connectGoogle(
+        { marker: 'trusted' },
+        valid.connectGoogle,
+      ),
+      {
+        ok: false,
+        error: {
+          code,
+          source_id: 'google-ads-search-terms',
+          retryable,
+        },
+      },
+    );
+  }
+
   const unsafeHandlers = createDesktopConnectionWriteHandlers({
     assertTrustedSender: () => undefined,
     service: {

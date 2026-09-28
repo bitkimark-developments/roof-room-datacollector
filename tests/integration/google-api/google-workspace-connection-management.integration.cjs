@@ -9,6 +9,28 @@ const {
 } = require(
   path.join(buildRoot, 'main', 'app', 'workspace-connection-management-service.js'),
 );
+const {
+  MainProcessGoogleOAuthCredentialAcquirer,
+} = require(
+  path.join(
+    buildRoot,
+    'main',
+    'sources',
+    'google-api',
+    'google-oauth-credential-acquirer.js',
+  ),
+);
+const {
+  googleAdsSearchTermsReadiness,
+} = require(
+  path.join(
+    buildRoot,
+    'main',
+    'sources',
+    'google-api',
+    'google-api-readiness.js',
+  ),
+);
 
 const clone = (value) => structuredClone(value);
 const keyOf = (workspaceId, sourceId) => workspaceId + '::' + sourceId;
@@ -113,6 +135,110 @@ class FakeRepository {
   }
 }
 
+class VerticalMemoryCredentialStore {
+  constructor(entries = []) {
+    this.values = new Map(entries);
+    this.writes = [];
+    this.deletes = [];
+  }
+
+  async hasCredential(reference) {
+    return this.values.has(reference);
+  }
+
+  async readCredential(reference) {
+    if (!this.values.has(reference)) throw new Error('credential missing');
+    return this.values.get(reference);
+  }
+
+  async writeCredential(reference, value) {
+    this.writes.push(reference);
+    this.values.set(reference, value);
+  }
+
+  async deleteCredential(reference) {
+    this.deletes.push(reference);
+    this.values.delete(reference);
+  }
+}
+
+const createVerticalGoogleAdsHarness = ({
+  records = [],
+  credentialRef = 'google-oauth:vertical-ads',
+} = {}) => {
+  const repository = new FakeRepository(records);
+  const credentialStore = new VerticalMemoryCredentialStore();
+  const lifecycle = [];
+  const safeStates = [];
+  const acquirer = new MainProcessGoogleOAuthCredentialAcquirer({
+    store: credentialStore,
+    requester: async (request) => {
+      lifecycle.push('token_exchange');
+      assert.equal(request.url, 'https://oauth2.googleapis.com/token');
+      return {
+        status: 200,
+        body: { refresh_token: 'sentinel-refresh-secret' },
+      };
+    },
+    openExternal: async () => {
+      lifecycle.push('browser_opened');
+    },
+    startLoopback: async () => ({
+      redirect_uri: 'http://127.0.0.1:43123/oauth/callback',
+      waitForCode: async () => {
+        lifecycle.push('callback_received');
+        return 'sentinel-authorization-code';
+      },
+      close: () => undefined,
+    }),
+    application_configuration_provider: async () => ({
+      client_id: 'main-owned-client-id',
+      client_secret: 'sentinel-client-secret',
+      developer_token: 'sentinel-developer-token',
+    }),
+    credential_ref_factory: () => credentialRef,
+  });
+  const service = new WorkspaceConnectionManagementService({
+    repository,
+    credential_store: credentialStore,
+    google_credential_acquirer: acquirer,
+    serpapi_credential_acquirer: {
+      acquire: async () => {
+        throw new Error('not used in Google vertical test');
+      },
+    },
+    refresh_safe_state: async (workspaceId) => {
+      const connection = repository.getSourceConnection(
+        workspaceId,
+        'google-ads-search-terms',
+      );
+      const credentialAvailable = connection?.credential_ref !== null
+        && connection !== null
+        && await credentialStore.hasCredential(connection.credential_ref);
+      safeStates.push({
+        source_id: 'google-ads-search-terms',
+        credential_status: connection === null
+          ? 'NOT_CONFIGURED'
+          : credentialAvailable
+            ? 'AVAILABLE'
+            : 'MISSING',
+        readiness_status: googleAdsSearchTermsReadiness({
+          connection,
+          credential_available: credentialAvailable,
+        }),
+      });
+    },
+    record_diagnostic: () => undefined,
+  });
+  return {
+    credentialStore,
+    lifecycle,
+    repository,
+    safeStates,
+    service,
+  };
+};
+
 const createHarness = (records = []) => {
   const repository = new FakeRepository(records);
   const diagnostics = [];
@@ -128,6 +254,7 @@ const createHarness = (records = []) => {
       developer_token: 'sentinel-developer-token',
     },
     acquiredReferences: [],
+    acquisitionError: null,
     calls: [],
     async readApplicationConfiguration(existingReference) {
       this.calls.push(['configuration', existingReference]);
@@ -142,6 +269,7 @@ const createHarness = (records = []) => {
     },
     async acquire(input) {
       this.calls.push(['acquire', clone(input)]);
+      if (this.acquisitionError !== null) throw this.acquisitionError;
       const credentialReference = this.acquiredReferences.shift();
       if (!credentialReference) throw new Error('missing acquired reference fixture');
       return {
@@ -183,6 +311,96 @@ const createHarness = (records = []) => {
 };
 
 async function main() {
+  {
+    const harness = createVerticalGoogleAdsHarness();
+    const result = await harness.service.connectGoogle({
+      workspace_id: 'ws_vertical_ads',
+      source_id: 'google-ads-search-terms',
+      metadata: { customer_id: '1234567890' },
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(harness.lifecycle, [
+      'browser_opened',
+      'callback_received',
+      'token_exchange',
+    ]);
+    assert.deepEqual(harness.credentialStore.writes, [
+      'google-oauth:vertical-ads',
+    ]);
+    const connection = harness.repository.getSourceConnection(
+      'ws_vertical_ads',
+      'google-ads-search-terms',
+    );
+    assert.equal(connection.credential_ref, 'google-oauth:vertical-ads');
+    assert.deepEqual(connection.safe_metadata, {
+      customer_id: '1234567890',
+      authorization_state: 'AUTHORIZED',
+    });
+    assert.deepEqual(harness.safeStates, [{
+      source_id: 'google-ads-search-terms',
+      credential_status: 'AVAILABLE',
+      readiness_status: 'READY',
+    }]);
+    assert.equal(
+      JSON.stringify({ result, safeStates: harness.safeStates })
+        .includes('sentinel-'),
+      false,
+      'The renderer-safe result and refresh state must contain no secret material.',
+    );
+  }
+
+  {
+    const previous = record(
+      'ws_vertical_rebind_failure',
+      'google-ads-search-terms',
+      'google-oauth:previous-ads',
+      {
+        customer_id: '1111111111',
+        authorization_state: 'AUTHORIZED',
+      },
+    );
+    const harness = createVerticalGoogleAdsHarness({
+      records: [previous],
+      credentialRef: 'google-oauth:replacement-ads',
+    });
+    harness.credentialStore.values.set(
+      previous.credential_ref,
+      JSON.stringify({
+        refresh_token: 'sentinel-previous-refresh-secret',
+        granted_scopes: ['https://www.googleapis.com/auth/adwords'],
+      }),
+    );
+    harness.repository.failRebind = true;
+    const result = await harness.service.reconnectGoogle({
+      workspace_id: previous.workspace_id,
+      source_id: previous.source_id,
+      metadata: { customer_id: '2222222222' },
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, 'CONNECTION_REBIND_FAILED');
+    assert.deepEqual(
+      harness.repository.getSourceConnection(
+        previous.workspace_id,
+        previous.source_id,
+      ),
+      previous,
+      'A failed repository rebind must preserve the prior valid connection.',
+    );
+    assert.equal(
+      await harness.credentialStore.hasCredential(previous.credential_ref),
+      true,
+    );
+    assert.equal(
+      await harness.credentialStore.hasCredential(
+        'google-oauth:replacement-ads',
+      ),
+      false,
+    );
+    assert.deepEqual(harness.credentialStore.deletes, [
+      'google-oauth:replacement-ads',
+    ]);
+  }
+
   {
     const existing = record(
       'ws_existing',
@@ -232,6 +450,32 @@ async function main() {
       false,
     );
     assert.deepEqual(harness.repository.upserts, []);
+  }
+
+  for (const [code, retryable] of [
+    ['OAUTH_TOKEN_EXCHANGE_REJECTED', false],
+    ['OAUTH_TOKEN_EXCHANGE_UNAVAILABLE', true],
+    ['OAUTH_REFRESH_TOKEN_UNAVAILABLE', false],
+    ['OAUTH_CLIENT_REJECTED', false],
+    ['OAUTH_AUTHORIZATION_GRANT_REJECTED', false],
+  ]) {
+    const harness = createHarness();
+    harness.acquirer.acquisitionError = { code };
+    const result = await harness.service.connectGoogle({
+      workspace_id: `ws_${code.toLowerCase()}`,
+      source_id: 'google-ads-search-terms',
+      metadata: { customer_id: '1234567890' },
+    });
+    assert.deepEqual(result, {
+      ok: false,
+      error: {
+        code,
+        source_id: 'google-ads-search-terms',
+        retryable,
+      },
+    });
+    assert.deepEqual(harness.repository.upserts, []);
+    assert.deepEqual(harness.refreshes, []);
   }
 
   for (const [sourceId, configuration] of [
@@ -426,7 +670,10 @@ async function main() {
         current.workspace_id,
         current.source_id,
       ).safe_metadata,
-      current.safe_metadata,
+      {
+        ...current.safe_metadata,
+        authorization_state: 'AUTHORIZED',
+      },
     );
     assert.deepEqual(harness.deletedCredentials, ['cred:old-gsc-secret']);
   }
@@ -467,14 +714,25 @@ async function main() {
         ads.workspace_id,
         ads.source_id,
       ).safe_metadata,
-      { customer_id: '999' },
+      {
+        customer_id: '999',
+        authorization_state: 'AUTHORIZED',
+      },
     );
-    assert.equal(
+    assert.deepEqual(
       harness.repository.getSourceConnection(
         planner.workspace_id,
         planner.source_id,
-      ).credential_ref,
-      'cred:new-shared-secret',
+      ),
+      {
+        ...planner,
+        credential_ref: 'cred:new-shared-secret',
+        safe_metadata: {
+          ...planner.safe_metadata,
+          authorization_state: 'AUTHORIZED',
+        },
+        updated_at: '2026-09-23T02:00:00.000Z',
+      },
     );
     assert.equal(
       harness.repository.getSourceConnection(

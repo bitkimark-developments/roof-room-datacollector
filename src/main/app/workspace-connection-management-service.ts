@@ -388,7 +388,10 @@ export class WorkspaceConnectionManagementService {
           workspace_id: intent.workspace_id,
           source_id: intent.source_id,
           credential_ref: reusableCredentialRef,
-          safe_metadata: { ...intent.metadata },
+          safe_metadata: {
+            ...intent.metadata,
+            authorization_state: 'AUTHORIZED',
+          },
         });
       } catch {
         await this.refreshSafeState(intent.workspace_id, intent.source_id);
@@ -420,7 +423,10 @@ export class WorkspaceConnectionManagementService {
         workspace_id: intent.workspace_id,
         source_id: intent.source_id,
         credential_ref: acquiredCredentialRef,
-        safe_metadata: { ...intent.metadata },
+        safe_metadata: {
+          ...intent.metadata,
+          authorization_state: 'AUTHORIZED',
+        },
       });
     } catch {
       await this.compensateFreshCredential(
@@ -460,11 +466,38 @@ export class WorkspaceConnectionManagementService {
     }
 
     let sourceIds: DesktopGoogleConnectionSourceId[];
+    let safeMetadataUpdates: Array<{
+      source_id: DesktopGoogleConnectionSourceId;
+      safe_metadata: WorkspaceSourceConnectionRecord['safe_metadata'];
+    }>;
     try {
       sourceIds = this.googleRebindSourceIds(
         intent,
         existing.credential_ref,
       );
+      safeMetadataUpdates = sourceIds.map((sourceId) => {
+        const sourceConnection = sourceId === existing.source_id
+          ? existing
+          : this.dependencies.repository.getSourceConnection(
+              intent.workspace_id,
+              sourceId,
+            );
+        if (!sourceConnection) {
+          throw new Error('Shared Google connection is unavailable.');
+        }
+        return {
+          source_id: sourceId,
+          safe_metadata: {
+            ...(
+              sourceId === intent.source_id
+              && intent.metadata !== undefined
+                ? intent.metadata
+                : sourceConnection.safe_metadata
+            ),
+            authorization_state: 'AUTHORIZED',
+          },
+        };
+      });
     } catch {
       return failure('CONNECTION_PERSISTENCE_FAILED', true, intent.source_id);
     }
@@ -493,14 +526,7 @@ export class WorkspaceConnectionManagementService {
         source_ids: sourceIds,
         expected_credential_ref: existing.credential_ref,
         replacement_credential_ref: acquiredCredentialRef,
-        ...(intent.metadata === undefined
-          ? {}
-          : {
-            safe_metadata_updates: [{
-              source_id: intent.source_id,
-              safe_metadata: { ...intent.metadata },
-            }],
-          }),
+        safe_metadata_updates: safeMetadataUpdates,
       });
     } catch {
       await this.compensateFreshCredential(
@@ -627,6 +653,11 @@ export class WorkspaceConnectionManagementService {
       'CONNECTION_CONFIGURATION_UNAVAILABLE',
       'OAUTH_MANUAL_ACTION_REQUIRED',
       'OAUTH_ACQUISITION_FAILED',
+      'OAUTH_TOKEN_EXCHANGE_REJECTED',
+      'OAUTH_TOKEN_EXCHANGE_UNAVAILABLE',
+      'OAUTH_REFRESH_TOKEN_UNAVAILABLE',
+      'OAUTH_CLIENT_REJECTED',
+      'OAUTH_AUTHORIZATION_GRANT_REJECTED',
       'CREDENTIAL_PERSISTENCE_FAILED',
     ];
     const code = typeof candidate === 'string'
@@ -636,6 +667,7 @@ export class WorkspaceConnectionManagementService {
     return failure(
       code,
       code === 'OAUTH_ACQUISITION_FAILED'
+        || code === 'OAUTH_TOKEN_EXCHANGE_UNAVAILABLE'
         || code === 'CREDENTIAL_PERSISTENCE_FAILED',
       sourceId,
     );

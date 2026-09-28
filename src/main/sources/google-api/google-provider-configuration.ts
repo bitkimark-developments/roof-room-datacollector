@@ -44,10 +44,14 @@ const parseConfiguration = (value: string): GoogleProviderConfiguration => {
   ] as const) {
     const candidate = parsed[key];
     if (candidate === undefined) continue;
-    if (!validValue(candidate)) {
+    if (typeof candidate !== 'string') {
       throw new Error('Stored Google provider configuration is invalid.');
     }
-    result[key] = candidate;
+    const normalizedCandidate = candidate.trim();
+    if (!validValue(normalizedCandidate)) {
+      throw new Error('Stored Google provider configuration is invalid.');
+    }
+    result[key] = normalizedCandidate;
   }
   return result;
 };
@@ -162,10 +166,11 @@ export class GoogleProviderConfigurationService {
       if (ingress.status === 'FAILED') {
         return failure('SECRET_INGRESS_FAILED', true);
       }
-      if (!validValue(ingress.secret)) {
+      const normalizedSecret = ingress.secret.trim();
+      if (!validValue(normalizedSecret)) {
         return failure('SECRET_INPUT_INVALID', false);
       }
-      submitted.push(ingress.secret);
+      submitted.push(normalizedSecret);
     }
 
     const previous = await readGoogleProviderConfiguration(

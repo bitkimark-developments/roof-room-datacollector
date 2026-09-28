@@ -131,7 +131,6 @@ const main = async () => {
     ['overflow', { overflowed: true }, 'OUTPUT_LIMIT_EXCEEDED'],
     ['signal', { exit_code: null, signal: 'SIGTERM' }, 'PROCESS_FAILED'],
     ['non-zero exit', { exit_code: 1 }, 'PROCESS_FAILED'],
-    ['stderr on success', { stderr_bytes: 1 }, 'INVALID_OUTPUT'],
     ['unknown sentinel', { stdout: Buffer.from('UNKNOWN\n') }, 'INVALID_OUTPUT'],
     [
       'duplicate protocol lines',
@@ -147,6 +146,17 @@ const main = async () => {
       await candidate.requestSecret({ purpose: 'SERPAPI_API_KEY' }),
       { status: 'FAILED', code },
       label,
+    );
+  }
+
+  {
+    const candidate = new MacOsascriptSecretIngress(
+      async () => processResult({ stderr_bytes: 1 }),
+    );
+    assert.deepEqual(
+      await candidate.requestSecret({ purpose: 'SERPAPI_API_KEY' }),
+      { status: 'SUBMITTED', secret: syntheticKey },
+      'benign stderr on successful submission',
     );
   }
 

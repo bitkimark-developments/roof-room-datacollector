@@ -226,10 +226,6 @@ export class MacOsascriptSecretIngress implements SecretIngressPort {
     if (processResult.exit_code !== 0 || processResult.signal !== null) {
       return { status: 'FAILED', code: 'PROCESS_FAILED' };
     }
-    if (processResult.stderr_bytes !== 0) {
-      return { status: 'FAILED', code: 'INVALID_OUTPUT' };
-    }
-
     const output = removeOneTerminalLineEnding(
       processResult.stdout.toString('utf8'),
     );

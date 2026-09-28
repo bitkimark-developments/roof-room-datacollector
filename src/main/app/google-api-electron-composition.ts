@@ -55,6 +55,9 @@ export const createElectronGoogleOAuthCredentialAcquirer = (
         }
         : null;
     },
+    record_diagnostic: (event) => {
+      console.warn('Google OAuth diagnostic.', event);
+    },
   })
 );
 
