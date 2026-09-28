@@ -1,14 +1,14 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Checkpoint date:** 2026-09-23
+**Checkpoint date:** 2026-09-28
 
 **Current milestone:** Post-R1 UX & Operations Hardening — UXH2 Workspace Connections
 
-**Current stage:** UXH2 SerpApi secure provisioning implementation, deterministic/package verification, and local packaged native-prompt acceptance complete; distribution acceptance deferred
+**Current stage:** Keyword Planner post-review hardening complete; full deterministic release gate and arm64 packaging verified; packaged provider-setup acceptance remains next
 
 **Current goal:** Complete the remaining packaged Google Ads Developer Token / Ads / Keyword Planner setup acceptance without collection, then await explicit authorization for the first bounded GSC live collection acceptance; do not start UXH3
 
-**Current-state authority:** Section 54 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 54.
+**Current-state authority:** Section 56 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 56.
 
 ---
 
@@ -3151,3 +3151,46 @@ Protected historical files remain untracked and untouched:
 
 - `CODEX_HANDOFF_CURRENT.md`
 - `PROJECT_HANDOFF.pre-20260820.md`
+
+## 56. Keyword Planner reviewer hardening closure — 2026-09-28
+
+The post-review hardening pass closed three confirmed issues as separate commits:
+
+```text
+7e134da fix: preserve keyword planner source readiness
+d5e3133 fix: prefer exact keyword planner request mappings
+3964886 fix: harden keyword planner csv exports
+```
+
+- Valid Keyword Planner input no longer overrides provider/source readiness.
+- KWP_REQUEST_MAP prefers strict EXACT provider evidence independently of provider row order.
+- The approved aggregate KWP_METRICS mapping contract remains unchanged.
+- Formula-leading string cells are neutralized only at the CSV serialization boundary.
+- XLSX preserves the exact source string as a string cell.
+- Missing-versus-zero and provider-evidence mapping semantics remain unchanged.
+
+A separate reviewer concern about unmatched or ambiguous provider-result mapping required no code change. The adapter already fails closed rather than inventing a reviewed-request relationship, while production collection preserves raw provider evidence before normalization.
+
+Fresh verification after all three commits:
+
+```text
+npm run test:release:gate    PASS RELEASE-GATE-001
+npm run package              PASS — darwin/arm64
+```
+
+No live provider collection request was made during this hardening pass.
+
+Protected historical files remain untracked and untouched:
+
+```text
+?? CODEX_HANDOFF_CURRENT.md
+?? PROJECT_HANDOFF.pre-20260820.md
+```
+
+### Exact next action
+
+Retain the Section 55 provider-setup acceptance boundary. Do not make an automatic provider or collection request.
+
+With separate explicit authorization, perform the bounded packaged Google provider-setup acceptance: enter the Google Ads Developer Token through the native masked prompt, provide safe Customer ID metadata for Google Ads Search Terms and Keyword Planner, and verify each Connect flow reaches either a safe successful state or an established fixed failure code without starting collection.
+
+Any live GSC, Google Ads, Keyword Planner, SerpApi, or other provider collection remains a separate explicitly authorized action.
