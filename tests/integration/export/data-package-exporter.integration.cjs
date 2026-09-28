@@ -407,6 +407,93 @@ writeDataPackage(outputRoot, repeated).then(() => {
     'PASS KWP-XLSX-CONTRACT-001: workbook sheets, representative text, numeric, zero, null, mapping, and provenance cells are deterministic',
   );
 
+  const orderPriorityOutputRoot = path.join(
+    outputRoot,
+    'kwp-request-map-exact-priority',
+  );
+
+  const orderPriorityPackage = buildDataPackage({
+    run: {
+      run_id: 'rr_kwp_exact_priority',
+      workspace_id: 'ws_kwp',
+      run_status: 'COMPLETED',
+      selected_sources: ['google-keyword-planner'],
+    },
+    jobs: [{
+      job_id: 'job_kwp_exact_priority',
+      source_id: 'google-keyword-planner',
+      job_key: 'KWP-EXACT-PRIORITY',
+      execution_status: 'COMPLETED',
+      validation_status: 'VALID',
+      accepted_artifact_id: 'art_kwp_exact_priority',
+    }],
+    datasets: [{
+      source_id: 'google-keyword-planner',
+      dataset_type: 'KEYWORD_HISTORICAL_METRICS',
+      job_id: 'job_kwp_exact_priority',
+      job_key: 'KWP-EXACT-PRIORITY',
+      rows: [
+        {
+          requested_keyword: 'ficus benjamin',
+          returned_keyword: 'ficus benjamin',
+          close_variants: ['ficus benjamina'],
+          matched_requested_keywords: ['ficus benjamina'],
+          monthly_history: [],
+        },
+        {
+          requested_keyword: 'ficus benjamina',
+          returned_keyword: 'ficus benjamina',
+          close_variants: [],
+          matched_requested_keywords: ['ficus benjamina'],
+          monthly_history: [],
+        },
+      ],
+      provenance: {
+        run_id: 'rr_kwp_exact_priority',
+        job_id: 'job_kwp_exact_priority',
+        source_id: 'google-keyword-planner',
+        validation_status: 'VALID',
+        requested_context: {
+          group_id: 'KWP-EXACT-PRIORITY',
+          group_name: 'Exact priority',
+          keywords: ['ficus benjamina'],
+          source_mode: 'OFFICIAL_API',
+          requested_date_start: '2025-09-01',
+          requested_date_end: '2026-08-31',
+          country_code: 'TR',
+          language_code: 'tr',
+          keyword_plan_network: 'GOOGLE_SEARCH',
+        },
+      },
+    }],
+    mode: 'SUCCESSFUL_ONLY',
+  });
+
+  await writeDataPackage(
+    orderPriorityOutputRoot,
+    orderPriorityPackage,
+  );
+
+  const exactPriorityRequestMap = fs.readFileSync(
+    path.join(
+      orderPriorityOutputRoot,
+      'keyword-planner_request-map.csv',
+    ),
+    'utf8',
+  );
+
+  assert.equal(
+    exactPriorityRequestMap.includes(
+      'KWP-EXACT-PRIORITY,ficus benjamina,ficus benjamina,EXACT',
+    ),
+    true,
+    'Strict exact provider evidence must win over an earlier close-variant match in KWP_REQUEST_MAP.',
+  );
+
+  console.log(
+    'PASS KWP-REQUEST-MAP-EXACT-PRIORITY-001: exact mapping is independent of provider row order',
+  );
+
   console.log(
     'PASS KWP-MAPPING-EVIDENCE-001: CLOSE_VARIANT labels require explicit provider evidence',
   );

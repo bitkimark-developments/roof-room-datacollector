@@ -274,29 +274,45 @@ export const buildKeywordPlannerUserTables = (
     }
 
     for (const keyword of requestedKeywords) {
-      const matchedRow = dataset.rows
+      const candidateRows = dataset.rows
         .map(asObject)
-        .find((row) => {
-          if (row === null) return false;
+        .filter(
+          (
+            row,
+          ): row is Record<string, unknown> => {
+            if (row === null) return false;
 
-          const matchedRequestedKeywords =
-            Array.isArray(
-              row.matched_requested_keywords,
-            )
-              ? row.matched_requested_keywords.filter(
-                  (value): value is string =>
-                    typeof value === 'string',
-                )
-              : [];
+            const matchedRequestedKeywords =
+              Array.isArray(
+                row.matched_requested_keywords,
+              )
+                ? row.matched_requested_keywords.filter(
+                    (value): value is string =>
+                      typeof value === 'string',
+                  )
+                : [];
 
-          return (
-            matchedRequestedKeywords.includes(keyword)
-            || resolveRequestedKeyword(row) === keyword
-          );
-        });
+            return (
+              matchedRequestedKeywords.includes(keyword)
+              || resolveRequestedKeyword(row) === keyword
+            );
+          },
+        );
+
+      const matchedRow =
+        candidateRows.find(
+          (row) =>
+            mappingFor(
+              keyword,
+              resolveProviderKeyword(row),
+              row,
+            ) === 'EXACT',
+        )
+        ?? candidateRows[0]
+        ?? null;
 
       const providerKeyword =
-        matchedRow == null
+        matchedRow === null
           ? null
           : resolveProviderKeyword(matchedRow);
 
