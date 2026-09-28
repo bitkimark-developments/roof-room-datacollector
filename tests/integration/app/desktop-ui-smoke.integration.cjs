@@ -4114,6 +4114,29 @@ const main = async () => {
     assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'Ads Start must forward the exact reviewed artifact');
     console.log('PASS ADS-REVIEW-UI-001: Ads task sends date policy and starts the exact reviewed artifact');
 
+    await page.reload();
+    const unreadyPlannerCard = page.getByTestId('task-card').filter({ hasText: 'Keyword Planner — Historical Metrics' });
+    await unreadyPlannerCard.getByText('CONNECTION REQUIRED', { exact: true }).waitFor();
+    await unreadyPlannerCard.click();
+    const unreadyPlannerReviewButton = page.getByRole('button', { name: 'Review Quick Run', exact: true });
+    await page.getByLabel('Keyword group 1 ID').fill('KWP-FICUS');
+    await page.getByLabel('Keyword group 1 name').fill('Indoor plants');
+    await page.getByLabel('Keyword group 1 keywords').fill('ficus');
+    assert.equal(
+      await unreadyPlannerReviewButton.isEnabled(),
+      false,
+      'Valid Keyword Planner input must not override provider connection readiness.',
+    );
+    assert.equal(
+      await page.locator('.rr-task-detail-head .rr-status').getByText(
+        'CONNECTION REQUIRED',
+        { exact: true },
+      ).count(),
+      1,
+      'Keyword Planner task detail must preserve provider readiness after valid input.',
+    );
+    console.log('PASS KEYWORD-PLANNER-READINESS-UI-001: valid input does not override provider connection readiness');
+
     await page.addInitScript(() => { window.__keywordPlannerReady = true; });
     await page.reload();
     const plannerCard = page.getByTestId('task-card').filter({ hasText: 'Keyword Planner — Historical Metrics' });

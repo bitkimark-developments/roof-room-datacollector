@@ -3046,13 +3046,7 @@ export function DesktopMultiSourceView() {
                       bitkimarkSitemapUrlsInput,
                     ) !== null
                     ? 'READY'
-                    : selectedTask.source_id
-                        === 'google-keyword-planner'
-                      && parseKeywordPlannerGroups(
-                        keywordPlannerGroupDrafts,
-                      ) !== null
-                      ? 'READY'
-                      : readiness;
+                    : readiness;
 
             const hasReviewableQuickRunConfiguration =
               (
