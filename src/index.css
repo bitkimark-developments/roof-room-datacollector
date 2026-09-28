@@ -101,7 +101,14 @@ p {
 /* Sidebar */
 
 .rr-sidebar {
-  min-height: 100vh;
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 226px;
+  height: 100vh;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 36px;
@@ -206,6 +213,7 @@ p {
 /* Main shell */
 
 .rr-main {
+  grid-column: 2;
   min-width: 0;
   background: var(--rr-surface-soft);
 }
@@ -647,6 +655,7 @@ p {
   }
 
   .rr-sidebar {
+    width: 176px;
     padding-left: 12px;
     padding-right: 12px;
   }
@@ -672,7 +681,15 @@ p {
   }
 
   .rr-sidebar {
+    position: static;
+    width: auto;
+    height: auto;
     min-height: auto;
+    overflow-y: visible;
+  }
+
+  .rr-main {
+    grid-column: auto;
   }
 
   .rr-sidebar nav {
