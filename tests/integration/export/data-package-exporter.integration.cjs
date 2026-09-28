@@ -494,6 +494,107 @@ writeDataPackage(outputRoot, repeated).then(() => {
     'PASS KWP-REQUEST-MAP-EXACT-PRIORITY-001: exact mapping is independent of provider row order',
   );
 
+  const csvSafetyOutputRoot = path.join(
+    outputRoot,
+    'kwp-csv-formula-safety',
+  );
+
+  const csvSafetyPackage = buildDataPackage({
+    run: {
+      run_id: 'rr_kwp_csv_safety',
+      workspace_id: 'ws_kwp',
+      run_status: 'COMPLETED',
+      selected_sources: ['google-keyword-planner'],
+    },
+    jobs: [{
+      job_id: 'job_kwp_csv_safety',
+      source_id: 'google-keyword-planner',
+      job_key: 'KWP-CSV-SAFETY',
+      execution_status: 'COMPLETED',
+      validation_status: 'VALID',
+      accepted_artifact_id: 'art_kwp_csv_safety',
+    }],
+    datasets: [{
+      source_id: 'google-keyword-planner',
+      dataset_type: 'KEYWORD_HISTORICAL_METRICS',
+      job_id: 'job_kwp_csv_safety',
+      job_key: 'KWP-CSV-SAFETY',
+      rows: [{
+        requested_keyword: '=1+1',
+        returned_keyword: '=1+1',
+        close_variants: [],
+        matched_requested_keywords: ['=1+1'],
+        avg_monthly_searches: 0,
+        monthly_history: [],
+      }],
+      provenance: {
+        run_id: 'rr_kwp_csv_safety',
+        job_id: 'job_kwp_csv_safety',
+        source_id: 'google-keyword-planner',
+        validation_status: 'VALID',
+        requested_context: {
+          group_id: 'KWP-CSV-SAFETY',
+          group_name: 'CSV safety',
+          keywords: ['=1+1'],
+          source_mode: 'OFFICIAL_API',
+          requested_date_start: '2025-09-01',
+          requested_date_end: '2026-08-31',
+          country_code: 'TR',
+          language_code: 'tr',
+          keyword_plan_network: 'GOOGLE_SEARCH',
+        },
+      },
+    }],
+    mode: 'SUCCESSFUL_ONLY',
+  });
+
+  await writeDataPackage(
+    csvSafetyOutputRoot,
+    csvSafetyPackage,
+  );
+
+  const csvSafetyRequestMap = fs.readFileSync(
+    path.join(
+      csvSafetyOutputRoot,
+      'keyword-planner_request-map.csv',
+    ),
+    'utf8',
+  );
+
+  assert.equal(
+    csvSafetyRequestMap.includes(
+      'KWP-CSV-SAFETY,"\'=1+1","\'=1+1",EXACT',
+    ),
+    true,
+    'Formula-leading CSV text must be neutralized only at the CSV serialization boundary.',
+  );
+
+  const csvSafetyWorkbook = parseWorkbook(
+    path.join(
+      csvSafetyOutputRoot,
+      'keyword-planner-historical-metrics_rr_kwp_csv_safety.xlsx',
+    ),
+  );
+
+  const csvSafetyRequestMapSheet =
+    csvSafetyWorkbook.sheets[2];
+
+  assert.deepEqual(
+    csvSafetyRequestMapSheet.cells.get('B2'),
+    { type: 's', value: '=1+1' },
+    'XLSX must preserve the exact requested keyword as a string cell.',
+  );
+
+  assert.deepEqual(
+    csvSafetyRequestMapSheet.cells.get('C2'),
+    { type: 's', value: '=1+1' },
+    'XLSX must preserve the exact provider keyword as a string cell.',
+  );
+
+  console.log(
+    'PASS KWP-CSV-FORMULA-SAFETY-001: CSV neutralizes formula-leading text while XLSX preserves source-faithful string cells',
+  );
+
   console.log(
     'PASS KWP-MAPPING-EVIDENCE-001: CLOSE_VARIANT labels require explicit provider evidence',
   );

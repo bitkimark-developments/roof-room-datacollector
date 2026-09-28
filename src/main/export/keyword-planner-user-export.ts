@@ -61,16 +61,23 @@ const csvValue = (
 
   const serialized = String(value);
 
+  const csvSafe =
+    typeof value === 'string'
+    && /^[=+@-]/u.test(serialized)
+      ? `'${serialized}`
+      : serialized;
+
   if (
-    serialized.includes(',')
-    || serialized.includes('"')
-    || serialized.includes('\n')
-    || serialized.includes('\r')
+    csvSafe !== serialized
+    || csvSafe.includes(',')
+    || csvSafe.includes('"')
+    || csvSafe.includes('\n')
+    || csvSafe.includes('\r')
   ) {
-    return `"${serialized.replace(/"/gu, '""')}"`;
+    return `"${csvSafe.replace(/"/gu, '""')}"`;
   }
 
-  return serialized;
+  return csvSafe;
 };
 
 const serializeCsv = (
