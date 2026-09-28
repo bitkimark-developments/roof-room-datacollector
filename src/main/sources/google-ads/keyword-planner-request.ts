@@ -21,10 +21,69 @@ export interface KeywordPlannerJobContext {
   group_id: string;
   group_name: string;
   keywords: string[];
+  requested_date_start: string;
+  requested_date_end: string;
+  country_code: 'TR';
+  language_code: 'tr';
+  keyword_plan_network: 'GOOGLE_SEARCH';
 }
 
 const GROUP_ID_PATTERN =
-  /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/u;
+  /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/iu;
+
+const ISO_DATE_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})$/u;
+
+const pad2 = (value: number): string =>
+  String(value).padStart(2, '0');
+
+const formatLocalDate = (value: Date): string =>
+  [
+    String(value.getFullYear()).padStart(4, '0'),
+    pad2(value.getMonth() + 1),
+    pad2(value.getDate()),
+  ].join('-');
+
+export const resolveKeywordPlannerHistoricalScope = (
+  referenceDate: Date,
+): Pick<
+  KeywordPlannerJobContext,
+  | 'requested_date_start'
+  | 'requested_date_end'
+  | 'country_code'
+  | 'language_code'
+  | 'keyword_plan_network'
+> => {
+  if (Number.isNaN(referenceDate.getTime())) {
+    throw new Error(
+      'Keyword Planner reference date must be valid.',
+    );
+  }
+
+  // The most recent fully completed calendar month.
+  const end = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    0,
+  );
+
+  // Twelve completed calendar months inclusive.
+  const start = new Date(
+    end.getFullYear(),
+    end.getMonth() - 11,
+    1,
+  );
+
+  return {
+    requested_date_start:
+      formatLocalDate(start),
+    requested_date_end:
+      formatLocalDate(end),
+    country_code: 'TR',
+    language_code: 'tr',
+    keyword_plan_network: 'GOOGLE_SEARCH',
+  };
+};
 
 const requireTrimmedString = (
   value: unknown,
@@ -41,6 +100,50 @@ const requireTrimmedString = (
   }
 
   return value;
+};
+
+const parseIsoDate = (
+  value: unknown,
+  field: string,
+): {
+  year: number;
+  month: number;
+  day: number;
+} => {
+  const text =
+    requireTrimmedString(value, field);
+
+  const match =
+    ISO_DATE_PATTERN.exec(text);
+
+  if (!match) {
+    throw new Error(
+      `Keyword Planner ${field} must use YYYY-MM-DD.`,
+    );
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const candidate =
+    new Date(year, month - 1, day);
+
+  if (
+    candidate.getFullYear() !== year
+    || candidate.getMonth() !== month - 1
+    || candidate.getDate() !== day
+  ) {
+    throw new Error(
+      `Keyword Planner ${field} must be a valid calendar date.`,
+    );
+  }
+
+  return {
+    year,
+    month,
+    day,
+  };
 };
 
 export const createKeywordPlannerJobContext = (
@@ -77,7 +180,7 @@ export const createKeywordPlannerJobContext = (
 
   if (!GROUP_ID_PATTERN.test(groupId)) {
     throw new Error(
-      'Keyword Planner group_id must use lowercase letters, digits, hyphens, or underscores.',
+      'Keyword Planner group_id must use letters, digits, hyphens, or underscores.',
     );
   }
 
@@ -105,6 +208,62 @@ export const createKeywordPlannerJobContext = (
         ),
     );
 
+  const requestedDateStart =
+    requireTrimmedString(
+      context.requested_date_start,
+      'requested_date_start',
+    );
+
+  const requestedDateEnd =
+    requireTrimmedString(
+      context.requested_date_end,
+      'requested_date_end',
+    );
+
+  const start =
+    parseIsoDate(
+      requestedDateStart,
+      'requested_date_start',
+    );
+
+  const end =
+    parseIsoDate(
+      requestedDateEnd,
+      'requested_date_end',
+    );
+
+  const expectedEndDay =
+    new Date(
+      end.year,
+      end.month,
+      0,
+    ).getDate();
+
+  const monthSpan =
+    ((end.year - start.year) * 12)
+    + end.month
+    - start.month;
+
+  if (
+    start.day !== 1
+    || end.day !== expectedEndDay
+    || monthSpan !== 11
+  ) {
+    throw new Error(
+      'Keyword Planner date range must contain exactly 12 complete calendar months.',
+    );
+  }
+
+  if (
+    context.country_code !== 'TR'
+    || context.language_code !== 'tr'
+    || context.keyword_plan_network !== 'GOOGLE_SEARCH'
+  ) {
+    throw new Error(
+      'Keyword Planner reviewed scope must be Turkey, Turkish, and Google Search.',
+    );
+  }
+
   return {
     task_id:
       KEYWORD_PLANNER_TASK_ID,
@@ -117,6 +276,14 @@ export const createKeywordPlannerJobContext = (
     group_name:
       groupName,
     keywords,
+    requested_date_start:
+      requestedDateStart,
+    requested_date_end:
+      requestedDateEnd,
+    country_code: 'TR',
+    language_code: 'tr',
+    keyword_plan_network:
+      'GOOGLE_SEARCH',
   };
 };
 
@@ -154,4 +321,14 @@ export const keywordPlannerContextAsJson = (
   keywords: [
     ...context.keywords,
   ],
+  requested_date_start:
+    context.requested_date_start,
+  requested_date_end:
+    context.requested_date_end,
+  country_code:
+    context.country_code,
+  language_code:
+    context.language_code,
+  keyword_plan_network:
+    context.keyword_plan_network,
 });

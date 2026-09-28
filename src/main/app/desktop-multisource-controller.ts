@@ -39,6 +39,7 @@ import { createSearchTermsJobContext } from '../sources/google-ads/search-terms-
 import {
   createKeywordPlannerJobContext,
   keywordPlannerContextAsJson,
+  resolveKeywordPlannerHistoricalScope,
   KEYWORD_PLANNER_SOURCE_MODE,
   KEYWORD_PLANNER_TASK_ID,
 } from '../sources/google-ads/keyword-planner-request';
@@ -1678,6 +1679,14 @@ export class DesktopMultiSourceController {
         return null;
       }
 
+      const resolvedAt =
+        this.now();
+
+      const keywordPlannerScope =
+        resolveKeywordPlannerHistoricalScope(
+          resolvedAt,
+        );
+
       let resolvedGroups:
         JsonObject[];
 
@@ -1702,6 +1711,7 @@ export class DesktopMultiSourceController {
                     value.group_name,
                   keywords:
                     value.keywords,
+                  ...keywordPlannerScope,
                 }),
               );
             },
@@ -1721,9 +1731,6 @@ export class DesktopMultiSourceController {
       ) {
         return null;
       }
-
-      const resolvedAt =
-        this.now();
 
       const reusableConfiguration =
         cloneConfiguration(

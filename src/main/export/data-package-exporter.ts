@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import type { DataPackage, DataPackageDataset, DataPackageMode } from '../../shared/data-package';
+import { writeKeywordPlannerUserExport } from './keyword-planner-user-export';
 
 interface PackageRun {
   run_id: string;
@@ -124,5 +125,7 @@ export const writeDataPackage = async (directory: string, dataPackage: DataPacka
     });
   }
   await writeFile(path.join(directory, 'DATASETS.json'), `${JSON.stringify(datasetIndex, null, 2)}\n`, 'utf8');
+  await writeKeywordPlannerUserExport(directory, dataPackage);
+
   return directory;
 };

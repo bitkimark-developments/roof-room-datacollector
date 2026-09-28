@@ -11,7 +11,42 @@ const { fetchKeywordPlanner } = require(path.join(buildRoot, 'main/sources/googl
   assert.equal(gscCalls, 2); assert.equal(gsc.rows.length, 25001); assert.equal(gsc.rows[0].query, 'q0');
   const ads = await fetchSearchTerms({ customer_id: '123', query: 'SELECT search_term_view.search_term FROM search_term_view' }, async () => ({ status: 200, body: [{ search_term: 'ficus', average_cpc_micros: '1250000', cost_micros: 0, impressions: 2, clicks: 1 }] }));
   assert.equal(ads.rows[0].average_cpc, 1.25); assert.equal(ads.rows[0].cost, 0);
-  const planner = await fetchKeywordPlanner({ customer_id: '123', keywords: ['ficus', 'ficus çeşitleri'] }, async () => ({ status: 200, body: [{ requested_keyword: 'ficus', metrics: { avg_monthly_searches: 100, competition: 'LOW', competition_index: null, low_top_of_page_bid_micros: 500000, high_top_of_page_bid_micros: null, monthly_search_volumes: [{ year: 2026, month: 8, monthly_searches: 100 }] } }] }));
+  const planner = await fetchKeywordPlanner(
+    {
+      customer_id: '123',
+      group_id: 'KWP-FICUS',
+      keywords: ['ficus', 'ficus çeşitleri'],
+      requested_date_start: '2025-09-01',
+      requested_date_end: '2026-08-31',
+      country_code: 'TR',
+      language_code: 'tr',
+      keyword_plan_network: 'GOOGLE_SEARCH',
+    },
+    async () => ({
+      status: 200,
+      body: {
+        results: [
+          {
+            text: 'ficus',
+            keywordMetrics: {
+              avgMonthlySearches: '100',
+              competition: 'LOW',
+              competitionIndex: null,
+              lowTopOfPageBidMicros: '500000',
+              highTopOfPageBidMicros: null,
+              monthlySearchVolumes: [
+                {
+                  year: '2026',
+                  month: 'AUGUST',
+                  monthlySearches: '100',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    }),
+  );
   assert.equal(planner.rows[0].top_of_page_bid_low, 0.5); assert.equal(planner.rows[0].top_of_page_bid_high, null); assert.equal(planner.rows[0].monthly_history[0].searches, 100);
   await assert.rejects(() => fetchSearchTerms({ customer_id: '123', query: 'x' }, async () => ({ status: 401, body: { error: 'unauthorized' } })));
   console.log('PASS GOOGLE-API-001: GSC pagination and Google Ads Search Terms/Keyword Planner normalization preserve raw responses and provider-native null/micros semantics');

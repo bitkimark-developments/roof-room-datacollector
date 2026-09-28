@@ -4122,16 +4122,16 @@ const main = async () => {
     const plannerReviewButton = page.getByRole('button', { name: 'Review Quick Run', exact: true });
     assert.equal(await plannerReviewButton.isEnabled(), false, 'Keyword Planner Review requires explicit groups.');
     assert.equal(await page.getByLabel('Keyword groups').count(), 0, 'Keyword Planner must not require a mini-DSL textarea.');
-    await page.getByLabel('Keyword group 1 ID').fill('indoor-plants');
+    await page.getByLabel('Keyword group 1 ID').fill('KWP-FICUS');
     await page.getByLabel('Keyword group 1 name').fill('Indoor plants');
     await page.getByLabel('Keyword group 1 keywords').fill('ficus, monstera deliciosa');
     await page.getByRole('button', { name: 'Add keyword group', exact: true }).click();
-    await page.getByLabel('Keyword group 2 ID').fill('indoor-plants');
+    await page.getByLabel('Keyword group 2 ID').fill('KWP-FICUS');
     await page.getByLabel('Keyword group 2 name').fill('Care topics');
     await page.getByLabel('Keyword group 2 keywords').fill('ficus bakımı, monstera bakımı');
     assert.equal(await page.getByText('Group IDs must be unique.', { exact: true }).count(), 1);
     assert.equal(await plannerReviewButton.isEnabled(), false, 'Duplicate group IDs must fail closed inline.');
-    await page.getByLabel('Keyword group 2 ID').fill('care-topics');
+    await page.getByLabel('Keyword group 2 ID').fill('KWP-PASA');
     assert.equal(await page.getByText('Prepared input: 2 groups · 4 keywords', { exact: true }).count(), 1);
     assert.equal(await plannerReviewButton.isEnabled(), true, 'Valid explicit keyword groups make Review available.');
     await plannerReviewButton.click();
@@ -4140,13 +4140,13 @@ const main = async () => {
       included: true,
       task_id: 'keyword-planner-historical-metrics',
       groups: [
-        { group_id: 'indoor-plants', group_name: 'Indoor plants', keywords: ['ficus', 'monstera deliciosa'] },
-        { group_id: 'care-topics', group_name: 'Care topics', keywords: ['ficus bakımı', 'monstera bakımı'] },
+        { group_id: 'KWP-FICUS', group_name: 'Indoor plants', keywords: ['ficus', 'monstera deliciosa'] },
+        { group_id: 'KWP-PASA', group_name: 'Care topics', keywords: ['ficus bakımı', 'monstera bakımı'] },
       ],
     }, 'Renderer must send exact named keyword groups to Review.');
     assert.equal(await page.getByText('Keyword groups: 2', { exact: true }).count(), 1);
-    assert.equal(await page.getByText('indoor-plants: ficus, monstera deliciosa', { exact: true }).count(), 1);
-    assert.equal(await page.getByText('care-topics: ficus bakımı, monstera bakımı', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('KWP-FICUS: ficus, monstera deliciosa', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('KWP-PASA: ficus bakımı, monstera bakımı', { exact: true }).count(), 1);
     await page.getByRole('button', { name: 'Start Run', exact: true }).click();
     assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'Keyword Planner Start must forward the exact reviewed groups.');
     console.log('PASS KEYWORD-PLANNER-REVIEW-UI-001: explicit groups are reviewed and started unchanged');

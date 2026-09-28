@@ -384,6 +384,11 @@ const encryption = {
       group_id: 'credential-fixture',
       group_name: 'Credential fixture',
       keywords: ['ficus', 'ficus çeşitleri'],
+      requested_date_start: '2025-09-01',
+      requested_date_end: '2026-08-31',
+      country_code: 'TR',
+      language_code: 'tr',
+      keyword_plan_network: 'GOOGLE_SEARCH',
     },
   });
 

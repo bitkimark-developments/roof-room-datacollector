@@ -11,6 +11,9 @@ const { DESKTOP_TASK_CATALOG } = load('desktop-task-catalog.js');
 const { DesktopMultiSourceController } = load('main/app/desktop-multisource-controller.js');
 const { createProductionCollectionRuntime } = load('main/app/production-collection-runtime.js');
 const { GoogleApiRuntimeFactory } = load('main/sources/google-api/google-api-runtime.js');
+const {
+  normalizeKeywordPlanner,
+} = load('main/sources/google-ads/keyword-planner-adapter.js');
 const { initializeDatabase, getDatabasePath } = load('main/storage/database.js');
 const { StateRepository } = load('main/storage/state-repository.js');
 
@@ -26,12 +29,12 @@ const credentials = {
 
 const groups = [
   {
-    group_id: 'indoor-plants',
+    group_id: 'KWP-FICUS',
     group_name: 'Indoor plants',
     keywords: ['ficus', 'monstera deliciosa'],
   },
   {
-    group_id: 'care-topics',
+    group_id: 'KWP-PASA',
     group_name: 'Care topics',
     keywords: ['ficus bakımı', 'monstera bakımı'],
   },
@@ -44,6 +47,43 @@ const expectedContext = (group) => ({
   group_id: group.group_id,
   group_name: group.group_name,
   keywords: group.keywords,
+  requested_date_start: '2025-09-01',
+  requested_date_end: '2026-08-31',
+  country_code: 'TR',
+  language_code: 'tr',
+  keyword_plan_network: 'GOOGLE_SEARCH',
+});
+
+test('KEYWORD-PLANNER-OPTIONAL-METRICS-001: a provider result without keywordMetrics remains source-faithful null data', () => {
+  const rows = normalizeKeywordPlanner(
+    {
+      results: [
+        {
+          text: 'ficus',
+        },
+      ],
+    },
+    'KWP-FICUS',
+    ['ficus'],
+  );
+
+  assert.deepEqual(rows, [
+    {
+      requested_keyword: 'ficus',
+      returned_keyword: 'ficus',
+      close_variants: [],
+      matched_requested_keywords: ['ficus'],
+      group_id: 'KWP-FICUS',
+      avg_monthly_searches: null,
+      competition: null,
+      competition_index: null,
+      top_of_page_bid_low: null,
+      top_of_page_bid_high: null,
+      change_3_month: null,
+      change_yoy: null,
+      monthly_history: [],
+    },
+  ]);
 });
 
 test('KEYWORD-PLANNER-SOURCE-CONTEXT-001: each collect call binds its explicit persisted group and rejects invalid context', async () => {
@@ -61,10 +101,22 @@ test('KEYWORD-PLANNER-SOURCE-CONTEXT-001: each collect call binds its explicit p
     requests.push(request);
     return {
       status: 200,
-      body: request.body.keywords.map((keyword) => ({
-        requested_keyword: keyword,
-        metrics: { avg_monthly_searches: 10, monthly_search_volumes: [] },
-      })),
+      body: {
+        results: request.body.keywords.map((keyword) => ({
+          text: keyword,
+          closeVariants: [],
+          keywordMetrics: {
+            avgMonthlySearches: '10',
+            competition: 'LOW',
+            competitionIndex: null,
+            lowTopOfPageBidMicros: null,
+            highTopOfPageBidMicros: null,
+            monthlySearchVolumes: [
+              { year: '2026', month: 'AUGUST', monthlySearches: '10' },
+            ],
+          },
+        })),
+      },
     };
   });
 
@@ -179,17 +231,22 @@ test('KEYWORD-PLANNER-REVIEW-BOUND-001: Review persists exact groups and product
     assert.equal(url, 'https://googleads.googleapis.com/v25/customers/1234567890:generateKeywordHistoricalMetrics');
     const request = { url, ...options, body: JSON.parse(options.body) };
     providerRequests.push(request);
-    return Response.json(request.body.keywords.map((keyword) => ({
-      requested_keyword: keyword,
-      metrics: {
-        avg_monthly_searches: 10,
-        competition: 'LOW',
-        competition_index: null,
-        low_top_of_page_bid_micros: null,
-        high_top_of_page_bid_micros: null,
-        monthly_search_volumes: [{ year: 2026, month: 8, monthly_searches: 10 }],
-      },
-    })));
+    return Response.json({
+      results: request.body.keywords.map((keyword) => ({
+        text: keyword,
+        closeVariants: [],
+        keywordMetrics: {
+          avgMonthlySearches: '10',
+          competition: 'LOW',
+          competitionIndex: null,
+          lowTopOfPageBidMicros: null,
+          highTopOfPageBidMicros: null,
+          monthlySearchVolumes: [
+            { year: '2026', month: 'AUGUST', monthlySearches: '10' },
+          ],
+        },
+      })),
+    });
   };
 
   const runtime = createProductionCollectionRuntime({
@@ -200,6 +257,17 @@ test('KEYWORD-PLANNER-REVIEW-BOUND-001: Review persists exact groups and product
   });
   await runtime.orchestrator.runUntilBlocked(started.run.run_id);
   assert.deepEqual(providerRequests.map((request) => request.body.keywords), groups.map((group) => group.keywords));
+  for (const request of providerRequests) {
+    assert.equal(request.body.language, 'languageConstants/1037');
+    assert.deepEqual(request.body.geoTargetConstants, ['geoTargetConstants/2792']);
+    assert.equal(request.body.keywordPlanNetwork, 'GOOGLE_SEARCH');
+    assert.deepEqual(request.body.historicalMetricsOptions, {
+      yearMonthRange: {
+        start: { year: 2025, month: 'SEPTEMBER' },
+        end: { year: 2026, month: 'AUGUST' },
+      },
+    });
+  }
   assert.equal(repository.getRun(started.run.run_id).run_status, 'COMPLETED');
   assert.deepEqual(repository.listJobs(started.run.run_id).map((job) => job.execution_status), ['COMPLETED', 'COMPLETED']);
 

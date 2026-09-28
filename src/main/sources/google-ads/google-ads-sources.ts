@@ -1,7 +1,7 @@
 import type { CollectingDataSourceModule, SourceCollectionContext, SourceCollectionResult } from '../../../shared/collection';
 import type { SourceCapabilities, SourceReadinessResult } from '../../../shared/source';
 import { GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_SOURCE_ID } from '../../../shared/google-api';
-import { fetchSearchTerms } from './search-terms-adapter'; import { fetchKeywordPlanner } from './keyword-planner-adapter'; import type { ApiRequester } from '../google-api/api-helpers';
+import { fetchSearchTerms } from './search-terms-adapter'; import { requestKeywordPlannerRaw } from './keyword-planner-adapter'; import type { ApiRequester } from '../google-api/api-helpers';
 import { mapGoogleApiCollectionError } from '../google-api/google-api-error';
 import { buildSearchTermsQuery } from './search-terms-request';
 import {
@@ -91,12 +91,24 @@ export class GoogleKeywordPlannerSource implements CollectingDataSourceModule {
 
     try {
       const result =
-        await fetchKeywordPlanner(
+        await requestKeywordPlannerRaw(
           {
             customer_id:
               this.customerId,
+            group_id:
+              jobContext.group_id,
             keywords:
               jobContext.keywords,
+            requested_date_start:
+              jobContext.requested_date_start,
+            requested_date_end:
+              jobContext.requested_date_end,
+            country_code:
+              jobContext.country_code,
+            language_code:
+              jobContext.language_code,
+            keyword_plan_network:
+              jobContext.keyword_plan_network,
           },
           this.requester,
         );

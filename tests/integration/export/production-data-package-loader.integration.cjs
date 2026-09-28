@@ -89,8 +89,13 @@ async function main() {
     },
     {
       source_id: 'google-keyword-planner', job_key: 'plants', filename: 'planner.json', media_type: 'application/json',
-      bytes: jsonBytes([{ requested_keyword: 'ficus', text: 'ficus', metrics: { avg_monthly_searches: 100, competition: 'MEDIUM', competition_index: 50, low_top_of_page_bid_micros: null, high_top_of_page_bid_micros: 2000000, monthly_search_volumes: [{ year: 2026, month: 8, monthly_searches: null }] } }]),
-      source_context: { task_id: 'keyword-planner-historical-metrics', source_id: 'google-keyword-planner', source_mode: 'OFFICIAL_API', group_id: 'plants', group_name: 'Plants', keywords: ['ficus'] }, validation_status: 'VALID',
+      bytes: jsonBytes({ results: [{ text: 'ficus', closeVariants: [], keywordMetrics: { avgMonthlySearches: '100', competition: 'MEDIUM', competitionIndex: '50', lowTopOfPageBidMicros: null, highTopOfPageBidMicros: '2000000', monthlySearchVolumes: [{ year: '2026', month: 'AUGUST', monthlySearches: null }] } }] }),
+      source_context: {
+        task_id: 'keyword-planner-historical-metrics', source_id: 'google-keyword-planner', source_mode: 'OFFICIAL_API',
+        group_id: 'plants', group_name: 'Plants', keywords: ['ficus'],
+        requested_date_start: '2025-09-01', requested_date_end: '2026-08-31',
+        country_code: 'TR', language_code: 'tr', keyword_plan_network: 'GOOGLE_SEARCH',
+      }, validation_status: 'VALID',
     },
     {
       source_id: 'google-keyword-planner-csv', job_key: 'manual-current', filename: 'planner.csv', media_type: 'text/csv',

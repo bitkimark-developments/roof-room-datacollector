@@ -388,7 +388,7 @@ const parseKeywordPlannerGroups = (
         .map((keyword) => keyword.trim());
 
     if (
-      !/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/u.test(groupId)
+      !/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/iu.test(groupId)
       || groupName.length === 0
       || keywords.length === 0
       || keywords.some(
@@ -3041,7 +3041,13 @@ export function DesktopMultiSourceView() {
                       bitkimarkSitemapUrlsInput,
                     ) !== null
                     ? 'READY'
-                : readiness;
+                    : selectedTask.source_id
+                        === 'google-keyword-planner'
+                      && parseKeywordPlannerGroups(
+                        keywordPlannerGroupDrafts,
+                      ) !== null
+                      ? 'READY'
+                      : readiness;
 
             const hasReviewableQuickRunConfiguration =
               (

@@ -76,7 +76,33 @@ class GoogleApiCollectionValidator implements CollectionValidator {
         if (!Array.isArray(body)) throw new Error('GSC artifact must contain the raw pages array.');
         for (const page of body) count += normalizeGscRows(page).length;
       } else if (this.sourceId === GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID) count = normalizeSearchTerms(body).length;
-      else count = normalizeKeywordPlanner(body, 'production', Array.isArray((context.source_context as { keywords?: unknown }).keywords) ? ((context.source_context as { keywords: unknown[] }).keywords.filter((v): v is string => typeof v === 'string')) : []).length;
+      else {
+        const sourceContext =
+          context.source_context as {
+            group_id?: unknown;
+            keywords?: unknown;
+          };
+
+        const groupId =
+          typeof sourceContext.group_id === 'string'
+            ? sourceContext.group_id
+            : '';
+
+        const requestedKeywords =
+          Array.isArray(sourceContext.keywords)
+            ? sourceContext.keywords.filter(
+              (value): value is string =>
+                typeof value === 'string',
+            )
+            : [];
+
+        count =
+          normalizeKeywordPlanner(
+            body,
+            groupId,
+            requestedKeywords,
+          ).length;
+      }
       return { validation_status: count > 0 ? 'VALID' as const : 'NO_DATA' as const, checks_total: 1, checks_passed: 1, checks_warning: 0, checks_failed: 0, findings: [] };
     } catch (error) {
       return { validation_status: 'INVALID_SCHEMA' as const, checks_total: 1, checks_passed: 0, checks_warning: 0, checks_failed: 1, findings: [{ check_id: 'GOOGLE_API_SCHEMA', severity: 'ERROR' as const, passed: false, message: error instanceof Error ? error.message : 'Invalid Google API artifact.', expected: 'Provider response matching source contract', actual: 'Invalid schema' }] };
