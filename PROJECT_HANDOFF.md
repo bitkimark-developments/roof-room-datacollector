@@ -3086,3 +3086,68 @@ Protected historical files remain untracked and untouched:
 
 - `CODEX_HANDOFF_CURRENT.md`
 - `PROJECT_HANDOFF.pre-20260820.md`
+
+---
+
+## 55. Keyword Planner export integration, Google OAuth hardening, and desktop sidebar — 2026-09-28
+
+Three narrow technical checkpoints now follow Section 54:
+
+```text
+af8b621 feat: add reviewed keyword planner collection exports
+873b4ee fix: harden google oauth connection setup
+3b2a8b4 fix: keep desktop sidebar visible
+```
+
+`af8b621` is the amended form of the earlier `e9025ad` Keyword Planner checkpoint. The amendment adds the reviewed UI behavior that accepts valid uppercase group IDs and reports `READY` when explicit groups are valid. The production mapping contract remains unchanged: exact requested/provider identity maps to `EXACT`; only explicit provider `closeVariants` evidence maps to `CLOSE_VARIANT`; all other mappings remain blank. There is no fuzzy or case-folded inference, and unavailable numeric evidence remains missing rather than zero. The prior bounded successful live Keyword Planner run remains:
+
+```text
+run_id = rr_20260925T170507774Z_2deb22
+```
+
+No live provider request was made while amending or verifying this checkpoint.
+
+`873b4ee` keeps OAuth acquisition and secrets in the existing main/Core security boundary while making token-exchange failures actionable and safely diagnosable. It:
+
+- distinguishes client rejection, authorization-grant rejection, general token-exchange rejection/unavailability, and missing offline refresh-token outcomes through fixed renderer-safe codes;
+- records only allowlisted token-exchange structure, provider error class/code, and HTTP status, never raw provider descriptions, authorization codes, tokens, or secrets;
+- persists `authorization_state: AUTHORIZED` only after successful acquisition/publication, including same-Workspace shared Google rebinds;
+- trims and validates provider configuration secrets inside the privileged boundary;
+- accepts benign native-process stderr when the masked prompt otherwise exits successfully with one valid bounded protocol response;
+- preserves prior connections and compensates fresh credential material when publication/rebind fails.
+
+`3b2a8b4` is intentionally separate from credential work. It keeps the desktop sidebar fixed and independently scrollable on desktop widths, keeps the main surface in the matching grid column, narrows both columns at the existing 860px breakpoint, and restores normal document flow below 680px.
+
+Fresh deterministic/package evidence observed with these exact worktree contents:
+
+```text
+GOOGLE-OAUTH-CREDENTIAL-ACQUIRER-001             PASS
+GOOGLE-WORKSPACE-CONNECTION-MANAGEMENT-001       PASS
+MACOS-OSASCRIPT-SECRET-INGRESS-001               PASS
+DESKTOP-CONNECTION-WRITE-MAIN-IPC-001            PASS
+GOOGLE-PROVIDER-CONFIGURATION-001                PASS
+DESKTOP-CONNECTION-WRITE-COMPOSITION-001         PASS
+WORKSPACE-CONNECTION-MANAGEMENT-SERVICE-001      PASS
+GOOGLE-CREDENTIAL-001                            PASS
+DESKTOP-UI-001                                   PASS
+npx tsc --noEmit                                 PASS
+npm run lint                                     PASS
+git diff --cached --check                        PASS
+npm run test:release:gate                        PASS RELEASE-GATE-001
+npm run package                                  PASS
+```
+
+The freshly assembled application remains:
+
+```text
+out/RoofRoom Data Collector-darwin-arm64/RoofRoom Data Collector.app
+```
+
+### Exact next action
+
+Do not make an automatic provider or collection request. With separate explicit user authorization, repeat the bounded packaged provider-setup acceptance in the newly assembled application: enter the Google Ads Developer Token through the native masked prompt, enter safe Customer ID metadata for Google Ads Search Terms and Keyword Planner, and confirm each Connect flow reaches a safe successful state or one of the new fixed OAuth failure codes without starting collection. Stop on authentication, quota, rate-limit, CAPTCHA, 2FA, or anti-bot intervention. Any GSC, Google Ads, Keyword Planner, or SerpApi collection acceptance remains a separate explicitly authorized action.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
