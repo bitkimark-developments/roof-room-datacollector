@@ -18,12 +18,19 @@ import {
   requestGoogleAdsSearchReportingRaw,
   requireGoogleAdsReportingJobContext,
 } from './search-reporting-request';
+import { CAMPAIGN_PERFORMANCE_DESCRIPTOR } from './campaigns-request';
+import { AD_GROUP_PERFORMANCE_DESCRIPTOR } from './ad-groups-request';
 
 export interface GoogleAdsSearchReportingDatasetDescriptor {
   readonly dataset_type: GoogleAdsSearchReportingDatasetType;
   readonly resource_mode: GoogleAdsSearchReportingResourceMode;
   buildQuery(context: GoogleAdsSearchReportingJobContext): string;
 }
+
+export const GOOGLE_ADS_SEARCH_REPORTING_DATASET_DESCRIPTORS = [
+  CAMPAIGN_PERFORMANCE_DESCRIPTOR,
+  AD_GROUP_PERFORMANCE_DESCRIPTOR,
+] as const;
 
 const capabilities = (): SourceCapabilities => ({
   requires_browser: false,
@@ -49,7 +56,8 @@ export class GoogleAdsSearchReportingSource implements CollectingDataSourceModul
   constructor(
     private readonly customerId: string | null,
     private readonly requester: ApiRequester,
-    descriptors: readonly GoogleAdsSearchReportingDatasetDescriptor[] = [],
+    descriptors: readonly GoogleAdsSearchReportingDatasetDescriptor[] =
+      GOOGLE_ADS_SEARCH_REPORTING_DATASET_DESCRIPTORS,
   ) {
     const descriptorMap = new Map<
       GoogleAdsSearchReportingDatasetType,

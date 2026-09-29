@@ -30,6 +30,7 @@
     "test:m2:connection-mutations": "bash tests/integration/sqlite/run-workspace-connection-mutations-test.sh",
     "test:m3:non-google-sources": "bash tests/integration/sources/run-non-google-source-slices-test.sh",
     "test:m3:google-api-adapters": "bash tests/integration/google-api/run-google-api-adapters-test.sh",
+    "test:m3:google-ads-campaign-ad-group-reporting": "bash tests/integration/google-api/run-google-ads-campaign-ad-group-reporting-test.sh",
     "test:m3:google-ads-search-reporting-contract": "bash tests/integration/google-api/run-google-ads-search-reporting-contract-test.sh",
     "test:m3:google-ads-search-reporting-source": "bash tests/integration/google-api/run-google-ads-search-reporting-source-test.sh",
     "test:m3:google-ads-search-stream-response": "bash tests/integration/google-api/run-google-ads-search-stream-response-test.sh",

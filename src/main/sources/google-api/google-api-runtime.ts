@@ -157,19 +157,23 @@ export class GoogleApiRuntimeFactory {
 
   createSearchReportingSource(
     input: { workspace_id: string },
-    descriptors: readonly GoogleAdsSearchReportingDatasetDescriptor[] = [],
+    descriptors?: readonly GoogleAdsSearchReportingDatasetDescriptor[],
   ): GoogleAdsSearchReportingSource {
     const connection = this.requireConnection(
       input.workspace_id,
       GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID,
     );
-    return new GoogleAdsSearchReportingSource(
-      normalizeGoogleAdsCustomerId(
-        requireMetadataString(connection, 'customer_id'),
-      ),
-      this.createGoogleAdsRequester(connection),
-      descriptors,
+    const customerId = normalizeGoogleAdsCustomerId(
+      requireMetadataString(connection, 'customer_id'),
     );
+    const requester = this.createGoogleAdsRequester(connection);
+    return descriptors === undefined
+      ? new GoogleAdsSearchReportingSource(customerId, requester)
+      : new GoogleAdsSearchReportingSource(
+        customerId,
+        requester,
+        descriptors,
+      );
   }
 
   createKeywordPlannerSource(input: {
