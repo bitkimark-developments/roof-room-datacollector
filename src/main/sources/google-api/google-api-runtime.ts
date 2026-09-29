@@ -8,6 +8,10 @@ import type { CredentialStore } from '../../core/credential-store';
 import type { StateRepository } from '../../storage/state-repository';
 import { GoogleAdsSearchTermsSource, GoogleKeywordPlannerSource } from '../google-ads/google-ads-sources';
 import {
+  GoogleAdsSearchReportingSource,
+  type GoogleAdsSearchReportingDatasetDescriptor,
+} from '../google-ads/search-reporting-source';
+import {
   GoogleSearchConsoleQuerySource,
   GoogleSearchConsoleSource,
 } from '../google-search-console/google-search-console-source';
@@ -149,6 +153,23 @@ export class GoogleApiRuntimeFactory {
   }): GoogleAdsSearchTermsSource {
     assertGoogleLiveAcceptanceConfirmation(input.confirmation);
     return this.createSearchTermsSource(input);
+  }
+
+  createSearchReportingSource(
+    input: { workspace_id: string },
+    descriptors: readonly GoogleAdsSearchReportingDatasetDescriptor[] = [],
+  ): GoogleAdsSearchReportingSource {
+    const connection = this.requireConnection(
+      input.workspace_id,
+      GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID,
+    );
+    return new GoogleAdsSearchReportingSource(
+      normalizeGoogleAdsCustomerId(
+        requireMetadataString(connection, 'customer_id'),
+      ),
+      this.createGoogleAdsRequester(connection),
+      descriptors,
+    );
   }
 
   createKeywordPlannerSource(input: {
