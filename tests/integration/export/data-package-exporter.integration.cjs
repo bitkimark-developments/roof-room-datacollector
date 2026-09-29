@@ -168,8 +168,8 @@ writeDataPackage(outputRoot, repeated).then(() => {
           competition_index: 20,
           top_of_page_bid_low: null,
           top_of_page_bid_high: 2,
-          change_3_month: null,
-          change_yoy: null,
+          change_3_month: 50,
+          change_yoy: -25,
           monthly_history: [
             { year: 2025, month: 9, searches: 0 },
             { year: 2025, month: 10, searches: null },
@@ -302,7 +302,7 @@ writeDataPackage(outputRoot, repeated).then(() => {
 
   assert.equal(
     metricsLines.includes(
-      'KWP-FICUS,ficus benjamin | ficus benjamina,ficus benjamin,CLOSE_VARIANT,100,LOW,20,,2,,',
+      'KWP-FICUS,ficus benjamin | ficus benjamina,ficus benjamin,CLOSE_VARIANT,100,LOW,20,,2,50,-25',
     ),
     true,
     'Provider-proven close variants must produce one contextual provider-result row.',
@@ -391,6 +391,8 @@ writeDataPackage(outputRoot, repeated).then(() => {
   const [metricsSheet, monthlySheet, requestMapSheet, metadataSheet] = workbook.sheets;
   assert.deepEqual(metricsSheet.cells.get('C2'), { type: 's', value: 'ficus benjamin' });
   assert.deepEqual(metricsSheet.cells.get('E2'), { type: 'n', value: 100 });
+  assert.deepEqual(metricsSheet.cells.get('J2'), { type: 'n', value: 50 });
+  assert.deepEqual(metricsSheet.cells.get('K2'), { type: 'n', value: -25 });
   assert.equal(metricsSheet.cells.has('H2'), false, 'A null numeric metric must be an empty XLSX cell.');
   assert.equal(metricsSheet.cells.has('D3'), false, 'An unproven XLSX Mapping must be empty.');
   assert.deepEqual(metricsSheet.cells.get('D4'), { type: 's', value: 'EXACT' });

@@ -277,6 +277,75 @@ export const normalizeKeywordPlanner = (
           },
         );
 
+      const latestMonth =
+        monthly.reduce<
+          (typeof monthly)[number] | null
+        >(
+          (latest, item) => {
+            if (latest === null) return item;
+
+            const latestKey =
+              latest.year * 12 + latest.month;
+            const itemKey =
+              item.year * 12 + item.month;
+
+            return itemKey > latestKey
+              ? item
+              : latest;
+          },
+          null,
+        );
+
+      const threeMonthBaseline =
+        latestMonth === null
+          ? null
+          : monthly.find(
+              (item) =>
+                item.year * 12 + item.month
+                === latestMonth.year * 12
+                  + latestMonth.month
+                  - 2,
+            ) ?? null;
+
+      const change3Month =
+        latestMonth?.searches === null
+        || latestMonth?.searches === undefined
+        || threeMonthBaseline?.searches === null
+        || threeMonthBaseline?.searches === undefined
+        || threeMonthBaseline?.searches === 0
+          ? null
+          : (
+              (
+                latestMonth.searches
+                - threeMonthBaseline.searches
+              )
+              / threeMonthBaseline.searches
+            ) * 100;
+
+      const yoyBaseline =
+        latestMonth === null
+          ? null
+          : monthly.find(
+              (item) =>
+                item.year === latestMonth.year - 1
+                && item.month === latestMonth.month,
+            ) ?? null;
+
+      const changeYoy =
+        latestMonth?.searches === null
+        || latestMonth?.searches === undefined
+        || yoyBaseline?.searches === null
+        || yoyBaseline?.searches === undefined
+        || yoyBaseline?.searches === 0
+          ? null
+          : (
+              (
+                latestMonth.searches
+                - yoyBaseline.searches
+              )
+              / yoyBaseline.searches
+            ) * 100;
+
       const bidLow =
         providerNumberOrNull(
           metrics.lowTopOfPageBidMicros,
@@ -327,9 +396,9 @@ export const normalizeKeywordPlanner = (
             ? null
             : bidHigh / 1_000_000,
         change_3_month:
-          null as number | null,
+          change3Month,
         change_yoy:
-          null as number | null,
+          changeYoy,
         monthly_history:
           monthly,
       };

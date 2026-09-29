@@ -37,8 +37,18 @@ const { fetchKeywordPlanner } = require(path.join(buildRoot, 'main/sources/googl
               monthlySearchVolumes: [
                 {
                   year: '2026',
-                  month: 'AUGUST',
+                  month: 'JUNE',
                   monthlySearches: '100',
+                },
+                {
+                  year: '2026',
+                  month: 'JULY',
+                  monthlySearches: '120',
+                },
+                {
+                  year: '2026',
+                  month: 'AUGUST',
+                  monthlySearches: '150',
                 },
               ],
             },
@@ -48,6 +58,155 @@ const { fetchKeywordPlanner } = require(path.join(buildRoot, 'main/sources/googl
     }),
   );
   assert.equal(planner.rows[0].top_of_page_bid_low, 0.5); assert.equal(planner.rows[0].top_of_page_bid_high, null); assert.equal(planner.rows[0].monthly_history[0].searches, 100);
+  assert.equal(
+    planner.rows[0].change_3_month,
+    50,
+    '3 month change must compare the latest month with two months prior.',
+  );
+
+  const zeroBaselinePlanner = await fetchKeywordPlanner(
+    {
+      customer_id: '123',
+      group_id: 'KWP-ZERO',
+      keywords: ['zero baseline'],
+      requested_date_start: '2025-09-01',
+      requested_date_end: '2026-08-31',
+      country_code: 'TR',
+      language_code: 'tr',
+      keyword_plan_network: 'GOOGLE_SEARCH',
+    },
+    async () => ({
+      status: 200,
+      body: {
+        results: [
+          {
+            text: 'zero baseline',
+            keywordMetrics: {
+              monthlySearchVolumes: [
+                {
+                  year: '2026',
+                  month: 'JUNE',
+                  monthlySearches: '0',
+                },
+                {
+                  year: '2026',
+                  month: 'JULY',
+                  monthlySearches: '10',
+                },
+                {
+                  year: '2026',
+                  month: 'AUGUST',
+                  monthlySearches: '20',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    }),
+  );
+
+  assert.equal(
+    zeroBaselinePlanner.rows[0].change_3_month,
+    null,
+    '3 month change must remain null when the comparison baseline is zero.',
+  );
+
+  const yoyPlanner = await fetchKeywordPlanner(
+    {
+      customer_id: '123',
+      group_id: 'KWP-YOY',
+      keywords: ['year over year'],
+      requested_date_start: '2025-08-01',
+      requested_date_end: '2026-08-31',
+      country_code: 'TR',
+      language_code: 'tr',
+      keyword_plan_network: 'GOOGLE_SEARCH',
+    },
+    async () => ({
+      status: 200,
+      body: {
+        results: [
+          {
+            text: 'year over year',
+            keywordMetrics: {
+              monthlySearchVolumes: [
+                {
+                  year: '2025',
+                  month: 'AUGUST',
+                  monthlySearches: '100',
+                },
+                {
+                  year: '2026',
+                  month: 'JUNE',
+                  monthlySearches: '120',
+                },
+                {
+                  year: '2026',
+                  month: 'JULY',
+                  monthlySearches: '130',
+                },
+                {
+                  year: '2026',
+                  month: 'AUGUST',
+                  monthlySearches: '150',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    }),
+  );
+
+  assert.equal(
+    yoyPlanner.rows[0].change_yoy,
+    50,
+    'YoY change must compare the latest month with the same month in the previous year.',
+  );
+
+  const yoyZeroBaselinePlanner = await fetchKeywordPlanner(
+    {
+      customer_id: '123',
+      group_id: 'KWP-YOY-ZERO',
+      keywords: ['yoy zero baseline'],
+      requested_date_start: '2025-08-01',
+      requested_date_end: '2026-08-31',
+      country_code: 'TR',
+      language_code: 'tr',
+      keyword_plan_network: 'GOOGLE_SEARCH',
+    },
+    async () => ({
+      status: 200,
+      body: {
+        results: [
+          {
+            text: 'yoy zero baseline',
+            keywordMetrics: {
+              monthlySearchVolumes: [
+                {
+                  year: '2025',
+                  month: 'AUGUST',
+                  monthlySearches: '0',
+                },
+                {
+                  year: '2026',
+                  month: 'AUGUST',
+                  monthlySearches: '25',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    }),
+  );
+
+  assert.equal(
+    yoyZeroBaselinePlanner.rows[0].change_yoy,
+    null,
+    'YoY change must remain null when the previous-year baseline is zero.',
+  );
   await assert.rejects(() => fetchSearchTerms({ customer_id: '123', query: 'x' }, async () => ({ status: 401, body: { error: 'unauthorized' } })));
   console.log('PASS GOOGLE-API-001: GSC pagination and Google Ads Search Terms/Keyword Planner normalization preserve raw responses and provider-native null/micros semantics');
 })();

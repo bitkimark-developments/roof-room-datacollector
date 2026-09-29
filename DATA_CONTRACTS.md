@@ -392,6 +392,19 @@ The verified mode is `search_term_view` for SEARCH campaigns. Preserve date/segm
 
 Preserve keyword, average monthly searches, competition, competition index, monthly rows (`year`, `month`, nullable searches), and bid metrics when returned. API and manual CSV outputs may normalize to compatible tables while retaining distinct acquisition provenance.
 
+For the `OFFICIAL_API` source mode:
+
+- `monthly_history` remains provider-native evidence and must not be rewritten to support derived metrics.
+- `change_3_month` is derived from monthly history by comparing the latest available month with the month exactly two calendar months earlier: `(latest - baseline) / baseline * 100`.
+- `change_yoy` is derived from monthly history by comparing the latest available month with the same calendar month in the previous year: `(latest - baseline) / baseline * 100`.
+- A derived change remains `NULL` when either required monthly value is missing, the required comparison month is absent, or the baseline is zero.
+- The collector must not silently widen the reviewed/requested provider date range merely to manufacture YoY evidence. If the same month from the previous year is not present in the accepted raw monthly history, `change_yoy` remains `NULL`.
+- Derived 3-month and YoY values must never be represented as provider-native Google Ads metrics.
+
+For the `FILE_IMPORT` Keyword Planner CSV source mode, `Three month change` and `YoY change` are provider-exported fields from the imported file. They remain source-native imported values rather than RoofRoom-derived calculations.
+
+Missing values remain `NULL`; they are never silently converted to zero.
+
 ### İkas Products
 
 Preserve the original XLSX. The verified production export uses sheet `Ikas Excel File`, 40 columns, and 856 variant rows (88 product groups). Product identity maps to `Ürün Grup ID` and `Varyant ID`; title, categories, type, prices, description, and slug map to their exact Turkish source headers. `Resim URL` is image evidence only: `url` remains `NULL` unless an explicit storefront URL column/configuration exists. `Bitki Boyu (Saksı Dahil)` and `Saksı Tipi` are extracted by label across the three variant type/value pairs. Blank sale price and stock remain `NULL`; source-native stock/activity evidence is preserved and availability is derived deterministically without replacing missing values with zero.
