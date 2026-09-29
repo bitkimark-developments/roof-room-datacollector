@@ -16,6 +16,8 @@ Before starting implementation work:
 
 Do not infer current project state from old commits or old documentation when `PROJECT_HANDOFF.md` contains newer verified evidence.
 
+For substantial architectural or multi-step work, follow `.agent/PLANS.md` and the existing `docs/superpowers/specs/` + `docs/superpowers/plans/` workflow. Do not create a parallel planning directory or duplicate planning system.
+
 ## Product purpose
 
 RoofRoom Data Collector is a local-first modular desktop data collection application.
@@ -69,6 +71,8 @@ Do not unnecessarily rewrite working architecture.
 Never invent unavailable data.
 
 Never silently replace missing values with zero.
+
+Never estimate, interpolate, proportionally allocate, or otherwise invent missing provider metrics and then treat the result as source evidence.
 
 Preserve raw source files as immutable evidence whenever practical.
 
