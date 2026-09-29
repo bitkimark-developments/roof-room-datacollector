@@ -7,7 +7,10 @@ import type { DataPackageInputDataset } from './data-package-exporter';
 import type { StorageManager } from '../storage/storage-manager';
 import { parseGoogleTrendsInterestOverTimeCsv } from '../sources/google-trends/google-trends-interest-over-time-parser';
 import { normalizeGscQueryRows, normalizeGscRows } from '../sources/google-search-console/query-page-adapter';
-import { normalizeSearchTerms } from '../sources/google-ads/search-terms-adapter';
+import {
+  normalizeSearchTermPerformanceRows,
+  normalizeSearchTerms,
+} from '../sources/google-ads/search-terms-adapter';
 import { normalizeKeywordPlanner } from '../sources/google-ads/keyword-planner-adapter';
 import { createKeywordPlannerJobContext } from '../sources/google-ads/keyword-planner-request';
 import { parseKeywordPlannerManualCsv } from '../sources/google-ads/keyword-planner-csv-parser';
@@ -15,6 +18,14 @@ import { parseIkasProductsXlsx } from '../sources/ikas/ikas-products-parser';
 import { parseBitkimarkSitemap } from '../sources/bitkimark/bitkimark-sitemap-parser';
 import { parseSerpApiResponse } from '../sources/serpapi/serpapi-parser';
 import { requireSerpApiJobContext } from '../sources/serpapi/serpapi-request';
+import { GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID } from '../../shared/google-ads-search-reporting';
+import { normalizeCampaignPerformanceRows } from '../sources/google-ads/campaigns-adapter';
+import { normalizeAdGroupPerformanceRows } from '../sources/google-ads/ad-groups-adapter';
+import { normalizeKeywordPerformanceRows } from '../sources/google-ads/keywords-adapter';
+import { normalizeAdPerformanceRows } from '../sources/google-ads/ads-adapter';
+import { normalizeRsaAssetPerformanceRows } from '../sources/google-ads/rsa-assets-adapter';
+import { requireGoogleAdsReportingJobContext } from '../sources/google-ads/search-reporting-request';
+import { flattenGoogleAdsSearchStream } from '../sources/google-ads/search-stream-response';
 
 const ACCEPTED_VALIDATION = new Set(['VALID', 'LOW_DATA', 'NO_DATA']);
 
@@ -106,6 +117,9 @@ export class ProductionDataPackageLoader {
           raw_artifact_byte_size: artifact.byte_size,
           raw_artifact_sha256: artifact.sha256,
           acquired_at: artifact.created_at,
+          ...(job.source_id === GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID
+            ? { snapshot_observed_at: artifact.created_at }
+            : {}),
           requested_context: safeContext(job.source_context),
         },
       });
@@ -176,6 +190,38 @@ export class ProductionDataPackageLoader {
       }
       case 'google-ads-search-terms':
         return { dataset_type: 'SEARCH_TERMS', rows: jsonRows(normalizeSearchTerms(decodeJson(bytes, 'Google Ads Search Terms accepted artifact'))) };
+      case GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID: {
+        const context = requireGoogleAdsReportingJobContext(job.source_context);
+        if (job.job_key !== context.dataset_type) {
+          throw new Error('Google Ads reporting Job key does not match the dataset.');
+        }
+        const providerRows = flattenGoogleAdsSearchStream(
+          decodeJson(bytes, 'Google Ads SEARCH reporting accepted artifact'),
+        );
+        const normalized = (() => {
+          switch (context.dataset_type) {
+            case 'CAMPAIGN_PERFORMANCE':
+              return normalizeCampaignPerformanceRows(providerRows);
+            case 'AD_GROUP_PERFORMANCE':
+              return normalizeAdGroupPerformanceRows(providerRows);
+            case 'KEYWORD_PERFORMANCE':
+              return normalizeKeywordPerformanceRows(providerRows);
+            case 'SEARCH_TERMS':
+              return normalizeSearchTermPerformanceRows(providerRows);
+            case 'AD_PERFORMANCE':
+              return normalizeAdPerformanceRows(providerRows);
+            case 'RSA_ASSET_PERFORMANCE':
+              return normalizeRsaAssetPerformanceRows(providerRows);
+          }
+        })();
+        return {
+          dataset_type: context.dataset_type,
+          rows: jsonRows(normalized.map((row) => ({
+            ...row,
+            snapshot_observed_at: artifact.created_at,
+          }))),
+        };
+      }
       case 'google-keyword-planner': {
         const context = createKeywordPlannerJobContext(job.source_context);
         return {

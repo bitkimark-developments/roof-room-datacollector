@@ -48,6 +48,74 @@ const keywordCsvBytes = new Uint8Array(Buffer.concat([Buffer.from([0xff, 0xfe]),
 
 const jsonBytes = (value) => new TextEncoder().encode(JSON.stringify(value));
 
+const adsReportingRows = {
+  CAMPAIGN_PERFORMANCE: {
+    customer: { currencyCode: 'TRY', timeZone: 'Europe/Istanbul' },
+    campaign: { id: '101', name: 'Search', status: 'ENABLED', primaryStatus: 'ELIGIBLE', advertisingChannelType: 'SEARCH', biddingStrategyType: 'MAXIMIZE_CONVERSIONS' },
+    campaignBudget: { id: '501', amountMicros: '0', period: 'DAILY', explicitlyShared: false },
+    segments: { date: '2026-09-16' }, metrics: { impressions: '0', costMicros: '0' },
+  },
+  AD_GROUP_PERFORMANCE: {
+    campaign: { id: '101', name: 'Search', advertisingChannelType: 'SEARCH' },
+    adGroup: { id: '201', name: 'Ficus', status: 'ENABLED', primaryStatus: 'ELIGIBLE', type: 'SEARCH_STANDARD' },
+    segments: { date: '2026-09-16' }, metrics: { clicks: '0' },
+  },
+  KEYWORD_PERFORMANCE: {
+    campaign: { id: '101', name: 'Search', advertisingChannelType: 'SEARCH' },
+    adGroup: { id: '201', name: 'Ficus' },
+    adGroupCriterion: { criterionId: '301', keyword: { text: 'ficus', matchType: 'EXACT' }, status: 'ENABLED', primaryStatus: 'ELIGIBLE', systemServingStatus: 'ELIGIBLE', negative: false },
+    segments: { date: '2026-09-16' }, metrics: { searchExactMatchImpressionShare: null },
+  },
+  SEARCH_TERMS: {
+    searchTermView: { searchTerm: 'buy ficus' },
+    campaign: { id: '101', name: 'Search', advertisingChannelType: 'SEARCH' },
+    adGroup: { id: '201', name: 'Ficus' },
+    segments: { keyword: null, searchTermMatchType: 'BROAD', searchTermTargetingStatus: 'NONE', date: '2026-09-16' },
+    metrics: { costMicros: '0' },
+  },
+  AD_PERFORMANCE: {
+    campaign: { id: '101', name: 'Search', advertisingChannelType: 'SEARCH' },
+    adGroup: { id: '201', name: 'Ficus' },
+    adGroupAd: {
+      ad: { id: '401', type: 'RESPONSIVE_SEARCH_AD', finalUrls: ['https://example.com'], responsiveSearchAd: { headlines: [{ text: 'Ficus' }], descriptions: [{ text: 'Plants' }] } },
+      status: 'ENABLED', primaryStatus: 'ELIGIBLE', adStrength: 'GOOD', policySummary: { approvalStatus: 'APPROVED', reviewStatus: 'REVIEWED' },
+    },
+    segments: { date: '2026-09-16' }, metrics: { conversions: null },
+  },
+  RSA_ASSET_PERFORMANCE: {
+    campaign: { id: '101', name: 'Search', advertisingChannelType: 'SEARCH' },
+    adGroup: { id: '201', name: 'Ficus' },
+    adGroupAd: { ad: { id: '401', type: 'RESPONSIVE_SEARCH_AD' } },
+    adGroupAdAssetView: { resourceName: 'customers/123/adGroupAdAssetViews/201~401~501~HEADLINE', fieldType: 'HEADLINE', performanceLabel: 'GOOD', enabled: true, source: 'ADVERTISER', asset: 'customers/123/assets/501' },
+    asset: { resourceName: 'customers/123/assets/501', id: '501', textAsset: { text: 'Ficus' } },
+    segments: { date: '2026-09-16' }, metrics: { impressions: '0' },
+  },
+};
+
+const adsResourceModes = {
+  CAMPAIGN_PERFORMANCE: 'campaign',
+  AD_GROUP_PERFORMANCE: 'ad_group',
+  KEYWORD_PERFORMANCE: 'keyword_view',
+  SEARCH_TERMS: 'search_term_view',
+  AD_PERFORMANCE: 'ad_group_ad',
+  RSA_ASSET_PERFORMANCE: 'ad_group_ad_asset_view',
+};
+
+const adsReportingFixture = (datasetType, body, suffix = '') => ({
+  source_id: 'google-ads-search-reporting',
+  job_key: datasetType,
+  filename: `${datasetType.toLowerCase()}${suffix}.json`,
+  media_type: 'application/json',
+  bytes: jsonBytes(body),
+  source_context: {
+    source_id: 'google-ads-search-reporting', dataset_type: datasetType,
+    resource_mode: adsResourceModes[datasetType], campaign_type: 'SEARCH',
+    customer_id: '1234567890', requested_date_start: '2026-09-12',
+    requested_date_end: '2026-09-18', dataset_schema_version: 1,
+  },
+  validation_status: suffix === '-NO-DATA' ? 'NO_DATA' : 'VALID',
+});
+
 async function main() {
   const dataRoot = path.join(workRoot, 'data');
   const directories = {
@@ -66,7 +134,7 @@ async function main() {
     workspace_id: 'ws_export',
     run_status: 'COMPLETED',
     selected_sources: [
-      'google-trends', 'google-search-console-query-page', 'google-search-console-query', 'google-ads-search-terms', 'google-keyword-planner',
+      'google-trends', 'google-search-console-query-page', 'google-search-console-query', 'google-ads-search-terms', 'google-ads-search-reporting', 'google-keyword-planner',
       'google-keyword-planner-csv', 'ikas-products', 'bitkimark-sitemap', 'serpapi',
     ],
   };
@@ -96,6 +164,10 @@ async function main() {
       bytes: jsonBytes([{ search_term: 'ficus', keyword: 'ficus', match_type: 'EXACT', campaign: 'Search', ad_group: 'Plants', impressions: 10, clicks: 1, ctr: 0.1, average_cpc_micros: 1500000, cost_micros: 1500000, conversions: null, conversion_value: null }]),
       source_context: { requested_date_start: '2026-06-01', requested_date_end: '2026-09-18' }, validation_status: 'VALID',
     },
+    ...Object.entries(adsReportingRows).map(([datasetType, row]) => (
+      adsReportingFixture(datasetType, [{ results: [row] }])
+    )),
+    adsReportingFixture('CAMPAIGN_PERFORMANCE', [{ results: [] }], '-NO-DATA'),
     {
       source_id: 'google-keyword-planner', job_key: 'plants', filename: 'planner.json', media_type: 'application/json',
       bytes: jsonBytes({ results: [{ text: 'ficus', closeVariants: [], keywordMetrics: { avgMonthlySearches: '100', competition: 'MEDIUM', competitionIndex: '50', lowTopOfPageBidMicros: null, highTopOfPageBidMicros: '2000000', monthlySearchVolumes: [{ year: '2026', month: 'AUGUST', monthlySearches: null }] } }] }),
@@ -159,12 +231,14 @@ async function main() {
   };
   const loader = new ProductionDataPackageLoader(repository, storage);
   const datasets = await loader.loadRunDatasets(run.run_id);
-  assert.deepEqual(datasets.map((dataset) => dataset.source_id), run.selected_sources);
+  assert.deepEqual([...new Set(datasets.map((dataset) => dataset.source_id))], run.selected_sources);
   assert.deepEqual(datasets.map((dataset) => dataset.dataset_type), [
-    'INTEREST_OVER_TIME', 'QUERY_PAGE', 'QUERY', 'SEARCH_TERMS', 'KEYWORD_HISTORICAL_METRICS',
+    'INTEREST_OVER_TIME', 'QUERY_PAGE', 'QUERY', 'SEARCH_TERMS',
+    'CAMPAIGN_PERFORMANCE', 'AD_GROUP_PERFORMANCE', 'KEYWORD_PERFORMANCE', 'SEARCH_TERMS',
+    'AD_PERFORMANCE', 'RSA_ASSET_PERFORMANCE', 'CAMPAIGN_PERFORMANCE', 'KEYWORD_HISTORICAL_METRICS',
     'KEYWORD_HISTORICAL_METRICS', 'PRODUCTS', 'SITEMAP_URLS', 'GOOGLE_SERP',
   ]);
-  assert.equal(datasets.every((dataset) => dataset.rows.length > 0), true);
+  assert.equal(datasets.filter((dataset) => dataset.provenance.validation_status !== 'NO_DATA').every((dataset) => dataset.rows.length > 0), true);
 
   const gscQuery = datasets.find((dataset) => dataset.source_id === 'google-search-console-query');
   assert.equal(gscQuery.dataset_type, 'QUERY');
@@ -175,17 +249,63 @@ async function main() {
   assert.equal(datasets.find((dataset) => dataset.source_id === 'ikas-products').rows[0].sale_price, null);
   assert.equal(datasets.find((dataset) => dataset.source_id === 'bitkimark-sitemap').rows[0].parent_sitemap_url, 'https://bitkimark.com/sitemap.xml');
   assert.equal(datasets.find((dataset) => dataset.source_id === 'serpapi').rows[0].result_type, 'ORGANIC');
+  const campaignReporting = datasets.find((dataset) => dataset.job_key === 'CAMPAIGN_PERFORMANCE');
+  assert.equal(campaignReporting.rows[0].campaign_budget_amount_micros, 0);
+  assert.equal(campaignReporting.rows[0].clicks, null);
+  assert.equal(campaignReporting.rows[0].snapshot_observed_at, '2026-09-19T12:00:01.000Z');
+  assert.equal(campaignReporting.provenance.snapshot_observed_at, '2026-09-19T12:00:01.000Z');
+  const noDataReporting = datasets.find((dataset) => (
+    dataset.source_id === 'google-ads-search-reporting'
+    && dataset.provenance.validation_status === 'NO_DATA'
+  ));
+  assert.deepEqual(noDataReporting.rows, []);
+  assert.equal(noDataReporting.provenance.validation_status, 'NO_DATA');
+  assert.equal(noDataReporting.provenance.snapshot_observed_at, '2026-09-19T12:00:01.000Z');
   assert.equal(datasets.every((dataset) => dataset.provenance.raw_artifact_id && dataset.provenance.raw_artifact_sha256), true);
   assert.equal(JSON.stringify(datasets).includes(workRoot), false, 'Export provenance must not leak unrestricted local paths.');
 
-  const serpArtifact = artifacts.get('artifact_9');
+  jobs.push({
+    job_id: 'job_rejected', run_id: run.run_id, source_id: 'google-ads-search-reporting',
+    job_key: 'CAMPAIGN_PERFORMANCE', query_group_id: null,
+    source_context: adsReportingFixture('CAMPAIGN_PERFORMANCE', []).source_context,
+    job_order: 99, execution_status: 'COMPLETED', validation_status: 'INVALID_SCHEMA',
+    attempt_count: 1, accepted_artifact_id: null, created_at: '2026-09-19T12:00:00.000Z',
+    started_at: '2026-09-19T12:00:00.000Z', completed_at: '2026-09-19T12:00:01.000Z',
+  });
+  assert.equal((await loader.loadRunDatasets(run.run_id)).length, datasets.length, 'Rejected evidence must be excluded');
+  jobs.pop();
+
+  const malformedPersisted = await storage.persistRawArtifact({
+    run_id: run.run_id, source_id: 'google-ads-search-reporting', attempt_number: 1,
+    preferred_filename: 'malformed.json', media_type: 'application/json', bytes: jsonBytes({ results: [] }),
+  });
+  jobs.push({
+    job_id: 'job_malformed', run_id: run.run_id, source_id: 'google-ads-search-reporting',
+    job_key: 'CAMPAIGN_PERFORMANCE', query_group_id: null,
+    source_context: adsReportingFixture('CAMPAIGN_PERFORMANCE', []).source_context,
+    job_order: 99, execution_status: 'COMPLETED', validation_status: 'VALID',
+    attempt_count: 1, accepted_artifact_id: 'artifact_malformed', created_at: '2026-09-19T12:00:00.000Z',
+    started_at: '2026-09-19T12:00:00.000Z', completed_at: '2026-09-19T12:00:01.000Z',
+  });
+  artifacts.set('artifact_malformed', {
+    artifact_id: 'artifact_malformed', run_id: run.run_id, job_id: 'job_malformed', attempt_number: 1,
+    source_id: 'google-ads-search-reporting', artifact_kind: 'RAW_SOURCE_FILE', artifact_state: 'ACCEPTED',
+    filename: malformedPersisted.filename, relative_path: malformedPersisted.relative_path,
+    media_type: malformedPersisted.media_type, byte_size: malformedPersisted.byte_size,
+    sha256: malformedPersisted.sha256, created_at: '2026-09-19T12:00:01.000Z',
+  });
+  await assert.rejects(() => loader.loadRunDatasets(run.run_id), /SearchStream|top-level array/i);
+  jobs.pop();
+
+  const serpJob = jobs.find((job) => job.source_id === 'serpapi');
+  const serpArtifact = artifacts.get(serpJob.accepted_artifact_id);
   const serpPath = storage.resolveRunRelativePath(run.run_id, serpArtifact.relative_path);
   const tampered = fs.readFileSync(serpPath);
   tampered[0] ^= 1;
   fs.writeFileSync(serpPath, tampered);
   await assert.rejects(() => loader.loadRunDatasets(run.run_id), /checksum|integrity/i);
 
-  console.log('PASS PRODUCTION-DATA-PACKAGE-001: all nine accepted source artifacts load through verified native normalization with provenance and integrity checks');
+  console.log('PASS PRODUCTION-DATA-PACKAGE-001: accepted source artifacts, including all six Google Ads reporting datasets and NO_DATA provenance, load through verified native normalization and integrity checks');
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });
