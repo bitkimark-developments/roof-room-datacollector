@@ -22,7 +22,12 @@ import { BitkimarkSitemapSource } from '../sources/bitkimark/bitkimark-sitemap-s
 import { normalizeGscQueryRows, normalizeGscRows } from '../sources/google-search-console/query-page-adapter';
 import { normalizeSearchTerms } from '../sources/google-ads/search-terms-adapter';
 import { normalizeKeywordPlanner } from '../sources/google-ads/keyword-planner-adapter';
+import { GoogleAdsSearchReportingValidator } from '../sources/google-ads/search-reporting-validator';
 import { GSC_QUERY_PAGE_SOURCE_ID, GSC_QUERY_SOURCE_ID, GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_SOURCE_ID } from '../../shared/google-api';
+import {
+  GOOGLE_ADS_SEARCH_REPORTING_DATASET_TYPES,
+  GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID,
+} from '../../shared/google-ads-search-reporting';
 import { IKAS_PRODUCTS_SOURCE_ID } from '../../shared/ikas-products';
 import { BITKIMARK_SITEMAP_SOURCE_ID } from '../../shared/bitkimark-sitemap';
 import { SERPAPI_SOURCE_ID, SERPAPI_DATASET_TYPE } from '../../shared/serpapi';
@@ -151,6 +156,14 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
   sourceRegistry.register(new LazyWorkspaceSource(GSC_QUERY_SOURCE_ID, 'Google Search Console Query', 'OFFICIAL_API', ['QUERY'], input.repository, (workspaceId) => googleApi.createSearchConsoleQuerySource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, 'Google Ads Search Terms', 'OFFICIAL_API', ['SEARCH_TERMS'], input.repository,
     (workspaceId) => googleApi.createSearchTermsSource({ workspace_id: workspaceId })));
+  sourceRegistry.register(new LazyWorkspaceSource(
+    GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID,
+    'Google Ads SEARCH Reporting',
+    'OFFICIAL_API',
+    GOOGLE_ADS_SEARCH_REPORTING_DATASET_TYPES,
+    input.repository,
+    (workspaceId) => googleApi.createSearchReportingSource({ workspace_id: workspaceId }),
+  ));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, 'Google Keyword Planner', 'OFFICIAL_API', ['KEYWORD_HISTORICAL_METRICS'], input.repository,
     (workspaceId) => googleApi.createKeywordPlannerSource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID, 'Google Keyword Planner Manual CSV', 'FILE_IMPORT', ['KEYWORD_HISTORICAL_METRICS'], input.repository,
@@ -166,6 +179,10 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
   validators.register(GSC_QUERY_PAGE_SOURCE_ID, new GoogleApiCollectionValidator(GSC_QUERY_PAGE_SOURCE_ID));
   validators.register(GSC_QUERY_SOURCE_ID, new GoogleApiCollectionValidator(GSC_QUERY_SOURCE_ID));
   validators.register(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, new GoogleApiCollectionValidator(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID));
+  validators.register(
+    GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID,
+    new GoogleAdsSearchReportingValidator(),
+  );
   validators.register(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, new GoogleApiCollectionValidator(GOOGLE_KEYWORD_PLANNER_SOURCE_ID));
   validators.register(GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID, new KeywordPlannerManualCsvValidator());
   validators.register(IKAS_PRODUCTS_SOURCE_ID, new IkasProductsValidator());
