@@ -1,14 +1,14 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Checkpoint date:** 2026-09-28
+**Checkpoint date:** 2026-09-29
 
 **Current milestone:** Post-R1 UX & Operations Hardening — UXH2 Workspace Connections
 
-**Current stage:** Keyword Planner post-review hardening complete; full deterministic release gate and arm64 packaging verified; packaged provider-setup acceptance remains next
+**Current stage:** Google Ads Developer Token sunset compatibility complete; full deterministic release gate and darwin/arm64 packaging verified; packaged OAuth/account setup acceptance remains next
 
-**Current goal:** Complete the remaining packaged Google Ads Developer Token / Ads / Keyword Planner setup acceptance without collection, then await explicit authorization for the first bounded GSC live collection acceptance; do not start UXH3
+**Current goal:** Complete the remaining packaged Google OAuth + safe account-metadata setup acceptance without requesting or using a Google Ads Developer Token, then await explicit authorization for any bounded live provider collection acceptance; do not start UXH3
 
-**Current-state authority:** Section 56 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older “next action” statements are superseded where they conflict with Section 56.
+**Current-state authority:** Section 57 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older Developer Token requirements and “next action” statements are superseded where they conflict with Section 57.
 
 ---
 
@@ -3194,3 +3194,52 @@ Retain the Section 55 provider-setup acceptance boundary. Do not make an automat
 With separate explicit authorization, perform the bounded packaged Google provider-setup acceptance: enter the Google Ads Developer Token through the native masked prompt, provide safe Customer ID metadata for Google Ads Search Terms and Keyword Planner, and verify each Connect flow reaches either a safe successful state or an established fixed failure code without starting collection.
 
 Any live GSC, Google Ads, Keyword Planner, SerpApi, or other provider collection remains a separate explicitly authorized action.
+
+## 57. Google Ads Developer Token sunset compatibility — 2026-09-29
+
+The Google Ads Developer Token is retired from active application behavior. Legacy persisted provider configuration and legacy Google credential bundles may still contain an optional `developer_token` field for backward-compatible parsing only.
+
+Relevant checkpoints:
+
+```text
+0cfa610 docs: design developer token sunset compatibility
+b36ddc3 docs: plan developer token sunset compatibility
+9cc1ae7 fix: retire google ads developer token
+```
+
+Active Google provider setup now uses only OAuth Client ID and Client Secret.
+
+The Developer Token is no longer requested, displayed, required for Ads/Keyword Planner readiness, propagated into OAuth application configuration, returned by runtime credential composition, or sent as a `developer-token` request header.
+
+Existing `customer_id` and optional `login_customer_id` behavior remains unchanged. `login-customer-id` request-header behavior is preserved where applicable.
+
+The only remaining source references to `developer_token` are intentional legacy compatibility points in:
+
+```text
+src/main/sources/google-api/google-provider-configuration.ts
+src/main/sources/google-api/google-oauth-credential-acquirer.ts
+```
+
+Fresh verification after `9cc1ae7`:
+
+```text
+npm run test:release:gate    PASS RELEASE-GATE-001
+npm run package              PASS — darwin/arm64
+```
+
+No live provider or collection request was made during this migration.
+
+Older Developer Token setup instructions in earlier sections are historical and superseded by this section.
+
+### Exact next action
+
+Do not request, enter, restore, or reintroduce a Google Ads Developer Token.
+
+With separate explicit authorization, perform packaged Google provider-setup acceptance using the active contract:
+
+1. confirm the shared Google OAuth application configuration is available;
+2. provide only safe Workspace/account metadata required by Google Ads Search Terms and Keyword Planner, including `customer_id` and optional `login_customer_id`;
+3. verify Connect/Reconnect reaches either a safe successful state or an established fixed OAuth/configuration failure code;
+4. do not start collection as part of provider-setup acceptance.
+
+Any live GSC, Google Ads, Keyword Planner, SerpApi, Google Trends, or other provider collection remains a separate explicitly authorized action.
