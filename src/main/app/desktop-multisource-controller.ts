@@ -243,7 +243,20 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
       },
     );
   }
-  if (sourceId === 'google-search-console-query-page') return plans(Array.isArray(config.date_ranges) ? config.date_ranges : [], (item, index) => typeof item.job_key === 'string' ? item.job_key : `gsc-${index + 1}`);
+  if (
+    sourceId === 'google-search-console-query-page'
+    || sourceId === 'google-search-console-query'
+  ) {
+    return plans(
+      Array.isArray(config.date_ranges)
+        ? config.date_ranges
+        : [],
+      (item, index) =>
+        typeof item.job_key === 'string'
+          ? item.job_key
+          : `gsc-${index + 1}`,
+    );
+  }
   if (sourceId === 'serpapi') {
     if (!Array.isArray(config.queries)) return [];
     try {
@@ -2096,6 +2109,111 @@ export class DesktopMultiSourceController {
 
     if (
       sourceId
+        === 'google-search-console-query'
+    ) {
+      const taskId =
+        config.task_id
+          === 'gsc-query-current-previous-28-days'
+          ? config.task_id
+          : null;
+
+      if (taskId === null) {
+        return null;
+      }
+
+      const resolvedAt =
+        this.now();
+
+      const referenceDate =
+        formatLocalReferenceDate(
+          resolvedAt,
+        );
+
+      const currentRange =
+        resolveDesktopDatePolicy(
+          'TODAY_MINUS_28_TO_YESTERDAY',
+          referenceDate,
+        );
+
+      const previousRange =
+        resolveDesktopDatePolicy(
+          'TODAY_MINUS_56_TO_TODAY_MINUS_29',
+          referenceDate,
+        );
+
+      const reusableConfiguration =
+        cloneConfiguration(
+          draft.reusable_configuration,
+        );
+
+      const resolvedConfiguration =
+        cloneConfiguration(
+          draft.reusable_configuration,
+        );
+
+      const resolvedSources =
+        asJsonObjectValue(
+          resolvedConfiguration.sources,
+        );
+
+      const resolvedSource =
+        asJsonObjectValue(
+          resolvedSources[sourceId],
+        );
+
+      resolvedSources[sourceId] = {
+        ...resolvedSource,
+        date_ranges: [
+          {
+            job_key:
+              'gsc-query-current-28',
+            task_id:
+              taskId,
+            period:
+              'CURRENT_28_DAYS',
+            requested_date_start:
+              currentRange.requested_date_start,
+            requested_date_end:
+              currentRange.requested_date_end,
+          },
+          {
+            job_key:
+              'gsc-query-previous-28',
+            task_id:
+              taskId,
+            period:
+              'PREVIOUS_28_DAYS',
+            requested_date_start:
+              previousRange.requested_date_start,
+            requested_date_end:
+              previousRange.requested_date_end,
+          },
+        ],
+      };
+
+      resolvedConfiguration.sources =
+        resolvedSources;
+
+      return {
+        workspace_id:
+          draft.workspace_id,
+        task_id:
+          taskId,
+        source_id:
+          sourceId,
+        reference_date:
+          referenceDate,
+        resolved_at:
+          resolvedAt.toISOString(),
+        reusable_configuration:
+          reusableConfiguration,
+        resolved_configuration:
+          resolvedConfiguration,
+      };
+    }
+
+    if (
+      sourceId
         !== 'google-search-console-query-page'
     ) {
       return null;
@@ -2107,6 +2225,8 @@ export class DesktopMultiSourceController {
           === 'gsc-current-90-days'
         || config.task_id
           === 'gsc-long-16-months'
+        || config.task_id
+          === 'gsc-query-page-current-28-days'
       )
         ? config.task_id
         : null;
@@ -2117,6 +2237,8 @@ export class DesktopMultiSourceController {
           === 'TODAY_MINUS_90_TO_YESTERDAY'
         || config.date_policy
           === 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY'
+        || config.date_policy
+          === 'TODAY_MINUS_28_TO_YESTERDAY'
       )
         ? config.date_policy
         : null;
@@ -2140,6 +2262,12 @@ export class DesktopMultiSourceController {
           === 'gsc-long-16-months'
         && datePolicy
           === 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY'
+      )
+      || (
+        taskId
+          === 'gsc-query-page-current-28-days'
+        && datePolicy
+          === 'TODAY_MINUS_28_TO_YESTERDAY'
       );
 
     if (!taskMatchesPolicy) {

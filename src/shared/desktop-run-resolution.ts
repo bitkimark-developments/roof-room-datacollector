@@ -1,5 +1,7 @@
 export type DesktopDatePolicy =
   | 'TODAY_MINUS_17_TO_YESTERDAY'
+  | 'TODAY_MINUS_28_TO_YESTERDAY'
+  | 'TODAY_MINUS_56_TO_TODAY_MINUS_29'
   | 'TODAY_MINUS_90_TO_YESTERDAY'
   | 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY'
   | 'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY';
@@ -159,7 +161,34 @@ export const resolveDesktopDatePolicy = (
 
   if (
     policy
+    === 'TODAY_MINUS_56_TO_TODAY_MINUS_29'
+  ) {
+    return {
+      reference_date:
+        referenceDate,
+      date_policy:
+        policy,
+      requested_date_start:
+        formatDateOnly(
+          addCalendarDays(
+            reference,
+            -56,
+          ),
+        ),
+      requested_date_end:
+        formatDateOnly(
+          addCalendarDays(
+            reference,
+            -29,
+          ),
+        ),
+    };
+  }
+
+  if (
+    policy
     === 'TODAY_MINUS_90_TO_YESTERDAY'
+    || policy === 'TODAY_MINUS_28_TO_YESTERDAY'
     || policy === 'TODAY_MINUS_17_TO_YESTERDAY'
   ) {
     return {
@@ -171,7 +200,11 @@ export const resolveDesktopDatePolicy = (
         formatDateOnly(
           addCalendarDays(
             reference,
-            policy === 'TODAY_MINUS_17_TO_YESTERDAY' ? -17 : -90,
+            policy === 'TODAY_MINUS_17_TO_YESTERDAY'
+              ? -17
+              : policy === 'TODAY_MINUS_28_TO_YESTERDAY'
+                ? -28
+                : -90,
           ),
         ),
       requested_date_end:

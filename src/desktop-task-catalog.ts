@@ -40,6 +40,36 @@ export const DESKTOP_TASK_CATALOG:
     },
     {
       task_id:
+        'gsc-query-current-previous-28-days',
+      source_id:
+        'google-search-console-query',
+      task_name:
+        'GSC — Queries Current + Previous 28 Days',
+      description:
+        'Query-level Search Console performance for the current and immediately preceding 28-day windows.',
+      group:
+        'GOOGLE',
+      default_summary:
+        'Current 28 days + previous 28 days · complete days through yesterday',
+    },
+    {
+      task_id:
+        'gsc-query-page-current-28-days',
+      source_id:
+        'google-search-console-query-page',
+      task_name:
+        'GSC — Query × Page Current 28 Days',
+      description:
+        'Current Query × Page Search Console performance dataset for the latest 28 complete days.',
+      group:
+        'GOOGLE',
+      default_summary:
+        'Today − 28 days → yesterday',
+      date_policy:
+        'TODAY_MINUS_28_TO_YESTERDAY',
+    },
+    {
+      task_id:
         'gsc-current-90-days',
       source_id:
         'google-search-console-query-page',

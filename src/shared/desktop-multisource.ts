@@ -19,6 +19,7 @@ import type { AttemptRecord } from './attempt';
 
 export const SUPPORTED_DESKTOP_SOURCE_IDS = [
   'google-trends',
+  'google-search-console-query',
   'google-search-console-query-page',
   'google-ads-search-terms',
   'google-keyword-planner',

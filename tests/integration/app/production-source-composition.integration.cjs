@@ -66,11 +66,25 @@ assert.deepEqual(ids, [
   'google-ads-search-terms',
   'google-keyword-planner',
   'google-keyword-planner-csv',
+  'google-search-console-query',
   'google-search-console-query-page',
   'google-trends',
   'ikas-products',
   'serpapi',
 ]);
+const gscQuerySource =
+  runtime.source_registry.get('google-search-console-query');
+
+assert.equal(
+  gscQuerySource.sourceMode,
+  'OFFICIAL_API',
+);
+
+assert.deepEqual(
+  [...gscQuerySource.datasetTypes],
+  ['QUERY'],
+);
+
 for (const id of ids) assert.doesNotThrow(() => runtime.validator_registry.get(id));
 assert.equal(typeof runtime.orchestrator.runUntilBlocked, 'function');
 ;(async () => {
@@ -130,6 +144,51 @@ assert.equal(
 );
 
 fs.unlinkSync(gscArtifact);
+
+const gscQueryArtifact =
+  '/tmp/production-composition-gsc-query.json';
+
+fs.writeFileSync(
+  gscQueryArtifact,
+  JSON.stringify([
+    {
+      rows: [
+        {
+          keys: ['ficus'],
+          clicks: 3,
+          impressions: 10,
+          ctr: 0.3,
+          position: 2.5,
+        },
+      ],
+    },
+  ]),
+);
+
+const gscQueryValidation =
+  await runtime.validator_registry
+    .get('google-search-console-query')
+    .validate({
+      job: {
+        source_id: 'google-search-console-query',
+      },
+      artifact: {
+        source_id: 'google-search-console-query',
+      },
+      absolute_path: gscQueryArtifact,
+      source_context: {
+        requested_date_start: '2026-08-20',
+        requested_date_end: '2026-09-16',
+      },
+    });
+
+assert.equal(
+  gscQueryValidation.validation_status,
+  'VALID',
+  'GSC Query validator must accept raw query-only pages.',
+);
+
+fs.unlinkSync(gscQueryArtifact);
 
 console.log('PASS PRODUCTION-SOURCE-COMPOSITION-001');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

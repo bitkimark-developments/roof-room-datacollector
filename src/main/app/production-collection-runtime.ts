@@ -19,10 +19,10 @@ import { IkasProductsSource } from '../sources/ikas/ikas-products-source';
 import { KeywordPlannerManualCsvSource } from '../sources/google-ads/keyword-planner-csv-source';
 import { KeywordPlannerManualCsvValidator } from '../sources/google-ads/keyword-planner-csv-validator';
 import { BitkimarkSitemapSource } from '../sources/bitkimark/bitkimark-sitemap-source';
-import { normalizeGscRows } from '../sources/google-search-console/query-page-adapter';
+import { normalizeGscQueryRows, normalizeGscRows } from '../sources/google-search-console/query-page-adapter';
 import { normalizeSearchTerms } from '../sources/google-ads/search-terms-adapter';
 import { normalizeKeywordPlanner } from '../sources/google-ads/keyword-planner-adapter';
-import { GSC_QUERY_PAGE_SOURCE_ID, GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_SOURCE_ID } from '../../shared/google-api';
+import { GSC_QUERY_PAGE_SOURCE_ID, GSC_QUERY_SOURCE_ID, GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_SOURCE_ID } from '../../shared/google-api';
 import { IKAS_PRODUCTS_SOURCE_ID } from '../../shared/ikas-products';
 import { BITKIMARK_SITEMAP_SOURCE_ID } from '../../shared/bitkimark-sitemap';
 import { SERPAPI_SOURCE_ID, SERPAPI_DATASET_TYPE } from '../../shared/serpapi';
@@ -72,9 +72,20 @@ class GoogleApiCollectionValidator implements CollectionValidator {
       const fs = await import('node:fs/promises');
       const body = JSON.parse(new TextDecoder().decode(await fs.readFile(context.absolute_path))) as unknown;
       let count = 0;
-      if (this.sourceId === GSC_QUERY_PAGE_SOURCE_ID) {
-        if (!Array.isArray(body)) throw new Error('GSC artifact must contain the raw pages array.');
-        for (const page of body) count += normalizeGscRows(page).length;
+      if (
+        this.sourceId === GSC_QUERY_PAGE_SOURCE_ID
+        || this.sourceId === GSC_QUERY_SOURCE_ID
+      ) {
+        if (!Array.isArray(body)) {
+          throw new Error('GSC artifact must contain the raw pages array.');
+        }
+
+        for (const page of body) {
+          count +=
+            this.sourceId === GSC_QUERY_SOURCE_ID
+              ? normalizeGscQueryRows(page).length
+              : normalizeGscRows(page).length;
+        }
       } else if (this.sourceId === GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID) count = normalizeSearchTerms(body).length;
       else {
         const sourceContext =
@@ -137,6 +148,7 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
   );
 
   sourceRegistry.register(new LazyWorkspaceSource(GSC_QUERY_PAGE_SOURCE_ID, 'Google Search Console Query × Page', 'OFFICIAL_API', ['QUERY_PAGE'], input.repository, (workspaceId) => googleApi.createSearchConsoleSource({ workspace_id: workspaceId })));
+  sourceRegistry.register(new LazyWorkspaceSource(GSC_QUERY_SOURCE_ID, 'Google Search Console Query', 'OFFICIAL_API', ['QUERY'], input.repository, (workspaceId) => googleApi.createSearchConsoleQuerySource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, 'Google Ads Search Terms', 'OFFICIAL_API', ['SEARCH_TERMS'], input.repository,
     (workspaceId) => googleApi.createSearchTermsSource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, 'Google Keyword Planner', 'OFFICIAL_API', ['KEYWORD_HISTORICAL_METRICS'], input.repository,
@@ -152,6 +164,7 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
   const validators = new CollectionValidatorRegistry();
   validators.register('google-trends', new GoogleTrendsCollectionValidator());
   validators.register(GSC_QUERY_PAGE_SOURCE_ID, new GoogleApiCollectionValidator(GSC_QUERY_PAGE_SOURCE_ID));
+  validators.register(GSC_QUERY_SOURCE_ID, new GoogleApiCollectionValidator(GSC_QUERY_SOURCE_ID));
   validators.register(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, new GoogleApiCollectionValidator(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID));
   validators.register(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, new GoogleApiCollectionValidator(GOOGLE_KEYWORD_PLANNER_SOURCE_ID));
   validators.register(GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID, new KeywordPlannerManualCsvValidator());

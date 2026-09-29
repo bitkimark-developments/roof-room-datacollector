@@ -7,7 +7,10 @@ import {
 import type { CredentialStore } from '../../core/credential-store';
 import type { StateRepository } from '../../storage/state-repository';
 import { GoogleAdsSearchTermsSource, GoogleKeywordPlannerSource } from '../google-ads/google-ads-sources';
-import { GoogleSearchConsoleSource } from '../google-search-console/google-search-console-source';
+import {
+  GoogleSearchConsoleQuerySource,
+  GoogleSearchConsoleSource,
+} from '../google-search-console/google-search-console-source';
 import { createFetchApiRequester, type ApiRequester } from './api-helpers';
 import {
   assertGoogleLiveAcceptanceConfirmation,
@@ -90,6 +93,30 @@ export class GoogleApiRuntimeFactory {
     return new GoogleSearchConsoleSource(
       requireMetadataString(connection, 'site_url'),
       createAuthenticatedRequester(oauth, this.requester)
+    );
+  }
+
+  createSearchConsoleQuerySource(input: {
+    workspace_id: string;
+  }): GoogleSearchConsoleQuerySource {
+    const connection = this.requireConnection(
+      input.workspace_id,
+      GSC_QUERY_PAGE_SOURCE_ID,
+    );
+
+    const oauth = new GoogleOAuthClient(
+      this.credentialStore,
+      connection.credential_ref as string,
+      this.requester,
+      () => this.markReauthorizationRequired(connection),
+    );
+
+    return new GoogleSearchConsoleQuerySource(
+      requireMetadataString(connection, 'site_url'),
+      createAuthenticatedRequester(
+        oauth,
+        this.requester,
+      ),
     );
   }
 

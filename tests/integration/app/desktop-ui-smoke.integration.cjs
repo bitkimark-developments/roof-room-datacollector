@@ -3005,6 +3005,8 @@ const main = async () => {
 
     const releaseOneTasks = [
       'Google Trends — Interest Over Time',
+      'GSC — Queries Current + Previous 28 Days',
+      'GSC — Query × Page Current 28 Days',
       'GSC — Current 90 Days',
       'GSC — Long 16 Months',
       'Google Ads — Search Terms',
@@ -3027,7 +3029,7 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      9,
+      11,
     );
 
     const homeGscCard = page.getByTestId('task-card').filter({ hasText: 'GSC — Current 90 Days' });
@@ -3073,7 +3075,7 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      9,
+      11,
     );
 
     await page.getByText(
