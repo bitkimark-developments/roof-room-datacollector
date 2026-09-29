@@ -502,7 +502,8 @@ async function main() {
     assert.equal(runtimeCredential.access_token, 'runtime-access');
     assert.equal(
       runtimeCredential.developer_token,
-      'replacement-provider-developer-token',
+      undefined,
+      'Legacy Developer Token must not propagate into active runtime credentials.',
     );
     const refreshBody = new URLSearchParams(refreshRequest.body);
     assert.equal(refreshBody.get('client_id'), 'replacement-provider-client');
@@ -516,9 +517,8 @@ async function main() {
       {
         client_id: 'replacement-provider-client',
         client_secret: 'replacement-provider-secret',
-        developer_token: 'replacement-provider-developer-token',
       },
-      'Provider-level replacement must take precedence over copied legacy application values.',
+      'Provider-level OAuth replacement must take precedence without republishing legacy Developer Token.',
     );
   }
 

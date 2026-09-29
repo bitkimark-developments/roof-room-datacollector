@@ -76,10 +76,6 @@ const statusFor = (
     && configuration.client_secret !== undefined
       ? 'AVAILABLE'
       : 'NOT_CONFIGURED',
-  ads_developer_token_status:
-    configuration?.developer_token !== undefined
-      ? 'AVAILABLE'
-      : 'NOT_CONFIGURED',
 });
 
 const failure = (
@@ -103,10 +99,7 @@ const isIntent = (
   && value !== null
   && !Array.isArray(value)
   && Object.keys(value).length === 1
-  && (
-    (value as { component?: unknown }).component === 'OAUTH_APPLICATION'
-    || (value as { component?: unknown }).component === 'ADS_DEVELOPER_TOKEN'
-  )
+  && (value as { component?: unknown }).component === 'OAUTH_APPLICATION'
 );
 
 export class GoogleProviderConfigurationService {
@@ -126,12 +119,9 @@ export class GoogleProviderConfigurationService {
   async isReadyForSource(
     sourceId: DesktopGoogleConnectionSourceId,
   ): Promise<boolean> {
+    void sourceId;
     const status = await this.getStatus();
-    return status.oauth_application_status === 'AVAILABLE'
-      && (
-        sourceId === 'google-search-console-query-page'
-        || status.ads_developer_token_status === 'AVAILABLE'
-      );
+    return status.oauth_application_status === 'AVAILABLE';
   }
 
   configure(value: unknown): Promise<GoogleProviderConfigurationResponse> {
@@ -147,9 +137,10 @@ export class GoogleProviderConfigurationService {
   private async configureNormalized(
     component: GoogleProviderConfigurationComponent,
   ): Promise<GoogleProviderConfigurationResponse> {
-    const purposes: SecretIngressPurpose[] = component === 'OAUTH_APPLICATION'
-      ? ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET']
-      : ['GOOGLE_ADS_DEVELOPER_TOKEN'];
+    const purposes: SecretIngressPurpose[] = [
+      'GOOGLE_OAUTH_CLIENT_ID',
+      'GOOGLE_OAUTH_CLIENT_SECRET',
+    ];
     const submitted: string[] = [];
     for (const purpose of purposes) {
       let ingress: SecretIngressResult;
@@ -176,16 +167,11 @@ export class GoogleProviderConfigurationService {
     const previous = await readGoogleProviderConfiguration(
       this.dependencies.credential_store,
     );
-    const next: GoogleProviderConfiguration = component === 'OAUTH_APPLICATION'
-      ? {
-        ...(previous ?? {}),
-        client_id: submitted[0],
-        client_secret: submitted[1],
-      }
-      : {
-        ...(previous ?? {}),
-        developer_token: submitted[0],
-      };
+    const next: GoogleProviderConfiguration = {
+      ...(previous ?? {}),
+      client_id: submitted[0],
+      client_secret: submitted[1],
+    };
 
     try {
       await this.dependencies.credential_store.writeCredential(

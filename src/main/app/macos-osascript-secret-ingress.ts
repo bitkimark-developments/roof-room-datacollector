@@ -19,7 +19,6 @@ const PROMPT_COPY: Record<SecretIngressPurpose, string> = {
   SERPAPI_API_KEY: 'Enter the SerpApi API key for RoofRoom.',
   GOOGLE_OAUTH_CLIENT_ID: 'Enter the Google OAuth Client ID for RoofRoom.',
   GOOGLE_OAUTH_CLIENT_SECRET: 'Enter the Google OAuth Client Secret for RoofRoom.',
-  GOOGLE_ADS_DEVELOPER_TOKEN: 'Enter the Google Ads Developer Token for RoofRoom.',
 };
 
 const promptScript = (purpose: SecretIngressPurpose): string => `try

@@ -92,7 +92,6 @@ const main = async () => {
   const googlePrompts = [
     ['GOOGLE_OAUTH_CLIENT_ID', /Google OAuth Client ID/],
     ['GOOGLE_OAUTH_CLIENT_SECRET', /Google OAuth Client Secret/],
-    ['GOOGLE_ADS_DEVELOPER_TOKEN', /Google Ads Developer Token/],
   ];
   for (const [purpose, expectedPrompt] of googlePrompts) {
     let promptRequest;

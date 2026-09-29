@@ -401,9 +401,9 @@ const encryption = {
     'Bearer access-secret',
   ]);
   assert.equal(providerRequests[0].headers['developer-token'], undefined);
-  assert.equal(providerRequests[1].headers['developer-token'], 'developer-secret');
+  assert.equal(providerRequests[1].headers['developer-token'], undefined);
   assert.equal(providerRequests[1].headers['login-customer-id'], '9876543210');
-  assert.equal(providerRequests[2].headers['developer-token'], 'developer-secret');
+  assert.equal(providerRequests[2].headers['developer-token'], undefined);
   assert.deepEqual(providerRequests[2].body.keywords, [
     'ficus',
     'ficus çeşitleri',

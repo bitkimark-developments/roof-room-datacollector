@@ -49,9 +49,6 @@ export const createElectronGoogleOAuthCredentialAcquirer = (
         ? {
           client_id: configuration.client_id,
           client_secret: configuration.client_secret,
-          ...(configuration.developer_token === undefined
-            ? {}
-            : { developer_token: configuration.developer_token }),
         }
         : null;
     },
@@ -81,7 +78,6 @@ export const bootstrapGoogleOAuthInElectron = async (
     confirmation: string | undefined;
     client_id: string;
     client_secret?: string;
-    developer_token?: string;
     scopes: string[];
     safe_metadata: JsonObject;
   },

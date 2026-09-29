@@ -77,7 +77,6 @@ const encodeTokenRequest = (
 export class GoogleOAuthClient {
   private cachedCredential: {
     access_token: string;
-    developer_token: string | null;
     expires_at: number;
   } | null = null;
 
@@ -101,7 +100,6 @@ export class GoogleOAuthClient {
 
   async getAccessToken(): Promise<{
     access_token: string;
-    developer_token: string | null;
   }> {
     if (
       this.cachedCredential &&
@@ -196,10 +194,6 @@ export class GoogleOAuthClient {
       : 3600;
     this.cachedCredential = {
       access_token: body.access_token,
-      developer_token:
-        providerConfiguration?.developer_token
-        ?? bundle.developer_token
-        ?? null,
       expires_at: Date.now() + (Math.max(0, expiresIn) * 1000),
     };
     return this.cachedCredential;
@@ -220,13 +214,8 @@ export const createAuthenticatedRequester = (
     Authorization: `Bearer ${credential.access_token}`,
     'Content-Type': 'application/json',
   };
-  if (options.google_ads) {
-    if (credential.developer_token) {
-      headers['developer-token'] = credential.developer_token;
-    }
-    if (options.login_customer_id) {
-      headers['login-customer-id'] = options.login_customer_id;
-    }
+  if (options.google_ads && options.login_customer_id) {
+    headers['login-customer-id'] = options.login_customer_id;
   }
   return requester({ ...request, headers });
 };
@@ -256,7 +245,6 @@ export const bootstrapGoogleOAuth = async (
     confirmation: string | undefined;
     client_id: string;
     client_secret?: string;
-    developer_token?: string;
     scopes: string[];
     safe_metadata: JsonObject;
   },
@@ -281,9 +269,6 @@ export const bootstrapGoogleOAuth = async (
       ...(input.client_secret === undefined
         ? {}
         : { client_secret: input.client_secret }),
-      ...(input.developer_token === undefined
-        ? {}
-        : { developer_token: input.developer_token }),
     },
   });
 

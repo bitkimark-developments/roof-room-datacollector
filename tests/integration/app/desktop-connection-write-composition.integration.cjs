@@ -70,22 +70,19 @@ async function main() {
     {
       client_id: 'provider-client',
       client_secret: 'sentinel-provider-secret',
-      developer_token: 'sentinel-provider-developer-token',
     },
-    'Normal application Connect must read the main-owned encrypted provider configuration.',
+    'Normal application Connect must read only the active OAuth application configuration.',
   );
   assert.deepEqual(
     await acquirer.readApplicationConfiguration('cred:existing'),
     {
       client_id: 'provider-client',
       client_secret: 'sentinel-provider-secret',
-      developer_token: 'sentinel-provider-developer-token',
     },
-    'Provider configuration must take precedence over copied legacy bundle values.',
+    'Provider configuration must take precedence over copied legacy bundle values without republishing the legacy Developer Token.',
   );
   assert.deepEqual(await providerService.getStatus(), {
     oauth_application_status: 'AVAILABLE',
-    ads_developer_token_status: 'AVAILABLE',
   });
 
   const mainSource = fs.readFileSync(path.join(projectRoot, 'src', 'main.ts'), 'utf8');

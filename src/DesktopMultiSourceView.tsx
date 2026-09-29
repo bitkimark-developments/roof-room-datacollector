@@ -4941,10 +4941,6 @@ export function DesktopMultiSourceView() {
                     OAuth application: {googleProviderConfiguration
                       ?.oauth_application_status ?? 'NOT_CONFIGURED'}
                   </p>
-                  <p>
-                    Google Ads developer token: {googleProviderConfiguration
-                      ?.ads_developer_token_status ?? 'NOT_CONFIGURED'}
-                  </p>
                   <div className="rr-connection-actions">
                     <button
                       type="button"
@@ -4957,18 +4953,6 @@ export function DesktopMultiSourceView() {
                         === 'AVAILABLE'
                         ? 'Replace OAuth application'
                         : 'Configure OAuth application'}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={pendingGoogleProviderComponent !== null}
-                      onClick={() => {
-                        void configureGoogleProvider('ADS_DEVELOPER_TOKEN');
-                      }}
-                    >
-                      {googleProviderConfiguration?.ads_developer_token_status
-                        === 'AVAILABLE'
-                        ? 'Replace Google Ads developer token'
-                        : 'Configure Google Ads developer token'}
                     </button>
                   </div>
                 </article>
@@ -4989,14 +4973,8 @@ export function DesktopMultiSourceView() {
                         === 'google-search-console-query-page'
                         ? draft.site_url.trim().length > 0
                         : draft.customer_id.trim().length > 0;
-                      const providerReady = connection.source_id
-                        === 'google-search-console-query-page'
-                        ? googleProviderConfiguration
-                          ?.oauth_application_status === 'AVAILABLE'
-                        : googleProviderConfiguration
-                          ?.oauth_application_status === 'AVAILABLE'
-                          && googleProviderConfiguration
-                            .ads_developer_token_status === 'AVAILABLE';
+                      const providerReady = googleProviderConfiguration
+                        ?.oauth_application_status === 'AVAILABLE';
 
                       return (
                         <article

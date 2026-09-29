@@ -24,7 +24,6 @@ export const GOOGLE_ADS_SCOPE =
 export interface GoogleOAuthApplicationConfiguration {
   client_id: string;
   client_secret?: string;
-  developer_token?: string;
 }
 
 export interface GoogleOAuthAcquisitionInput {
@@ -160,13 +159,12 @@ const normalizeApplicationConfiguration = (
   const normalized: GoogleOAuthApplicationConfiguration = {
     client_id: raw.client_id.trim(),
   };
-  for (const key of ['client_secret', 'developer_token'] as const) {
-    const candidate = raw[key];
-    if (candidate === undefined) continue;
-    if (typeof candidate !== 'string') return null;
-    const normalizedCandidate = candidate.trim();
-    if (normalizedCandidate.length === 0) return null;
-    normalized[key] = normalizedCandidate;
+  const clientSecret = raw.client_secret;
+  if (clientSecret !== undefined) {
+    if (typeof clientSecret !== 'string') return null;
+    const normalizedClientSecret = clientSecret.trim();
+    if (normalizedClientSecret.length === 0) return null;
+    normalized.client_secret = normalizedClientSecret;
   }
   return normalized;
 };
@@ -352,7 +350,6 @@ export const exchangeGoogleAuthorizationCode = async (
     client_id: string;
     client_secret?: string;
     credential_ref: string;
-    developer_token?: string;
     granted_scopes?: readonly string[];
   },
   requester: ApiRequester,
@@ -577,9 +574,6 @@ implements GoogleOAuthCredentialAcquirer {
           ...(bundle.client_secret === undefined
             ? {}
             : { client_secret: bundle.client_secret }),
-          ...(bundle.developer_token === undefined
-            ? {}
-            : { developer_token: bundle.developer_token }),
         };
       } catch {
         return null;

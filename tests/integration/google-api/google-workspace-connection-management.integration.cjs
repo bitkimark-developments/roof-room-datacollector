@@ -478,25 +478,36 @@ async function main() {
     assert.deepEqual(harness.refreshes, []);
   }
 
-  for (const [sourceId, configuration] of [
-    [
-      'google-search-console-query-page',
-      { client_id: 'provider-client-without-required-secret' },
-    ],
-    [
-      'google-ads-search-terms',
-      {
+  for (const {
+    sourceId,
+    configuration,
+    expectedCode,
+    shouldAcquire,
+  } of [
+    {
+      sourceId: 'google-search-console-query-page',
+      configuration: { client_id: 'provider-client-without-required-secret' },
+      expectedCode: 'CONNECTION_CONFIGURATION_UNAVAILABLE',
+      shouldAcquire: false,
+    },
+    {
+      sourceId: 'google-ads-search-terms',
+      configuration: {
         client_id: 'provider-client',
         client_secret: 'sentinel-client-secret',
       },
-    ],
-    [
-      'google-keyword-planner',
-      {
+      expectedCode: 'OAUTH_ACQUISITION_FAILED',
+      shouldAcquire: true,
+    },
+    {
+      sourceId: 'google-keyword-planner',
+      configuration: {
         client_id: 'provider-client',
         client_secret: 'sentinel-client-secret',
       },
-    ],
+      expectedCode: 'OAUTH_ACQUISITION_FAILED',
+      shouldAcquire: true,
+    },
   ]) {
     const harness = createHarness();
     harness.acquirer.defaultConfiguration = configuration;
@@ -508,11 +519,11 @@ async function main() {
         : { customer_id: '123' },
     });
     assert.equal(result.ok, false);
-    assert.equal(result.error.code, 'CONNECTION_CONFIGURATION_UNAVAILABLE');
+    assert.equal(result.error.code, expectedCode);
     assert.equal(
       harness.acquirer.calls.some(([kind]) => kind === 'acquire'),
-      false,
-      `${sourceId} must not start OAuth before all provider-level requirements exist.`,
+      shouldAcquire,
+      `${sourceId} OAuth acquisition must follow the active OAuth-only provider requirements.`,
     );
   }
 

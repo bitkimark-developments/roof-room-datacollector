@@ -57,7 +57,6 @@ const main = async () => {
 
   assert.deepEqual(await handlers.getStatus({ marker: 'trusted' }), {
     oauth_application_status: 'AVAILABLE',
-    ads_developer_token_status: 'NOT_CONFIGURED',
   });
 
   for (const invalid of [
@@ -81,21 +80,20 @@ const main = async () => {
 
   const configured = await handlers.configure(
     { marker: 'trusted' },
-    { component: 'ADS_DEVELOPER_TOKEN' },
+    { component: 'OAUTH_APPLICATION' },
   );
   assert.deepEqual(configured, {
     ok: true,
     result: {
-      component: 'ADS_DEVELOPER_TOKEN',
+      component: 'OAUTH_APPLICATION',
       status: {
         oauth_application_status: 'AVAILABLE',
-        ads_developer_token_status: 'AVAILABLE',
       },
     },
   });
   assert.deepEqual(
     calls.filter(([kind]) => kind === 'configure'),
-    [['configure', { component: 'ADS_DEVELOPER_TOKEN' }]],
+    [['configure', { component: 'OAUTH_APPLICATION' }]],
   );
   assert.equal(
     /must-not-cross/.test(JSON.stringify(configured)),

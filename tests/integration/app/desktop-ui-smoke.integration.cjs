@@ -2201,10 +2201,6 @@ const main = async () => {
       'OAuth application: NOT_CONFIGURED',
       { exact: true },
     ).waitFor();
-    await googleProviderConfiguration.getByText(
-      'Google Ads developer token: NOT_CONFIGURED',
-      { exact: true },
-    ).waitFor();
     assert.equal(
       await googleProviderConfiguration.locator('input').count(),
       0,
@@ -2223,21 +2219,12 @@ const main = async () => {
       'OAuth application: AVAILABLE',
       { exact: true },
     ).waitFor();
-    await googleProviderConfiguration.getByRole('button', {
-      name: 'Configure Google Ads developer token',
-      exact: true,
-    }).click();
-    await googleProviderConfiguration.getByText(
-      'Google Ads developer token: AVAILABLE',
-      { exact: true },
-    ).waitFor();
     assert.deepEqual(
       await page.evaluate(() => window.__googleProviderConfigurationCalls),
       [
         { component: 'OAUTH_APPLICATION' },
-        { component: 'ADS_DEVELOPER_TOKEN' },
       ],
-      'Renderer sends only fixed component intents; native prompts own all submitted values.',
+      'Renderer sends only the active OAuth application intent; native prompts own all submitted values.',
     );
     assert.equal(
       await googleProviderConfiguration.getByRole('button', {
@@ -2247,11 +2234,16 @@ const main = async () => {
       1,
     );
     assert.equal(
+      await googleProviderConfiguration.getByText(
+        /Google Ads developer token/i,
+      ).count(),
+      0,
+    );
+    assert.equal(
       await googleProviderConfiguration.getByRole('button', {
-        name: 'Replace Google Ads developer token',
-        exact: true,
+        name: /Google Ads developer token/i,
       }).count(),
-      1,
+      0,
     );
     assert.equal(
       await plannerConnection.getByRole('button', { name: 'Connect' }).isEnabled(),
@@ -2502,13 +2494,13 @@ const main = async () => {
 
     assert.equal(
       await page.evaluate(() => window.__workspaceConnectionReadCount),
-      18,
-      'Initial read, both provider updates, and every connection mutation must reread exactly once.',
+      17,
+      'Initial read, the OAuth provider update, and every connection mutation must reread exactly once.',
     );
     assert.deepEqual(
       await page.evaluate(() => window.__workspaceConnectionReadsAfterMutation),
-      [0, 0, 0, ...Array.from({ length: 15 }, (_, index) => index + 1)],
-      'Provider updates and every connection mutation branch must perform exactly one final reread.',
+      [0, 0, ...Array.from({ length: 15 }, (_, index) => index + 1)],
+      'The OAuth provider update and every connection mutation branch must perform exactly one final reread.',
     );
     assert.deepEqual(
       await page.evaluate(() => window.__workspaceConnectionMutationCalls),

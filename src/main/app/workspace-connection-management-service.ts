@@ -624,10 +624,6 @@ export class WorkspaceConnectionManagementService {
       if (
         configuration !== null
         && configuration.client_secret !== undefined
-        && (
-          sourceId === 'google-search-console-query-page'
-          || configuration.developer_token !== undefined
-        )
       ) return { ok: true, value: configuration };
     } catch {
       // Configuration access fails closed with a safe error code.

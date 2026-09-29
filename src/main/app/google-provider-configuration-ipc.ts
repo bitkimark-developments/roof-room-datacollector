@@ -23,15 +23,11 @@ const safeStatus = (value: unknown): GoogleProviderConfigurationStatus => {
     throw new Error('Google provider configuration service returned an invalid status.');
   }
   const candidate = value as Record<string, unknown>;
-  if (
-    !availability(candidate.oauth_application_status)
-    || !availability(candidate.ads_developer_token_status)
-  ) {
+  if (!availability(candidate.oauth_application_status)) {
     throw new Error('Google provider configuration service returned an invalid status.');
   }
   return {
     oauth_application_status: candidate.oauth_application_status,
-    ads_developer_token_status: candidate.ads_developer_token_status,
   };
 };
 
@@ -46,7 +42,6 @@ const normalizeIntent = (
   ) return null;
   const component = (value as { component?: unknown }).component;
   return component === 'OAUTH_APPLICATION'
-    || component === 'ADS_DEVELOPER_TOKEN'
     ? { component }
     : null;
 };

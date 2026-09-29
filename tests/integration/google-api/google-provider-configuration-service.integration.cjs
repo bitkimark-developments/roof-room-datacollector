@@ -64,7 +64,6 @@ const main = async () => {
 
   assert.deepEqual(await service.getStatus(), {
     oauth_application_status: 'NOT_CONFIGURED',
-    ads_developer_token_status: 'NOT_CONFIGURED',
   });
 
   const oauthResult = await service.configure({
@@ -76,7 +75,6 @@ const main = async () => {
       component: 'OAUTH_APPLICATION',
       status: {
         oauth_application_status: 'AVAILABLE',
-        ads_developer_token_status: 'NOT_CONFIGURED',
       },
     },
   });
@@ -96,21 +94,35 @@ const main = async () => {
     client_secret: 'synthetic-client-secret',
   });
 
-  const developerResult = await service.configure({
-    component: 'ADS_DEVELOPER_TOKEN',
-  });
-  assert.equal(developerResult.ok, true);
-  assert.deepEqual(requests[2], {
-    purpose: 'GOOGLE_ADS_DEVELOPER_TOKEN',
-  });
-  assert.deepEqual(await service.getStatus(), {
-    oauth_application_status: 'AVAILABLE',
-    ads_developer_token_status: 'AVAILABLE',
-  });
+  const requestCountBeforeRetiredIntent = requests.length;
+  assert.deepEqual(
+    await service.configure({ component: 'ADS_DEVELOPER_TOKEN' }),
+    {
+      ok: false,
+      error: {
+        code: 'INVALID_PROVIDER_CONFIGURATION_INTENT',
+        retryable: false,
+      },
+    },
+  );
+  assert.equal(
+    requests.length,
+    requestCountBeforeRetiredIntent,
+    'Retired Developer Token intent must not reach secret ingress.',
+  );
+
+  await store.writeCredential(
+    GOOGLE_PROVIDER_CONFIGURATION_CREDENTIAL_REF,
+    JSON.stringify({
+      client_id: 'synthetic-client-id.apps.googleusercontent.com',
+      client_secret: 'synthetic-client-secret',
+      developer_token: 'synthetic-legacy-developer-token',
+    }),
+  );
   assert.deepEqual(await readGoogleProviderConfiguration(store), {
     client_id: 'synthetic-client-id.apps.googleusercontent.com',
     client_secret: 'synthetic-client-secret',
-    developer_token: 'synthetic-developer-token',
+    developer_token: 'synthetic-legacy-developer-token',
   });
 
   const beforeCancellation = await store.readCredential(

@@ -4,12 +4,10 @@ export type GoogleProviderConfigurationAvailability =
 
 export interface GoogleProviderConfigurationStatus {
   oauth_application_status: GoogleProviderConfigurationAvailability;
-  ads_developer_token_status: GoogleProviderConfigurationAvailability;
 }
 
 export type GoogleProviderConfigurationComponent =
-  | 'OAUTH_APPLICATION'
-  | 'ADS_DEVELOPER_TOKEN';
+  'OAUTH_APPLICATION';
 
 export interface ConfigureGoogleProviderIntent {
   component: GoogleProviderConfigurationComponent;

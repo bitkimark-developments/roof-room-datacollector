@@ -1,8 +1,7 @@
 export type SecretIngressPurpose =
   | 'SERPAPI_API_KEY'
   | 'GOOGLE_OAUTH_CLIENT_ID'
-  | 'GOOGLE_OAUTH_CLIENT_SECRET'
-  | 'GOOGLE_ADS_DEVELOPER_TOKEN';
+  | 'GOOGLE_OAUTH_CLIENT_SECRET';
 
 export type SecretIngressFailureCode =
   | 'PROCESS_UNAVAILABLE'
