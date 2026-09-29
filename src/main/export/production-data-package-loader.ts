@@ -6,7 +6,7 @@ import type { JobRecord, RunRecord } from '../../shared/run-job';
 import type { DataPackageInputDataset } from './data-package-exporter';
 import type { StorageManager } from '../storage/storage-manager';
 import { parseGoogleTrendsInterestOverTimeCsv } from '../sources/google-trends/google-trends-interest-over-time-parser';
-import { normalizeGscRows } from '../sources/google-search-console/query-page-adapter';
+import { normalizeGscQueryRows, normalizeGscRows } from '../sources/google-search-console/query-page-adapter';
 import { normalizeSearchTerms } from '../sources/google-ads/search-terms-adapter';
 import { normalizeKeywordPlanner } from '../sources/google-ads/keyword-planner-adapter';
 import { createKeywordPlannerJobContext } from '../sources/google-ads/keyword-planner-request';
@@ -168,6 +168,11 @@ export class ProductionDataPackageLoader {
         const pages = decodeJson(bytes, 'GSC accepted artifact');
         if (!Array.isArray(pages)) throw new Error('GSC accepted artifact must contain a pages array.');
         return { dataset_type: 'QUERY_PAGE', rows: jsonRows(pages.flatMap(normalizeGscRows)) };
+      }
+      case 'google-search-console-query': {
+        const pages = decodeJson(bytes, 'GSC Query accepted artifact');
+        if (!Array.isArray(pages)) throw new Error('GSC Query accepted artifact must contain a pages array.');
+        return { dataset_type: 'QUERY', rows: jsonRows(pages.flatMap(normalizeGscQueryRows)) };
       }
       case 'google-ads-search-terms':
         return { dataset_type: 'SEARCH_TERMS', rows: jsonRows(normalizeSearchTerms(decodeJson(bytes, 'Google Ads Search Terms accepted artifact'))) };

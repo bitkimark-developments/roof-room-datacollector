@@ -66,7 +66,7 @@ async function main() {
     workspace_id: 'ws_export',
     run_status: 'COMPLETED',
     selected_sources: [
-      'google-trends', 'google-search-console-query-page', 'google-ads-search-terms', 'google-keyword-planner',
+      'google-trends', 'google-search-console-query-page', 'google-search-console-query', 'google-ads-search-terms', 'google-keyword-planner',
       'google-keyword-planner-csv', 'ikas-products', 'bitkimark-sitemap', 'serpapi',
     ],
   };
@@ -81,6 +81,15 @@ async function main() {
       source_id: 'google-search-console-query-page', job_key: 'gsc-current', filename: 'gsc.json', media_type: 'application/json',
       bytes: jsonBytes([{ rows: [{ keys: ['ficus', 'https://bitkimark.com/ficus'], clicks: 2, impressions: 10, ctr: 0.2, position: 3.5 }] }]),
       source_context: { requested_date_start: '2026-06-01', requested_date_end: '2026-09-18' }, validation_status: 'VALID',
+    },
+    {
+      source_id: 'google-search-console-query', job_key: 'gsc-query-current-28', filename: 'gsc-query.json', media_type: 'application/json',
+      bytes: jsonBytes([{ rows: [{ keys: ['monstera'], clicks: 3, impressions: 12, ctr: 0.25, position: 4.5 }] }]),
+      source_context: {
+        task_id: 'gsc-query-current-previous-28-days', period: 'CURRENT_28_DAYS',
+        requested_date_start: '2026-08-22', requested_date_end: '2026-09-18',
+      },
+      validation_status: 'VALID',
     },
     {
       source_id: 'google-ads-search-terms', job_key: 'ads-current', filename: 'ads.json', media_type: 'application/json',
@@ -152,10 +161,16 @@ async function main() {
   const datasets = await loader.loadRunDatasets(run.run_id);
   assert.deepEqual(datasets.map((dataset) => dataset.source_id), run.selected_sources);
   assert.deepEqual(datasets.map((dataset) => dataset.dataset_type), [
-    'INTEREST_OVER_TIME', 'QUERY_PAGE', 'SEARCH_TERMS', 'KEYWORD_HISTORICAL_METRICS',
+    'INTEREST_OVER_TIME', 'QUERY_PAGE', 'QUERY', 'SEARCH_TERMS', 'KEYWORD_HISTORICAL_METRICS',
     'KEYWORD_HISTORICAL_METRICS', 'PRODUCTS', 'SITEMAP_URLS', 'GOOGLE_SERP',
   ]);
   assert.equal(datasets.every((dataset) => dataset.rows.length > 0), true);
+
+  const gscQuery = datasets.find((dataset) => dataset.source_id === 'google-search-console-query');
+  assert.equal(gscQuery.dataset_type, 'QUERY');
+  assert.equal(gscQuery.rows[0].query, 'monstera');
+  assert.equal(gscQuery.rows[0].page, undefined);
+  assert.equal(gscQuery.rows[0].clicks, 3);
   assert.equal(datasets.find((dataset) => dataset.source_id === 'google-keyword-planner').rows[0].monthly_history[0].searches, null);
   assert.equal(datasets.find((dataset) => dataset.source_id === 'ikas-products').rows[0].sale_price, null);
   assert.equal(datasets.find((dataset) => dataset.source_id === 'bitkimark-sitemap').rows[0].parent_sitemap_url, 'https://bitkimark.com/sitemap.xml');
@@ -163,14 +178,14 @@ async function main() {
   assert.equal(datasets.every((dataset) => dataset.provenance.raw_artifact_id && dataset.provenance.raw_artifact_sha256), true);
   assert.equal(JSON.stringify(datasets).includes(workRoot), false, 'Export provenance must not leak unrestricted local paths.');
 
-  const serpArtifact = artifacts.get('artifact_8');
+  const serpArtifact = artifacts.get('artifact_9');
   const serpPath = storage.resolveRunRelativePath(run.run_id, serpArtifact.relative_path);
   const tampered = fs.readFileSync(serpPath);
   tampered[0] ^= 1;
   fs.writeFileSync(serpPath, tampered);
   await assert.rejects(() => loader.loadRunDatasets(run.run_id), /checksum|integrity/i);
 
-  console.log('PASS PRODUCTION-DATA-PACKAGE-001: all eight accepted source artifacts load through verified native normalization with provenance and integrity checks');
+  console.log('PASS PRODUCTION-DATA-PACKAGE-001: all nine accepted source artifacts load through verified native normalization with provenance and integrity checks');
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });
