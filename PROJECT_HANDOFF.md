@@ -3284,3 +3284,45 @@ Protected historical files remain untracked and untouched:
 Begin the bounded Keyword Planner 3-month and year-over-year derived-metrics slice.
 
 First inspect the existing monthly-history and export contracts, then lock the calculation semantics before implementation. Derived metrics must be explicitly labelled derived, provider-native monthly history must remain unchanged, and unavailable comparison periods must remain NULL. Use deterministic fixture-based TDD and do not make a live Keyword Planner request without separate explicit authorization.
+
+## 59. Keyword Planner derived change metrics completion — 2026-09-30
+
+The bounded Keyword Planner 3-month and year-over-year derived-metrics slice is complete.
+
+Relevant checkpoint:
+
+- `a7a638c feat: derive keyword planner change metrics`
+
+Completed behavior:
+
+- `OFFICIAL_API` `change_3_month` is derived from accepted provider-native `monthly_history` by comparing the latest month with the month exactly two calendar months earlier.
+- `OFFICIAL_API` `change_yoy` compares the latest month with the same calendar month in the previous year.
+- Monthly rows are matched by explicit year/month values rather than array order.
+- Missing comparison evidence, missing monthly values, or a zero baseline produces `NULL`.
+- The reviewed/requested provider date range is not silently widened to manufacture YoY evidence.
+- Provider-native monthly history remains unchanged and no monthly rows are fabricated.
+- API 3-month and YoY values are RoofRoom-derived metrics, not provider-native Google Ads metrics.
+- `FILE_IMPORT` remains semantically distinct: imported `Three month change` and `YoY change` values remain provider-exported/native CSV evidence.
+- CSV/XLSX exports preserve derived values as numeric cells while missing values remain blank/empty.
+- True numeric zero remains distinct from missing data.
+
+Verification:
+
+- Google API adapter regression: PASS `GOOGLE-API-001`.
+- Keyword Planner reviewed API suite: 3/3 PASS.
+- Data Package and Keyword Planner CSV/XLSX export contracts: PASS.
+- `npm run test:release:gate`: PASS `RELEASE-GATE-001`.
+- No live provider collection request ran during this slice.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Exact next action
+
+Begin the bounded SERP follow-up stage by inspecting the existing SerpApi source, persisted Job/request context, normalized dataset, export contract, and deterministic tests before changing behavior.
+
+Lock the next SERP scope and evidence semantics before implementation. Preserve on-demand collection and raw provider evidence. Do not reconstruct historical SERP observations that were never collected, and do not add analysis fields such as intent, commercial fit, page-type recommendations, or actions to Collector output.
+
+Use deterministic fixture-based TDD. Do not make a live SerpApi request without separate explicit authorization.
