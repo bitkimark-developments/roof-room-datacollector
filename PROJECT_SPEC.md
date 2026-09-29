@@ -64,11 +64,21 @@ Values from 0 through 100 are relative interest, not search counts. Independentl
 ### 4.2 Google Search Console
 
 - Primary acquisition: official Search Analytics API.
-- Verified datasets: query; query + page; date + query.
-- Native metrics include clicks, impressions, CTR, and average position.
-- Status: feasibility **FINAL PASS**; implementation state is tracked separately.
+- `google-search-console-query`: query-level dataset using the `query` dimension.
+- `google-search-console-query-page`: Query × Page dataset using `query` + `page`.
+- Query and Query × Page remain separate source/data contracts.
+- Native metrics: clicks, impressions, CTR, and average position.
+- Query Current + Previous 28 Days creates two independent Jobs:
+  - Current 28 complete days: today minus 28 days through yesterday.
+  - Previous 28 complete days: today minus 56 days through today minus 29 days.
+- Query × Page supports Current 28 Days, Current 90 Days, and Long 16 Calendar Months.
+- Both GSC contracts reuse the same Workspace GSC connection, Site URL metadata, and OAuth credential boundary.
+- Production Data Package output preserves query-only data as `QUERY` and Query × Page data as `QUERY_PAGE`.
+- Missing numeric provider values remain `NULL`/blank and are never converted to zero.
+- Raw Search Analytics response pages remain preserved separately from normalized output.
+- Status: feasibility **FINAL PASS**; these collection, validation, reviewed-task, and Data Package contracts are implemented.
 
-Privacy filtering, row limits, data latency, property identity, and requested versus returned dimensions must remain visible in provenance.
+Privacy filtering, row limits, data latency, property identity, requested versus returned dimensions, exact requested date windows, and source identity must remain visible in provenance.
 
 ### 4.3 Google Ads Search Terms
 

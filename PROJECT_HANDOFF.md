@@ -3243,3 +3243,44 @@ With separate explicit authorization, perform packaged Google provider-setup acc
 4. do not start collection as part of provider-setup acceptance.
 
 Any live GSC, Google Ads, Keyword Planner, SerpApi, Google Trends, or other provider collection remains a separate explicitly authorized action.
+
+## 58. GSC 28-day dataset completion — 2026-09-29
+
+Google Search Console 28-day expansion is complete in local implementation.
+
+Relevant checkpoints:
+
+- `429ba99 feat: add 28-day gsc query datasets`
+- `f0ab281 fix: export gsc query datasets`
+
+Completed behavior:
+
+- `google-search-console-query` preserves query-level Search Analytics data as dataset type `QUERY`.
+- `google-search-console-query-page` remains the separate Query × Page source with dataset type `QUERY_PAGE`.
+- Query Current + Previous 28 Days resolves into two independent Jobs over adjacent complete 28-day windows.
+- Query × Page Current 28 Days is available alongside the existing Current 90 Days and Long 16 Calendar Months tasks.
+- Both GSC sources reuse the existing Workspace GSC connection, Site URL metadata, OAuth credential boundary, and official API runtime.
+- Raw response pages remain preserved before normalization.
+- Production Data Package now supports the query-only source without inventing a page dimension.
+
+Verification:
+
+- Focused GSC suite: 10/10 PASS.
+- Desktop multi-source regression: PASS.
+- Production source composition: PASS.
+- Desktop UI smoke: PASS.
+- Production Data Package: PASS with all nine accepted source artifacts.
+- `npm run test:release:gate`: PASS RELEASE-GATE-001.
+
+No live GSC or other provider collection request ran during this slice.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Exact next action
+
+Begin the bounded Keyword Planner 3-month and year-over-year derived-metrics slice.
+
+First inspect the existing monthly-history and export contracts, then lock the calculation semantics before implementation. Derived metrics must be explicitly labelled derived, provider-native monthly history must remain unchanged, and unavailable comparison periods must remain NULL. Use deterministic fixture-based TDD and do not make a live Keyword Planner request without separate explicit authorization.
