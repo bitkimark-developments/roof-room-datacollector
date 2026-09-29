@@ -4,6 +4,8 @@ export const GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID = 'google-ads-search-terms';
 export const GOOGLE_KEYWORD_PLANNER_SOURCE_ID = 'google-keyword-planner';
 export const GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID = 'google-keyword-planner-csv';
 
+export * from './google-ads-search-reporting';
+
 export interface GscQueryRow { query: string; clicks: number | null; impressions: number | null; ctr: number | null; position: number | null; }
 export interface GscQueryPageRow { query: string; page: string; clicks: number | null; impressions: number | null; ctr: number | null; position: number | null; }
 export interface AdsSearchTermRow { search_term: string; keyword: string | null; match_type: string | null; campaign: string | null; ad_group: string | null; impressions: number | null; clicks: number | null; ctr: number | null; average_cpc: number | null; cost: number | null; conversions: number | null; conversion_value: number | null; }
