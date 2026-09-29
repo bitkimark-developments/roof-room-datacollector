@@ -20,6 +20,8 @@ import {
 } from './search-reporting-request';
 import { CAMPAIGN_PERFORMANCE_DESCRIPTOR } from './campaigns-request';
 import { AD_GROUP_PERFORMANCE_DESCRIPTOR } from './ad-groups-request';
+import { KEYWORD_PERFORMANCE_DESCRIPTOR } from './keywords-request';
+import { SEARCH_TERMS_DESCRIPTOR } from './search-terms-request';
 
 export interface GoogleAdsSearchReportingDatasetDescriptor {
   readonly dataset_type: GoogleAdsSearchReportingDatasetType;
@@ -30,6 +32,8 @@ export interface GoogleAdsSearchReportingDatasetDescriptor {
 export const GOOGLE_ADS_SEARCH_REPORTING_DATASET_DESCRIPTORS = [
   CAMPAIGN_PERFORMANCE_DESCRIPTOR,
   AD_GROUP_PERFORMANCE_DESCRIPTOR,
+  KEYWORD_PERFORMANCE_DESCRIPTOR,
+  SEARCH_TERMS_DESCRIPTOR,
 ] as const;
 
 const capabilities = (): SourceCapabilities => ({

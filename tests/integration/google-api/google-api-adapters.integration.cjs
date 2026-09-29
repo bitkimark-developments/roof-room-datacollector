@@ -3,14 +3,57 @@ const path = require('node:path');
 const [buildRoot] = process.argv.slice(2);
 if (!buildRoot) throw new Error('Expected compiled build root.');
 const { fetchGscQueryPage } = require(path.join(buildRoot, 'main/sources/google-search-console/query-page-adapter.js'));
-const { fetchSearchTerms } = require(path.join(buildRoot, 'main/sources/google-ads/search-terms-adapter.js'));
+const { fetchSearchTerms, normalizeSearchTerms } = require(path.join(buildRoot, 'main/sources/google-ads/search-terms-adapter.js'));
 const { fetchKeywordPlanner } = require(path.join(buildRoot, 'main/sources/google-ads/keyword-planner-adapter.js'));
 (async () => {
   let gscCalls = 0;
   const gsc = await fetchGscQueryPage({ site_url: 'sc-domain:bitkimark.com', start_date: '2026-06-12', end_date: '2026-09-09' }, async ({ body }) => { gscCalls += 1; return { status: 200, body: gscCalls === 1 ? { rows: Array.from({ length: 25000 }, (_, i) => ({ keys: [`q${i}`, `https://bitkimark.com/p${i}`], clicks: i, impressions: i + 1, ctr: null, position: 3.5 })) } : { rows: [{ keys: ['q-last', 'https://bitkimark.com/last'], clicks: 0, impressions: 0, ctr: 0, position: null }] } }; });
   assert.equal(gscCalls, 2); assert.equal(gsc.rows.length, 25001); assert.equal(gsc.rows[0].query, 'q0');
-  const ads = await fetchSearchTerms({ customer_id: '123', query: 'SELECT search_term_view.search_term FROM search_term_view' }, async () => ({ status: 200, body: [{ search_term: 'ficus', average_cpc_micros: '1250000', cost_micros: 0, impressions: 2, clicks: 1 }] }));
+  const canonicalAdsBody = [{
+    results: [{
+      searchTermView: { searchTerm: 'ficus' },
+      campaign: { id: '1', name: 'Search Campaign', advertisingChannelType: 'SEARCH' },
+      adGroup: { id: '2', name: 'Ficus Group' },
+      segments: {
+        keyword: {
+          adGroupCriterion: 'customers/123/adGroupCriteria/2~3',
+          info: { text: 'ficus plant', matchType: 'PHRASE' },
+        },
+        searchTermMatchType: 'NEAR_PHRASE',
+        searchTermTargetingStatus: 'NONE',
+        date: '2026-09-01',
+      },
+      metrics: {
+        averageCpc: '1250000',
+        costMicros: '0',
+        impressions: '2',
+        clicks: '1',
+        ctr: '0.5',
+        conversions: '0',
+        conversionsValue: null,
+      },
+    }],
+  }];
+  const ads = await fetchSearchTerms({ customer_id: '123', query: 'SELECT search_term_view.search_term FROM search_term_view' }, async () => ({ status: 200, body: canonicalAdsBody }));
+  assert.equal(ads.raw, canonicalAdsBody, 'Canonical raw response must remain untouched');
+  assert.equal(ads.rows[0].search_term, 'ficus');
+  assert.equal(ads.rows[0].keyword, 'ficus plant');
+  assert.equal(ads.rows[0].match_type, 'NEAR_PHRASE');
+  assert.equal(ads.rows[0].campaign, 'Search Campaign');
+  assert.equal(ads.rows[0].ad_group, 'Ficus Group');
   assert.equal(ads.rows[0].average_cpc, 1.25); assert.equal(ads.rows[0].cost, 0);
+  const legacyAds = normalizeSearchTerms([
+    {
+      search_term: 'historical accepted artifact',
+      average_cpc_micros: '0',
+      cost_micros: null,
+      impressions: '0',
+      clicks: null,
+    },
+  ]);
+  assert.equal(legacyAds[0].search_term, 'historical accepted artifact');
+  assert.equal(legacyAds[0].average_cpc, 0);
+  assert.equal(legacyAds[0].cost, null);
   const planner = await fetchKeywordPlanner(
     {
       customer_id: '123',

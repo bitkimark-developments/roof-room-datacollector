@@ -73,8 +73,17 @@ test('ADS-REVIEW-BOUND-001: Review → atomic persisted Job → production reque
     if (url === 'https://oauth2.googleapis.com/token') return Response.json({ access_token: 'fixture-access', expires_in: 3600 });
     assert.equal(url, 'https://googleads.googleapis.com/v25/customers/1234567890/googleAds:searchStream');
     requests.push({ url, ...options, body: JSON.parse(options.body) });
-    // Existing adapter fixture contract; not a claim of live response acceptance.
-    return Response.json([{ search_term: 'ficus', impressions: 2, clicks: 1 }]);
+    // Official-schema-shaped deterministic fixture; this does not call Google.
+    return Response.json([{ results: [{
+      searchTermView: { searchTerm: 'ficus' },
+      campaign: { id: '1', name: 'Search Campaign', advertisingChannelType: 'SEARCH' },
+      adGroup: { id: '2', name: 'Ficus Group' },
+      segments: {
+        keyword: { adGroupCriterion: 'customers/123/adGroupCriteria/2~3', info: { text: 'ficus plant', matchType: 'PHRASE' } },
+        searchTermMatchType: 'NEAR_PHRASE', searchTermTargetingStatus: 'NONE', date: '2026-09-01',
+      },
+      metrics: { impressions: '2', clicks: '1' },
+    }] }]);
   };
   const runtime = createProductionCollectionRuntime({ repository, directories, credentialStore: credentials, googleTrendsSource: { id: 'google-trends' } });
   await runtime.orchestrator.runUntilBlocked(started.run.run_id);
