@@ -6,6 +6,7 @@ import {
 
 import {
   DESKTOP_TASK_CATALOG,
+  type CollectionDesktopTaskDefinition,
   type DesktopTaskDefinition,
   type DesktopTaskGroup,
 } from './desktop-task-catalog';
@@ -31,6 +32,11 @@ import type {
   GoogleProviderConfigurationComponent,
   GoogleProviderConfigurationStatus,
 } from './shared/google-provider-configuration';
+import type {
+  DesktopTaskPackageReview,
+  DesktopTaskPackageStartIntent,
+  DesktopTaskPackageSummary,
+} from './shared/desktop-task-package';
 
 const NAV_ITEMS = [
   'HOME',
@@ -700,14 +706,16 @@ const getRunDisplayName = (
   }
 
   return run.selected_sources.map((sourceId) => (
-    DESKTOP_TASK_CATALOG.find((task) => task.source_id === sourceId)?.task_name
+    DESKTOP_TASK_CATALOG.find((task) => (
+      task.task_kind === 'COLLECTION' && task.source_id === sourceId
+    ))?.task_name
     ?? sourceId
   )).join(' · ');
 };
 
 const runIncludesTask = (
   run: RunRecord,
-  task: DesktopTaskDefinition,
+  task: CollectionDesktopTaskDefinition,
 ): boolean => {
   const taskIds = getRunTaskIds(run);
   return taskIds.length > 0
@@ -724,7 +732,9 @@ const getJobDisplayName = (
       ?? taskId;
   }
 
-  return DESKTOP_TASK_CATALOG.find((task) => task.source_id === job.source_id)
+  return DESKTOP_TASK_CATALOG.find((task) => (
+    task.task_kind === 'COLLECTION' && task.source_id === job.source_id
+  ))
     ?.task_name
     ?? job.source_id;
 };
@@ -909,6 +919,26 @@ export function DesktopMultiSourceView() {
     );
 
   const [
+    taskPackageReview,
+    setTaskPackageReview,
+  ] = useState<DesktopTaskPackageReview | null>(null);
+
+  const [
+    publishedTaskPackage,
+    setPublishedTaskPackage,
+  ] = useState<DesktopTaskPackageSummary | null>(null);
+
+  const [
+    taskPackageCollectionIntent,
+    setTaskPackageCollectionIntent,
+  ] = useState<DesktopTaskPackageStartIntent | null>(null);
+
+  const [
+    taskPackageCollectionRunId,
+    setTaskPackageCollectionRunId,
+  ] = useState<string | null>(null);
+
+  const [
     activeRunState,
     setActiveRunState,
   ] =
@@ -1056,7 +1086,11 @@ export function DesktopMultiSourceView() {
   ]);
 
   useEffect(() => {
-    if (selectedTask === null || runHistory.length === 0) {
+    if (
+      selectedTask === null
+      || selectedTask.task_kind !== 'COLLECTION'
+      || runHistory.length === 0
+    ) {
       setTaskRecentRunStates({});
       return;
     }
@@ -1524,22 +1558,24 @@ export function DesktopMultiSourceView() {
                           task
                         }
                         readiness={
-                          readinessBySource
-                            .get(
-                              task
-                                .source_id,
-                            )
-                          ?? 'NOT_YET_AVAILABLE'
+                          task.task_kind === 'TASK_PACKAGE'
+                            ? 'READY'
+                            : readinessBySource.get(task.source_id)
+                              ?? 'NOT_YET_AVAILABLE'
                         }
                         freshness={
-                          freshnessBySource.get(task.source_id)
-                          ?? 'UNKNOWN'
+                          task.task_kind === 'TASK_PACKAGE'
+                            ? 'ON_DEMAND'
+                            : freshnessBySource.get(task.source_id)
+                              ?? 'UNKNOWN'
                         }
                         onOpen={
                           () => {
                             setQuickRunReview(
                               null,
                             );
+                            setTaskPackageReview(null);
+                            setPublishedTaskPackage(null);
 
                             setSelectedTask(
                               task,
@@ -1744,7 +1780,7 @@ export function DesktopMultiSourceView() {
   const followReadinessRemediation = async (
     remediation: DesktopReadinessRemediation,
   ) => {
-    if (selectedTask === null) return;
+    if (selectedTask === null || selectedTask.task_kind !== 'COLLECTION') return;
 
     if (remediation.kind === 'CONNECT_SOURCE') {
       setSelectedTask(null);
@@ -1771,7 +1807,7 @@ export function DesktopMultiSourceView() {
   };
 
   const buildCurrentTaskSourceConfiguration = (
-    task: DesktopTaskDefinition,
+    task: CollectionDesktopTaskDefinition,
   ): JsonObject | null => {
     if (
       (
@@ -1835,6 +1871,7 @@ export function DesktopMultiSourceView() {
     async () => {
       if (
         selectedTask === null
+        || selectedTask.task_kind !== 'COLLECTION'
         || !workspaceId
       ) {
         return;
@@ -2037,6 +2074,94 @@ export function DesktopMultiSourceView() {
         );
       }
     };
+
+  const loadTaskPackageReview = async (
+    task: Extract<DesktopTaskDefinition, { task_kind: 'TASK_PACKAGE' }>,
+  ) => {
+    if (!workspaceId || busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await window.roofroom.reviewDesktopTaskPackage({
+        workspace_id: workspaceId,
+        recipe_id: task.recipe_id,
+      });
+      if (response.ok === false) {
+        setMessage(formatStatus(response.error.code));
+        return;
+      }
+      setPublishedTaskPackage(null);
+      setTaskPackageReview(response.result);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Task Package Review could not be created.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startSelectedTaskPackage = async () => {
+    if (taskPackageReview === null || busy || !taskPackageReview.can_start) return;
+    const intent: DesktopTaskPackageStartIntent = {
+      workspace_id: taskPackageReview.workspace_id,
+      recipe_id: taskPackageReview.recipe_id,
+      recipe_version: taskPackageReview.recipe_version,
+      reference_date: taskPackageReview.reference_date,
+      current_window: { ...taskPackageReview.current_window },
+      account_identity: { ...taskPackageReview.account_identity },
+    };
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await window.roofroom.startDesktopTaskPackage(intent);
+      if (response.ok === false) {
+        setMessage(formatStatus(response.error.code));
+        return;
+      }
+      if (response.result.status === 'COLLECTION_STARTED') {
+        setTaskPackageCollectionIntent(intent);
+        setTaskPackageCollectionRunId(response.result.run_state.run.run_id);
+        setActiveRunState(response.result.run_state);
+        setTaskPackageReview(null);
+        setSelectedTask(null);
+        setView('RUNS');
+        return;
+      }
+      setPublishedTaskPackage(response.result.package);
+      setTaskPackageCollectionIntent(null);
+      setTaskPackageCollectionRunId(null);
+      setTaskPackageReview(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Task Package could not be started.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openTaskPackage = async (packageId: string) => {
+    if (busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await window.roofroom.openDesktopTaskPackage({ package_id: packageId });
+      if (response.ok === false) setMessage(formatStatus(response.error.code));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Task Package workbook could not be opened.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reviewTaskPackageAgain = async () => {
+    if (taskPackageCollectionIntent === null) return;
+    const task = DESKTOP_TASK_CATALOG.find((candidate) => (
+      candidate.task_kind === 'TASK_PACKAGE'
+      && candidate.recipe_id === taskPackageCollectionIntent.recipe_id
+    ));
+    if (task === undefined || task.task_kind !== 'TASK_PACKAGE') return;
+    setSelectedTask(task);
+    setView('TASKS');
+    await loadTaskPackageReview(task);
+  };
 
   const openHistoryRun =
     async (
@@ -2341,7 +2466,7 @@ export function DesktopMultiSourceView() {
             const task = DESKTOP_TASK_CATALOG.find((candidate) => (
               candidate.task_id === taskId
             ));
-            if (task === undefined) return [];
+            if (task === undefined || task.task_kind !== 'COLLECTION') return [];
             const configuration = buildCurrentTaskSourceConfiguration(task);
             return configuration === null
               ? []
@@ -2485,7 +2610,7 @@ export function DesktopMultiSourceView() {
   };
 
   const setPresetTaskIncluded = (
-    task: DesktopTaskDefinition,
+    task: CollectionDesktopTaskDefinition,
     included: boolean,
   ) => {
     const currentSources = getReusableSources(presetEditorConfiguration);
@@ -2508,14 +2633,15 @@ export function DesktopMultiSourceView() {
   };
 
   const toggleNewPresetTask = (
-    task: DesktopTaskDefinition,
+    task: CollectionDesktopTaskDefinition,
     included: boolean,
   ) => {
     setNewPresetTaskIds((current) => {
-      const withoutSameSource = current.filter((taskId) => (
-        DESKTOP_TASK_CATALOG.find((candidate) => candidate.task_id === taskId)
-          ?.source_id !== task.source_id
-      ));
+      const withoutSameSource = current.filter((taskId) => {
+        const candidate = DESKTOP_TASK_CATALOG.find((item) => item.task_id === taskId);
+        return candidate?.task_kind !== 'COLLECTION'
+          || candidate.source_id !== task.source_id;
+      });
       return included ? [...withoutSameSource, task.task_id] : withoutSameSource;
     });
   };
@@ -3007,7 +3133,187 @@ export function DesktopMultiSourceView() {
             </p>
           )}
 
+          {selectedTask?.task_kind === 'TASK_PACKAGE'
+            && taskPackageReview === null
+            && publishedTaskPackage === null
+            && (
+              <section className="rr-task-detail">
+                <button
+                  type="button"
+                  className="rr-back-button"
+                  onClick={() => navigateTo('TASKS')}
+                >
+                  Back to Tasks
+                </button>
+
+                <header className="rr-task-detail-head">
+                  <div>
+                    <span className="rr-kicker">TASK PACKAGE</span>
+                    <h1>{selectedTask.task_name}</h1>
+                    <p>{selectedTask.description}</p>
+                  </div>
+                  <span className="rr-status rr-status-ready">LOCAL REVIEW</span>
+                </header>
+
+                <section className="rr-panel rr-detail-panel">
+                  <span className="rr-kicker">PACKAGE SCOPE</span>
+                  <h2>Default Configuration</h2>
+                  <p>{selectedTask.default_summary}</p>
+                  <p>Review uses local accepted evidence only.</p>
+                </section>
+
+                <div className="rr-task-detail-actions">
+                  <button
+                    type="button"
+                    className="rr-primary-action"
+                    disabled={busy}
+                    onClick={() => void loadTaskPackageReview(selectedTask)}
+                  >
+                    Review Package
+                  </button>
+                </div>
+              </section>
+            )}
+
+          {selectedTask?.task_kind === 'TASK_PACKAGE'
+            && taskPackageReview !== null
+            && (
+              <section className="rr-review-page" data-testid="task-package-review">
+                <button
+                  type="button"
+                  className="rr-back-button"
+                  onClick={() => setTaskPackageReview(null)}
+                >
+                  Back to Task
+                </button>
+
+                <header className="rr-task-detail-head">
+                  <div>
+                    <span className="rr-kicker">LOCAL PACKAGE REVIEW</span>
+                    <h1>{selectedTask.task_name} Review</h1>
+                    <p>
+                      Current window: {taskPackageReview.current_window.start}
+                      {' → '}
+                      {taskPackageReview.current_window.end}
+                    </p>
+                    <p>
+                      Google Ads readiness:{' '}
+                      {formatStatus(
+                        taskPackageReview.requirements
+                          .find((requirement) => requirement.status === 'BLOCKED')
+                          ?.reason_codes[0]
+                          ?? 'READY',
+                      )}
+                    </p>
+                  </div>
+                  <span className={`rr-status rr-status-${taskPackageReview.status.toLowerCase()}`}>
+                    {formatStatus(taskPackageReview.status)}
+                  </span>
+                </header>
+
+                <div className="rr-detail-sections rr-task-package-requirements">
+                  {taskPackageReview.requirements.map((requirement) => (
+                    <article className="rr-panel rr-detail-panel" key={requirement.requirement_id}>
+                      <span className="rr-kicker">{requirement.dataset_type}</span>
+                      <h2>{formatStatus(requirement.status)}</h2>
+                      {requirement.status === 'NO_DATA' && (
+                        <p>Provider-accepted no data for the exact window.</p>
+                      )}
+                      {requirement.status === 'COLLECT_REQUIRED' && (
+                        <p>Accepted evidence is missing for this exact requirement.</p>
+                      )}
+                      {requirement.reason_codes.length > 0 && (
+                        <p>Reason: {requirement.reason_codes.map(formatStatus).join(', ')}</p>
+                      )}
+                    </article>
+                  ))}
+                </div>
+
+                {taskPackageReview.status === 'INITIAL_BASELINE' && (
+                  <p>No prior comparison exists; this package contains CURRENT evidence only.</p>
+                )}
+
+                {taskPackageReview.status === 'COMPARISON'
+                  && taskPackageReview.previous_window !== undefined
+                  && (
+                    <div className="rr-panel rr-detail-panel">
+                      <p>
+                        Previous window: {taskPackageReview.previous_window.start}
+                        {' → '}
+                        {taskPackageReview.previous_window.end}
+                      </p>
+                      <p>Gap days: {taskPackageReview.gap_days}</p>
+                    </div>
+                  )}
+
+                <div className="rr-task-detail-actions">
+                  {taskPackageReview.status === 'EXISTING_PACKAGE'
+                    && taskPackageReview.existing_package_id !== undefined
+                    && (
+                      <button
+                        type="button"
+                        className="rr-primary-action"
+                        disabled={busy}
+                        onClick={() => void openTaskPackage(taskPackageReview.existing_package_id as string)}
+                      >
+                        Open Workbook
+                      </button>
+                    )}
+                  {taskPackageReview.status === 'NOT_READY'
+                    && taskPackageReview.can_start
+                    && (
+                      <button
+                        type="button"
+                        className="rr-primary-action"
+                        disabled={busy}
+                        onClick={() => void startSelectedTaskPackage()}
+                      >
+                        Start Collection
+                      </button>
+                    )}
+                  {(taskPackageReview.status === 'INITIAL_BASELINE'
+                    || taskPackageReview.status === 'COMPARISON')
+                    && taskPackageReview.can_start
+                    && (
+                      <button
+                        type="button"
+                        className="rr-primary-action"
+                        disabled={busy}
+                        onClick={() => void startSelectedTaskPackage()}
+                      >
+                        Assemble Package
+                      </button>
+                    )}
+                </div>
+              </section>
+            )}
+
+          {selectedTask?.task_kind === 'TASK_PACKAGE'
+            && publishedTaskPackage !== null
+            && (
+              <section className="rr-review-page">
+                <span className="rr-kicker">TASK PACKAGE</span>
+                <h1>Package Published</h1>
+                <p>Package ID: {publishedTaskPackage.package_id}</p>
+                <p>Package kind: {formatStatus(publishedTaskPackage.package_kind)}</p>
+                <p>
+                  Current window: {publishedTaskPackage.current_window.start}
+                  {' → '}
+                  {publishedTaskPackage.current_window.end}
+                </p>
+                <button
+                  type="button"
+                  className="rr-primary-action"
+                  disabled={busy}
+                  onClick={() => void openTaskPackage(publishedTaskPackage.package_id)}
+                >
+                  Open Workbook
+                </button>
+              </section>
+            )}
+
           {selectedTask
+            && selectedTask.task_kind === 'COLLECTION'
             && quickRunReview === null
             && (() => {
             const readiness =
@@ -3683,6 +3989,7 @@ export function DesktopMultiSourceView() {
           })()}
 
           {selectedTask
+            && selectedTask.task_kind === 'COLLECTION'
             && quickRunReview !== null
             && (
               <section
@@ -4496,6 +4803,27 @@ export function DesktopMultiSourceView() {
                     || activeRunState.run.run_status === 'FAILED'
                     || activeRunState.run.run_status === 'CANCELLED'
                   )
+                  && taskPackageCollectionIntent !== null
+                  && taskPackageCollectionRunId === activeRunState.run.run_id
+                  && (
+                    <button
+                      type="button"
+                      className="rr-primary-action"
+                      disabled={busy}
+                      onClick={() => void reviewTaskPackageAgain()}
+                    >
+                      Review Kampanya Gelişim Again
+                    </button>
+                  )
+                }
+
+                {
+                  (
+                    activeRunState.run.run_status === 'COMPLETED'
+                    || activeRunState.run.run_status === 'COMPLETED_WITH_WARNINGS'
+                    || activeRunState.run.run_status === 'FAILED'
+                    || activeRunState.run.run_status === 'CANCELLED'
+                  )
                   && (
                     <div
                       className="rr-task-detail-actions"
@@ -4736,7 +5064,11 @@ export function DesktopMultiSourceView() {
                           </label>
 
                           <div className="rr-preset-task-list">
-                            {DESKTOP_TASK_CATALOG.map((task) => {
+                            {DESKTOP_TASK_CATALOG
+                              .filter((task): task is CollectionDesktopTaskDefinition => (
+                                task.task_kind === 'COLLECTION'
+                              ))
+                              .map((task) => {
                               const configuration = presetEditorSources[task.source_id];
                               const configuredTaskId = typeof configuration === 'object'
                                 && configuration !== null
@@ -4869,7 +5201,11 @@ export function DesktopMultiSourceView() {
                     </label>
 
                     <div className="rr-preset-task-list">
-                      {DESKTOP_TASK_CATALOG.map((task) => {
+                      {DESKTOP_TASK_CATALOG
+                        .filter((task): task is CollectionDesktopTaskDefinition => (
+                          task.task_kind === 'COLLECTION'
+                        ))
+                        .map((task) => {
                         const available = buildCurrentTaskSourceConfiguration(task) !== null;
                         return (
                           <label key={task.task_id}>

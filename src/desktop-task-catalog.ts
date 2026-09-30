@@ -10,19 +10,42 @@ export type DesktopTaskGroup =
   | 'COMMERCE_SITE'
   | 'SEARCH_INTELLIGENCE';
 
-export interface DesktopTaskDefinition {
+interface DesktopTaskDefinitionBase {
   task_id: string;
-  source_id: DesktopSourceId;
   task_name: string;
   description: string;
   group: DesktopTaskGroup;
   default_summary: string;
+}
+
+export interface CollectionDesktopTaskDefinition extends DesktopTaskDefinitionBase {
+  task_kind: 'COLLECTION';
+  source_id: DesktopSourceId;
   date_policy?: DesktopDatePolicy;
 }
+
+export interface TaskPackageDesktopTaskDefinition extends DesktopTaskDefinitionBase {
+  task_kind: 'TASK_PACKAGE';
+  recipe_id: 'ADS_OPTIMIZATION_PACK';
+}
+
+export type DesktopTaskDefinition =
+  | CollectionDesktopTaskDefinition
+  | TaskPackageDesktopTaskDefinition;
 
 export const DESKTOP_TASK_CATALOG:
   readonly DesktopTaskDefinition[] = [
     {
+      task_kind: 'TASK_PACKAGE',
+      task_id: 'ads-optimization-pack',
+      recipe_id: 'ADS_OPTIMIZATION_PACK',
+      task_name: 'Kampanya Gelişim',
+      description: 'Local evidence package for six Google Ads SEARCH reporting datasets.',
+      group: 'GOOGLE',
+      default_summary: 'SEARCH only · last 7 complete local calendar days',
+    },
+    {
+      task_kind: 'COLLECTION',
       task_id:
         'google-trends-interest-over-time',
       source_id:
@@ -39,6 +62,7 @@ export const DESKTOP_TASK_CATALOG:
         'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
     },
     {
+      task_kind: 'COLLECTION',
       task_id:
         'gsc-query-current-previous-28-days',
       source_id:
@@ -53,6 +77,7 @@ export const DESKTOP_TASK_CATALOG:
         'Current 28 days + previous 28 days · complete days through yesterday',
     },
     {
+      task_kind: 'COLLECTION',
       task_id:
         'gsc-query-page-current-28-days',
       source_id:
@@ -69,6 +94,7 @@ export const DESKTOP_TASK_CATALOG:
         'TODAY_MINUS_28_TO_YESTERDAY',
     },
     {
+      task_kind: 'COLLECTION',
       task_id:
         'gsc-current-90-days',
       source_id:
@@ -85,6 +111,7 @@ export const DESKTOP_TASK_CATALOG:
         'TODAY_MINUS_90_TO_YESTERDAY',
     },
     {
+      task_kind: 'COLLECTION',
       task_id:
         'gsc-long-16-months',
       source_id:
@@ -101,6 +128,7 @@ export const DESKTOP_TASK_CATALOG:
         'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
     },
     {
+      task_kind: 'COLLECTION',
       task_id:
         'google-ads-search-terms',
       source_id:
@@ -117,6 +145,7 @@ export const DESKTOP_TASK_CATALOG:
         'TODAY_MINUS_17_TO_YESTERDAY',
     },
     {
+      task_kind: 'COLLECTION',
       task_id:
         'keyword-planner-historical-metrics',
       source_id:
@@ -131,6 +160,7 @@ export const DESKTOP_TASK_CATALOG:
         'Last 12 complete calendar months',
     },
     {
+      task_kind: 'COLLECTION',
       task_id:
         'keyword-planner-manual-csv-import',
       source_id:
@@ -145,6 +175,7 @@ export const DESKTOP_TASK_CATALOG:
         'Observed UTF-16 tab-delimited Keyword Stats export',
     },
     {
+      task_kind: 'COLLECTION',
       task_id:
         'ikas-products-import',
       source_id:
@@ -159,6 +190,7 @@ export const DESKTOP_TASK_CATALOG:
         'Current full Products XLSX export',
     },
     {
+      task_kind: 'COLLECTION',
       task_id:
         'bitkimark-sitemap',
       source_id:
@@ -173,6 +205,7 @@ export const DESKTOP_TASK_CATALOG:
         'Current full inventory · snapshot today',
     },
     {
+      task_kind: 'COLLECTION',
       task_id:
         'serpapi-serp-snapshot',
       source_id:

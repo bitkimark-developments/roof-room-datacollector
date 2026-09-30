@@ -218,6 +218,76 @@ const main = async () => {
           oauth_application_status: 'NOT_CONFIGURED',
           ads_developer_token_status: 'NOT_CONFIGURED',
         };
+        window.__taskPackageReviewMode = 'NOT_READY';
+        window.__taskPackageReviewCalls = [];
+        window.__taskPackageStartCalls = [];
+        window.__taskPackageOpenCalls = [];
+        window.__createDesktopDraftCalls = 0;
+        const taskPackageRequirements = [
+          'CAMPAIGN_PERFORMANCE', 'AD_GROUP_PERFORMANCE', 'KEYWORD_PERFORMANCE',
+          'SEARCH_TERMS', 'AD_PERFORMANCE', 'RSA_ASSET_PERFORMANCE',
+        ];
+        const taskPackageReview = () => {
+          const mode = window.__taskPackageReviewMode;
+          const statuses = mode === 'NOT_READY'
+            ? ['REUSE_EXACT', 'REUSE_FILTERED', 'NO_DATA', 'COLLECT_REQUIRED', 'COLLECT_REQUIRED', 'REUSE_EXACT']
+            : mode === 'BLOCKED'
+              ? taskPackageRequirements.map(() => 'BLOCKED')
+              : taskPackageRequirements.map(() => 'REUSE_EXACT');
+          return {
+            recipe_id: 'ADS_OPTIMIZATION_PACK', recipe_version: 1,
+            recipe_label: 'Kampanya Gelişim', workspace_id: 'ws_fixture',
+            account_identity: { field: 'customer_id', value: '1234567890' },
+            customer_id: '1234567890', reference_date: '2026-09-30',
+            current_window: { start: '2026-09-23', end: '2026-09-29' },
+            status: mode === 'BLOCKED' || mode === 'NOT_READY' ? 'NOT_READY' : mode,
+            can_start: mode !== 'BLOCKED' && mode !== 'EXISTING_PACKAGE',
+            can_open: mode === 'EXISTING_PACKAGE', collection_run_id: null,
+            requirements: taskPackageRequirements.map((dataset_type, index) => ({
+              requirement_id: dataset_type, dataset_type, status: statuses[index],
+              reason_codes: statuses[index] === 'BLOCKED'
+                ? ['CONNECTION_REQUIRED']
+                : statuses[index] === 'COLLECT_REQUIRED'
+                  ? ['NO_COMPATIBLE_EVIDENCE']
+                  : [],
+            })),
+            ...(mode === 'COMPARISON' ? {
+              previous_package_id: 'pkg_previous',
+              previous_window: { start: '2026-09-08', end: '2026-09-14' },
+              gap_days: 8,
+            } : {}),
+            ...(mode === 'EXISTING_PACKAGE' ? { existing_package_id: 'pkg_existing' } : {}),
+          };
+        };
+        const taskPackageRunState = (terminal = false) => ({
+          run: {
+            run_id: 'rr_fixture_package_001', workspace_id: 'ws_fixture',
+            run_status: terminal ? 'COMPLETED' : 'RETRY_REQUIRED',
+            created_at: '2026-09-30T10:00:00.000Z', started_at: '2026-09-30T10:00:01.000Z',
+            completed_at: terminal ? '2026-09-30T10:01:00.000Z' : null,
+            application_version: '1.0.0', selected_sources: ['google-ads-search-reporting'],
+            requested_configuration: null, configuration_snapshot: { task_package: { recipe_id: 'ADS_OPTIMIZATION_PACK' } },
+          },
+          jobs: [
+            {
+              job_id: 'job_package_accepted', run_id: 'rr_fixture_package_001',
+              source_id: 'google-ads-search-reporting', job_key: 'AD_PERFORMANCE', query_group_id: null,
+              source_context: {}, job_order: 0, execution_status: 'COMPLETED', validation_status: 'VALID',
+              attempt_count: 1, accepted_artifact_id: 'artifact_package_accepted',
+              created_at: '2026-09-30T10:00:00.000Z', started_at: '2026-09-30T10:00:01.000Z', completed_at: '2026-09-30T10:00:20.000Z',
+            },
+            {
+              job_id: 'job_package_retry', run_id: 'rr_fixture_package_001',
+              source_id: 'google-ads-search-reporting', job_key: 'RSA_ASSET_PERFORMANCE', query_group_id: null,
+              source_context: {}, job_order: 1, execution_status: terminal ? 'COMPLETED' : 'FAILED',
+              validation_status: terminal ? 'NO_DATA' : 'ERROR_NOT_DATA', attempt_count: terminal ? 2 : 1,
+              accepted_artifact_id: terminal ? 'artifact_package_retry' : null,
+              created_at: '2026-09-30T10:00:00.000Z', started_at: '2026-09-30T10:00:21.000Z', completed_at: '2026-09-30T10:00:30.000Z',
+            },
+          ],
+          completed_jobs: terminal ? 2 : 1, failed_jobs: terminal ? 0 : 1,
+          can_resume: false, can_retry: !terminal, can_cancel: !terminal,
+        });
         window.__presetState = [
           {
             preset_id: 'sp_fixture',
@@ -440,6 +510,7 @@ const main = async () => {
           ),
 
           createDesktopDraft: async (input) => {
+            window.__createDesktopDraftCalls += 1;
             const preset = input.origin.kind === 'SAVED_PRESET'
               ? window.__presetState.find((candidate) => candidate.preset_id === input.origin.preset_id)
               : null;
@@ -467,6 +538,39 @@ const main = async () => {
                   : card,
             ),
           };
+          },
+
+          reviewDesktopTaskPackage: async (reviewIntent) => {
+            window.__taskPackageReviewCalls.push(structuredClone(reviewIntent));
+            return { ok: true, result: taskPackageReview() };
+          },
+          startDesktopTaskPackage: async (startIntent) => {
+            window.__taskPackageStartCalls.push(structuredClone(startIntent));
+            if (window.__taskPackageReviewMode === 'NOT_READY') {
+              return { ok: true, result: { status: 'COLLECTION_STARTED', run_state: taskPackageRunState(false) } };
+            }
+            return {
+              ok: true,
+              result: {
+                status: window.__taskPackageReviewMode === 'EXISTING_PACKAGE'
+                  ? 'EXISTING_PACKAGE'
+                  : 'PACKAGE_PUBLISHED',
+                package: {
+                  package_id: window.__taskPackageReviewMode === 'EXISTING_PACKAGE' ? 'pkg_existing' : 'pkg_published',
+                  package_kind: window.__taskPackageReviewMode === 'COMPARISON' ? 'COMPARISON' : 'INITIAL_BASELINE',
+                  current_window: { start: '2026-09-23', end: '2026-09-29' },
+                  ...(window.__taskPackageReviewMode === 'COMPARISON' ? {
+                    previous_package_id: 'pkg_previous',
+                    previous_window: { start: '2026-09-08', end: '2026-09-14' },
+                    gap_days: 8,
+                  } : {}),
+                },
+              },
+            };
+          },
+          openDesktopTaskPackage: async (input) => {
+            window.__taskPackageOpenCalls.push(structuredClone(input));
+            return { ok: true, result: { package_id: input.package_id } };
           },
 
           createDesktopPreset: async (input) => {
@@ -1349,6 +1453,9 @@ const main = async () => {
 
 
           getDesktopRunState: async (runId) => {
+            if (runId === 'rr_fixture_package_001') {
+              return taskPackageRunState(false);
+            }
             if (runId === 'rr_fixture_cancel_001') {
               window.__openedCancelRunId =
                 runId;
@@ -1653,6 +1760,10 @@ const main = async () => {
 
 
           retryDesktopFailed: async (runId) => {
+            if (runId === 'rr_fixture_package_001') {
+              window.__retriedTaskPackageRunId = runId;
+              return taskPackageRunState(true);
+            }
             if (runId === 'rr_fixture_resume_001') {
               window.__retriedResumeRunId =
                 runId;
@@ -3029,7 +3140,7 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      11,
+      12,
     );
 
     const homeGscCard = page.getByTestId('task-card').filter({ hasText: 'GSC — Current 90 Days' });
@@ -3075,7 +3186,7 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      11,
+      12,
     );
 
     await page.getByText(
@@ -4263,6 +4374,74 @@ const main = async () => {
     await page.getByRole('button', { name: 'Start Run', exact: true }).click();
     assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'SerpApi Start must forward the exact reviewed on-demand batch.');
     console.log('PASS SERPAPI-REVIEW-UI-001: explicit on-demand queries are reviewed and started unchanged');
+
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
+    const packageCard = page.getByTestId('task-card').filter({ hasText: 'Kampanya Gelişim' });
+    assert.equal(await packageCard.count(), 1);
+    const draftCallsBeforePackage = await page.evaluate(() => window.__createDesktopDraftCalls);
+    await packageCard.click();
+    await page.getByRole('heading', { name: 'Kampanya Gelişim', exact: true }).waitFor();
+    assert.equal(await page.getByText('SEARCH only · last 7 complete local calendar days', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Review Package', exact: true }).click();
+    await page.getByRole('heading', { name: 'Kampanya Gelişim Review', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.__createDesktopDraftCalls), draftCallsBeforePackage);
+    assert.deepEqual(await page.evaluate(() => window.__taskPackageReviewCalls.at(-1)), {
+      workspace_id: 'ws_fixture', recipe_id: 'ADS_OPTIMIZATION_PACK',
+    });
+    assert.equal(await page.getByText('Current window: 2026-09-23 → 2026-09-29', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Google Ads readiness: READY', { exact: true }).count(), 1);
+    for (const status of ['REUSE EXACT', 'REUSE FILTERED', 'NO DATA', 'COLLECT REQUIRED']) {
+      assert.equal(await page.getByText(status, { exact: true }).count() > 0, true);
+    }
+    assert.equal(await page.getByText('Provider-accepted no data for the exact window.', { exact: true }).count(), 1);
+    assert.equal(await page.getByText(/0 rows/iu).count(), 0);
+    const packageReviewText = (await page.getByTestId('task-package-review').innerText()).toLowerCase();
+    for (const forbidden of ['recommendation', 'winner', 'loser', 'cpa', 'roas', 'go/pause', 'budget action', 'bid action']) {
+      assert.equal(packageReviewText.includes(forbidden), false, `Task Package UI leaked forbidden judgment ${forbidden}`);
+    }
+
+    await page.getByRole('button', { name: 'Start Collection', exact: true }).click();
+    await page.getByRole('heading', { name: 'Run Detail', exact: true }).waitFor();
+    assert.equal(await page.getByText('AD_PERFORMANCE', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('RSA_ASSET_PERFORMANCE', { exact: true }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'Open Accepted Evidence', exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Retry Failed', exact: true }).click();
+    assert.equal(await page.evaluate(() => window.__retriedTaskPackageRunId), 'rr_fixture_package_001');
+    await page.evaluate(() => { window.__taskPackageReviewMode = 'INITIAL_BASELINE'; });
+    await page.getByRole('button', { name: 'Review Kampanya Gelişim Again', exact: true }).click();
+    await page.getByRole('heading', { name: 'Kampanya Gelişim Review', exact: true }).waitFor();
+    assert.equal(await page.getByText('No prior comparison exists; this package contains CURRENT evidence only.', { exact: true }).count(), 1);
+    assert.equal(await page.getByText(/^Previous window:/u).count(), 0);
+
+    await page.getByRole('button', { name: 'Back to Task', exact: true }).click();
+    await page.evaluate(() => { window.__taskPackageReviewMode = 'COMPARISON'; });
+    await page.getByRole('button', { name: 'Review Package', exact: true }).click();
+    assert.equal(await page.getByText('Previous window: 2026-09-08 → 2026-09-14', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Gap days: 8', { exact: true }).count(), 1);
+    assert.equal(await page.getByText(/better|worse|winner|loser/iu).count(), 0);
+
+    await page.getByRole('button', { name: 'Back to Task', exact: true }).click();
+    await page.evaluate(() => { window.__taskPackageReviewMode = 'EXISTING_PACKAGE'; });
+    await page.getByRole('button', { name: 'Review Package', exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: 'Assemble Package', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Open Workbook', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__taskPackageOpenCalls.at(-1)), { package_id: 'pkg_existing' });
+
+    await page.getByRole('button', { name: 'Back to Task', exact: true }).click();
+    await page.evaluate(() => { window.__taskPackageReviewMode = 'BLOCKED'; });
+    await page.getByRole('button', { name: 'Review Package', exact: true }).click();
+    assert.equal(await page.getByText('Google Ads readiness: CONNECTION REQUIRED', { exact: true }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'Start Collection', exact: true }).count(), 0);
+
+    await page.getByRole('button', { name: 'Back to Task', exact: true }).click();
+    await page.evaluate(() => { window.__taskPackageReviewMode = 'INITIAL_BASELINE'; });
+    await page.getByRole('button', { name: 'Review Package', exact: true }).click();
+    await page.getByRole('button', { name: 'Assemble Package', exact: true }).click();
+    await page.getByRole('heading', { name: 'Package Published', exact: true }).waitFor();
+    assert.equal(await page.getByText('Package ID: pkg_published', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Open Workbook', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__taskPackageOpenCalls.at(-1)), { package_id: 'pkg_published' });
+    assert.equal(await page.evaluate(() => window.__taskPackageStartCalls.length >= 2), true);
 
     await page.getByRole('button', { name: 'PRESETS', exact: true }).click();
     await page.getByRole('heading', { name: 'Presets', exact: true }).waitFor();
