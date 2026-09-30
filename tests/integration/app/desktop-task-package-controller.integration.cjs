@@ -471,6 +471,10 @@ async function main() {
     assert.equal(staleHarness.calls.execute, 0);
   }
   await expectCode(createHarness().controller.start({ ...startIntent(), path: '/tmp/attacker.xlsx' }), 'INVALID_INTENT');
+  await expectCode(createHarness().controller.start({
+    ...startIntent(),
+    workspace_id: ' ws_a ',
+  }), 'INVALID_INTENT');
 
   const activeStartHarness = createHarness({ resolutions: mixed, activeRuns: [activeRun] });
   const activeStart = await activeStartHarness.controller.start(startIntent());

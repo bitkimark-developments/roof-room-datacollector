@@ -240,8 +240,8 @@ const main = async () => {
             account_identity: { field: 'customer_id', value: '1234567890' },
             customer_id: '1234567890', reference_date: '2026-09-30',
             current_window: { start: '2026-09-23', end: '2026-09-29' },
-            status: mode === 'BLOCKED' || mode === 'NOT_READY' ? 'NOT_READY' : mode,
-            can_start: mode !== 'BLOCKED' && mode !== 'EXISTING_PACKAGE',
+            status: mode === 'BLOCKED' || mode === 'NOT_READY' || mode === 'ACTIVE' ? 'NOT_READY' : mode,
+            can_start: mode !== 'BLOCKED' && mode !== 'EXISTING_PACKAGE' && mode !== 'ACTIVE',
             can_open: mode === 'EXISTING_PACKAGE', collection_run_id: null,
             requirements: taskPackageRequirements.map((dataset_type, index) => ({
               requirement_id: dataset_type, dataset_type, status: statuses[index],
@@ -257,6 +257,7 @@ const main = async () => {
               gap_days: 8,
             } : {}),
             ...(mode === 'EXISTING_PACKAGE' ? { existing_package_id: 'pkg_existing' } : {}),
+            ...(mode === 'ACTIVE' ? { collection_run_id: 'rr_fixture_package_001' } : {}),
           };
         };
         const taskPackageRunState = (terminal = false) => ({
@@ -4428,6 +4429,14 @@ const main = async () => {
     assert.deepEqual(await page.evaluate(() => window.__taskPackageOpenCalls.at(-1)), { package_id: 'pkg_existing' });
 
     await page.getByRole('button', { name: 'Back to Task', exact: true }).click();
+    await page.evaluate(() => { window.__taskPackageReviewMode = 'ACTIVE'; });
+    await page.getByRole('button', { name: 'Review Package', exact: true }).click();
+    await page.getByRole('button', { name: 'Open Collection Run', exact: true }).click();
+    await page.getByRole('heading', { name: 'Run Detail', exact: true }).waitFor();
+    assert.equal(await page.getByText('AD_PERFORMANCE', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
+    await packageCard.click();
+
     await page.evaluate(() => { window.__taskPackageReviewMode = 'BLOCKED'; });
     await page.getByRole('button', { name: 'Review Package', exact: true }).click();
     assert.equal(await page.getByText('Google Ads readiness: CONNECTION REQUIRED', { exact: true }).count(), 1);

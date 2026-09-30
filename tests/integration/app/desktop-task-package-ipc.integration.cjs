@@ -52,8 +52,43 @@ const packageResult = {
     current_window: { start: '2026-09-23', end: '2026-09-29' },
   },
 };
+const runState = {
+  run: {
+    run_id: 'run_package_1', workspace_id: 'ws_a', run_status: 'RETRY_REQUIRED',
+    created_at: '2026-09-30T08:00:00.000Z', started_at: '2026-09-30T08:00:01.000Z',
+    completed_at: null, application_version: '1.0.0',
+    selected_sources: ['google-ads-search-reporting'], requested_configuration: null,
+    configuration_snapshot: {
+      task_package: {
+        recipe_id: 'ADS_OPTIMIZATION_PACK', recipe_version: 1, workspace_id: 'ws_a',
+        account_identity: { field: 'customer_id', value: '1234567890' },
+        current_window: { start: '2026-09-23', end: '2026-09-29' },
+      },
+    },
+  },
+  jobs: [{
+    job_id: 'job_package_1', run_id: 'run_package_1', source_id: 'google-ads-search-reporting',
+    job_key: 'AD_PERFORMANCE', query_group_id: null,
+    source_context: {
+      source_id: 'google-ads-search-reporting', dataset_type: 'AD_PERFORMANCE',
+      resource_mode: 'ad_group_ad', campaign_type: 'SEARCH', customer_id: '1234567890',
+      requested_date_start: '2026-09-23', requested_date_end: '2026-09-29',
+      dataset_schema_version: 1,
+    },
+    job_order: 0, execution_status: 'FAILED', validation_status: 'ERROR_NOT_DATA',
+    attempt_count: 1, accepted_artifact_id: null, created_at: '2026-09-30T08:00:00.000Z',
+    started_at: '2026-09-30T08:00:01.000Z', completed_at: '2026-09-30T08:00:02.000Z',
+  }],
+  job_attempts: [{
+    job_id: 'job_package_1', attempt_number: 1, execution_status: 'FAILED',
+    error_code: 'PROVIDER_ERROR', started_at: '2026-09-30T08:00:01.000Z',
+    completed_at: '2026-09-30T08:00:02.000Z',
+  }],
+  completed_jobs: 0, failed_jobs: 1, can_resume: false, can_retry: true, can_cancel: false,
+};
+const collectionResult = { status: 'COLLECTION_STARTED', run_state: runState };
 
-const createHarness = ({ unsafe = false, throwService = false } = {}) => {
+const createHarness = ({ unsafe = false, throwService = false, startResult = packageResult } = {}) => {
   const calls = { trust: 0, review: 0, start: 0, open: 0 };
   const handlers = createDesktopTaskPackageHandlers({
     assertTrustedSender: (event) => {
@@ -69,7 +104,7 @@ const createHarness = ({ unsafe = false, throwService = false } = {}) => {
       start: async () => {
         calls.start += 1;
         if (throwService) throw new Error('secret token /Users/private/provider-body');
-        return unsafe ? { ...packageResult, refresh_token: 'secret' } : packageResult;
+        return unsafe ? { ...packageResult, refresh_token: 'secret' } : startResult;
       },
     },
     open_package: async () => {
@@ -99,6 +134,7 @@ async function main() {
   const invalidReviewPayloads = [
     null, [], {}, { workspace_id: '', recipe_id: 'ADS_OPTIMIZATION_PACK' },
     { ...intent, path: '/tmp/x' }, { ...intent, recipe_id: 'WRONG' },
+    { ...intent, workspace_id: ' ws_a ' },
   ];
   for (const payload of invalidReviewPayloads) {
     const harness = createHarness();
@@ -112,6 +148,7 @@ async function main() {
     { ...startIntent, current_window: { start: '2026-09-23', end: 'bad' } },
     { ...startIntent, account_identity: { field: 'customer_id', value: '' } },
     { ...startIntent, path: '/tmp/x' },
+    { ...startIntent, workspace_id: ' ws_a ' },
   ];
   for (const payload of invalidStartPayloads) {
     const harness = createHarness();
@@ -130,6 +167,17 @@ async function main() {
   assert.deepEqual(await validHarness.handlers.open('trusted', { package_id: 'pkg_safe' }), {
     ok: true, result: { package_id: 'pkg_safe' },
   });
+  const collectionHarness = createHarness({ startResult: collectionResult });
+  assert.deepEqual(await collectionHarness.handlers.start('trusted', startIntent), {
+    ok: true,
+    result: collectionResult,
+  });
+  const unsafeNestedRunState = structuredClone(collectionResult);
+  unsafeNestedRunState.run_state.job_attempts[0].error_code = 'FAILED /Users/private/token';
+  assertSafeFailure(
+    await createHarness({ startResult: unsafeNestedRunState }).handlers.start('trusted', startIntent),
+    'LOCAL_REVIEW_FAILED',
+  );
 
   const unsafeHarness = createHarness({ unsafe: true });
   assertSafeFailure(await unsafeHarness.handlers.review('trusted', intent), 'LOCAL_REVIEW_FAILED');

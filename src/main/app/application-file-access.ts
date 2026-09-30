@@ -1,11 +1,12 @@
 import {
   lstat,
-  open,
+  readFile,
   readdir,
   realpath,
   stat,
 } from 'node:fs/promises';
 import path from 'node:path';
+import { strFromU8, unzipSync } from 'fflate';
 
 import type {
   ApplicationDirectories,
@@ -174,15 +175,24 @@ export const resolveTaskPackageWorkbook = async (
   if (!isInside(packageDirectory, workbookPath)) {
     throw new Error('Task Package workbook escapes its package directory.');
   }
-  const handle = await open(workbookPath, 'r');
+  const bytes = await readFile(workbookPath);
   try {
-    const signature = Buffer.alloc(4);
-    const { bytesRead } = await handle.read(signature, 0, signature.length, 0);
-    if (bytesRead !== 4 || !signature.equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) {
-      throw new Error('Task Package workbook content is invalid.');
-    }
-  } finally {
-    await handle.close();
+    const files = unzipSync(bytes);
+    const contentTypes = files['[Content_Types].xml'];
+    const workbook = files['xl/workbook.xml'];
+    const worksheet = Object.entries(files).find(([filename]) => (
+      /^xl\/worksheets\/sheet\d+\.xml$/u.test(filename)
+    ))?.[1];
+    if (
+      contentTypes === undefined
+      || workbook === undefined
+      || worksheet === undefined
+      || !strFromU8(contentTypes).includes('<Types')
+      || !strFromU8(workbook).includes('<workbook')
+      || !strFromU8(worksheet).includes('<worksheet')
+    ) throw new Error('Task Package workbook content is invalid.');
+  } catch {
+    throw new Error('Task Package workbook content is invalid.');
   }
   return workbookPath;
 };

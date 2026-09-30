@@ -9,6 +9,7 @@ const {
   'node:fs/promises',
 );
 const crypto = require('node:crypto');
+const { strToU8, zipSync } = require('fflate');
 const path = require(
   'node:path',
 );
@@ -37,13 +38,20 @@ const DATASETS = [
   'SEARCH_TERMS', 'AD_PERFORMANCE', 'RSA_ASSET_PERFORMANCE',
 ];
 const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+const validWorkbookBytes = Buffer.from(zipSync({
+  '[Content_Types].xml': strToU8('<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>'),
+  '_rels/.rels': strToU8('<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>'),
+  'xl/workbook.xml': strToU8('<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheets><sheet name="Sheet1" sheetId="1"/></sheets></workbook>'),
+  'xl/_rels/workbook.xml.rels': strToU8('<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"/></Relationships>'),
+  'xl/worksheets/sheet1.xml': strToU8('<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData/></worksheet>'),
+}));
 
 const makeTaskPackage = async (packageId, {
   packageKind = 'INITIAL_BASELINE',
   manifestPackageId = packageId,
   workbookFilename = 'kampanya-gelisim.xlsx',
   workbookKind = 'file',
-  workbookBytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x01]),
+  workbookBytes = validWorkbookBytes,
   omitManifest = false,
 } = {}) => {
   const packageDirectory = path.join(directories.data, 'packages', packageId);
@@ -288,6 +296,13 @@ const main = async () => {
   await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_absolute_workbook'));
   await makeTaskPackage('pkg_corrupt_workbook', { workbookBytes: Buffer.from('not an xlsx') });
   await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_corrupt_workbook'));
+  await makeTaskPackage('pkg_truncated_zip_workbook', {
+    workbookBytes: Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x01]),
+  });
+  await assert.rejects(resolveTaskPackageWorkbook(
+    path.join(directories.data, 'packages'),
+    'pkg_truncated_zip_workbook',
+  ));
 
   console.log(
     'PASS DESKTOP-FILES-001..004: output discovery is safe and Task Package workbooks resolve only by verified package identity',

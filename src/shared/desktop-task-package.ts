@@ -154,8 +154,10 @@ export const isDesktopTaskPackageReviewIntent = (
     && keys[1] === 'workspace_id'
     && typeof value.workspace_id === 'string'
     && value.workspace_id.trim().length > 0
+    && value.workspace_id === value.workspace_id.trim()
     && typeof value.recipe_id === 'string'
-    && value.recipe_id.trim().length > 0;
+    && value.recipe_id.trim().length > 0
+    && value.recipe_id === value.recipe_id.trim();
 };
 
 const exactKeys = (value: Record<string, unknown>, expected: readonly string[]): boolean => {
@@ -183,7 +185,9 @@ export const isDesktopTaskPackageStartIntent = (
     return false;
   }
   return nonEmptyString(value.workspace_id)
+    && value.workspace_id === value.workspace_id.trim()
     && nonEmptyString(value.recipe_id)
+    && value.recipe_id === value.recipe_id.trim()
     && Number.isInteger(value.recipe_version)
     && (value.recipe_version as number) > 0
     && /^\d{4}-\d{2}-\d{2}$/u.test(String(value.reference_date))

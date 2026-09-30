@@ -2137,6 +2137,38 @@ export function DesktopMultiSourceView() {
     }
   };
 
+  const openTaskPackageCollectionRun = async () => {
+    if (
+      taskPackageReview === null
+      || taskPackageReview.collection_run_id === null
+      || busy
+    ) return;
+    const runId = taskPackageReview.collection_run_id;
+    const intent: DesktopTaskPackageStartIntent = {
+      workspace_id: taskPackageReview.workspace_id,
+      recipe_id: taskPackageReview.recipe_id,
+      recipe_version: taskPackageReview.recipe_version,
+      reference_date: taskPackageReview.reference_date,
+      current_window: { ...taskPackageReview.current_window },
+      account_identity: { ...taskPackageReview.account_identity },
+    };
+    setBusy(true);
+    setMessage(null);
+    try {
+      const state = await window.roofroom.getDesktopRunState(runId);
+      setTaskPackageCollectionIntent(intent);
+      setTaskPackageCollectionRunId(runId);
+      setActiveRunState(state);
+      setTaskPackageReview(null);
+      setSelectedTask(null);
+      setView('RUNS');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Collection Run could not be opened.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const openTaskPackage = async (packageId: string) => {
     if (busy) return;
     setBusy(true);
@@ -3247,6 +3279,16 @@ export function DesktopMultiSourceView() {
                   )}
 
                 <div className="rr-task-detail-actions">
+                  {taskPackageReview.collection_run_id !== null && (
+                    <button
+                      type="button"
+                      className="rr-primary-action"
+                      disabled={busy}
+                      onClick={() => void openTaskPackageCollectionRun()}
+                    >
+                      Open Collection Run
+                    </button>
+                  )}
                   {taskPackageReview.status === 'EXISTING_PACKAGE'
                     && taskPackageReview.existing_package_id !== undefined
                     && (

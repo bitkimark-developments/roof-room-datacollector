@@ -12,6 +12,15 @@ import {
 } from '../../shared/desktop-task-package';
 import { countCalendarDays } from '../task-packages/task-package-window';
 import { DesktopTaskPackageControllerError } from './desktop-task-package-controller';
+import {
+  isExecutionStatus,
+  isRunStatus,
+  isValidationStatus,
+} from '../../shared/run-job';
+import {
+  GOOGLE_ADS_SEARCH_REPORTING_RESOURCE_MODE_BY_DATASET,
+  type GoogleAdsSearchReportingDatasetType,
+} from '../../shared/google-ads-search-reporting';
 
 type Controller = {
   review(intent: DesktopTaskPackageReviewIntent): Promise<unknown>;
@@ -68,6 +77,26 @@ const hasExactKeys = (
 
 const isNonEmptyString = (value: unknown): value is string => (
   typeof value === 'string' && value.trim().length > 0
+);
+
+const isSafeIdentifier = (value: unknown): value is string => (
+  typeof value === 'string'
+  && /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u.test(value)
+);
+
+const isIsoTimestamp = (value: unknown): value is string => (
+  typeof value === 'string'
+  && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u.test(value)
+  && !Number.isNaN(Date.parse(value))
+);
+
+const isNullableTimestamp = (value: unknown): boolean => (
+  value === null || isIsoTimestamp(value)
+);
+
+const isSafeErrorCode = (value: unknown): boolean => (
+  value === null
+  || (typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/u.test(value))
 );
 
 const isSafePackageId = (value: unknown): value is string => (
@@ -163,6 +192,35 @@ const isRunState = (value: unknown): boolean => {
     'run_id', 'workspace_id', 'run_status', 'created_at', 'started_at', 'completed_at',
     'application_version', 'selected_sources', 'requested_configuration', 'configuration_snapshot',
   ])) return false;
+  const run = value.run;
+  if (
+    !isSafeIdentifier(run.run_id)
+    || !isSafeIdentifier(run.workspace_id)
+    || !isRunStatus(run.run_status)
+    || !isIsoTimestamp(run.created_at)
+    || !isNullableTimestamp(run.started_at)
+    || !isNullableTimestamp(run.completed_at)
+    || typeof run.application_version !== 'string'
+    || !/^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$/u.test(run.application_version)
+    || !Array.isArray(run.selected_sources)
+    || run.selected_sources.length !== 1
+    || run.selected_sources[0] !== 'google-ads-search-reporting'
+    || run.requested_configuration !== null
+    || !isPlainRecord(run.configuration_snapshot)
+    || !hasExactKeys(run.configuration_snapshot, ['task_package'])
+    || !isPlainRecord(run.configuration_snapshot.task_package)
+  ) return false;
+  const taskPackage = run.configuration_snapshot.task_package;
+  if (
+    !hasExactKeys(taskPackage, [
+      'recipe_id', 'recipe_version', 'workspace_id', 'account_identity', 'current_window',
+    ])
+    || taskPackage.recipe_id !== 'ADS_OPTIMIZATION_PACK'
+    || taskPackage.recipe_version !== 1
+    || taskPackage.workspace_id !== run.workspace_id
+    || !isAccount(taskPackage.account_identity)
+    || !isWindow(taskPackage.current_window)
+  ) return false;
   if (!Array.isArray(value.jobs) || !value.jobs.every((job) => {
     if (!isPlainRecord(job) || !hasExactKeys(job, [
       'job_id', 'run_id', 'source_id', 'job_key', 'query_group_id', 'source_context',
@@ -170,9 +228,13 @@ const isRunState = (value: unknown): boolean => {
       'accepted_artifact_id', 'created_at', 'started_at', 'completed_at',
     ])) return false;
     const context = job.source_context;
-    return job.source_id === 'google-ads-search-reporting'
+    const datasetType = job.job_key as GoogleAdsSearchReportingDatasetType;
+    return isSafeIdentifier(job.job_id)
+      && job.run_id === run.run_id
+      && job.source_id === 'google-ads-search-reporting'
       && typeof job.job_key === 'string'
       && REQUIRED_DATASETS.has(job.job_key)
+      && job.query_group_id === null
       && isPlainRecord(context)
       && hasExactKeys(context, [
         'source_id', 'dataset_type', 'resource_mode', 'campaign_type', 'customer_id',
@@ -180,8 +242,24 @@ const isRunState = (value: unknown): boolean => {
       ])
       && context.source_id === job.source_id
       && context.dataset_type === job.job_key
+      && context.resource_mode === GOOGLE_ADS_SEARCH_REPORTING_RESOURCE_MODE_BY_DATASET[datasetType]
       && context.campaign_type === 'SEARCH'
-      && context.dataset_schema_version === 1;
+      && context.customer_id === taskPackage.account_identity.value
+      && isNonEmptyString(context.customer_id)
+      && isPlainRecord(taskPackage.current_window)
+      && context.requested_date_start === taskPackage.current_window.start
+      && context.requested_date_end === taskPackage.current_window.end
+      && context.dataset_schema_version === 1
+      && Number.isInteger(job.job_order)
+      && (job.job_order as number) >= 0
+      && isExecutionStatus(job.execution_status)
+      && isValidationStatus(job.validation_status)
+      && Number.isInteger(job.attempt_count)
+      && (job.attempt_count as number) >= 0
+      && (job.accepted_artifact_id === null || isSafeIdentifier(job.accepted_artifact_id))
+      && isIsoTimestamp(job.created_at)
+      && isNullableTimestamp(job.started_at)
+      && isNullableTimestamp(job.completed_at);
   })) return false;
   if (Object.hasOwn(value, 'job_attempts') && (
     !Array.isArray(value.job_attempts)
@@ -191,10 +269,19 @@ const isRunState = (value: unknown): boolean => {
         'job_id', 'attempt_number', 'execution_status', 'error_code',
         'started_at', 'completed_at',
       ])
+      && value.jobs.some((job) => isPlainRecord(job) && job.job_id === attempt.job_id)
+      && Number.isInteger(attempt.attempt_number)
+      && (attempt.attempt_number as number) > 0
+      && isExecutionStatus(attempt.execution_status)
+      && isSafeErrorCode(attempt.error_code)
+      && isIsoTimestamp(attempt.started_at)
+      && isNullableTimestamp(attempt.completed_at)
     ))
   )) return false;
   return Number.isInteger(value.completed_jobs)
+    && (value.completed_jobs as number) >= 0
     && Number.isInteger(value.failed_jobs)
+    && (value.failed_jobs as number) >= 0
     && typeof value.can_resume === 'boolean'
     && typeof value.can_retry === 'boolean'
     && typeof value.can_cancel === 'boolean'
