@@ -194,6 +194,7 @@ const evidenceEntry = (value: unknown, index: number): TaskPackageEvidenceEntry 
   const parsedOrigin = origin(record.origin, `${context}.origin`);
   const parsedTransformation = transformation(record.transformation, `${context}.transformation`);
   const parsedTable = tableReference(record.table, `${context}.table`);
+  const parsedWindow = sevenDayWindow(record.window, `${context}.window`);
   const rowCount = integer(record.row_count, `${context}.row_count`);
   const requirementId = string(record.requirement_id, `${context}.requirement_id`);
   if (
@@ -207,8 +208,28 @@ const evidenceEntry = (value: unknown, index: number): TaskPackageEvidenceEntry 
   if (disposition === 'NO_DATA' && (rowCount !== 0 || parsedOrigin.validation_status !== 'NO_DATA')) {
     throw new Error(`${context} NO_DATA evidence is inconsistent.`);
   }
-  if (parsedTransformation.kind === 'DATE_FILTER' && parsedTransformation.output_row_count !== rowCount) {
-    throw new Error(`${context} filtered row counts are inconsistent.`);
+  if (disposition !== 'NO_DATA' && parsedOrigin.validation_status === 'NO_DATA') {
+    throw new Error(`${context} validation/disposition is inconsistent.`);
+  }
+  if ((disposition === 'REUSED_FILTERED') !== (parsedTransformation.kind === 'DATE_FILTER')) {
+    throw new Error(`${context} disposition/transformation is inconsistent.`);
+  }
+  if (parsedTransformation.kind === 'DATE_FILTER') {
+    if (
+      parsedTransformation.row_date_field !== 'performance_date'
+      || parsedTransformation.output_window.start !== parsedWindow.start
+      || parsedTransformation.output_window.end !== parsedWindow.end
+      || parsedTransformation.input_window.start > parsedTransformation.output_window.start
+      || parsedTransformation.input_window.end < parsedTransformation.output_window.end
+      || (
+        parsedTransformation.input_window.start === parsedTransformation.output_window.start
+        && parsedTransformation.input_window.end === parsedTransformation.output_window.end
+      )
+      || parsedTransformation.output_row_count !== rowCount
+      || parsedTransformation.input_row_count < parsedTransformation.output_row_count
+    ) {
+      throw new Error(`${context} filtered transformation is inconsistent.`);
+    }
   }
   const sourcePackageId = record.source_package_id === undefined
     ? undefined
@@ -220,7 +241,7 @@ const evidenceEntry = (value: unknown, index: number): TaskPackageEvidenceEntry 
     requirement_id: requirementId,
     role,
     disposition: disposition as TaskPackageEvidenceEntry['disposition'],
-    window: sevenDayWindow(record.window, `${context}.window`),
+    window: parsedWindow,
     origin: parsedOrigin,
     transformation: parsedTransformation,
     row_count: rowCount,

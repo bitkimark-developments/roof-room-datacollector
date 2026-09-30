@@ -115,6 +115,17 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 async function main() {
   assert.equal(parseTaskPackageManifest(manifestFor()).package_kind, 'INITIAL_BASELINE');
   assert.equal(parseTaskPackageManifest(manifestFor({ comparison: true })).gap_days, 8);
+  const validFiltered = clone(manifestFor());
+  validFiltered.evidence[0].disposition = 'REUSED_FILTERED';
+  validFiltered.evidence[0].transformation = {
+    kind: 'DATE_FILTER',
+    row_date_field: 'performance_date',
+    input_window: { start: '2026-09-20', end: '2026-09-30' },
+    output_window: { start: '2026-09-23', end: '2026-09-29' },
+    input_row_count: 3,
+    output_row_count: 1,
+  };
+  assert.equal(parseTaskPackageManifest(validFiltered).evidence[0].transformation.kind, 'DATE_FILTER');
 
   const invalidCases = [];
   const unsupportedVersion = clone(manifestFor());
@@ -144,6 +155,21 @@ async function main() {
   const inconsistentOrigin = clone(manifestFor());
   inconsistentOrigin.evidence[0].origin.dataset_type = 'SEARCH_TERMS';
   invalidCases.push(inconsistentOrigin);
+  const filteredWithoutTransformation = clone(manifestFor());
+  filteredWithoutTransformation.evidence[0].disposition = 'REUSED_FILTERED';
+  invalidCases.push(filteredWithoutTransformation);
+  const exactWithTransformation = clone(validFiltered);
+  exactWithTransformation.evidence[0].disposition = 'REUSED_EXACT';
+  invalidCases.push(exactWithTransformation);
+  const mismatchedFilterOutput = clone(validFiltered);
+  mismatchedFilterOutput.evidence[0].transformation.output_window = { start: '2026-09-22', end: '2026-09-28' };
+  invalidCases.push(mismatchedFilterOutput);
+  const nonContainingFilterInput = clone(validFiltered);
+  nonContainingFilterInput.evidence[0].transformation.input_window = { start: '2026-09-24', end: '2026-09-30' };
+  invalidCases.push(nonContainingFilterInput);
+  const inventedFilterRows = clone(validFiltered);
+  inventedFilterRows.evidence[0].transformation.input_row_count = 0;
+  invalidCases.push(inventedFilterRows);
   for (const invalid of invalidCases) {
     assert.throws(() => parseTaskPackageManifest(invalid), /manifest|package|field|window|dataset|forbidden|path/i);
   }
