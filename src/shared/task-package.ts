@@ -98,7 +98,7 @@ export interface TaskPackageManifestV1 {
   package_kind: TaskPackageKind;
   workspace_id: string;
   account_identity: TaskPackageAccountIdentity;
-  customer_id?: string;
+  customer_id: string;
   created_at: string;
   application_version: string;
   campaign_scope: string;
