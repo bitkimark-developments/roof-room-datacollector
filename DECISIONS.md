@@ -2038,6 +2038,8 @@ CURRENT is the last seven complete calendar days. Exact compatible evidence is p
 
 The first complete package is `INITIAL_BASELINE`. PREVIOUS for a later `COMPARISON` comes only from checksum-verified CURRENT tables in the latest compatible non-overlapping immutable package. Package JSON tables, XLSX, and a strict manifest are derived outputs stored under `ApplicationDirectories.data/packages`; raw artifacts remain unchanged in canonical run storage.
 
+Desktop Review and Start are separate trusted main-process operations. Review is local-only. Start re-resolves authoritative state; it may publish complete evidence locally or reserve only missing SEARCH reporting Jobs through the existing Core lifecycle. Retry remains a Run Detail/Core operation, terminal collection requires fresh Review, and package opening accepts package identity rather than a renderer path.
+
 ## Consequences
 
 - unresolved requirements return visible `NOT_READY` outcomes without empty-data substitution;
@@ -2045,7 +2047,8 @@ The first complete package is `INITIAL_BASELINE`. PREVIOUS for a later `COMPARIS
 - generic package code remains independent of Google Ads GAQL and worksheet columns;
 - the Ads exporter owns explicit provider-native sheets/columns and emits no optimization judgment;
 - deterministic package gates make no live provider calls;
-- Slice C UI/IPC orchestration and expanded live Google Ads acceptance remain separate work.
+- the desktop controller/preload/IPC composition exposes only fixed safe results and keeps filesystem resolution in main;
+- expanded live Google Ads acceptance remains separate work.
 
 ---
 

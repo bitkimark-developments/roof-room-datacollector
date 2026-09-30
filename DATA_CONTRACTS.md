@@ -433,6 +433,8 @@ Each immutable package manifest records recipe/package identity, Workspace/custo
 
 The workbook and JSON tables preserve provider-native evidence only. `null` remains blank/null, true zero remains numeric zero, nested Ads arrays are deterministic JSON strings in XLSX, and formula-like provider text remains a literal string cell. No recommendation, delta, score, winner/loser, GO/PAUSE, or optimization judgment is generated.
 
+Desktop Review accepts only Workspace and recipe identity and returns safe package state plus the six requirement outcomes. Start carries the reviewed recipe/version, reference date, exact CURRENT window, and account identity, but the main process re-resolves all authoritative state before acting. Ready evidence may publish locally; missing evidence may reserve only missing `google-ads-search-reporting` SEARCH Jobs through Core. A terminal collection Run requires a fresh Review before publication. Existing identical verified packages are returned rather than duplicated. Open accepts only `package_id`; stored manifest/workbook resolution, containment, regular-file/symlink checks, and Electron shell access remain main-process responsibilities. These contracts add no SQLite table or schema migration.
+
 ### Keyword Planner historical metrics
 
 Preserve keyword, average monthly searches, competition, competition index, monthly rows (`year`, `month`, nullable searches), and bid metrics when returned. API and manual CSV outputs may normalize to compatible tables while retaining distinct acquisition provenance.

@@ -3420,3 +3420,46 @@ Protected historical files remain untracked and untouched:
 ### Exact next action
 
 Review this Slice B checkpoint and its canonical documentation commit. Do not merge or push without explicit instruction. The next implementation scope, only after separate approval, is Slice C desktop workflow/hardening; live Google Ads acceptance remains a separately authorized, quota-conscious step and is not part of routine regression.
+
+## 62. ADS_OPTIMIZATION_PACK v1 — deterministic Slice C desktop completion — 2026-09-30
+
+The approved Slice C plan is complete in local deterministic implementation on `feat/ads-optimization-pack-slice-c`. The final implementation/gate checkpoint before this documentation reconciliation is `01d17c2` (`test: gate ads optimization desktop workflow`).
+
+Implemented boundaries:
+
+- `Kampanya Gelişim` is a Task Package entry in the existing desktop catalog and is excluded from collection presets, source freshness, and ordinary task/run matching;
+- Review is local-only and exposes the exact CURRENT window, safe Google Ads readiness, and all six requirement outcomes;
+- Start re-resolves authoritative main-process state, publishes ready evidence locally, or reserves only missing `google-ads-search-reporting` SEARCH Jobs through the existing Core lifecycle;
+- collection Run Detail retains polling, accepted-evidence opening, and failed-Job retry ownership, and terminal collection requires a fresh Review before publication;
+- identical verified packages are returned/opened instead of duplicated;
+- preload/main IPC uses exact safe contracts, and Open accepts only package identity while verified filesystem resolution and Electron shell access remain in main;
+- the implementation adds no database or schema migration and introduces no provider acquisition path in the controller, assembler, store, or exporter.
+
+Implementation commits after the approved Slice C checkpoint:
+
+- `6172e5c feat: review ads optimization packages`
+- `999fdcf feat: start and open ads optimization packages`
+- `0c77dba feat: compose task package desktop IPC`
+- `b1e4985 feat: add ads optimization desktop workflow`
+- `01d17c2 test: gate ads optimization desktop workflow`
+
+Fresh deterministic verification:
+
+- `npm run test:m7:ads-optimization-pack-desktop` — PASS `ADS-OPTIMIZATION-PACK-DESKTOP-GATE-001`;
+- `npm run test:m5:desktop-ui` — PASS `DESKTOP-UI-001`;
+- `npm run test:m7:ads-optimization-pack` — PASS `ADS-OPTIMIZATION-PACK-GATE-001`;
+- `npm run test:m3:google-ads-search-reporting` — PASS `GOOGLE-ADS-SEARCH-REPORTING-GATE-001`;
+- desktop multi-source/retry, Production Data Package, and generic Data Package regressions — PASS;
+- `npm run lint` and `npx tsc --noEmit` — PASS;
+- `npm run test:release:gate` — PASS `RELEASE-GATE-001`.
+
+No live Google/provider call was made. Expanded live acceptance for the additional Google Ads reporting resources remains unverified and requires separate explicit authorization. Packaged-app visual/runtime acceptance was not part of this deterministic slice. Performance Max remains outside the contract.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Exact next action
+
+Review this Slice C checkpoint and its documentation commit. Do not merge or push without explicit instruction. If further acceptance is authorized, scope packaged-app desktop verification separately from quota-conscious live Google Ads reporting acceptance; neither is implied by the deterministic completion recorded here.
