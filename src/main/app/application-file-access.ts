@@ -162,8 +162,9 @@ export const resolveTaskPackageWorkbook = async (
   const manifest = scanned.manifests.find((candidate) => candidate.package_id === package_id);
   if (manifest === undefined) throw new Error('Task Package is missing or invalid.');
 
-  const packageDirectory = await realpath(path.join(root, package_id));
-  if (!isInside(root, packageDirectory)) throw new Error('Task Package directory is invalid.');
+  const canonicalRoot = await realpath(root);
+  const packageDirectory = await realpath(path.join(canonicalRoot, package_id));
+  if (!isInside(canonicalRoot, packageDirectory)) throw new Error('Task Package directory is invalid.');
   const candidate = path.join(packageDirectory, manifest.workbook_filename);
   const candidateStat = await lstat(candidate);
   if (!candidateStat.isFile() || candidateStat.isSymbolicLink()) {

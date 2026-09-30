@@ -27,6 +27,13 @@ import type {
   GoogleProviderConfigurationResponse,
   GoogleProviderConfigurationStatus,
 } from './google-provider-configuration';
+import type {
+  DesktopTaskPackageResponse,
+  DesktopTaskPackageReview,
+  DesktopTaskPackageReviewIntent,
+  DesktopTaskPackageStartIntent,
+  DesktopTaskPackageStartResult,
+} from './desktop-task-package';
 
 export const IPC_CHANNELS = {
   GET_APPLICATION_INFO: 'app:get-application-info',
@@ -72,6 +79,9 @@ export const IPC_CHANNELS = {
   DESKTOP_OPEN_ACCEPTED_EVIDENCE: 'desktop:open-accepted-evidence',
   DESKTOP_EXPORT: 'desktop:export',
   DESKTOP_SELECT_INPUT_FILE: 'desktop:select-input-file',
+  DESKTOP_TASK_PACKAGE_REVIEW: 'desktop:task-package:review',
+  DESKTOP_TASK_PACKAGE_START: 'desktop:task-package:start',
+  DESKTOP_TASK_PACKAGE_OPEN: 'desktop:task-package:open',
 } as const;
 
 export type DesktopInputFileKind =
@@ -180,4 +190,13 @@ export interface RoofRoomApi {
   selectDesktopInputFile: (
     input: DesktopInputFileSelectionRequest,
   ) => Promise<DesktopInputFileSelectionResult>;
+  reviewDesktopTaskPackage: (
+    intent: DesktopTaskPackageReviewIntent,
+  ) => Promise<DesktopTaskPackageResponse<DesktopTaskPackageReview>>;
+  startDesktopTaskPackage: (
+    intent: DesktopTaskPackageStartIntent,
+  ) => Promise<DesktopTaskPackageResponse<DesktopTaskPackageStartResult>>;
+  openDesktopTaskPackage: (
+    input: { package_id: string },
+  ) => Promise<DesktopTaskPackageResponse<{ package_id: string }>>;
 }

@@ -118,6 +118,21 @@ const roofroomApi: RoofRoomApi = {
       IPC_CHANNELS.DESKTOP_SELECT_INPUT_FILE,
       input,
     ),
+  reviewDesktopTaskPackage: (intent) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.DESKTOP_TASK_PACKAGE_REVIEW,
+      intent,
+    ),
+  startDesktopTaskPackage: (intent) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.DESKTOP_TASK_PACKAGE_START,
+      intent,
+    ),
+  openDesktopTaskPackage: (input) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.DESKTOP_TASK_PACKAGE_OPEN,
+      input,
+    ),
 };
 
 contextBridge.exposeInMainWorld('roofroom', roofroomApi);

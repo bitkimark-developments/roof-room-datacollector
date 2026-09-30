@@ -7,6 +7,7 @@ import {
 } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { lstat } from 'node:fs/promises';
 import started from 'electron-squirrel-startup';
 
@@ -20,6 +21,10 @@ import type {
 import {
   findLatestExportWorkbook,
 } from './main/app/application-file-access';
+import {
+  createAdsOptimizationPackDesktopComposition,
+} from './main/app/ads-optimization-pack-desktop-composition';
+import { createDesktopTaskPackageHandlers } from './main/app/desktop-task-package-ipc';
 import {
   ensureExternalQueryConfig,
   loadQueryConfig,
@@ -106,6 +111,8 @@ let googleTrendsShutdownPromise:
 let desktopMultiSourceController: DesktopMultiSourceController | null = null;
 let desktopRepository: StateRepository | null = null;
 let desktopExecutionService: DesktopExecutionService | null = null;
+let desktopTaskPackageComposition:
+  ReturnType<typeof createAdsOptimizationPackDesktopComposition> | null = null;
 let workspaceConnectionManagementService:
   WorkspaceConnectionManagementService | null = null;
 let googleProviderConfigurationService:
@@ -165,6 +172,8 @@ const registerIpcHandlers = (
     WorkspaceConnectionManagementService | null = workspaceConnectionManagementService,
   providerConfigurationService:
     GoogleProviderConfigurationService | null = googleProviderConfigurationService,
+  taskPackageComposition:
+    ReturnType<typeof createAdsOptimizationPackDesktopComposition> | null = desktopTaskPackageComposition,
 ): void => {
   const requireController =
     (): GoogleTrendsDesktopController => {
@@ -367,6 +376,15 @@ const registerIpcHandlers = (
       return providerConfigurationService;
     };
 
+  const requireTaskPackageComposition = () => {
+    if (taskPackageComposition === null) {
+      throw new Error(
+        'Desktop Task Package workflow is unavailable because application bootstrap is not ready.',
+      );
+    }
+    return taskPackageComposition;
+  };
+
   ipcMain.handle(
     IPC_CHANNELS.DESKTOP_SELECT_INPUT_FILE,
     async (
@@ -544,6 +562,29 @@ const registerIpcHandlers = (
   ipcMain.handle(
     IPC_CHANNELS.GOOGLE_PROVIDER_CONFIGURE,
     googleProviderHandlers.configure,
+  );
+
+  const taskPackageHandlers = createDesktopTaskPackageHandlers({
+    assertTrustedSender: assertTrustedIpcSender,
+    controller: {
+      review: (intent) => requireTaskPackageComposition().controller.review(intent),
+      start: (intent) => requireTaskPackageComposition().controller.start(intent),
+    },
+    open_package: async (packageId) => {
+      await requireTaskPackageComposition().open_package(packageId);
+    },
+  });
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_TASK_PACKAGE_REVIEW,
+    taskPackageHandlers.review,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_TASK_PACKAGE_START,
+    taskPackageHandlers.start,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_TASK_PACKAGE_OPEN,
+    taskPackageHandlers.open,
   );
 
   ipcMain.handle(IPC_CHANNELS.DESKTOP_PRESETS, (event, workspaceId: unknown) => {
@@ -1247,6 +1288,47 @@ const initializeBootstrapStatus =
         logger: new StructuredLogger(directories),
       });
       desktopExecutionService = new DesktopExecutionService(productionRuntime.orchestrator);
+      const executionService = desktopExecutionService;
+      const taskPackageDesktopController = desktopMultiSourceController;
+      desktopTaskPackageComposition = createAdsOptimizationPackDesktopComposition({
+        repository: desktopRepository,
+        dataset_loader: productionDataPackageLoader,
+        packages_root: path.join(directories.data, 'packages'),
+        get_connection_readiness: async (workspaceId, sourceId) => {
+          const readiness = await readinessRegistry.getReadiness(
+            workspaceId,
+            sourceId,
+            {},
+          );
+          if (
+            (DESKTOP_GOOGLE_CONNECTION_SOURCE_IDS as readonly string[]).includes(sourceId)
+            && !await providerConfigurationService.isReadyForSource(
+              sourceId as DesktopGoogleConnectionSourceId,
+            )
+          ) return 'CONFIGURATION_REQUIRED';
+          return readiness.readiness_status;
+        },
+        execution_service: executionService,
+        get_run_state: (runId) => taskPackageDesktopController.getRunState(runId),
+        open_workbook: async (workbookPath) => {
+          const openError = await shell.openPath(workbookPath);
+          if (openError.length > 0) {
+            throw new Error('Task Package workbook could not be opened.');
+          }
+        },
+        reference_date: () => {
+          const current = new Date();
+          const year = String(current.getFullYear()).padStart(4, '0');
+          const month = String(current.getMonth() + 1).padStart(2, '0');
+          const day = String(current.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        },
+        now: () => new Date().toISOString(),
+        create_package_id: () => (
+          `pkg_${new Date().toISOString().replace(/[^0-9]/gu, '')}_${randomUUID().replace(/-/gu, '')}`
+        ),
+        application_version: app.getVersion(),
+      });
     }
 
     if (
