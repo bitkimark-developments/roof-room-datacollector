@@ -26,6 +26,8 @@ const readyResolution = (requirement, index) => {
     performance_date: CURRENT_WINDOW.start,
     clicks: 0,
     conversions: null,
+    campaign_status: 'ENABLED',
+    daily_budget_micros: 100,
     snapshot_observed_at: `2026-09-${String(10 + index).padStart(2, '0')}T08:00:00.000Z`,
   }];
   return {
@@ -68,12 +70,17 @@ const readyResolution = (requirement, index) => {
   };
 };
 
-const makeAssembler = (resolutions) => {
+const makeAssembler = (resolutions, { manifests = [], tables = new Map(), rejected = [] } = {}) => {
   let publishCalls = 0;
   const resolver = { resolveCurrent: async () => clone(resolutions) };
   const store = {
-    scanManifests: async () => ({ manifests: [], rejected: [] }),
-    readDatasetTable: async () => { throw new Error('No prior package table expected.'); },
+    scanManifests: async () => ({ manifests: clone(manifests), rejected: clone(rejected) }),
+    readDatasetTable: async (packageId, reference) => {
+      const value = tables.get(`${packageId}:${reference.dataset_type}`);
+      if (value instanceof Error) throw value;
+      if (value === undefined) throw new Error(`Missing prior table fixture ${packageId}:${reference.dataset_type}`);
+      return clone(value);
+    },
     publishPackage: async () => { publishCalls += 1; throw new Error('Assembler must not publish.'); },
   };
   return {
@@ -81,6 +88,65 @@ const makeAssembler = (resolutions) => {
     publishCalls: () => publishCalls,
   };
 };
+
+const priorManifest = ({
+  packageId,
+  start = '2026-09-08',
+  end = '2026-09-14',
+  createdAt = '2026-09-15T10:00:00+03:00',
+  overrides = {},
+  evidenceCount = 6,
+}) => {
+  const evidence = ADS_OPTIMIZATION_PACK_V1_RECIPE.required_evidence.slice(0, evidenceCount).map((requirement, index) => ({
+    ...readyResolution(requirement, index).evidence,
+    window: { start, end },
+    origin: {
+      ...readyResolution(requirement, index).evidence.origin,
+      snapshot_observed_at: `2026-09-${String(1 + index).padStart(2, '0')}T07:00:00.000Z`,
+    },
+    table: {
+      filename: `datasets/current-${requirement.dataset_type.toLowerCase()}.json`,
+      sha256: 'a'.repeat(64),
+      row_count: index === 5 ? 0 : 1,
+      role: 'CURRENT',
+      dataset_type: requirement.dataset_type,
+    },
+  }));
+  return {
+    manifest_version: 1,
+    package_id: packageId,
+    recipe_id: 'ADS_OPTIMIZATION_PACK',
+    recipe_version: 1,
+    recipe_label: 'Kampanya Gelişim',
+    package_kind: 'INITIAL_BASELINE',
+    workspace_id: 'ws_a',
+    account_identity: clone(ACCOUNT),
+    customer_id: ACCOUNT.value,
+    created_at: createdAt,
+    application_version: '1.0.0',
+    campaign_scope: 'SEARCH',
+    current_window: { start, end },
+    dataset_schema_version: 1,
+    required_datasets: ADS_OPTIMIZATION_PACK_V1_RECIPE.required_evidence.map(({ requirement_id }) => requirement_id),
+    evidence,
+    excluded_coverage: {},
+    workbook_filename: `kampanya-gelisim-${createdAt.slice(0, 10)}-baseline.xlsx`,
+    ...overrides,
+  };
+};
+
+const priorTables = (manifest, marker = manifest.package_id) => new Map(
+  ADS_OPTIMIZATION_PACK_V1_RECIPE.required_evidence.map((requirement, index) => [
+    `${manifest.package_id}:${requirement.dataset_type}`,
+    index === 5 ? [] : [{
+      performance_date: manifest.current_window.start,
+      clicks: index,
+      snapshot_observed_at: manifest.evidence[index].origin.snapshot_observed_at,
+      prior_marker: marker,
+      ...(index === 0 ? { campaign_status: 'PAUSED', daily_budget_micros: 50 } : {}),
+    }],
+  ]),
+);
 
 const input = {
   recipe: ADS_OPTIMIZATION_PACK_V1_RECIPE,
@@ -173,7 +239,79 @@ async function main() {
     assert.deepEqual(notReady.requirements[0].reason_codes, [reason]);
   }
 
-  console.log('PASS TASK-PACKAGE-ASSEMBLER-001: six-dataset CURRENT baseline assembly is complete, immutable, provenance-preserving, and visibly not ready when evidence is missing');
+  const selectedPrior = priorManifest({ packageId: 'pkg_previous' });
+  const olderPrior = priorManifest({
+    packageId: 'pkg_older', start: '2026-09-01', end: '2026-09-07', createdAt: '2026-09-08T09:00:00+03:00',
+  });
+  const corruptNewer = priorManifest({
+    packageId: 'pkg_corrupt', start: '2026-09-15', end: '2026-09-21', createdAt: '2026-09-22T09:00:00+03:00',
+  });
+  const incompatible = [
+    priorManifest({ packageId: 'wrong_recipe', overrides: { recipe_id: 'OTHER' } }),
+    priorManifest({ packageId: 'wrong_version', overrides: { recipe_version: 2 } }),
+    priorManifest({ packageId: 'wrong_workspace', overrides: { workspace_id: 'ws_b' } }),
+    priorManifest({ packageId: 'wrong_customer', overrides: { customer_id: '999', account_identity: { field: 'customer_id', value: '999' } } }),
+    priorManifest({ packageId: 'wrong_scope', overrides: { campaign_scope: 'PERFORMANCE_MAX' } }),
+    priorManifest({ packageId: 'wrong_schema', overrides: { dataset_schema_version: 2 } }),
+    priorManifest({ packageId: 'incomplete', evidenceCount: 5 }),
+    priorManifest({ packageId: 'overlap', start: '2026-09-23', end: '2026-09-29' }),
+    priorManifest({ packageId: 'future', start: '2026-10-01', end: '2026-10-07' }),
+  ];
+  const comparisonTables = new Map([
+    ...priorTables(selectedPrior),
+    ...priorTables(olderPrior),
+    ...priorTables(corruptNewer),
+  ]);
+  comparisonTables.set('pkg_corrupt:CAMPAIGN_PERFORMANCE', new Error('checksum mismatch'));
+  const comparisonFixture = makeAssembler(ready, {
+    manifests: [...incompatible, olderPrior, selectedPrior, corruptNewer],
+    tables: comparisonTables,
+    rejected: [
+      { package_id: 'pkg_malformed', code: 'Unexpected end of JSON input' },
+      { package_id: 'generic-data-package', code: 'No Task Package manifest' },
+    ],
+  });
+  const comparison = await comparisonFixture.assembler.assemble({ ...input, package_id: 'pkg_comparison' });
+  assert.equal(comparison.status, 'READY');
+  assert.equal(comparison.package.manifest.package_kind, 'COMPARISON');
+  assert.equal(comparison.package.manifest.previous_package_id, 'pkg_previous');
+  assert.deepEqual(comparison.package.manifest.previous_window, { start: '2026-09-08', end: '2026-09-14' });
+  assert.equal(comparison.package.manifest.gap_days, 8);
+  assert.equal(comparison.package.manifest.workbook_filename, 'kampanya-gelisim-2026-09-30-2026-09-15.xlsx');
+  assert.equal(comparison.package.datasets.length, 12);
+  const previous = comparison.package.datasets.filter(({ role }) => role === 'PREVIOUS');
+  assert.equal(previous.length, 6);
+  assert.equal(previous.every(({ evidence }) => evidence.source_package_id === 'pkg_previous'), true);
+  assert.equal(previous.every(({ evidence }) => evidence.role === 'PREVIOUS'), true);
+  assert.equal(previous[0].rows[0].campaign_status, 'PAUSED');
+  assert.equal(previous[0].rows[0].daily_budget_micros, 50);
+  assert.equal(previous[0].rows[0].snapshot_observed_at, selectedPrior.evidence[0].origin.snapshot_observed_at);
+  assert.equal(previous[1].rows[0].campaign_status, undefined, 'Historical fields must not be copied from CURRENT.');
+  assert.equal(previous[1].rows[0].daily_budget_micros, undefined, 'Missing historical configuration must stay missing.');
+  assert.equal(comparison.package.datasets[0].rows[0].campaign_status, 'ENABLED');
+
+  const adjacentPrior = priorManifest({
+    packageId: 'pkg_adjacent', start: '2026-09-16', end: '2026-09-22', createdAt: '2026-09-23T09:00:00+03:00',
+  });
+  const adjacent = await makeAssembler(ready, {
+    manifests: [adjacentPrior], tables: priorTables(adjacentPrior),
+  }).assembler.assemble({ ...input, package_id: 'pkg_adjacent_comparison' });
+  assert.equal(adjacent.status, 'READY');
+  assert.equal(adjacent.package.manifest.gap_days, 0);
+
+  const tieOlderCreated = priorManifest({ packageId: 'pkg_tie_old', createdAt: '2026-09-15T09:00:00+03:00' });
+  const tieLexicalA = priorManifest({ packageId: 'pkg_tie_a', createdAt: '2026-09-15T11:00:00+03:00' });
+  const tieLexicalB = priorManifest({ packageId: 'pkg_tie_b', createdAt: '2026-09-15T11:00:00+03:00' });
+  const tieTables = new Map([
+    ...priorTables(tieOlderCreated), ...priorTables(tieLexicalA), ...priorTables(tieLexicalB),
+  ]);
+  const tied = await makeAssembler(ready, {
+    manifests: [tieLexicalB, tieOlderCreated, tieLexicalA], tables: tieTables,
+  }).assembler.assemble({ ...input, package_id: 'pkg_tied' });
+  assert.equal(tied.status, 'READY');
+  assert.equal(tied.package.manifest.previous_package_id, 'pkg_tie_a');
+
+  console.log('PASS TASK-PACKAGE-ASSEMBLER-001: CURRENT baseline and immutable PREVIOUS selection are complete, compatible, deterministic, and provenance-preserving');
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });
