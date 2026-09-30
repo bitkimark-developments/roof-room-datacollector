@@ -109,6 +109,7 @@
     "test:m7:task-package-assembler": "bash tests/integration/task-packages/run-task-package-assembler-test.sh",
     "test:m7:ads-optimization-pack-export": "bash tests/integration/task-packages/run-ads-optimization-pack-exporter-test.sh",
     "test:m7:ads-optimization-pack": "bash tests/integration/task-packages/run-ads-optimization-pack-gate.sh",
+    "test:m7:ads-optimization-pack-desktop-controller": "bash tests/integration/app/run-desktop-task-package-controller-test.sh",
     "test:release:gate": "bash tests/integration/release/run-release-gate.sh",
     "m3:live-query-diagnostic": "bash scripts/m3/run-live-google-trends-query-dom-diagnostic.sh",
     "test:m3:live-stage-command": "bash tests/integration/google-trends/run-live-stage-gate-command-test.sh",
