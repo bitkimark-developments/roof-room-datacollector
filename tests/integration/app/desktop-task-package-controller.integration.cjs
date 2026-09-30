@@ -222,8 +222,12 @@ const createHarness = ({
   activeRuns = [],
   customerId = '123-456-7890',
   connection = true,
+  publishPackage,
 } = {}) => {
-  const calls = { readiness: 0, assemble: 0, scan: 0, publish: 0 };
+  const calls = {
+    readiness: 0, assemble: 0, scan: 0, publish: 0, reserve: 0, execute: 0, getState: 0,
+    reservedInput: null, publishedPackage: null,
+  };
   const resolved = resolutions || ADS_OPTIMIZATION_PACK_V1_RECIPE.required_evidence.map(readyResolution);
   const tables = new Map();
   for (const manifest of manifests) {
@@ -243,8 +247,14 @@ const createHarness = ({
     assemble: async (input) => { calls.assemble += 1; return realAssembler.assemble(input); },
   };
   const definition = createAdsOptimizationPackDesktopDefinition({
-    publish_package: async () => { calls.publish += 1; throw new Error('Review must not publish.'); },
+    publish_package: async (taskPackage) => {
+      calls.publish += 1;
+      calls.publishedPackage = clone(taskPackage);
+      if (publishPackage) return publishPackage(taskPackage);
+      return { package_id: taskPackage.manifest.package_id };
+    },
   });
+  let packageSequence = 0;
   const repository = {
     getWorkspace: (workspaceId) => workspaceId === 'ws_a'
       ? { workspace_id: 'ws_a', workspace_name: 'A', created_at: '2026-09-01T00:00:00.000Z' }
@@ -255,6 +265,43 @@ const createHarness = ({
       created_at: '2026-09-01T00:00:00.000Z', updated_at: '2026-09-01T00:00:00.000Z',
     } : null,
     listRuns: () => clone(activeRuns),
+    reserveRunFromJobPlans: (input) => {
+      calls.reserve += 1;
+      calls.reservedInput = clone(input);
+      const run = {
+        ...activeRun,
+        run_id: 'run_reserved_package',
+        run_status: 'PENDING',
+        started_at: null,
+        configuration_snapshot: clone(input.configuration_snapshot),
+      };
+      const jobs = input.job_plans.map((plan, index) => ({
+        job_id: `job_reserved_${index}`,
+        run_id: run.run_id,
+        ...clone(plan),
+        job_order: index,
+        execution_status: 'PENDING',
+        validation_status: 'NOT_RUN',
+        attempt_count: 0,
+        accepted_artifact_id: null,
+        created_at: '2026-09-30T10:00:00.000Z',
+        started_at: null,
+        completed_at: null,
+      }));
+      return { run, jobs };
+    },
+  };
+  const stateFor = (runId) => {
+    const run = activeRuns.find(({ run_id }) => run_id === runId) || {
+      ...activeRun,
+      run_id: runId,
+      run_status: 'PENDING',
+      started_at: null,
+    };
+    return {
+      run: clone(run), jobs: [], completed_jobs: 0, failed_jobs: 0,
+      can_resume: false, can_retry: false, can_cancel: true,
+    };
   };
   const controller = new DesktopTaskPackageController({
     definitions: [definition],
@@ -265,9 +312,22 @@ const createHarness = ({
     reference_date: () => REFERENCE_DATE,
     now: () => '2026-09-30T10:00:00.000Z',
     application_version: '1.0.0',
+    create_package_id: () => `pkg_20260930_${++packageSequence}`,
+    execute_run: async () => { calls.execute += 1; },
+    get_run_state: (runId) => { calls.getState += 1; return stateFor(runId); },
   });
   return { controller, calls };
 };
+
+const startIntent = (overrides = {}) => ({
+  workspace_id: 'ws_a',
+  recipe_id: 'ADS_OPTIMIZATION_PACK',
+  recipe_version: 1,
+  reference_date: REFERENCE_DATE,
+  current_window: clone(CURRENT_WINDOW),
+  account_identity: clone(ACCOUNT),
+  ...overrides,
+});
 
 const assertSafe = (value) => {
   const serialized = JSON.stringify(value);
@@ -310,7 +370,11 @@ async function main() {
     'REUSE_EXACT', 'REUSE_FILTERED', 'NO_DATA', 'COLLECT_REQUIRED', 'COLLECT_REQUIRED', 'COLLECT_REQUIRED',
   ]);
   assert.equal(review.requirements[3].reason_codes.includes('NO_DATA_REQUIRES_EXACT_WINDOW'), true);
-  assert.deepEqual(mixedHarness.calls, { readiness: 1, assemble: 1, scan: 1, publish: 0 });
+  assert.equal(mixedHarness.calls.readiness, 1);
+  assert.equal(mixedHarness.calls.assemble, 1);
+  assert.equal(mixedHarness.calls.scan, 1);
+  assert.equal(mixedHarness.calls.publish, 0);
+  assert.equal(mixedHarness.calls.reserve, 0);
   assertSafe(review);
 
   for (const readiness of ['CONFIGURATION_REQUIRED', 'CONNECTION_REQUIRED', 'MANUAL_ACTION_REQUIRED']) {
@@ -363,6 +427,101 @@ async function main() {
   assert.equal(duplicate.can_open, true);
   assert.equal(duplicateHarness.calls.publish, 0);
   assertSafe(duplicate);
+
+  const publishHarness = createHarness();
+  const published = await publishHarness.controller.start(startIntent());
+  assert.equal(published.status, 'PACKAGE_PUBLISHED');
+  assert.equal(published.package.package_id, 'pkg_20260930_1');
+  assert.equal(published.package.package_kind, 'INITIAL_BASELINE');
+  assert.deepEqual(published.package.current_window, CURRENT_WINDOW);
+  assert.equal(publishHarness.calls.assemble, 1, 'Start must re-resolve and assemble once.');
+  assert.equal(publishHarness.calls.publish, 1);
+  assert.equal(publishHarness.calls.reserve, 0);
+  assert.equal(publishHarness.calls.execute, 0);
+  assert.equal(publishHarness.calls.publishedPackage.manifest.package_id, 'pkg_20260930_1');
+  assert.equal(publishHarness.calls.publishedPackage.datasets[0].rows[0].clicks, 0);
+  assert.equal(publishHarness.calls.publishedPackage.manifest.evidence[0].origin.artifact_sha256, 'a'.repeat(64));
+  assertSafe(published);
+
+  const comparisonStartHarness = createHarness({ manifests: [previous] });
+  const comparisonPublished = await comparisonStartHarness.controller.start(startIntent());
+  assert.equal(comparisonPublished.status, 'PACKAGE_PUBLISHED');
+  assert.equal(comparisonPublished.package.package_kind, 'COMPARISON');
+  assert.equal(comparisonPublished.package.previous_package_id, previous.package_id);
+  assert.deepEqual(comparisonPublished.package.previous_window, previous.current_window);
+  assert.equal(comparisonPublished.package.gap_days, 8);
+
+  const duplicateStartHarness = createHarness({ manifests: [identical] });
+  const existing = await duplicateStartHarness.controller.start(startIntent());
+  assert.equal(existing.status, 'EXISTING_PACKAGE');
+  assert.equal(existing.package.package_id, identical.package_id);
+  assert.equal(duplicateStartHarness.calls.publish, 0);
+  assert.equal(duplicateStartHarness.calls.reserve, 0);
+
+  for (const stale of [
+    startIntent({ recipe_version: 2 }),
+    startIntent({ reference_date: '2026-09-29' }),
+    startIntent({ current_window: { start: '2026-09-22', end: '2026-09-28' } }),
+    startIntent({ account_identity: { field: 'customer_id', value: '9999999999' } }),
+  ]) {
+    const staleHarness = createHarness();
+    await expectCode(staleHarness.controller.start(stale), 'STALE_REVIEW');
+    assert.equal(staleHarness.calls.publish, 0);
+    assert.equal(staleHarness.calls.reserve, 0);
+    assert.equal(staleHarness.calls.execute, 0);
+  }
+  await expectCode(createHarness().controller.start({ ...startIntent(), path: '/tmp/attacker.xlsx' }), 'INVALID_INTENT');
+
+  const activeStartHarness = createHarness({ resolutions: mixed, activeRuns: [activeRun] });
+  const activeStart = await activeStartHarness.controller.start(startIntent());
+  assert.equal(activeStart.status, 'COLLECTION_STARTED');
+  assert.equal(activeStart.run_state.run.run_id, activeRun.run_id);
+  assert.equal(activeStartHarness.calls.reserve, 0);
+  assert.equal(activeStartHarness.calls.execute, 0);
+
+  let releasePublish;
+  const raceHarness = createHarness({
+    publishPackage: (taskPackage) => new Promise((resolve) => {
+      releasePublish = () => resolve({ package_id: taskPackage.manifest.package_id });
+    }),
+  });
+  const firstStart = raceHarness.controller.start(startIntent());
+  await new Promise((resolve) => setImmediate(resolve));
+  await expectCode(raceHarness.controller.start(startIntent()), 'ACTIVE_MATCHING_COLLECTION');
+  releasePublish();
+  await firstStart;
+  assert.equal(raceHarness.calls.publish, 1);
+
+  const twoMissing = ADS_OPTIMIZATION_PACK_V1_RECIPE.required_evidence.map((requirement, index) => (
+    index < 4 ? readyResolution(requirement) : missingResolution(requirement)
+  ));
+  const collectionHarness = createHarness({ resolutions: twoMissing });
+  const collection = await collectionHarness.controller.start(startIntent());
+  assert.equal(collection.status, 'COLLECTION_STARTED');
+  assert.equal(collection.run_state.run.run_id, 'run_reserved_package');
+  assert.equal(collectionHarness.calls.reserve, 1);
+  assert.equal(collectionHarness.calls.execute, 1);
+  assert.equal(collectionHarness.calls.publish, 0);
+  assert.equal(collectionHarness.calls.reservedInput.job_plans.length, 2);
+  assert.deepEqual(collectionHarness.calls.reservedInput.job_plans.map(({ job_key }) => job_key), [
+    'AD_PERFORMANCE', 'RSA_ASSET_PERFORMANCE',
+  ]);
+  for (const plan of collectionHarness.calls.reservedInput.job_plans) {
+    assert.equal(plan.source_id, 'google-ads-search-reporting');
+    assert.equal(plan.source_context.source_id, 'google-ads-search-reporting');
+    assert.equal(plan.source_context.campaign_type, 'SEARCH');
+    assert.equal(plan.source_context.customer_id, ACCOUNT.value);
+    assert.equal(plan.source_context.requested_date_start, CURRENT_WINDOW.start);
+    assert.equal(plan.source_context.requested_date_end, CURRENT_WINDOW.end);
+    assert.equal(plan.source_context.dataset_schema_version, 1);
+  }
+  assert.equal(typeof collectionHarness.controller.retry, 'undefined');
+
+  const blockedStartHarness = createHarness({ readiness: 'CONNECTION_REQUIRED' });
+  await expectCode(blockedStartHarness.controller.start(startIntent()), 'CONNECTION_REQUIRED');
+  assert.equal(blockedStartHarness.calls.reserve, 0);
+  assert.equal(blockedStartHarness.calls.execute, 0);
+  assert.equal(blockedStartHarness.calls.publish, 0);
 
   console.log('PASS ADS-OPTIMIZATION-PACK-DESKTOP-CONTROLLER-001: local review is safe, exact, assembler-authoritative, duplicate-aware, and acquisition-free');
 }

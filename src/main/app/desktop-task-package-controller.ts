@@ -1,4 +1,5 @@
-import type { RunRecord } from '../../shared/run-job';
+import type { DesktopRunState } from '../../shared/desktop-multisource';
+import type { JsonObject, JobPlan, JobRecord, RunRecord } from '../../shared/run-job';
 import type { WorkspaceReadinessStatus } from '../../shared/readiness';
 import type {
   DesktopTaskPackageDefinition,
@@ -7,8 +8,14 @@ import type {
   DesktopTaskPackageRequirementView,
   DesktopTaskPackageReview,
   DesktopTaskPackageReviewIntent,
+  DesktopTaskPackageStartIntent,
+  DesktopTaskPackageStartResult,
+  DesktopTaskPackageSummary,
 } from '../../shared/desktop-task-package';
-import { isDesktopTaskPackageReviewIntent } from '../../shared/desktop-task-package';
+import {
+  isDesktopTaskPackageReviewIntent,
+  isDesktopTaskPackageStartIntent,
+} from '../../shared/desktop-task-package';
 import type { TaskPackageAssemblyResult, TaskPackageManifestV1 } from '../../shared/task-package';
 import type { WorkspaceSourceConnectionRecord } from '../../shared/workspace-connection';
 import type { WorkspaceRecord } from '../../shared/workspace';
@@ -20,6 +27,13 @@ type Repository = {
   getWorkspace(workspace_id: string): WorkspaceRecord | null;
   getSourceConnection(workspace_id: string, source_id: string): WorkspaceSourceConnectionRecord | null;
   listRuns(workspace_id: string): RunRecord[];
+  reserveRunFromJobPlans(input: {
+    workspace_id: string;
+    application_version: string;
+    configuration_snapshot: JsonObject;
+    reusable_configuration: JsonObject;
+    job_plans: JobPlan[];
+  }): { run: RunRecord; jobs: JobRecord[] };
 };
 
 type Assembler = Pick<TaskPackageAssembler, 'assemble'>;
@@ -115,7 +129,7 @@ const identicalPackage = (
 
 const requirementViews = (
   result: TaskPackageAssemblyResult,
-): DesktopTaskPackageRequirementView[] => result.requirements.map((resolution) => {
+): DesktopTaskPackageRequirementView[] => result.requirements.map((resolution): DesktopTaskPackageRequirementView => {
   if (resolution.status === 'MISSING') {
     return {
       requirement_id: resolution.requirement.requirement_id,
@@ -137,6 +151,26 @@ const requirementViews = (
   };
 });
 
+const packageSummary = (manifest: TaskPackageManifestV1): DesktopTaskPackageSummary => ({
+  package_id: manifest.package_id,
+  package_kind: manifest.package_kind,
+  current_window: { ...manifest.current_window },
+  ...(manifest.previous_package_id === undefined ? {} : {
+    previous_package_id: manifest.previous_package_id,
+    previous_window: manifest.previous_window === undefined
+      ? undefined
+      : { ...manifest.previous_window },
+    gap_days: manifest.gap_days,
+  }),
+});
+
+interface ResolvedReview {
+  review: DesktopTaskPackageReview;
+  definition: DesktopTaskPackageDefinition;
+  assembly?: TaskPackageAssemblyResult;
+  existing?: TaskPackageManifestV1;
+}
+
 export class DesktopTaskPackageControllerError extends Error {
   constructor(public readonly code: DesktopTaskPackageErrorCode) {
     super(code);
@@ -146,6 +180,7 @@ export class DesktopTaskPackageControllerError extends Error {
 
 export class DesktopTaskPackageController {
   private readonly definitions = new Map<string, DesktopTaskPackageDefinition>();
+  private readonly starts = new Set<string>();
 
   constructor(private readonly dependencies: {
     definitions: readonly DesktopTaskPackageDefinition[];
@@ -159,6 +194,9 @@ export class DesktopTaskPackageController {
     reference_date: () => string;
     now: () => string;
     application_version: string;
+    create_package_id: () => string;
+    execute_run: (run_id: string) => Promise<unknown>;
+    get_run_state: (run_id: string) => DesktopRunState;
   }) {
     for (const definition of dependencies.definitions) {
       if (this.definitions.has(definition.recipe.recipe_id)) {
@@ -169,6 +207,112 @@ export class DesktopTaskPackageController {
   }
 
   async review(intent: DesktopTaskPackageReviewIntent): Promise<DesktopTaskPackageReview> {
+    return (await this.resolveReview(intent, undefined)).review;
+  }
+
+  async start(intent: DesktopTaskPackageStartIntent): Promise<DesktopTaskPackageStartResult> {
+    if (!isDesktopTaskPackageStartIntent(intent)) {
+      throw new DesktopTaskPackageControllerError('INVALID_INTENT');
+    }
+    const lockKey = [intent.workspace_id, intent.recipe_id].join(':');
+    if (this.starts.has(lockKey)) {
+      throw new DesktopTaskPackageControllerError('ACTIVE_MATCHING_COLLECTION');
+    }
+    this.starts.add(lockKey);
+    try {
+      const packageId = this.dependencies.create_package_id();
+      const resolved = await this.resolveReview({
+        workspace_id: intent.workspace_id,
+        recipe_id: intent.recipe_id,
+      }, packageId);
+      const { review } = resolved;
+      const blocked = review.requirements.find(({ status }) => status === 'BLOCKED');
+      if (blocked !== undefined) {
+        const code = blocked.reason_codes[0];
+        throw new DesktopTaskPackageControllerError(
+          code === 'CONNECTION_REQUIRED' ? 'CONNECTION_REQUIRED' : 'CONFIGURATION_REQUIRED',
+        );
+      }
+      if (
+        intent.recipe_version !== review.recipe_version
+        || intent.reference_date !== review.reference_date
+        || !sameWindow(intent.current_window, review.current_window)
+        || !sameAccount(intent.account_identity, review.account_identity)
+      ) {
+        throw new DesktopTaskPackageControllerError('STALE_REVIEW');
+      }
+      if (resolved.existing !== undefined) {
+        return { status: 'EXISTING_PACKAGE', package: packageSummary(resolved.existing) };
+      }
+      if (review.collection_run_id !== null) {
+        return {
+          status: 'COLLECTION_STARTED',
+          run_state: this.dependencies.get_run_state(review.collection_run_id),
+        };
+      }
+      const assembly = resolved.assembly;
+      if (assembly === undefined) {
+        throw new DesktopTaskPackageControllerError('LOCAL_REVIEW_FAILED');
+      }
+      if (assembly.status === 'READY') {
+        try {
+          const published = await resolved.definition.publish_package(assembly.package);
+          if (published.package_id !== assembly.package.manifest.package_id) {
+            throw new Error('Published package identity mismatch.');
+          }
+          return {
+            status: 'PACKAGE_PUBLISHED',
+            package: packageSummary(assembly.package.manifest),
+          };
+        } catch {
+          throw new DesktopTaskPackageControllerError('PUBLICATION_FAILED');
+        }
+      }
+      const missing = assembly.requirements.filter((resolution) => resolution.status === 'MISSING');
+      if (missing.length === 0) {
+        throw new DesktopTaskPackageControllerError('LOCAL_REVIEW_FAILED');
+      }
+      const plans = missing.map(({ requirement }) => resolved.definition.build_job_plan({
+        requirement,
+        account_identity: review.account_identity,
+        current_window: review.current_window,
+      }));
+      let reserved: { run: RunRecord; jobs: JobRecord[] };
+      try {
+        reserved = this.dependencies.repository.reserveRunFromJobPlans({
+          workspace_id: review.workspace_id,
+          application_version: this.dependencies.application_version,
+          configuration_snapshot: {
+            task_package: {
+              recipe_id: review.recipe_id,
+              recipe_version: review.recipe_version,
+              workspace_id: review.workspace_id,
+              account_identity: { ...review.account_identity },
+              current_window: { ...review.current_window },
+            },
+          },
+          reusable_configuration: {},
+          job_plans: plans,
+        });
+      } catch {
+        throw new DesktopTaskPackageControllerError('CORE_START_FAILED');
+      }
+      void this.dependencies.execute_run(reserved.run.run_id).catch(() => {
+        // Persisted Core state remains authoritative and is surfaced by Run Detail.
+      });
+      return {
+        status: 'COLLECTION_STARTED',
+        run_state: this.dependencies.get_run_state(reserved.run.run_id),
+      };
+    } finally {
+      this.starts.delete(lockKey);
+    }
+  }
+
+  private async resolveReview(
+    intent: DesktopTaskPackageReviewIntent,
+    packageId: string | undefined,
+  ): Promise<ResolvedReview> {
     if (!isDesktopTaskPackageReviewIntent(intent)) {
       throw new DesktopTaskPackageControllerError('INVALID_INTENT');
     }
@@ -199,24 +343,30 @@ export class DesktopTaskPackageController {
       if (connection === null) throw new Error('Missing connection.');
       accountIdentity = definition.normalize_account_identity(connection.safe_metadata);
     } catch {
-      return this.blockedReview(
+      return {
         definition,
-        workspaceId,
-        referenceDate,
-        currentWindow,
-        { field: definition.recipe.account_identity_field, value: '' },
-        'CONFIGURATION_REQUIRED',
-      );
+        review: this.blockedReview(
+          definition,
+          workspaceId,
+          referenceDate,
+          currentWindow,
+          { field: definition.recipe.account_identity_field, value: '' },
+          'CONFIGURATION_REQUIRED',
+        ),
+      };
     }
     if (readiness !== 'READY') {
-      return this.blockedReview(
+      return {
         definition,
-        workspaceId,
-        referenceDate,
-        currentWindow,
-        accountIdentity,
-        readiness,
-      );
+        review: this.blockedReview(
+          definition,
+          workspaceId,
+          referenceDate,
+          currentWindow,
+          accountIdentity,
+          readiness,
+        ),
+      };
     }
 
     const matchingInput = {
@@ -232,7 +382,7 @@ export class DesktopTaskPackageController {
     );
     const assembly = await this.dependencies.assembler.assemble({
       recipe: definition.recipe,
-      package_id: `review-${definition.recipe.recipe_id.toLowerCase()}-${referenceDate}`,
+      package_id: packageId ?? `review-${definition.recipe.recipe_id.toLowerCase()}-${referenceDate}`,
       workspace_id: workspaceId,
       account_identity: accountIdentity,
       reference_date: referenceDate,
@@ -264,14 +414,19 @@ export class DesktopTaskPackageController {
     };
     if (existing !== undefined) {
       return {
-        ...base,
-        status: 'EXISTING_PACKAGE',
-        can_start: false,
-        can_open: true,
-        existing_package_id: existing.package_id,
+        definition,
+        assembly,
+        existing,
+        review: {
+          ...base,
+          status: 'EXISTING_PACKAGE',
+          can_start: false,
+          can_open: true,
+          existing_package_id: existing.package_id,
+        },
       };
     }
-    return base;
+    return { definition, assembly, review: base };
   }
 
   private blockedReview(

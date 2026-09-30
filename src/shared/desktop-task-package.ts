@@ -1,3 +1,4 @@
+import type { DesktopRunState } from './desktop-multisource';
 import type { JobPlan } from './run-job';
 import type {
   AssembledTaskPackage,
@@ -75,6 +76,34 @@ export interface DesktopTaskPackageReview {
   existing_package_id?: string;
 }
 
+export interface DesktopTaskPackageStartIntent {
+  workspace_id: string;
+  recipe_id: string;
+  recipe_version: number;
+  reference_date: string;
+  current_window: TaskPackageWindow;
+  account_identity: TaskPackageAccountIdentity;
+}
+
+export interface DesktopTaskPackageSummary {
+  package_id: string;
+  package_kind: 'INITIAL_BASELINE' | 'COMPARISON';
+  current_window: TaskPackageWindow;
+  previous_package_id?: string;
+  previous_window?: TaskPackageWindow;
+  gap_days?: number;
+}
+
+export type DesktopTaskPackageStartResult =
+  | {
+      status: 'PACKAGE_PUBLISHED' | 'EXISTING_PACKAGE';
+      package: DesktopTaskPackageSummary;
+    }
+  | {
+      status: 'COLLECTION_STARTED';
+      run_state: DesktopRunState;
+    };
+
 export type DesktopTaskPackageErrorCode =
   | 'INVALID_INTENT'
   | 'UNKNOWN_WORKSPACE'
@@ -127,4 +156,39 @@ export const isDesktopTaskPackageReviewIntent = (
     && value.workspace_id.trim().length > 0
     && typeof value.recipe_id === 'string'
     && value.recipe_id.trim().length > 0;
+};
+
+const exactKeys = (value: Record<string, unknown>, expected: readonly string[]): boolean => {
+  const actual = Object.keys(value).sort();
+  const sortedExpected = [...expected].sort();
+  return actual.length === sortedExpected.length
+    && actual.every((key, index) => key === sortedExpected[index]);
+};
+
+const nonEmptyString = (value: unknown): value is string => (
+  typeof value === 'string' && value.trim().length > 0
+);
+
+export const isDesktopTaskPackageStartIntent = (
+  value: unknown,
+): value is DesktopTaskPackageStartIntent => {
+  if (!isPlainRecord(value) || !exactKeys(value, [
+    'workspace_id', 'recipe_id', 'recipe_version', 'reference_date',
+    'current_window', 'account_identity',
+  ])) return false;
+  if (!isPlainRecord(value.current_window) || !exactKeys(value.current_window, ['start', 'end'])) {
+    return false;
+  }
+  if (!isPlainRecord(value.account_identity) || !exactKeys(value.account_identity, ['field', 'value'])) {
+    return false;
+  }
+  return nonEmptyString(value.workspace_id)
+    && nonEmptyString(value.recipe_id)
+    && Number.isInteger(value.recipe_version)
+    && (value.recipe_version as number) > 0
+    && /^\d{4}-\d{2}-\d{2}$/u.test(String(value.reference_date))
+    && /^\d{4}-\d{2}-\d{2}$/u.test(String(value.current_window.start))
+    && /^\d{4}-\d{2}-\d{2}$/u.test(String(value.current_window.end))
+    && nonEmptyString(value.account_identity.field)
+    && nonEmptyString(value.account_identity.value);
 };

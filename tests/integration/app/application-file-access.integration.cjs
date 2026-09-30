@@ -3,10 +3,12 @@ const assert = require(
 );
 const {
   mkdir,
+  symlink,
   writeFile,
 } = require(
   'node:fs/promises',
 );
+const crypto = require('node:crypto');
 const path = require(
   'node:path',
 );
@@ -22,12 +24,107 @@ if (!buildRoot || !fixtureRoot) {
 
 const {
   findLatestExportWorkbook,
+  resolveTaskPackageWorkbook,
 } = require(
   path.join(
     buildRoot,
     'src/main/app/application-file-access.js',
   ),
 );
+
+const DATASETS = [
+  'CAMPAIGN_PERFORMANCE', 'AD_GROUP_PERFORMANCE', 'KEYWORD_PERFORMANCE',
+  'SEARCH_TERMS', 'AD_PERFORMANCE', 'RSA_ASSET_PERFORMANCE',
+];
+const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+
+const makeTaskPackage = async (packageId, {
+  packageKind = 'INITIAL_BASELINE',
+  manifestPackageId = packageId,
+  workbookFilename = 'kampanya-gelisim.xlsx',
+  workbookKind = 'file',
+  workbookBytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x01]),
+  omitManifest = false,
+} = {}) => {
+  const packageDirectory = path.join(directories.data, 'packages', packageId);
+  await mkdir(path.join(packageDirectory, 'datasets'), { recursive: true });
+  const roles = packageKind === 'COMPARISON' ? ['CURRENT', 'PREVIOUS'] : ['CURRENT'];
+  const evidence = [];
+  for (const role of roles) {
+    for (const dataset of DATASETS) {
+      const rows = [{ performance_date: role === 'CURRENT' ? '2026-09-23' : '2026-09-08', clicks: 0 }];
+      const bytes = Buffer.from(`${JSON.stringify(rows, null, 2)}\n`);
+      const filename = `datasets/${role.toLowerCase()}-${dataset.toLowerCase()}.json`;
+      await writeFile(path.join(packageDirectory, filename), bytes);
+      evidence.push({
+        requirement_id: dataset,
+        role,
+        disposition: 'REUSED_EXACT',
+        window: role === 'CURRENT'
+          ? { start: '2026-09-23', end: '2026-09-29' }
+          : { start: '2026-09-08', end: '2026-09-14' },
+        origin: {
+          run_id: `run_${role}_${dataset}`,
+          job_id: `job_${role}_${dataset}`,
+          attempt_number: 1,
+          artifact_id: `artifact_${role}_${dataset}`,
+          artifact_sha256: 'a'.repeat(64),
+          acquired_at: '2026-09-30T08:00:00.000Z',
+          validation_status: 'VALID',
+          source_id: 'google-ads-search-reporting',
+          dataset_type: dataset,
+          resource_mode: 'fixture',
+          acquisition_mode: 'OFFICIAL_API',
+          campaign_scope: 'SEARCH',
+          dataset_schema_version: 1,
+          account_identity: { field: 'customer_id', value: '1234567890' },
+          snapshot_observed_at: '2026-09-30T08:00:00.000Z',
+        },
+        transformation: { kind: 'NONE' },
+        row_count: 1,
+        ...(role === 'PREVIOUS' ? { source_package_id: 'pkg_previous' } : {}),
+        table: { filename, sha256: sha256(bytes), row_count: 1, role, dataset_type: dataset },
+      });
+    }
+  }
+  const workbookPath = path.join(packageDirectory, workbookFilename);
+  if (workbookKind === 'file') await writeFile(workbookPath, workbookBytes);
+  if (workbookKind === 'directory') await mkdir(workbookPath, { recursive: true });
+  if (workbookKind === 'symlink') {
+    const external = path.join(fixtureRoot, `${packageId}-external.xlsx`);
+    await writeFile(external, workbookBytes);
+    await symlink(external, workbookPath);
+  }
+  const manifest = {
+    manifest_version: 1,
+    package_id: manifestPackageId,
+    recipe_id: 'ADS_OPTIMIZATION_PACK',
+    recipe_version: 1,
+    recipe_label: 'Kampanya Gelişim',
+    package_kind: packageKind,
+    workspace_id: 'ws_a',
+    account_identity: { field: 'customer_id', value: '1234567890' },
+    customer_id: '1234567890',
+    created_at: '2026-09-30T08:00:00.000Z',
+    application_version: '1.0.0',
+    campaign_scope: 'SEARCH',
+    current_window: { start: '2026-09-23', end: '2026-09-29' },
+    ...(packageKind === 'COMPARISON' ? {
+      previous_package_id: 'pkg_previous',
+      previous_window: { start: '2026-09-08', end: '2026-09-14' },
+      gap_days: 8,
+    } : {}),
+    dataset_schema_version: 1,
+    required_datasets: DATASETS,
+    evidence,
+    excluded_coverage: {},
+    workbook_filename: workbookFilename,
+  };
+  if (!omitManifest) {
+    await writeFile(path.join(packageDirectory, 'MANIFEST.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  }
+  return workbookPath;
+};
 
 const directories = {
   app_data_root:
@@ -159,8 +256,41 @@ const main = async () => {
     latestWorkbook,
   );
 
+  const initialWorkbook = await makeTaskPackage('pkg_initial');
+  assert.equal(
+    await resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_initial'),
+    initialWorkbook,
+  );
+  const comparisonWorkbook = await makeTaskPackage('pkg_comparison', { packageKind: 'COMPARISON' });
+  assert.equal(
+    await resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_comparison'),
+    comparisonWorkbook,
+  );
+
+  for (const packageId of ['', '.', '..', '../escape', '/tmp/escape', 'bad/id']) {
+    await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), packageId));
+  }
+  await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_unknown'));
+
+  await makeTaskPackage('pkg_missing_manifest', { omitManifest: true });
+  await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_missing_manifest'));
+  await makeTaskPackage('pkg_mismatch', { manifestPackageId: 'pkg_other' });
+  await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_mismatch'));
+  await makeTaskPackage('pkg_missing_workbook', { workbookKind: 'missing' });
+  await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_missing_workbook'));
+  await makeTaskPackage('pkg_symlink_workbook', { workbookKind: 'symlink' });
+  await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_symlink_workbook'));
+  await makeTaskPackage('pkg_directory_workbook', { workbookKind: 'directory' });
+  await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_directory_workbook'));
+  await makeTaskPackage('pkg_traversal_workbook', { workbookFilename: '../escape.xlsx', workbookKind: 'missing' });
+  await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_traversal_workbook'));
+  await makeTaskPackage('pkg_absolute_workbook', { workbookFilename: '/tmp/escape.xlsx', workbookKind: 'missing' });
+  await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_absolute_workbook'));
+  await makeTaskPackage('pkg_corrupt_workbook', { workbookBytes: Buffer.from('not an xlsx') });
+  await assert.rejects(resolveTaskPackageWorkbook(path.join(directories.data, 'packages'), 'pkg_corrupt_workbook'));
+
   console.log(
-    'PASS DESKTOP-FILES-001..003: output discovery avoids technical run-ID navigation, skips runs without a valid workbook, and selects the latest canonical export',
+    'PASS DESKTOP-FILES-001..004: output discovery is safe and Task Package workbooks resolve only by verified package identity',
   );
 };
 
