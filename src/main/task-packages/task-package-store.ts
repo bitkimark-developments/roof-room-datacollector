@@ -12,6 +12,7 @@ import {
 import * as path from 'node:path';
 import type {
   TaskPackageDatasetTableReference,
+  TaskPackageEvidenceEntry,
   TaskPackageManifestV1,
   TaskPackageRole,
 } from '../../shared/task-package';
@@ -169,7 +170,7 @@ export class TaskPackageStore {
     if (await exists(finalDirectory)) throw new Error(`Task Package ${packageId} already exists; refusing overwrite.`);
     const stagingDirectory = await mkdtemp(path.join(this.root, `.${packageId}.tmp-`));
     try {
-      const evidence: TaskPackageManifestV1['evidence'] = input.manifest.evidence.map((entry) => ({
+      const evidence = input.manifest.evidence.map((entry): TaskPackageEvidenceEntry => ({
         ...entry,
         table: undefined,
       }));
