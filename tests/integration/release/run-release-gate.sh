@@ -90,6 +90,9 @@ bash \
   tests/integration/task-packages/run-ads-optimization-pack-gate.sh
 
 bash \
+  tests/integration/app/run-ads-optimization-pack-slice-c-gate.sh
+
+bash \
   tests/integration/serpapi/run-serpapi-source-test.sh
 
 bash \

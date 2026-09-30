@@ -24,6 +24,6 @@ npx tsc \
   src/main/sources/google-ads/search-reporting-request.ts \
   src/main/app/desktop-task-package-controller.ts \
   src/main/app/ads-optimization-pack-desktop-composition.ts \
-  --rootDir src --outDir "$TMP_ROOT/build" --module commonjs --target ES2022 --strict --skipLibCheck
+  --rootDir src --outDir "$TMP_ROOT/build" --module commonjs --target ES2022 --strict --skipLibCheck --esModuleInterop
 
 node tests/integration/app/desktop-task-package-controller.integration.cjs "$TMP_ROOT/build"
