@@ -29,18 +29,26 @@ The former “finish Google Trends before any other source” gate is superseded
 
 ## 3. Release 1.0 approved source families
 
-Feasibility has passed for:
+Approved Release 1.0 source families and acquisition paths include:
 
 - Google Trends Interest Over Time;
 - Google Search Console query, query+page, and date+query;
-- Google Ads Search Terms through verified `search_term_view` for SEARCH;
+- Google Ads SEARCH reporting family through the official API:
+  - `campaign`;
+  - `ad_group`;
+  - `keyword_view`;
+  - `search_term_view`;
+  - `ad_group_ad`;
+  - `ad_group_ad_asset_view`;
 - Google Ads Keyword Planner historical metrics through the official API;
 - Keyword Planner manual CSV fallback;
 - İkas Products XLSX import;
 - Bitkimark sitemap/public XML;
 - on-demand SERP through SerpApi.
 
-Feasibility PASS is implementation permission, not implementation completion. Semrush is not active R1 scope. Merchant Center, GA4, and other future sources require their own gates.
+The expanded Google Ads SEARCH reporting family has a deterministic local implementation. The previously verified live provider path remains `search_term_view` for SEARCH; live acceptance for the additional reporting resources remains a separate explicit evidence step.
+
+Feasibility or scope approval is implementation permission, not automatic live acceptance. Semrush is not active R1 scope. Merchant Center, GA4, Performance Max, and other future modes/sources require their own gates.
 
 ## 4. Identity model
 
@@ -237,9 +245,20 @@ The current implementation demonstrates browser lifecycle, externally configured
 
 Separate dataset dimensions and property/search-type context. Preserve provider limits and latency. Pagination and empty data require explicit semantics.
 
-### Google Ads Search Terms
+### Google Ads SEARCH reporting
 
-The verified implementation target is `search_term_view` for SEARCH. Treat Performance Max or another resource as a separate mode gate.
+Use one `google-ads-search-reporting` source family with six independent dataset contracts:
+
+- `CAMPAIGN_PERFORMANCE` → `campaign`;
+- `AD_GROUP_PERFORMANCE` → `ad_group`;
+- `KEYWORD_PERFORMANCE` → `keyword_view`;
+- `SEARCH_TERMS` → `search_term_view`;
+- `AD_PERFORMANCE` → `ad_group_ad`;
+- `RSA_ASSET_PERFORMANCE` → `ad_group_ad_asset_view`.
+
+Share credential/customer transport infrastructure where appropriate, but keep GAQL, parser/normalizer, semantic validation, raw evidence, and provenance dataset-specific. Retry/resume remains Job-level.
+
+The legacy Search Terms quick-run remains compatible. Treat Performance Max or another Google Ads mode/resource as a separate scope and evidence gate.
 
 ### Keyword Planner
 

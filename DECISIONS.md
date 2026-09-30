@@ -1978,6 +1978,53 @@ Deterministic tests inject fake process/ingress/store boundaries and never open 
 
 ---
 
+# ADR-067 — Google Ads SEARCH Reporting Uses One Source Family With Independent Dataset Jobs
+
+**Status:** ACCEPTED
+**Date:** 2026-09-30
+
+## Decision
+
+Google Ads SEARCH reporting uses one logical source family:
+
+`google-ads-search-reporting`
+
+with six independent dataset Jobs:
+
+- `CAMPAIGN_PERFORMANCE` → `campaign`;
+- `AD_GROUP_PERFORMANCE` → `ad_group`;
+- `KEYWORD_PERFORMANCE` → `keyword_view`;
+- `SEARCH_TERMS` → `search_term_view`;
+- `AD_PERFORMANCE` → `ad_group_ad`;
+- `RSA_ASSET_PERFORMANCE` → `ad_group_ad_asset_view`.
+
+The family shares the existing Google Ads credential/customer transport boundary while each dataset owns its GAQL, normalization, validation, and provenance contract.
+
+Canonical REST SearchStream JSON is preserved as raw evidence before normalization. Core remains source-neutral and does not own Google Ads resource semantics.
+
+The existing `google-ads-search-terms` quick-run path remains supported for backward compatibility.
+
+The contract is SEARCH-only. Performance Max or another materially different Google Ads mode/resource requires a separate scope and evidence gate.
+
+## Context
+
+A single monolithic Ads job would make retry, validation, provenance, and later evidence reuse unnecessarily coarse. Treating every dataset as an unrelated provider source would duplicate shared credential/customer infrastructure.
+
+Independent dataset Jobs preserve failure isolation while one source family preserves the shared provider boundary.
+
+This ADR extends the Google Ads portion of ADR-050; it does not rewrite ADR-050 historical feasibility evidence.
+
+## Consequences
+
+- one dataset can fail or retry without recollecting successful sibling datasets;
+- raw evidence and validation remain dataset-specific;
+- missing values remain missing and provider-native units remain explicit;
+- no optimization score, CPA/ROAS decision layer, recommendation, or business judgment is introduced;
+- deterministic tests cover all six datasets without live provider calls;
+- expanded live provider acceptance remains separate from local implementation completion.
+
+---
+
 # 4. Deferred Decisions
 
 The following decisions are intentionally not locked in M0.
@@ -2397,6 +2444,7 @@ Validation is mandatory.
 | ADR-064 | Generalized desktop flow delegates Workspace drafts, readiness, reservation, retry, and source-separated packages to existing Core contracts | ACCEPTED |
 | ADR-065 | İkas production XLSX mapping uses exact identity/price headers and label-based variant attributes; storefront URL is unavailable without explicit evidence | ACCEPTED |
 | ADR-066 | macOS user-entered secrets use a main-owned native masked prompt through /usr/bin/osascript | ACCEPTED |
+| ADR-067 | Google Ads SEARCH reporting uses one source family with independent dataset jobs | ACCEPTED |
 
 ---
 

@@ -80,14 +80,24 @@ Values from 0 through 100 are relative interest, not search counts. Independentl
 
 Privacy filtering, row limits, data latency, property identity, requested versus returned dimensions, exact requested date windows, and source identity must remain visible in provenance.
 
-### 4.3 Google Ads Search Terms
+### 4.3 Google Ads SEARCH reporting family
 
-- Primary acquisition: official Google Ads API.
-- Verified source mode: `search_term_view`.
-- Real rows were returned from the Bitkimark account for a SEARCH campaign.
-- Status: feasibility **FINAL PASS**; implementation state is tracked separately.
+- Primary acquisition: official Google Ads API REST SearchStream.
+- Implemented source family: `google-ads-search-reporting`.
+- Release 1.0 scope is SEARCH only.
+- Implemented datasets/resources:
+  - `CAMPAIGN_PERFORMANCE` → `campaign`;
+  - `AD_GROUP_PERFORMANCE` → `ad_group`;
+  - `KEYWORD_PERFORMANCE` → `keyword_view`;
+  - `SEARCH_TERMS` → `search_term_view`;
+  - `AD_PERFORMANCE` → `ad_group_ad`;
+  - `RSA_ASSET_PERFORMANCE` → `ad_group_ad_asset_view`.
+- The existing `google-ads-search-terms` quick-run path remains supported for backward compatibility.
+- Raw SearchStream JSON is preserved before normalization.
+- Local deterministic implementation and validation coverage are complete for the six-dataset family.
+- Live provider acceptance for the expanded family remains a separate explicitly authorized evidence step.
 
-The SEARCH proof must not be generalized silently to Performance Max or another materially different mode. An unverified mode must be routed to a separately proven acquisition contract or produce an explicit unsupported/manual state.
+The previously verified live Google Ads proof remains `search_term_view` for a SEARCH campaign. That proof must not be generalized silently to Performance Max or another materially different campaign/resource mode. Performance Max and any other unapproved Google Ads reporting mode require their own scope and evidence gate.
 
 ### 4.4 Google Ads Keyword Planner historical metrics
 
@@ -130,14 +140,14 @@ The Collector may preserve query context, retrieval time, organic positions, tit
 
 Semrush is not an active Release 1.0 requirement because no current paid/API acquisition path has been verified. Historical references do not put it back on the implementation roadmap.
 
-Merchant Center, GA4, Google Ads performance datasets beyond the verified Search Terms scope, and other providers are extensibility examples only. Each requires a separate feasibility and scope gate.
+Merchant Center, GA4, Google Ads modes/resources beyond the approved SEARCH reporting family, and other providers are extensibility examples only. Each requires a separate feasibility and scope gate.
 
 ## 5. Acquisition vocabulary
 
 | Acquisition mode | Release 1.0 use |
 |---|---|
 | `BROWSER_EXPORT` | Google Trends |
-| `OFFICIAL_API` | Google Search Console; Google Ads Search Terms; Keyword Planner |
+| `OFFICIAL_API` | Google Search Console; Google Ads SEARCH reporting / Search Terms; Keyword Planner |
 | `FILE_IMPORT` | İkas Products XLSX; Keyword Planner CSV fallback |
 | `HTTP_XML` | Bitkimark public site |
 | `THIRD_PARTY_API` | SERP through SerpApi |

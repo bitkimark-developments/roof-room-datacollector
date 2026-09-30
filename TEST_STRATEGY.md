@@ -140,16 +140,28 @@ Required coverage:
 - requested/observed date and property provenance;
 - raw JSON preservation and validation.
 
-### Google Ads Search Terms
+### Google Ads SEARCH reporting family
 
-Required coverage:
+Required deterministic coverage includes:
 
-- GAQL/request mapping for verified `search_term_view` mode;
-- SEARCH campaign rows;
-- unsupported/unverified campaign mode surfaces visibly;
-- native metrics/nulls and date context;
-- API error/auth/quota mapping;
-- raw response and provenance.
+- exact source-family and six-dataset contract;
+- dataset-to-resource-mode mapping;
+- canonical REST SearchStream envelope flattening;
+- malformed, empty, and multi-envelope response behavior;
+- raw JSON preservation and immutability;
+- GAQL/request mapping for `campaign`, `ad_group`, `keyword_view`, `search_term_view`, `ad_group_ad`, and `ad_group_ad_asset_view`;
+- SEARCH-only fail-closed behavior;
+- exact requested date context;
+- native metric parsing, missing `NULL`, and true-zero preservation;
+- verified empty result → `NO_DATA`;
+- malformed/schema-changed response rejection;
+- customer/source/dataset/date provenance;
+- API/auth/access/quota/provider failure mapping;
+- independent dataset Job behavior;
+- Production Data Package loading for all six accepted datasets;
+- existing `google-ads-search-terms` quick-run regression compatibility.
+
+The aggregate `test:m3:google-ads-search-reporting` gate remains deterministic and must make no live Google Ads request. Live acceptance is separately invoked and quota-conscious.
 
 ### Keyword Planner
 

@@ -34,6 +34,7 @@ The current code accepts lowercase hyphenated source IDs. Release 1.0 implements
 | `google-trends` | `GOOGLE_TRENDS_UI` / browser export | `INTEREST_OVER_TIME` |
 | `google-search-console-query-page` | `OFFICIAL_API` | `QUERY_PAGE` |
 | `google-ads-search-terms` | `OFFICIAL_API` | `SEARCH_TERMS` |
+| `google-ads-search-reporting` | `OFFICIAL_API` | `CAMPAIGN_PERFORMANCE`, `AD_GROUP_PERFORMANCE`, `KEYWORD_PERFORMANCE`, `SEARCH_TERMS`, `AD_PERFORMANCE`, `RSA_ASSET_PERFORMANCE` |
 | `google-keyword-planner` | `OFFICIAL_API` | `KEYWORD_HISTORICAL_METRICS` |
 | `google-keyword-planner-csv` | `FILE_IMPORT` | `KEYWORD_HISTORICAL_METRICS` |
 | `ikas-products` | `FILE_IMPORT` | `PRODUCTS` |
@@ -384,9 +385,35 @@ Supported conceptual datasets:
 
 Preserve property, search type, request dates, returned dimensions, pagination/row handling, and provider completeness/privacy limitations.
 
-### Google Ads Search Terms
+### Google Ads SEARCH reporting
 
-The verified mode is `search_term_view` for SEARCH campaigns. Preserve date/segment context, search term, campaign/ad-group identifiers and names where returned, and provider-native metrics. Do not claim Performance Max completeness without a separately verified mode.
+The implemented family source is:
+
+```text
+source_id: google-ads-search-reporting
+acquisition_mode: OFFICIAL_API
+campaign_type: SEARCH
+dataset_schema_version: 1
+```
+
+Dataset/resource contracts are:
+
+```text
+CAMPAIGN_PERFORMANCE   → campaign
+AD_GROUP_PERFORMANCE   → ad_group
+KEYWORD_PERFORMANCE    → keyword_view
+SEARCH_TERMS           → search_term_view
+AD_PERFORMANCE         → ad_group_ad
+RSA_ASSET_PERFORMANCE  → ad_group_ad_asset_view
+```
+
+Every reporting Job preserves `customer_id`, exact requested date bounds, dataset identity, resource mode, and SEARCH campaign scope. Canonical SearchStream JSON remains the raw provider artifact and normalization happens separately.
+
+Performance rows preserve provider-native dates and metrics. Monetary values remain explicitly named in micros where supplied. Missing numeric evidence remains `NULL`; true provider zero remains zero.
+
+Configuration/snapshot fields and historical performance-window fields retain different temporal semantics. A current configuration value must not be presented as historical configuration unless a historical artifact actually recorded it.
+
+The existing `google-ads-search-terms` / `search_term_view` quick-run contract remains valid for backward compatibility. Performance Max or another unapproved Google Ads resource/mode must not be represented as complete evidence under this SEARCH family.
 
 ### Keyword Planner historical metrics
 

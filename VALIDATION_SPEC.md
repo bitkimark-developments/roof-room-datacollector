@@ -143,18 +143,34 @@ Required validator families for implementation:
 - privacy filtering, row limits, latency, and partial-return limitations are recorded rather than interpreted as complete market data;
 - empty response is distinguished from access failure and malformed response.
 
-## 9. Google Ads Search Terms
+## 9. Google Ads SEARCH reporting family
 
-Required validator families:
+Required validator families apply independently to:
 
-- official API response shape and customer/request provenance;
-- verified source mode is `search_term_view` for the currently proven SEARCH path;
-- search term and requested segment fields are present where rows exist;
-- campaign/ad-group identifiers and metric types are source-faithful;
-- dates are inside the requested range;
-- missing values remain null;
-- empty rows are distinguished from unsupported campaign mode or access failure;
-- Performance Max or another unverified mode cannot be reported as a complete Search Terms dataset without a separately verified contract.
+- `CAMPAIGN_PERFORMANCE`;
+- `AD_GROUP_PERFORMANCE`;
+- `KEYWORD_PERFORMANCE`;
+- `SEARCH_TERMS`;
+- `AD_PERFORMANCE`;
+- `RSA_ASSET_PERFORMANCE`.
+
+Validation requires:
+
+- official SearchStream response shape and customer/request provenance;
+- exact dataset/resource-mode agreement with the immutable Job context;
+- `campaign_type = SEARCH`;
+- dates inside the immutable requested date range;
+- dataset-specific required identities and provider-native metric types;
+- missing numeric values remain `NULL`;
+- true numeric zero remains zero;
+- canonical empty SearchStream results resolve to verified `NO_DATA` rather than schema failure;
+- malformed/non-data content fails visibly;
+- unsupported dataset/resource mode fails before provider use where possible;
+- rejected or context-mismatched evidence cannot enter normal exports.
+
+Resource-specific identity includes campaign, ad-group, criterion/keyword, search-term, ad, and RSA asset fields as applicable. Provider enums and asset labels are preserved without converting them into optimization recommendations.
+
+Performance Max or another unapproved Google Ads campaign/resource mode cannot be reported as complete evidence under this SEARCH-only family. The legacy `google-ads-search-terms` quick-run validator remains backward-compatible with its verified `search_term_view` contract.
 
 ## 10. Keyword Planner historical metrics
 

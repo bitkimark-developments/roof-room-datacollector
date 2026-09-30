@@ -116,7 +116,7 @@ Used by Google Trends. Core supplies browser lifecycle and storage. The source c
 
 ### `OFFICIAL_API`
 
-Used by GSC, Google Ads Search Terms, and Keyword Planner. The source builds supported API requests and maps responses/errors. Credentials come through the Core security boundary. Raw provider JSON or an equivalently faithful serialized response is preserved before normalization.
+Used by GSC, the Google Ads SEARCH reporting family and legacy Search Terms quick-run path, and Keyword Planner. The source builds supported API requests and maps responses/errors. Credentials come through the Core security boundary. Raw provider JSON or an equivalently faithful serialized response is preserved before normalization.
 
 ### `FILE_IMPORT`
 
@@ -245,9 +245,20 @@ Current flow uses externally configured query groups, one sequential job per gro
 
 The adapter will require official API acquisition, OAuth scope/property selection, dataset-specific dimensions, raw JSON preservation, row/pagination handling, and provider limitation metadata.
 
-### Google Ads Search Terms
+### Google Ads SEARCH reporting
 
-The adapter will use the official API and preserve the verified `search_term_view` source mode. Campaign modes not covered by the proof must not be silently treated as complete.
+The implemented `google-ads-search-reporting` source family is SEARCH-only and dispatches six independently tracked dataset Jobs:
+
+- `CAMPAIGN_PERFORMANCE` → `campaign`;
+- `AD_GROUP_PERFORMANCE` → `ad_group`;
+- `KEYWORD_PERFORMANCE` → `keyword_view`;
+- `SEARCH_TERMS` → `search_term_view`;
+- `AD_PERFORMANCE` → `ad_group_ad`;
+- `RSA_ASSET_PERFORMANCE` → `ad_group_ad_asset_view`.
+
+The adapters share the existing Google Ads OAuth/customer transport boundary while keeping GAQL, parsing/normalization, semantic validation, and dataset provenance source-specific. Canonical REST SearchStream JSON is preserved before normalization.
+
+The existing `google-ads-search-terms` quick-run path remains for compatibility. Core does not learn GAQL/resource semantics. Performance Max and other unapproved Google Ads modes remain outside this contract.
 
 ### Keyword Planner
 

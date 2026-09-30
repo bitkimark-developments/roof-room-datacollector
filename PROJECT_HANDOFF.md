@@ -3326,3 +3326,47 @@ Begin the bounded SERP follow-up stage by inspecting the existing SerpApi source
 Lock the next SERP scope and evidence semantics before implementation. Preserve on-demand collection and raw provider evidence. Do not reconstruct historical SERP observations that were never collected, and do not add analysis fields such as intent, commercial fit, page-type recommendations, or actions to Collector output.
 
 Use deterministic fixture-based TDD. Do not make a live SerpApi request without separate explicit authorization.
+
+## 60. Google Ads SEARCH reporting family — deterministic Slice A completion — 2026-09-30
+
+The bounded Google Ads SEARCH reporting-family Slice A is complete in local deterministic implementation on `feat/google-ads-search-reporting-family`.
+
+Technical implementation checkpoint before this documentation reconciliation:
+
+- `3d2cd8d feat: add google ads search reporting family`
+
+The source family is `google-ads-search-reporting` and remains SEARCH-only. It dispatches six independent dataset Jobs:
+
+- `CAMPAIGN_PERFORMANCE` → `campaign`;
+- `AD_GROUP_PERFORMANCE` → `ad_group`;
+- `KEYWORD_PERFORMANCE` → `keyword_view`;
+- `SEARCH_TERMS` → `search_term_view`;
+- `AD_PERFORMANCE` → `ad_group_ad`;
+- `RSA_ASSET_PERFORMANCE` → `ad_group_ad_asset_view`.
+
+The existing `google-ads-search-terms` quick-run path remains backward-compatible. Canonical REST SearchStream JSON is preserved before normalization. Missing numeric evidence remains `NULL`, true zero remains zero, provider-native monetary values remain in micros where applicable, and unsupported/mismatched SEARCH context fails closed. Production Data Package loading accepts all six validated datasets, including verified `NO_DATA` provenance.
+
+Fresh deterministic verification on the current branch:
+
+- `npm run test:m3:google-ads-search-reporting` — PASS `GOOGLE-ADS-SEARCH-REPORTING-GATE-001`;
+- `npm run test:m3:google-api-adapters` — PASS `GOOGLE-API-001`;
+- `npm run test:m3:google-credentials` — PASS `GOOGLE-CREDENTIAL-001`;
+- `npm run test:m6:production-data-package` — PASS `PRODUCTION-DATA-PACKAGE-001`;
+- `npm run test:m6:data-package` — PASS;
+- `npm run lint` — PASS;
+- `npx tsc --noEmit` — PASS;
+- `git diff --check` — PASS;
+- `npm run test:release:gate` — PASS `RELEASE-GATE-001`.
+
+No live Google Ads collection request was made during this Slice A closeout. The previously verified live evidence remains the legacy `search_term_view` SEARCH path. Live acceptance for the additional reporting resources remains a separate, explicitly authorized, quota-conscious evidence step. Performance Max remains outside this contract and requires a separate scope/evidence gate.
+
+Canonical documentation was reconciled to the implemented family contract without rewriting historical sections or ADR history. ADR-067 records the one-family/six-independent-dataset-Jobs decision.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Exact next action
+
+Commit this documentation reconciliation as a docs-only checkpoint on `feat/google-ads-search-reporting-family`. Then confirm the feature branch is clean except for the two protected historical untracked files and, if branch ancestry remains a direct fast-forward from `main`, integrate it with `git merge --ff-only`. Do not run a live Google Ads smoke automatically. Slice B (`ADS_OPTIMIZATION_PACK` package/baseline/reuse/export work) remains separate and should begin only after this Slice A checkpoint is integrated and the next implementation session starts.
