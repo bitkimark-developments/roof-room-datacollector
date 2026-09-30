@@ -264,6 +264,36 @@ async function main() {
   assert.equal(datasets.every((dataset) => dataset.provenance.raw_artifact_id && dataset.provenance.raw_artifact_sha256), true);
   assert.equal(JSON.stringify(datasets).includes(workRoot), false, 'Export provenance must not leak unrestricted local paths.');
 
+  const campaignJob = jobs.find((job) => job.job_key === 'CAMPAIGN_PERFORMANCE');
+  const campaignDataset = await loader.loadAcceptedJobDataset(run.run_id, campaignJob.job_id);
+  assert.equal(campaignDataset.job_id, campaignJob.job_id);
+  assert.equal(campaignDataset.dataset_type, 'CAMPAIGN_PERFORMANCE');
+  assert.equal(campaignDataset.provenance.run_id, run.run_id);
+  assert.equal(campaignDataset.provenance.job_id, campaignJob.job_id);
+  assert.equal(campaignDataset.provenance.raw_artifact_id, campaignJob.accepted_artifact_id);
+  assert.equal(campaignDataset.provenance.attempt_number, 1);
+  assert.equal(campaignDataset.provenance.validation_status, 'VALID');
+  assert.equal(campaignDataset.provenance.acquired_at, '2026-09-19T12:00:01.000Z');
+  assert.equal(campaignDataset.provenance.snapshot_observed_at, '2026-09-19T12:00:01.000Z');
+  assert.equal(campaignDataset.provenance.raw_artifact_sha256.length, 64);
+  assert.equal(campaignDataset.provenance.requested_context.dataset_type, 'CAMPAIGN_PERFORMANCE');
+  await assert.rejects(
+    () => loader.loadAcceptedJobDataset('rr_unknown', campaignJob.job_id),
+    /Unknown Run/i,
+  );
+  await assert.rejects(
+    () => loader.loadAcceptedJobDataset(run.run_id, 'job_unknown'),
+    /Unknown Job|does not belong/i,
+  );
+
+  const campaignArtifact = artifacts.get(campaignJob.accepted_artifact_id);
+  artifacts.set(campaignJob.accepted_artifact_id, { ...campaignArtifact, run_id: 'rr_other' });
+  await assert.rejects(
+    () => loader.loadAcceptedJobDataset(run.run_id, campaignJob.job_id),
+    /no valid accepted raw artifact/i,
+  );
+  artifacts.set(campaignJob.accepted_artifact_id, campaignArtifact);
+
   jobs.push({
     job_id: 'job_rejected', run_id: run.run_id, source_id: 'google-ads-search-reporting',
     job_key: 'CAMPAIGN_PERFORMANCE', query_group_id: null,
@@ -272,6 +302,10 @@ async function main() {
     attempt_count: 1, accepted_artifact_id: null, created_at: '2026-09-19T12:00:00.000Z',
     started_at: '2026-09-19T12:00:00.000Z', completed_at: '2026-09-19T12:00:01.000Z',
   });
+  await assert.rejects(
+    () => loader.loadAcceptedJobDataset(run.run_id, 'job_rejected'),
+    /not eligible|accepted/i,
+  );
   assert.equal((await loader.loadRunDatasets(run.run_id)).length, datasets.length, 'Rejected evidence must be excluded');
   jobs.pop();
 
@@ -303,6 +337,10 @@ async function main() {
   const tampered = fs.readFileSync(serpPath);
   tampered[0] ^= 1;
   fs.writeFileSync(serpPath, tampered);
+  await assert.rejects(
+    () => loader.loadAcceptedJobDataset(run.run_id, serpJob.job_id),
+    /checksum|integrity/i,
+  );
   await assert.rejects(() => loader.loadRunDatasets(run.run_id), /checksum|integrity/i);
 
   console.log('PASS PRODUCTION-DATA-PACKAGE-001: accepted source artifacts, including all six Google Ads reporting datasets and NO_DATA provenance, load through verified native normalization and integrity checks');

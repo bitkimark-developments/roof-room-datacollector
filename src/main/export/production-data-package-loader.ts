@@ -95,36 +95,66 @@ export class ProductionDataPackageLoader {
       ) {
         continue;
       }
-      const artifact = this.requireAcceptedArtifact(run, job);
-      const bytes = await this.readVerifiedArtifact(artifact);
-      const parsed = this.parseDataset(job, artifact, bytes);
-      datasets.push({
-        source_id: job.source_id,
-        dataset_type: parsed.dataset_type,
-        job_id: job.job_id,
-        job_key: job.job_key,
-        rows: parsed.rows,
-        provenance: {
-          run_id: run.run_id,
-          workspace_id: run.workspace_id,
-          job_id: job.job_id,
-          job_key: job.job_key,
-          source_id: job.source_id,
-          validation_status: job.validation_status,
-          raw_artifact_id: artifact.artifact_id,
-          raw_artifact_filename: artifact.filename,
-          raw_artifact_media_type: artifact.media_type,
-          raw_artifact_byte_size: artifact.byte_size,
-          raw_artifact_sha256: artifact.sha256,
-          acquired_at: artifact.created_at,
-          ...(job.source_id === GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID
-            ? { snapshot_observed_at: artifact.created_at }
-            : {}),
-          requested_context: safeContext(job.source_context),
-        },
-      });
+      datasets.push(await this.loadEligibleJobDataset(run, job));
     }
     return datasets;
+  }
+
+  async loadAcceptedJobDataset(
+    run_id: string,
+    job_id: string,
+  ): Promise<DataPackageInputDataset> {
+    const run = this.repository.getRun(run_id);
+    if (run === null) throw new Error(`Unknown Run: ${run_id}`);
+    const job = this.repository.listJobs(run_id).find((candidate) => (
+      candidate.job_id === job_id
+    ));
+    if (job === undefined || job.run_id !== run.run_id) {
+      throw new Error(`Unknown Job ${job_id} for Run ${run_id}.`);
+    }
+    if (
+      job.execution_status !== 'COMPLETED'
+      || !ACCEPTED_VALIDATION.has(job.validation_status)
+      || job.accepted_artifact_id === null
+    ) {
+      throw new Error(`Job ${job_id} is not eligible accepted evidence.`);
+    }
+    return this.loadEligibleJobDataset(run, job);
+  }
+
+  private async loadEligibleJobDataset(
+    run: RunRecord,
+    job: JobRecord,
+  ): Promise<DataPackageInputDataset> {
+    const artifact = this.requireAcceptedArtifact(run, job);
+    const bytes = await this.readVerifiedArtifact(artifact);
+    const parsed = this.parseDataset(job, artifact, bytes);
+    return {
+      source_id: job.source_id,
+      dataset_type: parsed.dataset_type,
+      job_id: job.job_id,
+      job_key: job.job_key,
+      rows: parsed.rows,
+      provenance: {
+        run_id: run.run_id,
+        workspace_id: run.workspace_id,
+        job_id: job.job_id,
+        job_key: job.job_key,
+        source_id: job.source_id,
+        attempt_number: artifact.attempt_number,
+        validation_status: job.validation_status,
+        raw_artifact_id: artifact.artifact_id,
+        raw_artifact_filename: artifact.filename,
+        raw_artifact_media_type: artifact.media_type,
+        raw_artifact_byte_size: artifact.byte_size,
+        raw_artifact_sha256: artifact.sha256,
+        acquired_at: artifact.created_at,
+        ...(job.source_id === GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID
+          ? { snapshot_observed_at: artifact.created_at }
+          : {}),
+        requested_context: safeContext(job.source_context),
+      },
+    };
   }
 
   private requireAcceptedArtifact(run: RunRecord, job: JobRecord): ArtifactRecord {
