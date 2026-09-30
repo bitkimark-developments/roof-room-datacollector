@@ -163,6 +163,12 @@ Required deterministic coverage includes:
 
 The aggregate `test:m3:google-ads-search-reporting` gate remains deterministic and must make no live Google Ads request. Live acceptance is separately invoked and quota-conscious.
 
+### ADS_OPTIMIZATION_PACK v1 Slice B
+
+`npm run test:m7:ads-optimization-pack` is the deterministic aggregate gate for the recipe/window policy, accepted-evidence resolution, immutable package storage, CURRENT/PREVIOUS assembly, Ads workbook export, and an integrated local six-dataset package flow. It uses temporary run-scoped raw artifacts and local repository/storage fixtures only; it constructs no requester or acquirer and makes no live provider call.
+
+Required coverage includes exact reuse, exact-window `NO_DATA`, rejection of broader `NO_DATA`, exact `performance_date` filtering of broader populated DAILY rows, acquisition timestamps as provenance rather than freshness eligibility, visible `NOT_READY`, deterministic baseline/tie selection, gap recording, historical snapshot preservation, strict manifest/transformation validation, path/symlink/checksum/row-count failures, atomic non-overwriting publication, raw-byte immutability, literal formula-like strings, deterministic nested arrays, and null/zero behavior. The focused gate is included once in the deterministic release gate. Slice C UI/IPC behavior and live Google Ads acceptance remain separate gates.
+
 ### Keyword Planner
 
 Required API coverage includes historical-metrics request mapping, keyword identity, average searches, competition/index, monthly rows, nullable bid/volume fields, and operational error mapping.

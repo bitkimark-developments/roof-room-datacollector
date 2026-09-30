@@ -3370,3 +3370,53 @@ Protected historical files remain untracked and untouched:
 ### Exact next action
 
 Commit this documentation reconciliation as a docs-only checkpoint on `feat/google-ads-search-reporting-family`. Then confirm the feature branch is clean except for the two protected historical untracked files and, if branch ancestry remains a direct fast-forward from `main`, integrate it with `git merge --ff-only`. Do not run a live Google Ads smoke automatically. Slice B (`ADS_OPTIMIZATION_PACK` package/baseline/reuse/export work) remains separate and should begin only after this Slice A checkpoint is integrated and the next implementation session starts.
+
+## 61. ADS_OPTIMIZATION_PACK v1 — deterministic Slice B completion — 2026-09-30
+
+The approved Slice B plan is complete in local deterministic implementation on `feat/ads-optimization-pack-v1`. The final implementation checkpoint before this documentation reconciliation is `ced1346` (`fix: validate task package transformations`).
+
+Implemented boundaries:
+
+- a code-defined source-neutral `ADS_OPTIMIZATION_PACK` v1 recipe with exactly the six SEARCH reporting datasets;
+- verified single-Job accepted-evidence loading through the existing Production Data Package loader;
+- deterministic local evidence resolution with exact reuse, exact-window verified `NO_DATA`, and exact `performance_date` filtering of broader populated DAILY evidence;
+- no acquisition-date/same-local-day eligibility rule; acquisition and snapshot timestamps remain provenance, with acquisition timestamp used only after exactness/range width as a deterministic tie-breaker;
+- broader `NO_DATA` is rejected for a narrower requested window, with no inference, interpolation, aggregate reconstruction, or proportional allocation;
+- strict immutable Task Package manifest/table storage under `ApplicationDirectories.data/packages`, including safe paths, regular-file/symlink checks, row counts, SHA-256, staging cleanup, manifest-last publication, and overwrite refusal;
+- CURRENT-only `INITIAL_BASELINE` assembly and latest-compatible non-overlapping immutable PREVIOUS reuse for `COMPARISON`, including deterministic `gap_days` and no historical configuration backfill;
+- Ads-specific XLSX export with the approved sheet order, explicit provider-native columns, literal formula-like text, deterministic nested-array JSON, blank/null preservation, and numeric zero preservation;
+- a focused deterministic Slice B gate wired once into the release gate.
+
+Implementation commits after the approved plan checkpoint:
+
+- `0df7aa1 feat: define ads optimization package recipe`
+- `251e2fb feat: load verified accepted job evidence`
+- `a403e30 feat: resolve compatible task package evidence`
+- `69be5b3 feat: add immutable task package storage`
+- `e2a2e23 feat: assemble initial task package baseline`
+- `60f8e13 feat: assemble prior package comparison baseline`
+- `4bddf47 feat: export ads optimization task packages`
+- `b6e0698 test: gate ads optimization task packages`
+- `ced1346 fix: validate task package transformations`
+
+Fresh deterministic verification on the implementation checkpoint:
+
+- `npm run test:m7:ads-optimization-pack` — PASS `ADS-OPTIMIZATION-PACK-GATE-001`;
+- `npm run test:m3:google-ads-search-reporting` — PASS `GOOGLE-ADS-SEARCH-REPORTING-GATE-001`;
+- `npm run test:m6:production-data-package` — PASS `PRODUCTION-DATA-PACKAGE-001`;
+- `npm run test:m6:data-package` — PASS;
+- `npm run lint` — PASS;
+- `npx tsc --noEmit` — PASS;
+- `git diff --check` — PASS;
+- `npm run test:release:gate` — PASS `RELEASE-GATE-001`.
+
+No live Google/provider call was made. Slice C desktop Review/Start/Open/Retry UI and IPC composition are not implemented. Expanded live acceptance for the additional Google Ads reporting resources is still absent and requires separate explicit authorization. Performance Max remains outside the recipe and implementation.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Exact next action
+
+Review this Slice B checkpoint and its canonical documentation commit. Do not merge or push without explicit instruction. The next implementation scope, only after separate approval, is Slice C desktop workflow/hardening; live Google Ads acceptance remains a separately authorized, quota-conscious step and is not part of routine regression.

@@ -2025,6 +2025,30 @@ This ADR extends the Google Ads portion of ADR-050; it does not rewrite ADR-050 
 
 ---
 
+# ADR-068 — Task Packages Assemble Accepted Evidence Without Owning Acquisition
+
+**Status:** ACCEPTED
+**Date:** 2026-09-30
+
+## Decision
+
+`ADS_OPTIMIZATION_PACK` v1 is implemented as a source-neutral Task Package layer above the existing Run → Job → Attempt → Artifact lifecycle. Its assembler consumes only already accepted compatible evidence and immutable stored Task Packages. It does not authenticate, call providers, launch collection, retry acquisition, or add a package database table.
+
+CURRENT is the last seven complete calendar days. Exact compatible evidence is preferred. A broader populated DAILY artifact may be filtered only by its exact `performance_date` rows. Verified `NO_DATA` is reusable only for the exact requested window; broader `NO_DATA` cannot prove a narrower window. Acquisition timestamps remain provenance and deterministic tie-break evidence, not eligibility or freshness gates.
+
+The first complete package is `INITIAL_BASELINE`. PREVIOUS for a later `COMPARISON` comes only from checksum-verified CURRENT tables in the latest compatible non-overlapping immutable package. Package JSON tables, XLSX, and a strict manifest are derived outputs stored under `ApplicationDirectories.data/packages`; raw artifacts remain unchanged in canonical run storage.
+
+## Consequences
+
+- unresolved requirements return visible `NOT_READY` outcomes without empty-data substitution;
+- no interpolation, aggregate reconstruction, proportional allocation, or historical configuration backfill is allowed;
+- generic package code remains independent of Google Ads GAQL and worksheet columns;
+- the Ads exporter owns explicit provider-native sheets/columns and emits no optimization judgment;
+- deterministic package gates make no live provider calls;
+- Slice C UI/IPC orchestration and expanded live Google Ads acceptance remain separate work.
+
+---
+
 # 4. Deferred Decisions
 
 The following decisions are intentionally not locked in M0.
@@ -2445,6 +2469,7 @@ Validation is mandatory.
 | ADR-065 | İkas production XLSX mapping uses exact identity/price headers and label-based variant attributes; storefront URL is unavailable without explicit evidence | ACCEPTED |
 | ADR-066 | macOS user-entered secrets use a main-owned native masked prompt through /usr/bin/osascript | ACCEPTED |
 | ADR-067 | Google Ads SEARCH reporting uses one source family with independent dataset jobs | ACCEPTED |
+| ADR-068 | Task Packages assemble accepted evidence without owning acquisition | ACCEPTED |
 
 ---
 

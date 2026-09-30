@@ -415,6 +415,24 @@ Configuration/snapshot fields and historical performance-window fields retain di
 
 The existing `google-ads-search-terms` / `search_term_view` quick-run contract remains valid for backward compatibility. Performance Max or another unapproved Google Ads resource/mode must not be represented as complete evidence under this SEARCH family.
 
+### ADS_OPTIMIZATION_PACK v1 Task Packages
+
+`ADS_OPTIMIZATION_PACK` version `1` requires exactly the six SEARCH reporting datasets above. CURRENT is the last seven complete calendar days. The first complete package is `INITIAL_BASELINE`; a later `COMPARISON` uses the stored CURRENT snapshot of the latest compatible non-overlapping package as PREVIOUS. PREVIOUS is never refetched, and current configuration is never copied backward to fill missing historical configuration.
+
+CURRENT evidence compatibility requires exact Workspace/account identity, source, dataset, resource mode, SEARCH scope, dataset schema version, accepted artifact/validation state, and sufficient date coverage. Acquisition and snapshot timestamps remain provenance and may break deterministic ties, but acquisition date is not an eligibility or freshness requirement.
+
+Reuse is restricted to:
+
+- an exact compatible populated dataset for the exact requested window;
+- verified `NO_DATA` only for the exact requested window;
+- a broader populated DAILY dataset filtered only by exact `performance_date` rows inside the requested window.
+
+A broader `NO_DATA` result cannot cover a narrower window. Aggregate reconstruction, inference, interpolation, averaging, subtraction, and proportional allocation are prohibited. Missing required evidence produces a visible `NOT_READY` result rather than an invented empty dataset.
+
+Each immutable package manifest records recipe/package identity, Workspace/customer identity, CURRENT/PREVIOUS windows, gap, required datasets, disposition, transformation, row count, source Run/Job/Attempt/Artifact/checksum/validation identities, acquisition/snapshot timestamps, and role-specific derived table references. Table references include deterministic relative filenames, row counts, and SHA-256. Manifest parsing and package scanning reject malformed schemas, unsafe paths, symlinks, checksum or row-count mismatch, inconsistent transformations, secrets, and analysis fields.
+
+The workbook and JSON tables preserve provider-native evidence only. `null` remains blank/null, true zero remains numeric zero, nested Ads arrays are deterministic JSON strings in XLSX, and formula-like provider text remains a literal string cell. No recommendation, delta, score, winner/loser, GO/PAUSE, or optimization judgment is generated.
+
 ### Keyword Planner historical metrics
 
 Preserve keyword, average monthly searches, competition, competition index, monthly rows (`year`, `month`, nullable searches), and bid metrics when returned. API and manual CSV outputs may normalize to compatible tables while retaining distinct acquisition provenance.
