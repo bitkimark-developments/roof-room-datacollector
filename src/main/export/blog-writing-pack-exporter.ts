@@ -57,8 +57,18 @@ const sheetData = (
   ...rows.map((row) => headers.map((header) => ({ value: cellValue(row[header]) }))),
 ];
 
-const provenanceOf = (dataset: DataPackageDataset): Row =>
-  asObject(dataset.provenance) ?? {};
+const provenanceOf = (dataset: DataPackageDataset): Row => {
+  const provenance = asObject(dataset.provenance);
+  if (
+    provenance === null
+    || provenance.source_id !== dataset.source_id
+    || provenance.job_id !== dataset.job_id
+    || provenance.job_key !== dataset.job_key
+  ) {
+    throw new Error(`Dataset ${dataset.job_id} provenance identity is invalid.`);
+  }
+  return provenance;
+};
 
 const identityOf = (dataset: DataPackageDataset): Row => ({
   source_id: dataset.source_id,
@@ -73,8 +83,8 @@ const rowsFor = (
 ): Row[] => datasets
   .filter(predicate)
   .flatMap((dataset) => dataset.rows.map((row) => ({
-    ...identityOf(dataset),
     ...row,
+    ...identityOf(dataset),
   })));
 
 const queryGroupId = (dataset: DataPackageDataset): string => {
@@ -97,7 +107,7 @@ export const buildBlogWritingPackWorkbook = (
     .filter((dataset) => dataset.source_id === 'google-trends' && dataset.dataset_type === 'INTEREST_OVER_TIME')
     .flatMap((dataset) => {
       const query_group_id = queryGroupId(dataset);
-      return dataset.rows.map((row) => ({ ...identityOf(dataset), query_group_id, ...row }));
+      return dataset.rows.map((row) => ({ ...row, ...identityOf(dataset), query_group_id }));
     });
 
   const kwpDatasets = datasets.filter((dataset) => (
@@ -123,11 +133,11 @@ export const buildBlogWritingPackWorkbook = (
   }));
 
   const provenanceRows = datasets.map((dataset) => ({
+    ...provenanceOf(dataset),
     source_id: dataset.source_id,
     dataset_type: dataset.dataset_type,
     job_id: dataset.job_id,
     job_key: dataset.job_key,
-    ...provenanceOf(dataset),
   }));
 
   const rowsBySheet: Record<keyof typeof HEADERS, Row[]> = {

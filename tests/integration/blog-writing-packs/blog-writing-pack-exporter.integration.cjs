@@ -214,6 +214,35 @@ const sheetByName = (workbook, name) => workbook.sheets.find((sheet) => sheet.na
   badGtAssembly.data_package.datasets[0].provenance.requested_context.query_group.query_group_id = 'WRONG';
   assert.throws(() => buildBlogWritingPackWorkbook(badGtAssembly), /query_group_id/i);
 
+  const conflictingRowsAssembly = structuredClone(assembly);
+  Object.assign(conflictingRowsAssembly.data_package.datasets[0].rows[0], {
+    source_id: 'forged-source',
+    job_id: 'forged-job',
+    job_key: 'FORGED',
+    validation_status: 'REJECTED',
+    query_group_id: 'FORGED',
+  });
+  Object.assign(conflictingRowsAssembly.data_package.datasets[2].rows[0], {
+    source_id: 'forged-source',
+    job_id: 'forged-job',
+    job_key: 'FORGED',
+    validation_status: 'REJECTED',
+  });
+  const trustedWorkbook = buildBlogWritingPackWorkbook(conflictingRowsAssembly);
+  assert.deepEqual(values(sheetByName(trustedWorkbook, 'GT_INTEREST'))[1].slice(0, 5), [
+    'google-trends', 'gt_01', 'GT01', 'VALID', 'GT01',
+  ]);
+  assert.deepEqual(values(sheetByName(trustedWorkbook, 'GSC_QUERY_PAGE'))[1].slice(0, 4), [
+    'google-search-console-query-page', 'gsc_1', 'GSC01', 'VALID',
+  ]);
+
+  const mismatchedProvenanceAssembly = structuredClone(assembly);
+  mismatchedProvenanceAssembly.data_package.datasets[0].provenance.job_id = 'forged-job';
+  assert.throws(
+    () => buildBlogWritingPackWorkbook(mismatchedProvenanceAssembly),
+    /provenance.*identity/i,
+  );
+
   const bytes = await renderBlogWritingPackWorkbook(assembly);
   assert.equal(bytes instanceof Uint8Array, true);
   assert.deepEqual(Array.from(bytes.slice(0, 4)), [0x50, 0x4b, 0x03, 0x04]);
