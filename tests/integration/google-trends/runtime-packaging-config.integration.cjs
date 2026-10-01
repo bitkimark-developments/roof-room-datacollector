@@ -100,6 +100,18 @@ const main = async () => {
     false,
   );
   assert.equal(
+    ignore('/config'),
+    false,
+  );
+  assert.equal(
+    ignore('/config/query-groups.yaml'),
+    false,
+  );
+  assert.equal(
+    ignore('/config/other.yaml'),
+    true,
+  );
+  assert.equal(
     ignore('/src/main.ts'),
     true,
   );
@@ -150,6 +162,9 @@ const main = async () => {
   );
   console.log(
     'PASS GT-PACKAGE-002: production packaging keeps external runtime dependencies and applies fail-closed local ad-hoc signing',
+  );
+  console.log(
+    'PASS GT-PACKAGE-003: production packaging includes only the required default query-groups config resource',
   );
 };
 

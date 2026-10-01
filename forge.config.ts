@@ -14,6 +14,8 @@ const shouldIgnorePackagedPath = (file: string): boolean => {
 
   return !(
     file.startsWith('/.vite') ||
+    file === '/config' ||
+    file === '/config/query-groups.yaml' ||
     file === '/node_modules' ||
     file.startsWith('/node_modules/')
   );
