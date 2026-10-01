@@ -211,6 +211,8 @@ const isRunState = (value: unknown): boolean => {
     || !isPlainRecord(run.configuration_snapshot.task_package)
   ) return false;
   const taskPackage = run.configuration_snapshot.task_package;
+  const accountIdentity = taskPackage.account_identity;
+  const currentWindow = taskPackage.current_window;
   if (
     !hasExactKeys(taskPackage, [
       'recipe_id', 'recipe_version', 'workspace_id', 'account_identity', 'current_window',
@@ -218,10 +220,12 @@ const isRunState = (value: unknown): boolean => {
     || taskPackage.recipe_id !== 'ADS_OPTIMIZATION_PACK'
     || taskPackage.recipe_version !== 1
     || taskPackage.workspace_id !== run.workspace_id
-    || !isAccount(taskPackage.account_identity)
-    || !isWindow(taskPackage.current_window)
+    || !isAccount(accountIdentity)
+    || !isPlainRecord(currentWindow)
+    || !isWindow(currentWindow)
   ) return false;
-  if (!Array.isArray(value.jobs) || !value.jobs.every((job) => {
+  const jobs = value.jobs;
+  if (!Array.isArray(jobs) || !jobs.every((job) => {
     if (!isPlainRecord(job) || !hasExactKeys(job, [
       'job_id', 'run_id', 'source_id', 'job_key', 'query_group_id', 'source_context',
       'job_order', 'execution_status', 'validation_status', 'attempt_count',
@@ -244,11 +248,10 @@ const isRunState = (value: unknown): boolean => {
       && context.dataset_type === job.job_key
       && context.resource_mode === GOOGLE_ADS_SEARCH_REPORTING_RESOURCE_MODE_BY_DATASET[datasetType]
       && context.campaign_type === 'SEARCH'
-      && context.customer_id === taskPackage.account_identity.value
+      && context.customer_id === accountIdentity.value
       && isNonEmptyString(context.customer_id)
-      && isPlainRecord(taskPackage.current_window)
-      && context.requested_date_start === taskPackage.current_window.start
-      && context.requested_date_end === taskPackage.current_window.end
+      && context.requested_date_start === currentWindow.start
+      && context.requested_date_end === currentWindow.end
       && context.dataset_schema_version === 1
       && Number.isInteger(job.job_order)
       && (job.job_order as number) >= 0
@@ -269,7 +272,7 @@ const isRunState = (value: unknown): boolean => {
         'job_id', 'attempt_number', 'execution_status', 'error_code',
         'started_at', 'completed_at',
       ])
-      && value.jobs.some((job) => isPlainRecord(job) && job.job_id === attempt.job_id)
+      && jobs.some((job) => isPlainRecord(job) && job.job_id === attempt.job_id)
       && Number.isInteger(attempt.attempt_number)
       && (attempt.attempt_number as number) > 0
       && isExecutionStatus(attempt.execution_status)
