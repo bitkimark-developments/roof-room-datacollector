@@ -124,6 +124,15 @@ const isAccount = (
   && isNonEmptyString(value.value)
 );
 
+const isEmptyAccount = (
+  value: unknown,
+): value is { field: 'customer_id'; value: '' } => (
+  isPlainRecord(value)
+  && hasExactKeys(value, ['field', 'value'])
+  && value.field === 'customer_id'
+  && value.value === ''
+);
+
 const containsForbiddenKey = (value: unknown): boolean => {
   if (Array.isArray(value)) return value.some(containsForbiddenKey);
   if (!isPlainRecord(value)) return false;
@@ -156,7 +165,7 @@ const requireSafeReview = (value: unknown): DesktopTaskPackageReview => {
     || value.recipe_version !== 1
     || !isNonEmptyString(value.recipe_label)
     || !isNonEmptyString(value.workspace_id)
-    || !isAccount(value.account_identity)
+    || !(isAccount(value.account_identity) || isEmptyAccount(value.account_identity))
     || value.customer_id !== value.account_identity.value
     || !/^\d{4}-\d{2}-\d{2}$/u.test(String(value.reference_date))
     || !isWindow(value.current_window)
@@ -181,6 +190,27 @@ const requireSafeReview = (value: unknown): DesktopTaskPackageReview => {
   ) {
     throw new Error('Desktop Task Package review response is invalid.');
   }
+
+  if (
+    value.account_identity.value === ''
+    && !(
+      value.customer_id === ''
+      && value.status === 'NOT_READY'
+      && value.can_start === false
+      && value.can_open === false
+      && value.collection_run_id === null
+      && value.requirements.every((requirement) => (
+        isPlainRecord(requirement)
+        && requirement.status === 'BLOCKED'
+        && Array.isArray(requirement.reason_codes)
+        && requirement.reason_codes.length === 1
+        && requirement.reason_codes[0] === 'CONFIGURATION_REQUIRED'
+      ))
+    )
+  ) {
+    throw new Error('Desktop Task Package review response is invalid.');
+  }
+
   return JSON.parse(JSON.stringify(value)) as DesktopTaskPackageReview;
 };
 
