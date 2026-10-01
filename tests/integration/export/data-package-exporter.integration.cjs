@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { strFromU8, unzipSync } = require('fflate');
-const { buildDataPackage, writeDataPackage } = require(`${process.argv[2]}/main/export/data-package-exporter.js`);
+const { buildDataPackage, writeDataPackage, writeDataPackageEvidence } = require(`${process.argv[2]}/main/export/data-package-exporter.js`);
 
 const decodeXmlText = (value) => value
   .replaceAll('&lt;', '<')
@@ -241,7 +241,24 @@ writeDataPackage(outputRoot, repeated).then(() => {
     mode: 'SUCCESSFUL_ONLY',
   });
 
-  await writeDataPackage(kwpOutputRoot, kwpPackage);
+  const evidenceOnlyRoot = path.join(outputRoot, 'kwp-evidence-only');
+  await writeDataPackageEvidence(evidenceOnlyRoot, kwpPackage);
+
+  for (const filename of ['MANIFEST.json', 'FAILURES.json', 'DATASETS.json']) {
+    assert.equal(
+      fs.existsSync(path.join(evidenceOnlyRoot, filename)),
+      true,
+      `Expected base Data Package evidence file: ${filename}`,
+    );
+  }
+
+  const evidenceIndex = JSON.parse(fs.readFileSync(path.join(evidenceOnlyRoot, 'DATASETS.json'), 'utf8'));
+  assert.equal(evidenceIndex.length, 1);
+  assert.equal(
+    fs.existsSync(path.join(evidenceOnlyRoot, evidenceIndex[0].filename)),
+    true,
+    'Expected source dataset JSON in base evidence output.',
+  );
 
   const expectedUserExports = [
     'keyword-planner_metrics.csv',
@@ -250,6 +267,16 @@ writeDataPackage(outputRoot, repeated).then(() => {
     'keyword-planner_run-metadata.csv',
     'keyword-planner-historical-metrics_rr_kwp_export_test.xlsx',
   ];
+
+  for (const filename of expectedUserExports) {
+    assert.equal(
+      fs.existsSync(path.join(evidenceOnlyRoot, filename)),
+      false,
+      `Base evidence writer must not emit Keyword Planner user export: ${filename}`,
+    );
+  }
+
+  await writeDataPackage(kwpOutputRoot, kwpPackage);
 
   for (const filename of expectedUserExports) {
     assert.equal(

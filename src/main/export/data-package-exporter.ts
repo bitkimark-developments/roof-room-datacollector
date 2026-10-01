@@ -102,7 +102,10 @@ export const buildDataPackage = (input: {
 
 const safeName = (value: string): string => value.replace(/[^a-z0-9_-]+/giu, '_').toLowerCase();
 
-export const writeDataPackage = async (directory: string, dataPackage: DataPackage): Promise<string> => {
+export const writeDataPackageEvidence = async (
+  directory: string,
+  dataPackage: DataPackage,
+): Promise<string> => {
   await mkdir(directory, { recursive: true });
   await writeFile(path.join(directory, 'MANIFEST.json'), `${JSON.stringify(dataPackage.manifest, null, 2)}\n`, 'utf8');
   await writeFile(path.join(directory, 'FAILURES.json'), `${JSON.stringify(dataPackage.failures, null, 2)}\n`, 'utf8');
@@ -125,6 +128,15 @@ export const writeDataPackage = async (directory: string, dataPackage: DataPacka
     });
   }
   await writeFile(path.join(directory, 'DATASETS.json'), `${JSON.stringify(datasetIndex, null, 2)}\n`, 'utf8');
+
+  return directory;
+};
+
+export const writeDataPackage = async (
+  directory: string,
+  dataPackage: DataPackage,
+): Promise<string> => {
+  await writeDataPackageEvidence(directory, dataPackage);
   await writeKeywordPlannerUserExport(directory, dataPackage);
 
   return directory;
