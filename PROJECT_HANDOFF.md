@@ -3421,9 +3421,9 @@ Protected historical files remain untracked and untouched:
 
 Review this Slice B checkpoint and its canonical documentation commit. Do not merge or push without explicit instruction. The next implementation scope, only after separate approval, is Slice C desktop workflow/hardening; live Google Ads acceptance remains a separately authorized, quota-conscious step and is not part of routine regression.
 
-## 62. ADS_OPTIMIZATION_PACK v1 — deterministic Slice C desktop completion — 2026-09-30
+## 62. ADS_OPTIMIZATION_PACK v1 — deterministic Slice C desktop completion — 2026-10-01
 
-The approved Slice C plan is complete in local deterministic implementation on `feat/ads-optimization-pack-slice-c`. The final implementation/gate checkpoint before this documentation reconciliation is `01d17c2` (`test: gate ads optimization desktop workflow`).
+The approved Slice C plan and its focused post-implementation review are complete in local deterministic implementation on `wip/ads-optimization-pack-slice-c-2026-09-30`. The final implementation checkpoint before this documentation reconciliation is `3af8b5b` (`fix: preserve task package IPC validation narrowing`). The canonical feature branch remains `feat/ads-optimization-pack-slice-c` at `990a085` until this verified WIP result is moved back explicitly.
 
 Implemented boundaries:
 
@@ -3433,6 +3433,7 @@ Implemented boundaries:
 - collection Run Detail retains polling, accepted-evidence opening, and failed-Job retry ownership, and terminal collection requires a fresh Review before publication;
 - identical verified packages are returned/opened instead of duplicated;
 - preload/main IPC uses exact safe contracts, and Open accepts only package identity while verified filesystem resolution and Electron shell access remain in main;
+- an active matching collection is reopenable in existing Run Detail, nested Run/Job/Attempt results are validated before crossing IPC, whitespace-variant identities are rejected before duplicate locking, and workbook opening rejects truncated/non-OOXML ZIP content;
 - the implementation adds no database or schema migration and introduces no provider acquisition path in the controller, assembler, store, or exporter.
 
 Implementation commits after the approved Slice C checkpoint:
@@ -3442,6 +3443,9 @@ Implementation commits after the approved Slice C checkpoint:
 - `0c77dba feat: compose task package desktop IPC`
 - `b1e4985 feat: add ads optimization desktop workflow`
 - `01d17c2 test: gate ads optimization desktop workflow`
+- `990a085 docs: record ads optimization desktop workflow`
+- `9505f6a wip: checkpoint slice c review changes`
+- `3af8b5b fix: preserve task package IPC validation narrowing`
 
 Fresh deterministic verification:
 
@@ -3462,4 +3466,4 @@ Protected historical files remain untracked and untouched:
 
 ### Exact next action
 
-Review this Slice C checkpoint and its documentation commit. Do not merge or push without explicit instruction. If further acceptance is authorized, scope packaged-app desktop verification separately from quota-conscious live Google Ads reporting acceptance; neither is implied by the deterministic completion recorded here.
+Move the verified commits after `990a085` back onto `feat/ads-optimization-pack-slice-c` with a fast-forward if branch state is unchanged, then review that canonical feature checkpoint. Do not merge to `main` or push without explicit instruction. If further acceptance is authorized, scope packaged-app desktop verification separately from quota-conscious live Google Ads reporting acceptance; neither is implied by the deterministic completion recorded here.
