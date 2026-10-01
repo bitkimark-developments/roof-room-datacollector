@@ -595,7 +595,8 @@ const registerIpcHandlers = (
     taskPackageHandlers.open,
   );
 
-  const requireBlogWritingPackHandlers = () => {
+  const requireBlogWritingPackHandlers = (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event);
     if (desktopBlogWritingPackHandlers === null) {
       throw new Error('Blog Writing Pack is unavailable.');
     }
@@ -603,15 +604,15 @@ const registerIpcHandlers = (
   };
   ipcMain.handle(
     IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_BUILD,
-    (event, value) => requireBlogWritingPackHandlers().build(event, value),
+    (event, value) => requireBlogWritingPackHandlers(event).build(event, value),
   );
   ipcMain.handle(
     IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_OPEN,
-    (event, value) => requireBlogWritingPackHandlers().open(event, value),
+    (event, value) => requireBlogWritingPackHandlers(event).open(event, value),
   );
   ipcMain.handle(
     IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_REVEAL,
-    (event, value) => requireBlogWritingPackHandlers().reveal(event, value),
+    (event, value) => requireBlogWritingPackHandlers(event).reveal(event, value),
   );
 
   ipcMain.handle(IPC_CHANNELS.DESKTOP_PRESETS, (event, workspaceId: unknown) => {

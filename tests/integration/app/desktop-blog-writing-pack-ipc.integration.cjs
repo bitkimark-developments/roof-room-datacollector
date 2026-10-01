@@ -1,4 +1,9 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const projectRoot = process.argv[3];
+if (!projectRoot) throw new Error('Expected project root argument.');
 
 const {
   createDesktopBlogWritingPackHandlers,
@@ -46,6 +51,22 @@ const createHarness = ({ buildResult = published, buildError = null } = {}) => {
 const assertFailure = (value, code) => assert.deepEqual(value, { ok: false, error: { code, retryable: false } });
 
 (async () => {
+  const mainSource = fs.readFileSync(path.join(projectRoot, 'src', 'main.ts'), 'utf8');
+  const guardedResolver = mainSource.match(
+    /const requireBlogWritingPackHandlers\s*=\s*\([\s\S]*?\n\s*\};/u,
+  )?.[0];
+  assert.equal(typeof guardedResolver, 'string');
+  assert.notEqual(
+    guardedResolver.indexOf('assertTrustedIpcSender'),
+    -1,
+    'Blog IPC composition resolver must authenticate the sender.',
+  );
+  assert.equal(
+    guardedResolver.indexOf('assertTrustedIpcSender') < guardedResolver.indexOf('desktopBlogWritingPackHandlers === null'),
+    true,
+    'Blog IPC must authenticate the sender before reporting unavailable composition.',
+  );
+
   globalThis.__ipcInvocations = [];
   require(`${process.argv[2]}/preload.js`);
   assert.equal(globalThis.__exposedApi.name, 'roofroom');

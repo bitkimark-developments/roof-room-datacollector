@@ -36,4 +36,4 @@ module.exports = {
 };
 EOF
 
-NODE_PATH="$PROJECT_DIR/node_modules" node tests/integration/app/desktop-blog-writing-pack-ipc.integration.cjs "$TMP_ROOT/build"
+NODE_PATH="$PROJECT_DIR/node_modules" node tests/integration/app/desktop-blog-writing-pack-ipc.integration.cjs "$TMP_ROOT/build" "$PROJECT_DIR"
