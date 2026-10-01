@@ -132,6 +132,25 @@ const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
   );
   assert.equal(fs.existsSync(path.join(packagesRoot, 'blog_pkg_mismatch')), false);
 
+  const inconsistentAssembly = assemblyFor('blog_pkg_inconsistent');
+  inconsistentAssembly.manifest.present_datasets = ['QUERY_PAGE'];
+  await assert.rejects(
+    () => publishBlogWritingPack(store, inconsistentAssembly),
+    /coverage|dataset|manifest|consisten/i,
+  );
+  assert.equal(fs.existsSync(path.join(packagesRoot, 'blog_pkg_inconsistent')), false);
+
+  const rowCountAssembly = assemblyFor('blog_pkg_row_count');
+  await publishBlogWritingPack(store, rowCountAssembly);
+  const rowCountIndexPath = path.join(packagesRoot, 'blog_pkg_row_count', 'DATASETS.json');
+  const rowCountIndex = JSON.parse(fs.readFileSync(rowCountIndexPath, 'utf8'));
+  rowCountIndex[0].row_count += 1;
+  fs.writeFileSync(rowCountIndexPath, `${JSON.stringify(rowCountIndex, null, 2)}\n`);
+  await assert.rejects(
+    () => store.readManifest('blog_pkg_row_count'),
+    /row_count|dataset|consisten/i,
+  );
+
   const tamperedIndexDirectory = path.join(packagesRoot, 'blog_pkg_2');
   const tamperedIndexPath = path.join(tamperedIndexDirectory, 'DATASETS.json');
   const tamperedIndex = JSON.parse(fs.readFileSync(tamperedIndexPath, 'utf8'));

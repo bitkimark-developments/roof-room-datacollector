@@ -165,12 +165,33 @@ const makeBlogPackage = async (packageId, {
     run_id: 'run_blog',
     workspace_id: 'ws_blog',
     run_status: 'COMPLETED',
-    selected_sources: [],
+    selected_sources: ['google-trends'],
     successful_jobs: 1,
     failed_jobs: 0,
     mode: 'ALL',
   }, null, 2)}\n`);
-  await writeFile(path.join(packageDirectory, 'DATASETS.json'), '[]\n');
+  const datasetFilename = 'google-trends_interest_over_time_gt01_job_gt.json';
+  const datasetRows = [{ period_start: '2026-09-01', query: 'ficus', relative_interest: 0 }];
+  await writeFile(
+    path.join(packageDirectory, datasetFilename),
+    `${JSON.stringify(datasetRows, null, 2)}\n`,
+  );
+  await writeFile(path.join(packageDirectory, 'DATASETS.json'), `${JSON.stringify([{
+    filename: datasetFilename,
+    source_id: 'google-trends',
+    dataset_type: 'INTEREST_OVER_TIME',
+    job_id: 'job_gt',
+    job_key: 'GT01',
+    row_count: 1,
+    provenance: {
+      run_id: 'run_blog',
+      workspace_id: 'ws_blog',
+      source_id: 'google-trends',
+      job_id: 'job_gt',
+      job_key: 'GT01',
+      validation_status: 'VALID',
+    },
+  }], null, 2)}\n`);
   await writeFile(path.join(packageDirectory, 'FAILURES.json'), '[]\n');
   const missing = BLOG_DATASETS.slice(1);
   const coverage = Object.fromEntries(BLOG_DATASETS.map((dataset, index) => [dataset, {

@@ -19,6 +19,10 @@ import {
 } from '../../shared/blog-writing-pack';
 import type { DataPackage } from '../../shared/data-package';
 import { writeDataPackageEvidence } from '../export/data-package-exporter';
+import {
+  BLOG_WRITING_PACK_RECIPE,
+  isBlogWritingPackSource,
+} from './blog-writing-pack-recipe';
 
 export interface PublishedBlogWritingPack {
   package_id: string;
@@ -68,6 +72,56 @@ const parseJson = async (filename: string, context: string): Promise<unknown> =>
   }
 };
 
+const sameArray = (left: readonly unknown[], right: readonly unknown[]): boolean => (
+  left.length === right.length && left.every((value, index) => value === right[index])
+);
+
+const requireDatasetList = (
+  value: unknown,
+  context: string,
+): string[] => {
+  if (
+    !Array.isArray(value)
+    || value.some((item) => typeof item !== 'string' || !BLOG_WRITING_PACK_DATASETS.includes(item as never))
+    || new Set(value).size !== value.length
+  ) throw new Error(`${context} is invalid.`);
+  return value as string[];
+};
+
+const validateCoverage = (manifest: Record<string, unknown>): void => {
+  const coverage = asRecord(manifest.coverage_by_dataset, 'Blog package coverage');
+  const missing: string[] = [];
+  const incomplete: string[] = [];
+  let complete = true;
+
+  for (const datasetType of BLOG_WRITING_PACK_DATASETS) {
+    const item = asRecord(coverage[datasetType], `${datasetType} coverage`);
+    const counts = ['total_jobs', 'accepted_jobs', 'no_data_jobs', 'incomplete_jobs']
+      .map((key) => item[key]);
+    if (
+      (item.status !== 'COVERED' && item.status !== 'PARTIAL' && item.status !== 'MISSING')
+      || counts.some((value) => !Number.isInteger(value) || (value as number) < 0)
+      || (item.no_data_jobs as number) > (item.accepted_jobs as number)
+      || (item.accepted_jobs as number) > (item.total_jobs as number)
+      || (item.incomplete_jobs as number) > (item.total_jobs as number)
+      || (item.status === 'COVERED' && (item.accepted_jobs === 0 || item.incomplete_jobs !== 0))
+      || (item.status === 'PARTIAL' && (item.accepted_jobs === 0 || item.incomplete_jobs === 0))
+      || (item.status === 'MISSING' && item.accepted_jobs !== 0)
+    ) throw new Error('Blog package coverage is invalid.');
+    if (item.status !== 'COVERED') complete = false;
+    if (item.status === 'MISSING') missing.push(datasetType);
+    if (item.status === 'PARTIAL') incomplete.push(datasetType);
+  }
+  if (Object.keys(coverage).length !== BLOG_WRITING_PACK_DATASETS.length) {
+    throw new Error('Blog package coverage is invalid.');
+  }
+  if (
+    !sameArray(requireDatasetList(manifest.missing_datasets, 'missing_datasets'), missing)
+    || !sameArray(requireDatasetList(manifest.incomplete_datasets, 'incomplete_datasets'), incomplete)
+    || manifest.coverage_status !== (complete ? 'COMPLETE' : 'PARTIAL')
+  ) throw new Error('Blog package coverage is inconsistent.');
+};
+
 const validateManifest = (value: unknown, packageId?: string): BlogWritingPackManifest => {
   const manifest = asRecord(value, 'Blog package manifest');
   if (
@@ -80,6 +134,10 @@ const validateManifest = (value: unknown, packageId?: string): BlogWritingPackMa
     || manifest.run_id.length === 0
     || typeof manifest.workspace_id !== 'string'
     || manifest.workspace_id.length === 0
+    || typeof manifest.created_at !== 'string'
+    || manifest.created_at.length === 0
+    || typeof manifest.application_version !== 'string'
+    || manifest.application_version.length === 0
     || manifest.workbook_filename !== BLOG_WRITING_PACK_WORKBOOK_FILENAME
     || manifest.generic_manifest_filename !== 'MANIFEST.json'
     || manifest.datasets_index_filename !== 'DATASETS.json'
@@ -92,6 +150,9 @@ const validateManifest = (value: unknown, packageId?: string): BlogWritingPackMa
   ) {
     throw new Error('Blog package manifest identity is invalid.');
   }
+  requireDatasetList(manifest.present_datasets, 'present_datasets');
+  requireDatasetList(manifest.no_data_datasets, 'no_data_datasets');
+  validateCoverage(manifest);
   safeSegment(manifest.package_id, 'package_id');
   return JSON.parse(JSON.stringify(manifest)) as BlogWritingPackManifest;
 };
@@ -140,6 +201,9 @@ export class BlogWritingPackStore {
     if (genericManifest.run_id !== manifest.run_id || genericManifest.workspace_id !== manifest.workspace_id) {
       throw new Error('Blog and Data Package identity do not match.');
     }
+    if (genericManifest.package_version !== 1 || genericManifest.mode !== 'ALL') {
+      throw new Error('Data Package manifest is invalid.');
+    }
 
     const indexValue = await parseJson(
       inside(directory, manifest.datasets_index_filename, 'dataset index'),
@@ -147,13 +211,41 @@ export class BlogWritingPackStore {
     );
     if (!Array.isArray(indexValue)) throw new Error('Dataset index is invalid.');
     const datasetFilenames: string[] = [];
+    const acceptedByDataset = new Map<string, number>();
+    const noDataByDataset = new Map<string, number>();
     for (const value of indexValue) {
       const entry = asRecord(value, 'Dataset index entry');
-      if (typeof entry.filename !== 'string') throw new Error('Dataset index filename is invalid.');
+      const provenance = asRecord(entry.provenance, 'Dataset index provenance');
+      if (
+        typeof entry.filename !== 'string'
+        || typeof entry.source_id !== 'string'
+        || !isBlogWritingPackSource(entry.source_id)
+        || entry.dataset_type !== BLOG_WRITING_PACK_RECIPE[entry.source_id]
+        || typeof entry.job_id !== 'string'
+        || typeof entry.job_key !== 'string'
+        || !Number.isInteger(entry.row_count)
+        || (entry.row_count as number) < 0
+        || provenance.source_id !== entry.source_id
+        || provenance.job_id !== entry.job_id
+        || provenance.job_key !== entry.job_key
+        || (provenance.validation_status !== 'VALID'
+          && provenance.validation_status !== 'LOW_DATA'
+          && provenance.validation_status !== 'NO_DATA')
+        || (provenance.validation_status === 'NO_DATA' && entry.row_count !== 0)
+      ) throw new Error('Dataset index entry is invalid.');
       const datasetPath = inside(directory, entry.filename, 'Dataset index entry');
       const datasetStat = await lstat(datasetPath);
       if (!datasetStat.isFile() || datasetStat.isSymbolicLink()) {
         throw new Error('Dataset index entry is not a regular file.');
+      }
+      const rows = await parseJson(datasetPath, entry.filename);
+      if (!Array.isArray(rows) || rows.length !== entry.row_count) {
+        throw new Error('Dataset index row_count is inconsistent.');
+      }
+      const datasetType = entry.dataset_type as string;
+      acceptedByDataset.set(datasetType, (acceptedByDataset.get(datasetType) ?? 0) + 1);
+      if (provenance.validation_status === 'NO_DATA') {
+        noDataByDataset.set(datasetType, (noDataByDataset.get(datasetType) ?? 0) + 1);
       }
       datasetFilenames.push(entry.filename);
     }
@@ -161,9 +253,30 @@ export class BlogWritingPackStore {
       throw new Error('Dataset index filenames must be unique.');
     }
 
+    const presentDatasets = BLOG_WRITING_PACK_DATASETS.filter((datasetType) => (
+      (acceptedByDataset.get(datasetType) ?? 0) > (noDataByDataset.get(datasetType) ?? 0)
+    ));
+    const noDataDatasets = BLOG_WRITING_PACK_DATASETS.filter((datasetType) => (
+      (noDataByDataset.get(datasetType) ?? 0) > 0
+    ));
+    if (
+      !sameArray(manifest.present_datasets, presentDatasets)
+      || !sameArray(manifest.no_data_datasets, noDataDatasets)
+      || BLOG_WRITING_PACK_DATASETS.some((datasetType) => {
+        const coverage = manifest.coverage_by_dataset[datasetType];
+        return coverage.accepted_jobs !== (acceptedByDataset.get(datasetType) ?? 0)
+          || coverage.no_data_jobs !== (noDataByDataset.get(datasetType) ?? 0);
+      })
+      || genericManifest.successful_jobs !== indexValue.length
+    ) throw new Error('Blog package dataset coverage is inconsistent.');
+
     const failuresPath = inside(directory, manifest.failures_filename, 'failures');
-    if (!Array.isArray(await parseJson(failuresPath, 'FAILURES.json'))) {
+    const failures = await parseJson(failuresPath, 'FAILURES.json');
+    if (!Array.isArray(failures)) {
       throw new Error('FAILURES.json must contain an array.');
+    }
+    if (genericManifest.failed_jobs !== failures.length) {
+      throw new Error('Data Package failure count is inconsistent.');
     }
     await validateWorkbook(inside(directory, manifest.workbook_filename, 'workbook'));
 
