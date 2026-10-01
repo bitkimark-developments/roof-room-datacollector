@@ -990,6 +990,10 @@ export function DesktopMultiSourceView() {
     setBlogWritingPackResponse,
   ] = useState<Awaited<ReturnType<typeof window.roofroom.buildBlogWritingPack>> | null>(null);
 
+  useEffect(() => {
+    setBlogWritingPackResponse(null);
+  }, [activeRunState?.run.run_id]);
+
   const [
     newPresetName,
     setNewPresetName,
@@ -2284,6 +2288,7 @@ export function DesktopMultiSourceView() {
     if (activeRunState === null || busy) return;
     setBusy(true);
     setMessage(null);
+    setBlogWritingPackResponse(null);
     try {
       setBlogWritingPackResponse(
         await window.roofroom.buildBlogWritingPack(activeRunState.run.run_id),
@@ -3068,6 +3073,7 @@ export function DesktopMultiSourceView() {
   const publishedBlogWritingPack =
     blogWritingPackResponse?.ok === true
     && blogWritingPackResponse.result.status === 'PACKAGE_PUBLISHED'
+    && blogWritingPackResponse.result.package.run_id === activeRunState?.run.run_id
       ? blogWritingPackResponse.result.package
       : null;
 
@@ -4963,6 +4969,7 @@ export function DesktopMultiSourceView() {
 
                 {blogWritingPackResponse?.ok === true
                   && blogWritingPackResponse.result.status === 'NOT_READY'
+                  && blogWritingPackResponse.result.run_id === activeRunState.run.run_id
                   && (
                     <div>
                       <p>Blog Writing Pack: NOT READY</p>

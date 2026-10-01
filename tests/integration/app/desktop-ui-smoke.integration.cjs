@@ -579,6 +579,9 @@ const main = async () => {
           },
           buildBlogWritingPack: async (runId) => {
             window.__blogWritingPackBuildCalls.push(runId);
+            if (window.__blogWritingPackMode === 'THROW') {
+              throw new Error('Fixture Blog build failed.');
+            }
             if (window.__blogWritingPackMode === 'NOT_READY') {
               return {
                 ok: true,
@@ -3099,6 +3102,11 @@ const main = async () => {
       'rr_fixture_history_001', 'rr_fixture_history_001',
     ]);
     assert.equal(await page.getByText('Package: blog_pkg_2', { exact: true }).count(), 1);
+    await page.evaluate(() => { window.__blogWritingPackMode = 'THROW'; });
+    await buildBlogWritingPackButton.click();
+    assert.equal(await page.getByText('Package: blog_pkg_2', { exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Open Blog Writing Pack', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Reveal Blog Writing Pack', exact: true }).count(), 0);
     await page.evaluate(() => { window.__blogWritingPackMode = 'NOT_READY'; });
     await buildBlogWritingPackButton.click();
     assert.equal(await page.getByText('Blog Writing Pack: NOT READY', { exact: true }).count(), 1);
