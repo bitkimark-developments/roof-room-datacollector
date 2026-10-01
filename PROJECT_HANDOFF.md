@@ -1,14 +1,14 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Checkpoint date:** 2026-09-29
+**Checkpoint date:** 2026-10-02
 
-**Current milestone:** Post-R1 UX & Operations Hardening — UXH2 Workspace Connections
+**Current milestone:** BLOG_WRITING_PACK v1 — verified local derived-package slice
 
-**Current stage:** Google Ads Developer Token sunset compatibility complete; full deterministic release gate and darwin/arm64 packaging verified; packaged OAuth/account setup acceptance remains next
+**Current stage:** BLOG_WRITING_PACK v1 implementation, correctness repair, deterministic verification, packaging, and packaged Build/Open/Reveal acceptance complete
 
-**Current goal:** Complete the remaining packaged Google OAuth + safe account-metadata setup acceptance without requesting or using a Google Ads Developer Token, then await explicit authorization for any bounded live provider collection acceptance; do not start UXH3
+**Current goal:** Record the verified BLOG_WRITING_PACK v1 documentation checkpoint, then stop for explicit integration approval
 
-**Current-state authority:** Section 57 is the authoritative latest checkpoint. Earlier sections are retained as historical implementation checkpoints and their older Developer Token requirements and “next action” statements are superseded where they conflict with Section 57.
+**Current-state authority:** Section 64 is the authoritative latest checkpoint. Earlier sections remain historical evidence and older next-action statements are superseded where they conflict with Section 64.
 
 ---
 
@@ -3498,3 +3498,29 @@ Protected historical files remain untracked and untouched:
 ### Exact next action
 
 Review this verified two-commit repair checkpoint. Do not merge or push without explicit approval. The next separately approved execution scope is a full rerun of packaged-app Slice C acceptance; do not treat this bounded bootstrap repair as that acceptance or as Google Ads live-provider evidence.
+
+## 64. BLOG_WRITING_PACK v1 — verified implementation and packaged acceptance — 2026-10-02
+
+Verified technical implementation checkpoint: `33f4734` on `feat/blog-writing-pack-v1`.
+
+Implemented and verified:
+
+- thin single-Run Blog specialization over generalized Production Data Package; not an Ads Task Package;
+- seven-family fixed recipe with explicit COMPLETE/PARTIAL/MISSING/verified-NO_DATA coverage;
+- out-of-recipe evidence excluded before loading;
+- Keyword Planner API and manual CSV provenance remain distinct;
+- fixed provenance-preserving `BLOG_WRITING_PACK.xlsx` plus `BLOG_PACKAGE.json` and generic Data Package evidence;
+- immutable publication under `ApplicationDirectories.data/blog-writing-packs/<package_id>/` through staging and atomic rename;
+- local-only Build/Open/Reveal with trusted package identity and no acquisition, retry, Attempt creation, Run/Job mutation, or schema migration.
+
+Separate correctness review found 0 Critical, 4 Important, and 1 Minor finding. Validated repairs were committed as `65bae6c`, `0aaa0bd`, `0acec6f`, `2f966d0`, and `33f4734`. Store validation was strengthened for package/data consistency without introducing a duplicate workbook semantic parser.
+
+Fresh completion verification passed: `npm run test:m6:blog-writing-pack`, Data Package exporter/production-loader regressions, desktop multi-source/retry-export regressions, lint, `tsc --noEmit`, `git diff --check`, and `npm run test:release:gate` with `PASS RELEASE-GATE-001`. No live provider request was made.
+
+Fresh `npm run package` produced the darwin/arm64 `.app`; Mach-O arm64 and `codesign --verify --deep --strict` were verified. Packaged UI and Run Detail rendered normally. Using an existing accepted Keyword Planner Run, packaged Blog Build produced truthful PARTIAL coverage, Open launched `BLOG_WRITING_PACK.xlsx` in Numbers, and Reveal opened the immutable package directory in Finder. No path/token/secret/stack/raw-provider-body leak was observed.
+
+Protected historical files remain untracked and untouched: `CODEX_HANDOFF_CURRENT.md` and `PROJECT_HANDOFF.pre-20260820.md`.
+
+### Exact next action
+
+Run final documentation diff/status checks, stage only the four verified canonical documentation files, commit the documentation checkpoint, then stop for explicit merge/push decision.

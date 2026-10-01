@@ -282,6 +282,10 @@ Exports must:
 
 Generic production Data Package coverage must exercise every implemented Release 1.0 source through its accepted raw artifact and verified native parser/normalizer. It must also prove exact Job/source binding, same-source multi-Job filename separation, persisted dataset provenance, NULL preservation, terminal-Run enforcement, rejection of changed bytes/checksums and mismatched identities, failed/rejected omission from normalized datasets, and safe failure retention in Export All. These tests use sanitized local fixtures and make no provider request.
 
+`npm run test:m6:blog-writing-pack` is the deterministic Blog Writing Pack aggregate gate. It covers exact recipe filtering, COMPLETE/PARTIAL/MISSING/verified-NO_DATA coverage, Keyword Planner API/CSV provenance separation, trusted workbook identity, fixed workbook/null/zero semantics, immutable atomic package publication, manifest/dataset consistency, safe package-ID file access, local-only desktop Build/Open/Reveal IPC, and Run-scoped UI state. The aggregate runs once inside the full deterministic release gate and makes no live provider request.
+
+Target-mac Blog packaged acceptance is separate from deterministic regression. It requires a fresh arm64 `.app`, valid local code-signature structure, successful packaged launch, usable Run Detail/export surfaces, and absence of path/token/secret/stack leakage. When a truthful accepted in-recipe Run already exists, acceptance also exercises packaged Blog Build/Open/Reveal against that evidence; no synthetic accepted Run is created merely to satisfy the check.
+
 ## 13. Commands and gate design
 
 The current `package.json` exposes focused deterministic scripts and `npm run test:release:gate`. Existing script names remain valid until implementation changes them.

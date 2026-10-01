@@ -435,6 +435,18 @@ The workbook and JSON tables preserve provider-native evidence only. `null` rema
 
 Desktop Review accepts only Workspace and recipe identity and returns safe package state plus the six requirement outcomes. Start carries the reviewed recipe/version, reference date, exact CURRENT window, and account identity, but the main process re-resolves all authoritative state before acting. Ready evidence may publish locally; missing evidence may reserve only missing `google-ads-search-reporting` SEARCH Jobs through Core. A terminal collection Run requires a fresh Review before publication. Existing identical verified packages are returned rather than duplicated. Open accepts only `package_id`; stored manifest/workbook resolution, containment, regular-file/symlink checks, and Electron shell access remain main-process responsibilities. These contracts add no SQLite table or schema migration.
 
+### BLOG_WRITING_PACK v1 derived packages
+
+`BLOG_WRITING_PACK` version `1` packages accepted evidence from exactly one existing Run. Its logical families are `INTEREST_OVER_TIME`, `QUERY_PAGE`, `SEARCH_TERMS`, `KEYWORD_HISTORICAL_METRICS`, `PRODUCTS`, `SITEMAP_URLS`, and `GOOGLE_SERP`. GSC `QUERY` and the six-dataset `google-ads-search-reporting` family are outside this recipe.
+
+Zero accepted in-recipe datasets is `NOT_READY` and produces no package. With at least one accepted dataset, every family is recorded as `COVERED`, `PARTIAL`, or `MISSING`; overall coverage is `COMPLETE` only when every expected family is `COVERED`, otherwise the published package is `PARTIAL`. Verified `NO_DATA` may cover a family without fabricating rows. Missing, failed, rejected, auth/quota, parser, schema, or unrelated evidence must not be relabeled `NO_DATA`.
+
+Keyword Planner API and manual CSV evidence remain provenance-distinct. If both are accepted they both survive; an unused failed alternate acquisition path does not by itself make the logical Keyword Planner family partial when another accepted path satisfies it.
+
+Each successful explicit build receives a new immutable `package_id` under `ApplicationDirectories.data/blog-writing-packs/<package_id>/`. The package preserves generic `MANIFEST.json`, indexed dataset evidence, safe failures, Blog-specific `BLOG_PACKAGE.json`, and the fixed `BLOG_WRITING_PACK.xlsx`. Raw provider artifacts remain in canonical Run storage. Package provenance retains Run/Job/Attempt/artifact/checksum/validation/request context without allowing provider row content to overwrite trusted source or Job identity. Missing XLSX values remain empty cells and real numeric zero remains numeric zero.
+
+Blog package creation is local-only and adds no acquisition, retry, recollection, Run/Job transition, Attempt creation, SQLite table, or schema migration. Open/Reveal accept trusted package identity only; filesystem containment, symlink, regular-file, manifest, dataset, checksum, row-count, and XLSX structural checks remain privileged main-process responsibilities.
+
 ### Keyword Planner historical metrics
 
 Preserve keyword, average monthly searches, competition, competition index, monthly rows (`year`, `month`, nullable searches), and bid metrics when returned. API and manual CSV outputs may normalize to compatible tables while retaining distinct acquisition provenance.
