@@ -20,11 +20,17 @@ import type {
 } from './main/app/google-trends-desktop-controller';
 import {
   findLatestExportWorkbook,
+  resolveBlogWritingPackDirectory,
+  resolveBlogWritingPackWorkbook,
 } from './main/app/application-file-access';
 import {
   createAdsOptimizationPackDesktopComposition,
 } from './main/app/ads-optimization-pack-desktop-composition';
 import { createDesktopTaskPackageHandlers } from './main/app/desktop-task-package-ipc';
+import { DesktopBlogWritingPackController } from './main/app/desktop-blog-writing-pack-controller';
+import { createDesktopBlogWritingPackHandlers } from './main/app/desktop-blog-writing-pack-ipc';
+import { BlogWritingPackStore } from './main/blog-writing-packs/blog-writing-pack-store';
+import { publishBlogWritingPack } from './main/blog-writing-packs/blog-writing-pack-publisher';
 import {
   ensureExternalQueryConfig,
   loadQueryConfig,
@@ -113,6 +119,8 @@ let desktopRepository: StateRepository | null = null;
 let desktopExecutionService: DesktopExecutionService | null = null;
 let desktopTaskPackageComposition:
   ReturnType<typeof createAdsOptimizationPackDesktopComposition> | null = null;
+let desktopBlogWritingPackHandlers:
+  ReturnType<typeof createDesktopBlogWritingPackHandlers<IpcMainInvokeEvent>> | null = null;
 let workspaceConnectionManagementService:
   WorkspaceConnectionManagementService | null = null;
 let googleProviderConfigurationService:
@@ -585,6 +593,25 @@ const registerIpcHandlers = (
   ipcMain.handle(
     IPC_CHANNELS.DESKTOP_TASK_PACKAGE_OPEN,
     taskPackageHandlers.open,
+  );
+
+  const requireBlogWritingPackHandlers = () => {
+    if (desktopBlogWritingPackHandlers === null) {
+      throw new Error('Blog Writing Pack is unavailable.');
+    }
+    return desktopBlogWritingPackHandlers;
+  };
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_BUILD,
+    (event, value) => requireBlogWritingPackHandlers().build(event, value),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_OPEN,
+    (event, value) => requireBlogWritingPackHandlers().open(event, value),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_REVEAL,
+    (event, value) => requireBlogWritingPackHandlers().reveal(event, value),
   );
 
   ipcMain.handle(IPC_CHANNELS.DESKTOP_PRESETS, (event, workspaceId: unknown) => {
@@ -1328,6 +1355,39 @@ const initializeBootstrapStatus =
           `pkg_${new Date().toISOString().replace(/[^0-9]/gu, '')}_${randomUUID().replace(/-/gu, '')}`
         ),
         application_version: app.getVersion(),
+      });
+      const blogWritingPacksRoot = path.join(
+        directories.data,
+        'blog-writing-packs',
+      );
+      const blogWritingPackStore = new BlogWritingPackStore(blogWritingPacksRoot);
+      const blogWritingPackController = new DesktopBlogWritingPackController({
+        repository: desktopRepository,
+        loader: productionDataPackageLoader,
+        publish: (assembly) => publishBlogWritingPack(blogWritingPackStore, assembly),
+        now: () => new Date().toISOString(),
+        application_version: app.getVersion(),
+        create_package_id: () => `blog_${randomUUID().replace(/-/gu, '')}`,
+      });
+      desktopBlogWritingPackHandlers = createDesktopBlogWritingPackHandlers({
+        assertTrustedSender: assertTrustedIpcSender,
+        controller: blogWritingPackController,
+        open_package: async (packageId) => {
+          const workbook = await resolveBlogWritingPackWorkbook(
+            blogWritingPacksRoot,
+            packageId,
+          );
+          const openError = await shell.openPath(workbook);
+          if (openError.length > 0) {
+            throw new Error('Blog Writing Pack workbook could not be opened.');
+          }
+        },
+        reveal_package: async (packageId) => {
+          shell.showItemInFolder(await resolveBlogWritingPackDirectory(
+            blogWritingPacksRoot,
+            packageId,
+          ));
+        },
       });
     }
 

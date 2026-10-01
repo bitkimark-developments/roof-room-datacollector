@@ -986,6 +986,11 @@ export function DesktopMultiSourceView() {
     );
 
   const [
+    blogWritingPackResponse,
+    setBlogWritingPackResponse,
+  ] = useState<Awaited<ReturnType<typeof window.roofroom.buildBlogWritingPack>> | null>(null);
+
+  const [
     newPresetName,
     setNewPresetName,
   ] =
@@ -2208,6 +2213,7 @@ export function DesktopMultiSourceView() {
       );
 
       try {
+        setBlogWritingPackResponse(null);
         const nextState =
           await window.roofroom
             .getDesktopRunState(
@@ -2274,6 +2280,40 @@ export function DesktopMultiSourceView() {
       }
     };
 
+  const buildBlogWritingPack = async () => {
+    if (activeRunState === null || busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      setBlogWritingPackResponse(
+        await window.roofroom.buildBlogWritingPack(activeRunState.run.run_id),
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Blog Writing Pack oluşturulamadı.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const actOnBlogWritingPack = async (
+    action: 'OPEN' | 'REVEAL',
+    packageId: string,
+  ) => {
+    if (busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = action === 'OPEN'
+        ? await window.roofroom.openBlogWritingPack(packageId)
+        : await window.roofroom.revealBlogWritingPack(packageId);
+      if (response.ok === false) setMessage(formatStatus(response.error.code));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Blog Writing Pack açılamadı.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const openAcceptedEvidence =
     async (jobId: string) => {
       if (activeRunState === null || busy === true) return;
@@ -2316,6 +2356,7 @@ export function DesktopMultiSourceView() {
       );
 
       try {
+        setBlogWritingPackResponse(null);
         const nextState =
           await window.roofroom
             .retryDesktopFailed(
@@ -3023,6 +3064,12 @@ export function DesktopMultiSourceView() {
     setRunHistory([]);
     setView('HOME');
   };
+
+  const publishedBlogWritingPack =
+    blogWritingPackResponse?.ok === true
+    && blogWritingPackResponse.result.status === 'PACKAGE_PUBLISHED'
+      ? blogWritingPackResponse.result.package
+      : null;
 
   return (
     <main
@@ -4900,9 +4947,60 @@ export function DesktopMultiSourceView() {
                       >
                         Export Successful Only
                       </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void buildBlogWritingPack()}
+                      >
+                        Build Blog Writing Pack
+                      </button>
                     </div>
                   )
                 }
+
+                {blogWritingPackResponse?.ok === false
+                  && <p>Blog Writing Pack: {formatStatus(blogWritingPackResponse.error.code)}</p>}
+
+                {blogWritingPackResponse?.ok === true
+                  && blogWritingPackResponse.result.status === 'NOT_READY'
+                  && (
+                    <div>
+                      <p>Blog Writing Pack: NOT READY</p>
+                      <p>Missing: {blogWritingPackResponse.result.missing_datasets.join(', ')}</p>
+                    </div>
+                  )}
+
+                {publishedBlogWritingPack !== null
+                  && (
+                    <div>
+                      <p>Blog Writing Pack: {publishedBlogWritingPack.coverage_status}</p>
+                      <p>Package: {publishedBlogWritingPack.package_id}</p>
+                      <p>Present: {publishedBlogWritingPack.present_datasets.join(', ') || 'None'}</p>
+                      <p>No Data: {publishedBlogWritingPack.no_data_datasets.join(', ') || 'None'}</p>
+                      <p>Incomplete: {publishedBlogWritingPack.incomplete_datasets.join(', ') || 'None'}</p>
+                      <p>Missing: {publishedBlogWritingPack.missing_datasets.join(', ') || 'None'}</p>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void actOnBlogWritingPack(
+                          'OPEN',
+                          publishedBlogWritingPack.package_id,
+                        )}
+                      >
+                        Open Blog Writing Pack
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void actOnBlogWritingPack(
+                          'REVEAL',
+                          publishedBlogWritingPack.package_id,
+                        )}
+                      >
+                        Reveal Blog Writing Pack
+                      </button>
+                    </div>
+                  )}
 
                 {exportResult !== null
                   && (

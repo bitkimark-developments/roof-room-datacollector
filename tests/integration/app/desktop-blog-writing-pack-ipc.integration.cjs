@@ -6,6 +6,7 @@ const {
 const {
   DesktopBlogWritingPackControllerError,
 } = require(`${process.argv[2]}/main/app/desktop-blog-writing-pack-controller.js`);
+const { IPC_CHANNELS } = require(`${process.argv[2]}/shared/application-info.js`);
 
 const coverage = {
   INTEREST_OVER_TIME: { status: 'MISSING', total_jobs: 0, accepted_jobs: 0, no_data_jobs: 0, incomplete_jobs: 0 },
@@ -45,6 +46,19 @@ const createHarness = ({ buildResult = published, buildError = null } = {}) => {
 const assertFailure = (value, code) => assert.deepEqual(value, { ok: false, error: { code, retryable: false } });
 
 (async () => {
+  globalThis.__ipcInvocations = [];
+  require(`${process.argv[2]}/preload.js`);
+  assert.equal(globalThis.__exposedApi.name, 'roofroom');
+  const api = globalThis.__exposedApi.api;
+  await api.buildBlogWritingPack('run_blog_1');
+  await api.openBlogWritingPack('blog_pkg_1');
+  await api.revealBlogWritingPack('blog_pkg_1');
+  assert.deepEqual(globalThis.__ipcInvocations.slice(-3), [
+    [IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_BUILD, { run_id: 'run_blog_1' }],
+    [IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_OPEN, { package_id: 'blog_pkg_1' }],
+    [IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_REVEAL, { package_id: 'blog_pkg_1' }],
+  ]);
+
   for (const operation of ['build', 'open', 'reveal']) {
     const harness = createHarness();
     await assert.rejects(

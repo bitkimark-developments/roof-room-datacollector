@@ -133,6 +133,21 @@ const roofroomApi: RoofRoomApi = {
       IPC_CHANNELS.DESKTOP_TASK_PACKAGE_OPEN,
       input,
     ),
+  buildBlogWritingPack: (run_id) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_BUILD,
+      { run_id },
+    ),
+  openBlogWritingPack: (package_id) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_OPEN,
+      { package_id },
+    ),
+  revealBlogWritingPack: (package_id) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.DESKTOP_BLOG_WRITING_PACK_REVEAL,
+      { package_id },
+    ),
 };
 
 contextBridge.exposeInMainWorld('roofroom', roofroomApi);

@@ -34,6 +34,10 @@ import type {
   DesktopTaskPackageStartIntent,
   DesktopTaskPackageStartResult,
 } from './desktop-task-package';
+import type {
+  DesktopBlogWritingPackResponse,
+  DesktopBlogWritingPackBuildResult,
+} from './desktop-blog-writing-pack';
 
 export const IPC_CHANNELS = {
   GET_APPLICATION_INFO: 'app:get-application-info',
@@ -82,6 +86,9 @@ export const IPC_CHANNELS = {
   DESKTOP_TASK_PACKAGE_REVIEW: 'desktop:task-package:review',
   DESKTOP_TASK_PACKAGE_START: 'desktop:task-package:start',
   DESKTOP_TASK_PACKAGE_OPEN: 'desktop:task-package:open',
+  DESKTOP_BLOG_WRITING_PACK_BUILD: 'desktop:blog-writing-pack:build',
+  DESKTOP_BLOG_WRITING_PACK_OPEN: 'desktop:blog-writing-pack:open',
+  DESKTOP_BLOG_WRITING_PACK_REVEAL: 'desktop:blog-writing-pack:reveal',
 } as const;
 
 export type DesktopInputFileKind =
@@ -199,4 +206,13 @@ export interface RoofRoomApi {
   openDesktopTaskPackage: (
     input: { package_id: string },
   ) => Promise<DesktopTaskPackageResponse<{ package_id: string }>>;
+  buildBlogWritingPack: (
+    run_id: string,
+  ) => Promise<DesktopBlogWritingPackResponse<DesktopBlogWritingPackBuildResult>>;
+  openBlogWritingPack: (
+    package_id: string,
+  ) => Promise<DesktopBlogWritingPackResponse<{ package_id: string }>>;
+  revealBlogWritingPack: (
+    package_id: string,
+  ) => Promise<DesktopBlogWritingPackResponse<{ package_id: string }>>;
 }

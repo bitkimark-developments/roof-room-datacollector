@@ -222,6 +222,10 @@ const main = async () => {
         window.__taskPackageReviewCalls = [];
         window.__taskPackageStartCalls = [];
         window.__taskPackageOpenCalls = [];
+        window.__blogWritingPackBuildCalls = [];
+        window.__blogWritingPackOpenCalls = [];
+        window.__blogWritingPackRevealCalls = [];
+        window.__blogWritingPackMode = 'PACKAGE_PUBLISHED';
         window.__createDesktopDraftCalls = 0;
         const taskPackageRequirements = [
           'CAMPAIGN_PERFORMANCE', 'AD_GROUP_PERFORMANCE', 'KEYWORD_PERFORMANCE',
@@ -572,6 +576,45 @@ const main = async () => {
           openDesktopTaskPackage: async (input) => {
             window.__taskPackageOpenCalls.push(structuredClone(input));
             return { ok: true, result: { package_id: input.package_id } };
+          },
+          buildBlogWritingPack: async (runId) => {
+            window.__blogWritingPackBuildCalls.push(runId);
+            if (window.__blogWritingPackMode === 'NOT_READY') {
+              return {
+                ok: true,
+                result: {
+                  status: 'NOT_READY',
+                  run_id: runId,
+                  missing_datasets: ['INTEREST_OVER_TIME'],
+                  coverage_by_dataset: {
+                    INTEREST_OVER_TIME: { status: 'MISSING', total_jobs: 0, accepted_jobs: 0, no_data_jobs: 0, incomplete_jobs: 0 },
+                  },
+                },
+              };
+            }
+            return {
+              ok: true,
+              result: {
+                status: 'PACKAGE_PUBLISHED',
+                package: {
+                  package_id: `blog_pkg_${window.__blogWritingPackBuildCalls.length}`,
+                  run_id: runId,
+                  coverage_status: 'PARTIAL',
+                  present_datasets: ['QUERY_PAGE'],
+                  no_data_datasets: [],
+                  incomplete_datasets: ['PRODUCTS'],
+                  missing_datasets: ['INTEREST_OVER_TIME'],
+                },
+              },
+            };
+          },
+          openBlogWritingPack: async (packageId) => {
+            window.__blogWritingPackOpenCalls.push(packageId);
+            return { ok: true, result: { package_id: packageId } };
+          },
+          revealBlogWritingPack: async (packageId) => {
+            window.__blogWritingPackRevealCalls.push(packageId);
+            return { ok: true, result: { package_id: packageId } };
           },
 
           createDesktopPreset: async (input) => {
@@ -3033,6 +3076,48 @@ const main = async () => {
       ).count(),
       1,
       'Terminal Run Detail must expose Export Successful Only.',
+    );
+
+    const buildBlogWritingPackButton = page.getByRole(
+      'button',
+      { name: 'Build Blog Writing Pack', exact: true },
+    );
+    assert.equal(await buildBlogWritingPackButton.count(), 1);
+    await buildBlogWritingPackButton.click();
+    assert.deepEqual(await page.evaluate(() => window.__blogWritingPackBuildCalls), ['rr_fixture_history_001']);
+    assert.equal(await page.getByText('Blog Writing Pack: PARTIAL', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Package: blog_pkg_1', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Present: QUERY_PAGE', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Incomplete: PRODUCTS', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Missing: INTEREST_OVER_TIME', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Open Blog Writing Pack', exact: true }).click();
+    await page.getByRole('button', { name: 'Reveal Blog Writing Pack', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__blogWritingPackOpenCalls), ['blog_pkg_1']);
+    assert.deepEqual(await page.evaluate(() => window.__blogWritingPackRevealCalls), ['blog_pkg_1']);
+    await buildBlogWritingPackButton.click();
+    assert.deepEqual(await page.evaluate(() => window.__blogWritingPackBuildCalls), [
+      'rr_fixture_history_001', 'rr_fixture_history_001',
+    ]);
+    assert.equal(await page.getByText('Package: blog_pkg_2', { exact: true }).count(), 1);
+    await page.evaluate(() => { window.__blogWritingPackMode = 'NOT_READY'; });
+    await buildBlogWritingPackButton.click();
+    assert.equal(await page.getByText('Blog Writing Pack: NOT READY', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Missing: INTEREST_OVER_TIME', { exact: true }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'Open Blog Writing Pack', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Reveal Blog Writing Pack', exact: true }).count(), 0);
+    assert.equal(
+      (await page.locator('body').innerText()).includes('/fixture/blog-writing-packs'),
+      false,
+      'Blog package UI must not expose an absolute package path.',
+    );
+    await page.getByLabel('Active Workspace').selectOption('ws_other');
+    await page.getByLabel('Active Workspace').selectOption('ws_fixture');
+    await page.getByRole('button', { name: 'RUNS', exact: true }).click();
+    await page.getByRole('button', { name: /rr_fixture_history_001/ }).click();
+    assert.equal(
+      await page.getByText('Blog Writing Pack: NOT READY', { exact: true }).count(),
+      0,
+      'Switching away from a Run must clear its stale Blog package result.',
     );
 
     await page.getByRole(
