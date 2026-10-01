@@ -44,6 +44,17 @@ const review = {
     reason_codes: ['NO_COMPATIBLE_EVIDENCE'],
   })),
 };
+const blockedReview = {
+  ...structuredClone(review),
+  account_identity: { field: 'customer_id', value: '' },
+  customer_id: '',
+  can_start: false,
+  requirements: review.requirements.map((requirement) => ({
+    ...requirement,
+    status: 'BLOCKED',
+    reason_codes: ['CONFIGURATION_REQUIRED'],
+  })),
+};
 const packageResult = {
   status: 'PACKAGE_PUBLISHED',
   package: {
@@ -88,7 +99,12 @@ const runState = {
 };
 const collectionResult = { status: 'COLLECTION_STARTED', run_state: runState };
 
-const createHarness = ({ unsafe = false, throwService = false, startResult = packageResult } = {}) => {
+const createHarness = ({
+  unsafe = false,
+  throwService = false,
+  reviewResult = review,
+  startResult = packageResult,
+} = {}) => {
   const calls = { trust: 0, review: 0, start: 0, open: 0 };
   const handlers = createDesktopTaskPackageHandlers({
     assertTrustedSender: (event) => {
@@ -99,7 +115,7 @@ const createHarness = ({ unsafe = false, throwService = false, startResult = pac
       review: async () => {
         calls.review += 1;
         if (throwService) throw new Error('secret token /Users/private/provider-body');
-        return unsafe ? { ...review, absolute_path: '/Users/private/package.xlsx' } : review;
+        return unsafe ? { ...review, absolute_path: '/Users/private/package.xlsx' } : reviewResult;
       },
       start: async () => {
         calls.start += 1;
@@ -163,6 +179,17 @@ async function main() {
 
   const validHarness = createHarness();
   assert.deepEqual(await validHarness.handlers.review('trusted', intent), { ok: true, result: review });
+  assert.deepEqual(
+    await createHarness({ reviewResult: blockedReview }).handlers.review('trusted', intent),
+    { ok: true, result: blockedReview },
+  );
+  const unexpectedEmptyIdentity = structuredClone(review);
+  unexpectedEmptyIdentity.account_identity.value = '';
+  unexpectedEmptyIdentity.customer_id = '';
+  assertSafeFailure(
+    await createHarness({ reviewResult: unexpectedEmptyIdentity }).handlers.review('trusted', intent),
+    'LOCAL_REVIEW_FAILED',
+  );
   assert.deepEqual(await validHarness.handlers.start('trusted', startIntent), { ok: true, result: packageResult });
   assert.deepEqual(await validHarness.handlers.open('trusted', { package_id: 'pkg_safe' }), {
     ok: true, result: { package_id: 'pkg_safe' },
