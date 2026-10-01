@@ -11,6 +11,7 @@ import { strFromU8, unzipSync } from 'fflate';
 import type {
   ApplicationDirectories,
 } from '../../shared/bootstrap-status';
+import { BlogWritingPackStore } from '../blog-writing-packs/blog-writing-pack-store';
 import { TaskPackageStore } from '../task-packages/task-package-store';
 
 const WORKBOOK_PATTERN =
@@ -147,33 +148,25 @@ export const findLatestExportWorkbook = async (
 
 const SAFE_PACKAGE_ID = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/u;
 
-export const resolveTaskPackageWorkbook = async (
-  packages_root: string,
-  package_id: string,
-): Promise<string> => {
-  if (
-    !SAFE_PACKAGE_ID.test(package_id)
-    || package_id === '.'
-    || package_id === '..'
-  ) {
-    throw new Error('Task Package identity is invalid.');
+const requireSafePackageId = (packageId: string, context: string): void => {
+  if (!SAFE_PACKAGE_ID.test(packageId) || packageId === '.' || packageId === '..') {
+    throw new Error(`${context} identity is invalid.`);
   }
-  const root = path.resolve(packages_root);
-  const scanned = await new TaskPackageStore(root).scanManifests();
-  const manifest = scanned.manifests.find((candidate) => candidate.package_id === package_id);
-  if (manifest === undefined) throw new Error('Task Package is missing or invalid.');
+};
 
-  const canonicalRoot = await realpath(root);
-  const packageDirectory = await realpath(path.join(canonicalRoot, package_id));
-  if (!isInside(canonicalRoot, packageDirectory)) throw new Error('Task Package directory is invalid.');
-  const candidate = path.join(packageDirectory, manifest.workbook_filename);
+const resolveVerifiedWorkbook = async (
+  packageDirectory: string,
+  workbookFilename: string,
+  context: string,
+): Promise<string> => {
+  const candidate = path.join(packageDirectory, workbookFilename);
   const candidateStat = await lstat(candidate);
   if (!candidateStat.isFile() || candidateStat.isSymbolicLink()) {
-    throw new Error('Task Package workbook is not a regular file.');
+    throw new Error(`${context} workbook is not a regular file.`);
   }
   const workbookPath = await realpath(candidate);
   if (!isInside(packageDirectory, workbookPath)) {
-    throw new Error('Task Package workbook escapes its package directory.');
+    throw new Error(`${context} workbook escapes its package directory.`);
   }
   const bytes = await readFile(workbookPath);
   try {
@@ -190,9 +183,63 @@ export const resolveTaskPackageWorkbook = async (
       || !strFromU8(contentTypes).includes('<Types')
       || !strFromU8(workbook).includes('<workbook')
       || !strFromU8(worksheet).includes('<worksheet')
-    ) throw new Error('Task Package workbook content is invalid.');
+    ) throw new Error(`${context} workbook content is invalid.`);
   } catch {
-    throw new Error('Task Package workbook content is invalid.');
+    throw new Error(`${context} workbook content is invalid.`);
   }
   return workbookPath;
+};
+
+export const resolveTaskPackageWorkbook = async (
+  packages_root: string,
+  package_id: string,
+): Promise<string> => {
+  requireSafePackageId(package_id, 'Task Package');
+  const root = path.resolve(packages_root);
+  const scanned = await new TaskPackageStore(root).scanManifests();
+  const manifest = scanned.manifests.find((candidate) => candidate.package_id === package_id);
+  if (manifest === undefined) throw new Error('Task Package is missing or invalid.');
+
+  const canonicalRoot = await realpath(root);
+  const packageDirectory = await realpath(path.join(canonicalRoot, package_id));
+  if (!isInside(canonicalRoot, packageDirectory)) throw new Error('Task Package directory is invalid.');
+  return resolveVerifiedWorkbook(packageDirectory, manifest.workbook_filename, 'Task Package');
+};
+
+const resolveBlogWritingPack = async (
+  packagesRoot: string,
+  packageId: string,
+): Promise<{ directory: string; workbook_filename: string }> => {
+  requireSafePackageId(packageId, 'Blog Writing Pack');
+  const canonicalRoot = await realpath(path.resolve(packagesRoot));
+  const candidate = path.join(canonicalRoot, packageId);
+  const candidateStat = await lstat(candidate);
+  if (!candidateStat.isDirectory() || candidateStat.isSymbolicLink()) {
+    throw new Error('Blog Writing Pack directory is invalid.');
+  }
+  const directory = await realpath(candidate);
+  if (!isInside(canonicalRoot, directory)) {
+    throw new Error('Blog Writing Pack directory escapes its package root.');
+  }
+  const manifest = await new BlogWritingPackStore(canonicalRoot).readManifest(packageId);
+  return { directory, workbook_filename: manifest.workbook_filename };
+};
+
+export const resolveBlogWritingPackDirectory = async (
+  packages_root: string,
+  package_id: string,
+): Promise<string> => (
+  await resolveBlogWritingPack(packages_root, package_id)
+).directory;
+
+export const resolveBlogWritingPackWorkbook = async (
+  packages_root: string,
+  package_id: string,
+): Promise<string> => {
+  const resolved = await resolveBlogWritingPack(packages_root, package_id);
+  return resolveVerifiedWorkbook(
+    resolved.directory,
+    resolved.workbook_filename,
+    'Blog Writing Pack',
+  );
 };

@@ -25,6 +25,8 @@ if (!buildRoot || !fixtureRoot) {
 
 const {
   findLatestExportWorkbook,
+  resolveBlogWritingPackDirectory,
+  resolveBlogWritingPackWorkbook,
   resolveTaskPackageWorkbook,
 } = require(
   path.join(
@@ -132,6 +134,77 @@ const makeTaskPackage = async (packageId, {
     await writeFile(path.join(packageDirectory, 'MANIFEST.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   }
   return workbookPath;
+};
+
+const BLOG_DATASETS = [
+  'INTEREST_OVER_TIME', 'QUERY_PAGE', 'SEARCH_TERMS',
+  'KEYWORD_HISTORICAL_METRICS', 'PRODUCTS', 'SITEMAP_URLS', 'GOOGLE_SERP',
+];
+
+const makeBlogPackage = async (packageId, {
+  root = path.join(directories.data, 'blog-writing-packs'),
+  manifestPackageId = packageId,
+  recipeId = 'BLOG_WRITING_PACK',
+  recipeVersion = 1,
+  workbookFilename = 'BLOG_WRITING_PACK.xlsx',
+  workbookKind = 'file',
+  workbookBytes = validWorkbookBytes,
+  omitManifest = false,
+} = {}) => {
+  const packageDirectory = path.join(root, packageId);
+  await mkdir(packageDirectory, { recursive: true });
+  if (workbookKind === 'file') await writeFile(path.join(packageDirectory, workbookFilename), workbookBytes);
+  if (workbookKind === 'directory') await mkdir(path.join(packageDirectory, workbookFilename), { recursive: true });
+  if (workbookKind === 'symlink') {
+    const external = path.join(fixtureRoot, `${packageId}-blog-external.xlsx`);
+    await writeFile(external, workbookBytes);
+    await symlink(external, path.join(packageDirectory, workbookFilename));
+  }
+  await writeFile(path.join(packageDirectory, 'MANIFEST.json'), `${JSON.stringify({
+    package_version: 1,
+    run_id: 'run_blog',
+    workspace_id: 'ws_blog',
+    run_status: 'COMPLETED',
+    selected_sources: [],
+    successful_jobs: 1,
+    failed_jobs: 0,
+    mode: 'ALL',
+  }, null, 2)}\n`);
+  await writeFile(path.join(packageDirectory, 'DATASETS.json'), '[]\n');
+  await writeFile(path.join(packageDirectory, 'FAILURES.json'), '[]\n');
+  const missing = BLOG_DATASETS.slice(1);
+  const coverage = Object.fromEntries(BLOG_DATASETS.map((dataset, index) => [dataset, {
+    status: index === 0 ? 'COVERED' : 'MISSING',
+    total_jobs: index === 0 ? 1 : 0,
+    accepted_jobs: index === 0 ? 1 : 0,
+    no_data_jobs: 0,
+    incomplete_jobs: 0,
+  }]));
+  const manifest = {
+    manifest_version: 1,
+    package_id: manifestPackageId,
+    recipe_id: recipeId,
+    recipe_version: recipeVersion,
+    run_id: 'run_blog',
+    workspace_id: 'ws_blog',
+    created_at: '2026-10-01T13:00:00.000Z',
+    application_version: '1.0.0',
+    coverage_status: 'PARTIAL',
+    expected_datasets: BLOG_DATASETS,
+    present_datasets: ['INTEREST_OVER_TIME'],
+    no_data_datasets: [],
+    incomplete_datasets: [],
+    missing_datasets: missing,
+    coverage_by_dataset: coverage,
+    workbook_filename: workbookFilename,
+    generic_manifest_filename: 'MANIFEST.json',
+    datasets_index_filename: 'DATASETS.json',
+    failures_filename: 'FAILURES.json',
+  };
+  if (!omitManifest) {
+    await writeFile(path.join(packageDirectory, 'BLOG_PACKAGE.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  }
+  return { packageDirectory, workbookPath: path.join(packageDirectory, workbookFilename) };
 };
 
 const directories = {
@@ -304,8 +377,46 @@ const main = async () => {
     'pkg_truncated_zip_workbook',
   ));
 
+  const blogRoot = path.join(directories.data, 'blog-writing-packs');
+  const validBlog = await makeBlogPackage('blog_valid');
+  assert.equal(await resolveBlogWritingPackDirectory(blogRoot, 'blog_valid'), validBlog.packageDirectory);
+  assert.equal(await resolveBlogWritingPackWorkbook(blogRoot, 'blog_valid'), validBlog.workbookPath);
+
+  for (const packageId of ['', '.', '..', '../escape', '/tmp/escape', 'bad/id']) {
+    await assert.rejects(resolveBlogWritingPackDirectory(blogRoot, packageId));
+    await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, packageId));
+  }
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_unknown'));
+  await makeBlogPackage('blog_missing_manifest', { omitManifest: true });
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_missing_manifest'));
+  await makeBlogPackage('blog_mismatch', { manifestPackageId: 'blog_other' });
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_mismatch'));
+  await makeBlogPackage('blog_wrong_recipe', { recipeId: 'ADS_OPTIMIZATION_PACK' });
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_wrong_recipe'));
+  await makeBlogPackage('blog_wrong_version', { recipeVersion: 2 });
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_wrong_version'));
+  await makeBlogPackage('blog_traversal_workbook', { workbookFilename: '../escape.xlsx', workbookKind: 'missing' });
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_traversal_workbook'));
+  await makeBlogPackage('blog_absolute_workbook', { workbookFilename: '/tmp/escape.xlsx', workbookKind: 'missing' });
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_absolute_workbook'));
+  await makeBlogPackage('blog_missing_workbook', { workbookKind: 'missing' });
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_missing_workbook'));
+  await makeBlogPackage('blog_symlink_workbook', { workbookKind: 'symlink' });
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_symlink_workbook'));
+  await makeBlogPackage('blog_directory_workbook', { workbookKind: 'directory' });
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_directory_workbook'));
+  await makeBlogPackage('blog_corrupt_workbook', { workbookBytes: Buffer.from('not an xlsx') });
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_corrupt_workbook'));
+  await makeBlogPackage('blog_truncated_workbook', { workbookBytes: Buffer.from([0x50, 0x4b, 0x03]) });
+  await assert.rejects(resolveBlogWritingPackWorkbook(blogRoot, 'blog_truncated_workbook'));
+
+  const externalBlogRoot = path.join(fixtureRoot, 'external-blog');
+  await makeBlogPackage('target', { root: externalBlogRoot });
+  await symlink(path.join(externalBlogRoot, 'target'), path.join(blogRoot, 'blog_symlink_directory'));
+  await assert.rejects(resolveBlogWritingPackDirectory(blogRoot, 'blog_symlink_directory'));
+
   console.log(
-    'PASS DESKTOP-FILES-001..004: output discovery is safe and Task Package workbooks resolve only by verified package identity',
+    'PASS DESKTOP-FILES-001..005: exports, Task Packages, and Blog Writing Packs resolve only by verified local identity',
   );
 };
 
