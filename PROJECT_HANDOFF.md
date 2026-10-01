@@ -3423,7 +3423,7 @@ Review this Slice B checkpoint and its canonical documentation commit. Do not me
 
 ## 62. ADS_OPTIMIZATION_PACK v1 — deterministic Slice C desktop completion — 2026-10-01
 
-The approved Slice C plan and its focused post-implementation review are complete in local deterministic implementation on `wip/ads-optimization-pack-slice-c-2026-09-30`. The final implementation checkpoint before this documentation reconciliation is `3af8b5b` (`fix: preserve task package IPC validation narrowing`). The canonical feature branch remains `feat/ads-optimization-pack-slice-c` at `990a085` until this verified WIP result is moved back explicitly.
+The approved Slice C plan and its focused post-implementation review are complete, merged, and pushed on `main`. Local `main` and `origin/main` are synchronized at `375ab26` (`docs: record verified slice c review`). The final code checkpoint is `3af8b5b` (`fix: preserve task package IPC validation narrowing`).
 
 Implemented boundaries:
 
@@ -3466,4 +3466,4 @@ Protected historical files remain untracked and untouched:
 
 ### Exact next action
 
-Move the verified commits after `990a085` back onto `feat/ads-optimization-pack-slice-c` with a fast-forward if branch state is unchanged, then review that canonical feature checkpoint. Do not merge to `main` or push without explicit instruction. If further acceptance is authorized, scope packaged-app desktop verification separately from quota-conscious live Google Ads reporting acceptance; neither is implied by the deterministic completion recorded here.
+No further Slice C implementation is authorized by this checkpoint. If further acceptance is approved, scope packaged-app desktop verification separately from quota-conscious live Google Ads reporting acceptance; do not begin either automatically, and do not treat one as evidence for the other.
