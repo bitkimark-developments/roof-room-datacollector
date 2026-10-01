@@ -23,8 +23,8 @@ const acceptedDataset = {
   provenance: { run_id: 'run_blog_desktop', workspace_id: 'ws_blog', job_id: 'job_gsc', job_key: 'GSC01', source_id: 'google-search-console-query-page', validation_status: 'VALID' },
 };
 
-const createHarness = ({ runRecord = run(), jobs = [acceptedJob], datasets = [acceptedDataset] } = {}) => {
-  const calls = { getRun: 0, listJobs: 0, load: 0, publish: 0, assemblies: [] };
+const createHarness = ({ runRecord = run(), jobs = [acceptedJob], datasets = [acceptedDataset], broadLoadError = null } = {}) => {
+  const calls = { getRun: 0, listJobs: 0, load: 0, loadedJobIds: [], publish: 0, assemblies: [] };
   let packageSequence = 0;
   const controller = new DesktopBlogWritingPackController({
     repository: {
@@ -32,7 +32,20 @@ const createHarness = ({ runRecord = run(), jobs = [acceptedJob], datasets = [ac
       listJobs: (runId) => { calls.listJobs += 1; return runId === runRecord?.run_id ? structuredClone(jobs) : []; },
     },
     loader: {
-      loadRunDatasets: async (runId) => { calls.load += 1; assert.equal(runId, runRecord.run_id); return structuredClone(datasets); },
+      loadRunDatasets: async (runId) => {
+        calls.load += 1;
+        assert.equal(runId, runRecord.run_id);
+        if (broadLoadError !== null) throw broadLoadError;
+        return structuredClone(datasets);
+      },
+      loadAcceptedJobDataset: async (runId, jobId) => {
+        calls.load += 1;
+        calls.loadedJobIds.push(jobId);
+        assert.equal(runId, runRecord.run_id);
+        const dataset = datasets.find((candidate) => candidate.job_id === jobId);
+        if (dataset === undefined) throw new Error(`Unexpected dataset load: ${jobId}`);
+        return structuredClone(dataset);
+      },
     },
     publish: async (assembly) => {
       calls.publish += 1;
@@ -91,6 +104,21 @@ const expectCode = async (promise, code) => assert.rejects(promise, (error) => {
   assert.equal(repeatedHarness.calls.listJobs, 2);
   assert.equal(repeatedHarness.calls.load, 2);
   assert.equal(repeatedHarness.calls.publish, 2);
+
+  const unrelatedAcceptedJob = {
+    ...acceptedJob,
+    job_id: 'job_unrelated',
+    source_id: 'google-ads-search-reporting',
+    job_key: 'CAMPAIGN_PERFORMANCE',
+    accepted_artifact_id: 'artifact_unrelated',
+  };
+  const recipeFilteredHarness = createHarness({
+    jobs: [acceptedJob, unrelatedAcceptedJob],
+    broadLoadError: new Error('Unsupported unrelated accepted evidence'),
+  });
+  const recipeFiltered = await recipeFilteredHarness.controller.build('run_blog_desktop');
+  assert.equal(recipeFiltered.status, 'PACKAGE_PUBLISHED');
+  assert.deepEqual(recipeFilteredHarness.calls.loadedJobIds, ['job_gsc']);
 
   console.log('PASS DESKTOP-BLOG-CONTROLLER-001: terminal local evidence builds immutable snapshots without acquisition, retry, or Core mutation');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

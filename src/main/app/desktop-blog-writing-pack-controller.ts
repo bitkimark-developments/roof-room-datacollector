@@ -9,6 +9,7 @@ import type {
 } from '../../shared/desktop-blog-writing-pack';
 import type { DataPackageInputDataset } from '../export/data-package-exporter';
 import { assembleBlogWritingPack } from '../blog-writing-packs/blog-writing-pack-assembler';
+import { isBlogWritingPackSource } from '../blog-writing-packs/blog-writing-pack-recipe';
 import type {
   BlogWritingPackAssembly,
 } from '../../shared/blog-writing-pack';
@@ -30,7 +31,7 @@ export class DesktopBlogWritingPackController {
       listJobs(run_id: string): JobRecord[];
     };
     loader: {
-      loadRunDatasets(run_id: string): Promise<DataPackageInputDataset[]>;
+      loadAcceptedJobDataset(run_id: string, job_id: string): Promise<DataPackageInputDataset>;
     };
     publish(assembly: BlogWritingPackAssembly): Promise<{ package_id: string }>;
     now(): string;
@@ -48,6 +49,16 @@ export class DesktopBlogWritingPackController {
       throw new DesktopBlogWritingPackControllerError('RUN_NOT_TERMINAL');
     }
 
+    const jobs = this.dependencies.repository.listJobs(run_id);
+    const acceptedRecipeJobs = jobs.filter((job) => (
+      isBlogWritingPackSource(job.source_id)
+      && job.execution_status === 'COMPLETED'
+      && job.accepted_artifact_id !== null
+      && (job.validation_status === 'VALID'
+        || job.validation_status === 'LOW_DATA'
+        || job.validation_status === 'NO_DATA')
+    ));
+
     let result;
     try {
       result = assembleBlogWritingPack({
@@ -55,8 +66,10 @@ export class DesktopBlogWritingPackController {
         created_at: this.dependencies.now(),
         application_version: this.dependencies.application_version,
         run,
-        jobs: this.dependencies.repository.listJobs(run_id),
-        datasets: await this.dependencies.loader.loadRunDatasets(run_id),
+        jobs,
+        datasets: await Promise.all(acceptedRecipeJobs.map((job) => (
+          this.dependencies.loader.loadAcceptedJobDataset(run_id, job.job_id)
+        ))),
       });
     } catch {
       throw new DesktopBlogWritingPackControllerError('BUILD_FAILED');
