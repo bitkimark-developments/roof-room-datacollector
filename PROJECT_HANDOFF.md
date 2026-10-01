@@ -3467,3 +3467,34 @@ Protected historical files remain untracked and untouched:
 ### Exact next action
 
 No further Slice C implementation is authorized by this checkpoint. If further acceptance is approved, scope packaged-app desktop verification separately from quota-conscious live Google Ads reporting acceptance; do not begin either automatically, and do not treat one as evidence for the other.
+
+## 63. Packaged runtime query-config repair — 2026-10-01
+
+The separately approved packaged-app acceptance exposed one bounded packaged-runtime regression: `npm run package` produced a signed arm64 `.app`, but isolated startup failed because `config/query-groups.yaml` was absent from `app.asar`. No provider call occurred and production application data was not used or modified.
+
+The repair checkpoint is `40becae` (`fix: package default query groups config`) on `fix/package-query-groups-resource`. The existing Electron Forge allowlist now admits only the `/config` traversal directory and `/config/query-groups.yaml`; unrelated config files remain excluded. The existing runtime-packaging contract test proves that boundary and reports `PASS GT-PACKAGE-003`.
+
+Fresh repair evidence:
+
+- `npm run test:m3:gt-runtime-package-config` — PASS `GT-PACKAGE-001..003`;
+- `npm run package` — PASS, producing `out/RoofRoom Data Collector-darwin-arm64/RoofRoom Data Collector.app` for darwin/arm64;
+- `node_modules/.bin/asar list <app.asar> | rg '^/config(?:/|$)'` returned exactly `/config` and `/config/query-groups.yaml`;
+- direct `@electron/asar` inspection confirmed the packaged `config/query-groups.yaml` bytes exactly match the source file;
+- a copied `.app` launched outside the repository for more than 30 seconds with disposable `HOME` and `--user-data-dir`, created the 859-byte external config in disposable app data, started its packaged renderer, opened no repository `node_modules`, produced no stdout/stderr, and exposed no network socket;
+- the original `ENOENT` did not recur and no new packaged-runtime blocker appeared within this bounded bootstrap repair check;
+- `npm run test:m7:ads-optimization-pack-desktop` — PASS `ADS-OPTIMIZATION-PACK-DESKTOP-GATE-001`;
+- `npm run test:m5:desktop-ui` — PASS `DESKTOP-UI-001`;
+- `npm run test:release:gate` — PASS `RELEASE-GATE-001`.
+
+Ponytail simplification review found the repair already lean, and the separate correctness review found no defect in the resource path, development compatibility, packaging boundary, or regression. No live provider request was made.
+
+This repair verifies only the failed packaged bootstrap boundary. Full packaged-app Slice C acceptance remains pending a separately executed rerun, and Google Ads live-provider acceptance remains separate and outstanding.
+
+Protected historical files remain untracked and untouched:
+
+- `CODEX_HANDOFF_CURRENT.md`
+- `PROJECT_HANDOFF.pre-20260820.md`
+
+### Exact next action
+
+Review this verified two-commit repair checkpoint. Do not merge or push without explicit approval. The next separately approved execution scope is a full rerun of packaged-app Slice C acceptance; do not treat this bounded bootstrap repair as that acceptance or as Google Ads live-provider evidence.
