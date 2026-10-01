@@ -1,6 +1,6 @@
 # BLOG_WRITING_PACK v1 — Design
 
-**Status:** Draft for approval
+**Status:** Approved
 **Date:** 2026-10-01
 **Product:** RoofRoom Data Collector
 **Scope:** User-facing Blog Writing evidence package built from one existing Run
