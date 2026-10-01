@@ -87,6 +87,9 @@ bash \
   tests/integration/export/run-production-data-package-loader-test.sh
 
 bash \
+  tests/integration/blog-writing-packs/run-blog-writing-pack-gate.sh
+
+bash \
   tests/integration/task-packages/run-ads-optimization-pack-gate.sh
 
 bash \

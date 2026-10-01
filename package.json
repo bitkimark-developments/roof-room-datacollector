@@ -103,6 +103,7 @@
     "test:m6:export": "bash tests/integration/export/run-google-trends-export-manager-test.sh",
     "test:m6:data-package": "bash tests/integration/export/run-data-package-exporter-test.sh",
     "test:m6:production-data-package": "bash tests/integration/export/run-production-data-package-loader-test.sh",
+    "test:m6:blog-writing-pack": "bash tests/integration/blog-writing-packs/run-blog-writing-pack-gate.sh",
     "test:m7:ads-optimization-pack-recipe": "bash tests/integration/task-packages/run-ads-optimization-pack-recipe-test.sh",
     "test:m7:task-package-evidence": "bash tests/integration/task-packages/run-task-package-evidence-resolver-test.sh",
     "test:m7:task-package-store": "bash tests/integration/task-packages/run-task-package-store-test.sh",
