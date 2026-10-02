@@ -3,6 +3,7 @@ import type {
   CollectionValidationContext,
   CollectionValidationDecision,
   CollectionValidator,
+  ValidatedDatasetMetadata,
 } from '../../../shared/collection';
 import {
   GOOGLE_ADS_CONFIGURATION_SOURCE_ID,
@@ -44,7 +45,7 @@ const failure = (
   }],
 });
 
-const validatedMetadata = () => ({
+const validatedMetadata = (): ValidatedDatasetMetadata => ({
   actual_date_start: null,
   actual_date_end: null,
   country_name: null,
