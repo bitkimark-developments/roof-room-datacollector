@@ -224,6 +224,152 @@ const conversionRowsByDataset = {
   },
 };
 
+const campaignSettingsRow = {
+  campaign: {
+    resourceName: 'customers/1234567890/campaigns/1001',
+    id: '1001',
+    name: 'Search Campaign',
+    status: 'ENABLED',
+    advertisingChannelType: 'SEARCH',
+    advertisingChannelSubType: 'SEARCH_STANDARD',
+    campaignBudget: 'customers/1234567890/campaignBudgets/2001',
+    keywordMatchType: 'BROAD',
+    biddingStrategyType: 'MANUAL_CPC',
+    networkSettings: {
+      targetGoogleSearch: true,
+      targetSearchNetwork: false,
+      targetContentNetwork: false,
+      targetPartnerSearchNetwork: false,
+    },
+    geoTargetTypeSetting: {
+      positiveGeoTargetType: 'PRESENCE',
+      negativeGeoTargetType: 'PRESENCE',
+    },
+    assetAutomationSettings: [],
+  },
+};
+
+const campaignBudgetRow = {
+  campaignBudget: {
+    resourceName: 'customers/1234567890/campaignBudgets/2001',
+    id: '2001',
+    name: 'Search Budget',
+    status: 'ENABLED',
+    amountMicros: '10000000',
+    deliveryMethod: 'STANDARD',
+    explicitlyShared: false,
+    referenceCount: '1',
+    period: 'DAILY',
+    type: 'STANDARD',
+  },
+};
+
+const targetingRows = [
+  {
+    campaign: {
+      resourceName: 'customers/1234567890/campaigns/1001',
+      id: '1001',
+      name: 'Search Campaign',
+      status: 'ENABLED',
+      advertisingChannelType: 'SEARCH',
+    },
+    campaignCriterion: {
+      resourceName:
+        'customers/1234567890/campaignCriteria/1001~3001',
+      campaign: 'customers/1234567890/campaigns/1001',
+      criterionId: '3001',
+      type: 'LOCATION',
+      negative: false,
+      status: 'ENABLED',
+      location: {
+        geoTargetConstant: 'geoTargetConstants/2392',
+      },
+    },
+  },
+  {
+    campaign: {
+      resourceName: 'customers/1234567890/campaigns/1001',
+      id: '1001',
+      name: 'Search Campaign',
+      status: 'ENABLED',
+      advertisingChannelType: 'SEARCH',
+    },
+    campaignCriterion: {
+      resourceName:
+        'customers/1234567890/campaignCriteria/1001~3002',
+      campaign: 'customers/1234567890/campaigns/1001',
+      criterionId: '3002',
+      type: 'LANGUAGE',
+      negative: false,
+      status: 'ENABLED',
+      language: {
+        languageConstant: 'languageConstants/1037',
+      },
+    },
+    languageConstant: {
+      resourceName: 'languageConstants/1037',
+      id: '1037',
+      code: 'tr',
+      name: 'Turkish',
+      targetable: true,
+    },
+  },
+];
+
+const targetingSearchStreamBody = [
+  {
+    results: targetingRows,
+  },
+  {},
+];
+
+const geoResolverBody = {
+  geoTargetConstantSuggestions: [
+    {
+      geoTargetConstant: {
+        resourceName: 'geoTargetConstants/2392',
+        id: '2392',
+        name: 'Turkey',
+        canonicalName: 'Turkey',
+        countryCode: 'TR',
+        targetType: 'Country',
+        status: 'ENABLED',
+      },
+    },
+  ],
+};
+
+const targetingBundle = {
+  bundle_schema_version: 1,
+  parts: [
+    {
+      kind: 'CAMPAIGN_CRITERIA_SEARCH_STREAM',
+      raw_body_base64: Buffer.from(
+        JSON.stringify(targetingSearchStreamBody),
+      ).toString('base64'),
+    },
+    {
+      kind: 'GEO_TARGET_CONSTANT_SUGGESTIONS',
+      requested_resource_names: ['geoTargetConstants/2392'],
+      raw_body_base64: Buffer.from(
+        JSON.stringify(geoResolverBody),
+      ).toString('base64'),
+    },
+  ],
+};
+
+const emptyTargetingBundle = {
+  bundle_schema_version: 1,
+  parts: [
+    {
+      kind: 'CAMPAIGN_CRITERIA_SEARCH_STREAM',
+      raw_body_base64: Buffer.from(
+        JSON.stringify([{ results: [] }, {}]),
+      ).toString('base64'),
+    },
+  ],
+};
+
 const validationContext = (
   datasetType,
   body,
@@ -475,6 +621,390 @@ const assertNullDateMetadata = (decision, label) => {
     multipleTrackingSettings.validation_status,
     'QUERY_MISMATCH',
     'Tracking settings must contain exactly one normalized row.',
+  );
+
+  const validCampaignSettings = await validator.validate(
+    validationContext(
+      'CAMPAIGN_SETTINGS',
+      [{ results: [campaignSettingsRow] }],
+    ),
+  );
+
+  assert.equal(
+    validCampaignSettings.validation_status,
+    'VALID',
+    'CAMPAIGN_SETTINGS canonical SearchStream evidence must validate.',
+  );
+  assertNullDateMetadata(
+    validCampaignSettings,
+    'CAMPAIGN_SETTINGS',
+  );
+
+  const validCampaignBudget = await validator.validate(
+    validationContext(
+      'CAMPAIGN_BUDGETS',
+      [{ results: [campaignBudgetRow] }],
+    ),
+  );
+
+  assert.equal(
+    validCampaignBudget.validation_status,
+    'VALID',
+    'CAMPAIGN_BUDGETS canonical SearchStream evidence must validate.',
+  );
+  assertNullDateMetadata(
+    validCampaignBudget,
+    'CAMPAIGN_BUDGETS',
+  );
+
+  for (const datasetType of [
+    'CAMPAIGN_SETTINGS',
+    'CAMPAIGN_BUDGETS',
+  ]) {
+    const decision = await validator.validate(
+      validationContext(
+        datasetType,
+        [{ results: [] }, {}],
+      ),
+    );
+
+    assert.equal(
+      decision.validation_status,
+      'NO_DATA',
+      `${datasetType} empty canonical evidence must remain NO_DATA.`,
+    );
+    assertNullDateMetadata(
+      decision,
+      `${datasetType} NO_DATA`,
+    );
+  }
+
+  const validTargeting = await validator.validate(
+    validationContext(
+      'CAMPAIGN_TARGETING_CRITERIA',
+      targetingBundle,
+    ),
+  );
+
+  assert.equal(
+    validTargeting.validation_status,
+    'VALID',
+    'Canonical targeting evidence bundle must validate.',
+  );
+  assertNullDateMetadata(
+    validTargeting,
+    'CAMPAIGN_TARGETING_CRITERIA',
+  );
+
+  const wrongRequestedRefsBundle = structuredClone(
+    targetingBundle,
+  );
+
+  wrongRequestedRefsBundle.parts[1].requested_resource_names = [
+    'geoTargetConstants/2124',
+  ];
+
+  const wrongRequestedRefsDecision =
+    await validator.validate(
+      validationContext(
+        'CAMPAIGN_TARGETING_CRITERIA',
+        wrongRequestedRefsBundle,
+      ),
+    );
+
+  assert.equal(
+    wrongRequestedRefsDecision.validation_status,
+    'QUERY_MISMATCH',
+    'Resolver requested refs must exactly match unique observed LOCATION refs.',
+  );
+
+  const duplicateRequestedRefsBundle = structuredClone(
+    targetingBundle,
+  );
+
+  duplicateRequestedRefsBundle.parts[1].requested_resource_names = [
+    'geoTargetConstants/2392',
+    'geoTargetConstants/2392',
+  ];
+
+  const duplicateRequestedRefsDecision =
+    await validator.validate(
+      validationContext(
+        'CAMPAIGN_TARGETING_CRITERIA',
+        duplicateRequestedRefsBundle,
+      ),
+    );
+
+  assert.equal(
+    duplicateRequestedRefsDecision.validation_status,
+    'QUERY_MISMATCH',
+    'Resolver requested refs must not duplicate observed LOCATION identity.',
+  );
+
+  const missingResolverBundle = structuredClone(
+    targetingBundle,
+  );
+
+  missingResolverBundle.parts =
+    missingResolverBundle.parts.filter(
+      (part) =>
+        part.kind !== 'GEO_TARGET_CONSTANT_SUGGESTIONS',
+    );
+
+  const missingResolverDecision =
+    await validator.validate(
+      validationContext(
+        'CAMPAIGN_TARGETING_CRITERIA',
+        missingResolverBundle,
+      ),
+    );
+
+  assert.equal(
+    missingResolverDecision.validation_status,
+    'QUERY_MISMATCH',
+    'Observed LOCATION evidence requires geo resolver evidence.',
+  );
+
+  const incompleteResolverBundle = structuredClone(
+    targetingBundle,
+  );
+
+  incompleteResolverBundle.parts[1].raw_body_base64 =
+    Buffer.from(
+      JSON.stringify({
+        geoTargetConstantSuggestions: [],
+      }),
+    ).toString('base64');
+
+  const incompleteResolverDecision =
+    await validator.validate(
+      validationContext(
+        'CAMPAIGN_TARGETING_CRITERIA',
+        incompleteResolverBundle,
+      ),
+    );
+
+  assert.equal(
+    incompleteResolverDecision.validation_status,
+    'QUERY_MISMATCH',
+    'Every observed LOCATION ref must resolve to provider evidence.',
+  );
+
+  const inconsistentGeoIdentityBundle = structuredClone(
+    targetingBundle,
+  );
+
+  inconsistentGeoIdentityBundle.parts[1].raw_body_base64 =
+    Buffer.from(
+      JSON.stringify({
+        geoTargetConstantSuggestions: [{
+          geoTargetConstant: {
+            resourceName: 'geoTargetConstants/2392',
+            id: '2124',
+            name: 'Turkey',
+            canonicalName: 'Turkey',
+            countryCode: 'TR',
+            targetType: 'Country',
+            status: 'ENABLED',
+          },
+        }],
+      }),
+    ).toString('base64');
+
+  const inconsistentGeoIdentityDecision =
+    await validator.validate(
+      validationContext(
+        'CAMPAIGN_TARGETING_CRITERIA',
+        inconsistentGeoIdentityBundle,
+      ),
+    );
+
+  assert.equal(
+    inconsistentGeoIdentityDecision.validation_status,
+    'QUERY_MISMATCH',
+    'Resolved geo resourceName and id identity must agree.',
+  );
+
+  const malformedTargetingBundle = {
+    bundle_schema_version: 1,
+    parts: [{
+      kind: 'GEO_TARGET_CONSTANT_SUGGESTIONS',
+      requested_resource_names: ['geoTargetConstants/2392'],
+      raw_body_base64: Buffer.from(
+        JSON.stringify(geoResolverBody),
+      ).toString('base64'),
+    }],
+  };
+
+  const malformedTargetingDecision =
+    await validator.validate(
+      validationContext(
+        'CAMPAIGN_TARGETING_CRITERIA',
+        malformedTargetingBundle,
+      ),
+    );
+
+  assert.equal(
+    malformedTargetingDecision.validation_status,
+    'INVALID_SCHEMA',
+    'Targeting bundle without SearchStream evidence must be INVALID_SCHEMA.',
+  );
+
+  const encodeTargetingRows = (rows) => ({
+    bundle_schema_version: 1,
+    parts: [{
+      kind: 'CAMPAIGN_CRITERIA_SEARCH_STREAM',
+      raw_body_base64: Buffer.from(
+        JSON.stringify([{ results: rows }, {}]),
+      ).toString('base64'),
+    }],
+  });
+
+  const nonSearchRows = structuredClone(targetingRows);
+
+  for (const row of nonSearchRows) {
+    row.campaign.advertisingChannelType = 'DISPLAY';
+  }
+
+  const nonSearchBundle = encodeTargetingRows(nonSearchRows);
+  nonSearchBundle.parts.push(
+    structuredClone(targetingBundle.parts[1]),
+  );
+
+  const targetingNonSearchDecision =
+    await validator.validate(
+      validationContext(
+        'CAMPAIGN_TARGETING_CRITERIA',
+        nonSearchBundle,
+      ),
+    );
+
+  assert.equal(
+    targetingNonSearchDecision.validation_status,
+    'QUERY_MISMATCH',
+    'Targeting rows must belong to SEARCH campaigns.',
+  );
+
+  const unsupportedCriterionRows =
+    structuredClone(targetingRows);
+
+  unsupportedCriterionRows[0].campaignCriterion.type =
+    'KEYWORD';
+  delete unsupportedCriterionRows[0]
+    .campaignCriterion.location;
+
+  const unsupportedCriterionDecision =
+    await validator.validate(
+      validationContext(
+        'CAMPAIGN_TARGETING_CRITERIA',
+        encodeTargetingRows(unsupportedCriterionRows),
+      ),
+    );
+
+  assert.equal(
+    unsupportedCriterionDecision.validation_status,
+    'QUERY_MISMATCH',
+    'Only LOCATION, LANGUAGE, DEVICE, and AD_SCHEDULE targeting criteria are in contract.',
+  );
+
+  const missingLocationDetailRows =
+    structuredClone(targetingRows);
+
+  missingLocationDetailRows[0].campaignCriterion.location = {};
+
+  const missingLocationDetailDecision =
+    await validator.validate(
+      validationContext(
+        'CAMPAIGN_TARGETING_CRITERIA',
+        encodeTargetingRows(missingLocationDetailRows),
+      ),
+    );
+
+  assert.equal(
+    missingLocationDetailDecision.validation_status,
+    'QUERY_MISMATCH',
+    'LOCATION criteria require an observed geo target constant reference.',
+  );
+
+  const mismatchedLanguageRows =
+    structuredClone(targetingRows);
+
+  mismatchedLanguageRows[1].languageConstant.resourceName =
+    'languageConstants/1000';
+
+  const mismatchedLanguageBundle =
+    encodeTargetingRows(mismatchedLanguageRows);
+
+  mismatchedLanguageBundle.parts.push(
+    structuredClone(targetingBundle.parts[1]),
+  );
+
+  const mismatchedLanguageDecision =
+    await validator.validate(
+      validationContext(
+        'CAMPAIGN_TARGETING_CRITERIA',
+        mismatchedLanguageBundle,
+      ),
+    );
+
+  assert.equal(
+    mismatchedLanguageDecision.validation_status,
+    'QUERY_MISMATCH',
+    'LANGUAGE attributed detail must match the criterion language reference.',
+  );
+
+  const noLocationWithResolverBundle = {
+    bundle_schema_version: 1,
+    parts: [
+      {
+        kind: 'CAMPAIGN_CRITERIA_SEARCH_STREAM',
+        raw_body_base64: Buffer.from(
+          JSON.stringify([{
+            results: [targetingRows[1]],
+          }, {}]),
+        ).toString('base64'),
+      },
+      {
+        kind: 'GEO_TARGET_CONSTANT_SUGGESTIONS',
+        requested_resource_names: [],
+        raw_body_base64: Buffer.from(
+          JSON.stringify({
+            geoTargetConstantSuggestions: [],
+          }),
+        ).toString('base64'),
+      },
+    ],
+  };
+
+  const noLocationWithResolverDecision =
+    await validator.validate(
+      validationContext(
+        'CAMPAIGN_TARGETING_CRITERIA',
+        noLocationWithResolverBundle,
+      ),
+    );
+
+  assert.equal(
+    noLocationWithResolverDecision.validation_status,
+    'INVALID_SCHEMA',
+    'Empty geo resolver requested refs are invalid canonical bundle schema.',
+  );
+
+  const emptyTargeting = await validator.validate(
+    validationContext(
+      'CAMPAIGN_TARGETING_CRITERIA',
+      emptyTargetingBundle,
+    ),
+  );
+
+  assert.equal(
+    emptyTargeting.validation_status,
+    'NO_DATA',
+    'Empty canonical targeting bundle must remain truthful NO_DATA.',
+  );
+  assertNullDateMetadata(
+    emptyTargeting,
+    'CAMPAIGN_TARGETING_CRITERIA NO_DATA',
   );
 
   /*

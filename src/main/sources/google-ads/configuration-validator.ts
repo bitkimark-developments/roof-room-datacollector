@@ -13,6 +13,12 @@ import {
   normalizeGoogleAdsConfigurationRows,
 } from './configuration-normalizer';
 import {
+  extractGoogleAdsCampaignTargetingGeoResourceNames,
+  parseGoogleAdsCampaignTargetingEvidenceBundle,
+  type GoogleAdsCampaignSettingsNormalizationOptions,
+  type GoogleAdsGeoTargetConstantEvidence,
+} from './campaign-settings-adapter';
+import {
   requireGoogleAdsConfigurationJobContext,
 } from './configuration-request';
 import {
@@ -117,16 +123,268 @@ implements CollectionValidator {
     }
 
     let rows: Record<string, unknown>[];
+    let normalizationOptions:
+      GoogleAdsCampaignSettingsNormalizationOptions = {};
 
-    try {
-      rows = flattenGoogleAdsSearchStream(body);
-    } catch (error) {
-      return failure(
-        'INVALID_SCHEMA',
-        error instanceof Error
-          ? error.message
-          : 'Google Ads configuration SearchStream envelope is invalid.',
+    if (
+      jobContext.dataset_type
+        === 'CAMPAIGN_TARGETING_CRITERIA'
+    ) {
+      let bundle;
+
+      try {
+        bundle =
+          parseGoogleAdsCampaignTargetingEvidenceBundle(body);
+      } catch (error) {
+        return failure(
+          'INVALID_SCHEMA',
+          error instanceof Error
+            ? error.message
+            : 'Google Ads campaign targeting evidence bundle is invalid.',
+        );
+      }
+
+      const searchStreamPart = bundle.parts.find(
+        (part) =>
+          part.kind === 'CAMPAIGN_CRITERIA_SEARCH_STREAM',
       );
+
+      if (
+        !searchStreamPart
+        || searchStreamPart.kind
+          !== 'CAMPAIGN_CRITERIA_SEARCH_STREAM'
+      ) {
+        return failure(
+          'INVALID_SCHEMA',
+          'Google Ads campaign targeting SearchStream evidence is required.',
+        );
+      }
+
+      let searchStreamBody: unknown;
+
+      try {
+        searchStreamBody = JSON.parse(
+          Buffer.from(
+            searchStreamPart.raw_body_base64,
+            'base64',
+          ).toString('utf8'),
+        ) as unknown;
+      } catch (error) {
+        return failure(
+          'INVALID_SCHEMA',
+          error instanceof Error
+            ? error.message
+            : 'Google Ads campaign targeting SearchStream evidence is invalid.',
+        );
+      }
+
+      try {
+        rows = flattenGoogleAdsSearchStream(searchStreamBody);
+      } catch (error) {
+        return failure(
+          'INVALID_SCHEMA',
+          error instanceof Error
+            ? error.message
+            : 'Google Ads campaign targeting SearchStream envelope is invalid.',
+        );
+      }
+
+      let observedGeoResourceNames: string[];
+
+      try {
+        observedGeoResourceNames = [
+          ...new Set(
+            extractGoogleAdsCampaignTargetingGeoResourceNames(
+              searchStreamBody,
+            ),
+          ),
+        ];
+      } catch (error) {
+        return failure(
+          'QUERY_MISMATCH',
+          error instanceof Error
+            ? error.message
+            : 'Google Ads campaign targeting LOCATION evidence is invalid.',
+        );
+      }
+
+      const geoPart = bundle.parts.find(
+        (part) =>
+          part.kind === 'GEO_TARGET_CONSTANT_SUGGESTIONS',
+      );
+
+      if (
+        geoPart
+        && geoPart.kind
+          === 'GEO_TARGET_CONSTANT_SUGGESTIONS'
+      ) {
+        if (
+          geoPart.requested_resource_names.length
+            !== observedGeoResourceNames.length
+          || geoPart.requested_resource_names.some(
+            (resourceName, index) =>
+              resourceName !== observedGeoResourceNames[index],
+          )
+        ) {
+          return failure(
+            'QUERY_MISMATCH',
+            'Google Ads geo resolver requested resource names do not exactly match observed LOCATION evidence.',
+          );
+        }
+
+        let geoBody: unknown;
+
+        try {
+          geoBody = JSON.parse(
+            Buffer.from(
+              geoPart.raw_body_base64,
+              'base64',
+            ).toString('utf8'),
+          ) as unknown;
+        } catch (error) {
+          return failure(
+            'INVALID_SCHEMA',
+            error instanceof Error
+              ? error.message
+              : 'Google Ads geo target resolver evidence is invalid.',
+          );
+        }
+
+        if (
+          typeof geoBody !== 'object'
+          || geoBody === null
+          || Array.isArray(geoBody)
+        ) {
+          return failure(
+            'INVALID_SCHEMA',
+            'Google Ads geo target resolver response is invalid.',
+          );
+        }
+
+        const suggestions =
+          (geoBody as Record<string, unknown>)
+            .geoTargetConstantSuggestions;
+
+        if (!Array.isArray(suggestions)) {
+          return failure(
+            'INVALID_SCHEMA',
+            'Google Ads geo target resolver suggestions are invalid.',
+          );
+        }
+
+        const geoTargetConstants =
+          new Map<string, GoogleAdsGeoTargetConstantEvidence>();
+
+        try {
+          for (const suggestionValue of suggestions) {
+            if (
+              typeof suggestionValue !== 'object'
+              || suggestionValue === null
+              || Array.isArray(suggestionValue)
+            ) {
+              throw new Error(
+                'Google Ads geo target resolver suggestion is invalid.',
+              );
+            }
+
+            const suggestion =
+              suggestionValue as Record<string, unknown>;
+            const constantValue = suggestion.geoTargetConstant;
+
+            if (
+              typeof constantValue !== 'object'
+              || constantValue === null
+              || Array.isArray(constantValue)
+            ) {
+              throw new Error(
+                'Google Ads geo target constant evidence is invalid.',
+              );
+            }
+
+            const constant =
+              constantValue as Record<string, unknown>;
+
+            const requireText = (
+              value: unknown,
+              label: string,
+            ): string => {
+              if (
+                typeof value !== 'string'
+                || value.length === 0
+              ) {
+                throw new Error(
+                  `Google Ads geo target constant ${label} is required.`,
+                );
+              }
+
+              return value;
+            };
+
+            const resourceName = requireText(
+              constant.resourceName,
+              'resourceName',
+            );
+            const id = requireText(
+              constant.id,
+              'id',
+            );
+
+            if (
+              resourceName
+                !== `geoTargetConstants/${id}`
+            ) {
+              return failure(
+                'QUERY_MISMATCH',
+                'Google Ads geo target constant resourceName does not match its id.',
+              );
+            }
+
+            geoTargetConstants.set(resourceName, {
+              resource_name: resourceName,
+              id,
+              name: requireText(constant.name, 'name'),
+              canonical_name: requireText(
+                constant.canonicalName,
+                'canonicalName',
+              ),
+              country_code: requireText(
+                constant.countryCode,
+                'countryCode',
+              ),
+              target_type: requireText(
+                constant.targetType,
+                'targetType',
+              ),
+              status: requireText(
+                constant.status,
+                'status',
+              ),
+            });
+          }
+        } catch (error) {
+          return failure(
+            'INVALID_SCHEMA',
+            error instanceof Error
+              ? error.message
+              : 'Google Ads geo target constant evidence is invalid.',
+          );
+        }
+
+        normalizationOptions = {
+          geo_target_constants: geoTargetConstants,
+        };
+      }
+    } else {
+      try {
+        rows = flattenGoogleAdsSearchStream(body);
+      } catch (error) {
+        return failure(
+          'INVALID_SCHEMA',
+          error instanceof Error
+            ? error.message
+            : 'Google Ads configuration SearchStream envelope is invalid.',
+        );
+      }
     }
 
     let normalizedRows:
@@ -137,6 +395,7 @@ implements CollectionValidator {
         normalizeGoogleAdsConfigurationRows(
           jobContext.dataset_type,
           rows,
+          normalizationOptions,
         );
     } catch (error) {
       return failure(
