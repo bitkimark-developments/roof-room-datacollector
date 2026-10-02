@@ -6,6 +6,7 @@ import {
   type GoogleAdsConfigurationDatasetType,
   type GoogleAdsConfigurationJobContext,
 } from '../../../shared/google-ads-configuration';
+import type { ApiRequester } from '../google-api/api-helpers';
 
 export interface CreateGoogleAdsConfigurationJobContextInput {
   dataset_type: GoogleAdsConfigurationDatasetType;
@@ -120,3 +121,26 @@ export const createGoogleAdsConfigurationJobContext = (
 export const googleAdsConfigurationContextAsJson = (
   context: GoogleAdsConfigurationJobContext,
 ): JsonObject => ({ ...context });
+
+export const requestGoogleAdsConfigurationRaw = async (
+  input: { customer_id: string; query: string },
+  requester: ApiRequester,
+): Promise<{ body: unknown; raw_bytes: Uint8Array }> => {
+  const response = await requester({
+    url: `https://googleads.googleapis.com/v25/customers/${input.customer_id}/googleAds:searchStream`,
+    method: 'POST',
+    body: { query: input.query },
+  });
+
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(
+      `Google Ads provider error HTTP ${response.status}.`,
+    );
+  }
+
+  return {
+    body: response.body,
+    raw_bytes: response.raw_body
+      ?? new TextEncoder().encode(JSON.stringify(response.body)),
+  };
+};
