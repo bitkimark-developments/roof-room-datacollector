@@ -1,6 +1,7 @@
 import type { GoogleAdsCampaignPerformanceRow } from '../../../shared/google-ads-search-reporting';
 import {
   normalizeCommonPerformanceMetrics,
+  normalizeConversionEfficiencyMetrics,
   normalizeSearchShareMetrics,
   optionalReportingRecord,
   reportingNumberOrNull,
@@ -53,6 +54,7 @@ export const normalizeCampaignPerformanceRows = (
       ),
       performance_date: requirePerformanceDate(segments.date),
       ...normalizeCommonPerformanceMetrics(metrics),
+      ...normalizeConversionEfficiencyMetrics(metrics),
       ...normalizeSearchShareMetrics(metrics),
     };
   });

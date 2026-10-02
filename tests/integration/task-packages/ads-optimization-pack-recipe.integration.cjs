@@ -6,6 +6,7 @@ if (!buildRoot) throw new Error('Expected compiled build root.');
 
 const {
   ADS_OPTIMIZATION_PACK_V1_RECIPE,
+  ADS_OPTIMIZATION_PACK_V2_RECIPE,
 } = require(path.join(buildRoot, 'main/task-packages/ads-optimization-pack-recipe.js'));
 const {
   countCalendarDays,
@@ -24,22 +25,32 @@ const expectedModes = {
 
 assert.equal(ADS_OPTIMIZATION_PACK_V1_RECIPE.recipe_id, 'ADS_OPTIMIZATION_PACK');
 assert.equal(ADS_OPTIMIZATION_PACK_V1_RECIPE.recipe_version, 1);
-assert.equal(ADS_OPTIMIZATION_PACK_V1_RECIPE.label, 'Kampanya Gelişim');
-assert.equal(ADS_OPTIMIZATION_PACK_V1_RECIPE.account_identity_field, 'customer_id');
-assert.equal(ADS_OPTIMIZATION_PACK_V1_RECIPE.current_window_days, 7);
-assert.equal(ADS_OPTIMIZATION_PACK_V1_RECIPE.required_evidence.length, 6);
-assert.equal(new Set(ADS_OPTIMIZATION_PACK_V1_RECIPE.required_evidence.map(({ dataset_type }) => dataset_type)).size, 6);
+assert.equal(
+  ADS_OPTIMIZATION_PACK_V1_RECIPE.required_evidence.every(
+    ({ dataset_schema_version }) => dataset_schema_version === 1,
+  ),
+  true,
+  'historical v1 recipe must remain explicit',
+);
 
-for (const requirement of ADS_OPTIMIZATION_PACK_V1_RECIPE.required_evidence) {
+assert.equal(ADS_OPTIMIZATION_PACK_V2_RECIPE.recipe_id, 'ADS_OPTIMIZATION_PACK');
+assert.equal(ADS_OPTIMIZATION_PACK_V2_RECIPE.recipe_version, 2);
+assert.equal(ADS_OPTIMIZATION_PACK_V2_RECIPE.label, 'Kampanya Gelişim');
+assert.equal(ADS_OPTIMIZATION_PACK_V2_RECIPE.account_identity_field, 'customer_id');
+assert.equal(ADS_OPTIMIZATION_PACK_V2_RECIPE.current_window_days, 7);
+assert.equal(ADS_OPTIMIZATION_PACK_V2_RECIPE.required_evidence.length, 6);
+assert.equal(new Set(ADS_OPTIMIZATION_PACK_V2_RECIPE.required_evidence.map(({ dataset_type }) => dataset_type)).size, 6);
+
+for (const requirement of ADS_OPTIMIZATION_PACK_V2_RECIPE.required_evidence) {
   assert.equal(requirement.source_id, 'google-ads-search-reporting');
   assert.equal(requirement.resource_mode, expectedModes[requirement.dataset_type]);
   assert.equal(requirement.acquisition_mode, 'OFFICIAL_API');
   assert.equal(requirement.campaign_scope, 'SEARCH');
-  assert.equal(requirement.dataset_schema_version, 1);
+  assert.equal(requirement.dataset_schema_version, 2);
   assert.equal(requirement.row_date_field, 'performance_date');
 }
 
-const serialized = JSON.stringify(ADS_OPTIMIZATION_PACK_V1_RECIPE);
+const serialized = JSON.stringify(ADS_OPTIMIZATION_PACK_V2_RECIPE);
 assert.equal(serialized.includes('google-ads-search-terms'), false);
 assert.equal(serialized.includes('PERFORMANCE_MAX'), false);
 

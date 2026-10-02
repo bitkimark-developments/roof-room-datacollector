@@ -86,8 +86,13 @@ const rowFor = (dataset, role) => {
     campaign_primary_status: 'ELIGIBLE', campaign_bidding_strategy_type: 'MANUAL_CPC',
     campaign_budget_id: 'budget-1', campaign_budget_amount_micros: 1000000,
     campaign_budget_period: 'DAILY', campaign_budget_explicitly_shared: false,
+    conversions_from_interactions_rate: 0.25,
+    cost_per_conversion: 125.5,
+    conversions_value_per_cost: 3.2,
     search_impression_share: null, search_budget_lost_impression_share: 0,
     search_rank_lost_impression_share: null, search_click_share: 0,
+    search_top_impression_share: 0.6,
+    search_absolute_top_impression_share: 0.35,
     top_impression_percentage: 0, absolute_top_impression_percentage: null,
   };
   if (dataset === 'AD_GROUP_PERFORMANCE') return {
@@ -203,12 +208,58 @@ async function main() {
   assert.ok(headers.includes('campaign_id'));
   assert.ok(headers.includes('performance_date'));
   assert.ok(headers.includes('snapshot_observed_at'));
+  for (const header of [
+    'conversions_from_interactions_rate',
+    'cost_per_conversion',
+    'conversions_value_per_cost',
+    'search_top_impression_share',
+    'search_absolute_top_impression_share',
+  ]) {
+    assert.ok(headers.includes(header), `Campaign workbook must preserve ${header}`);
+  }
   assert.equal(headers.includes('recommendation_score'), false);
   assert.equal(headers.includes('action'), false);
+
+  for (const sheetName of ['03_CURRENT_AD_GROUPS', '05_CURRENT_KEYWORDS']) {
+    const sheet = workbookA.sheets.find(({ name }) => name === sheetName);
+    const sheetHeaders = [...sheet.cells.entries()]
+      .filter(([reference]) => reference.endsWith('1'))
+      .map(([, cell]) => cell.value);
+
+    for (const header of [
+      'conversions_from_interactions_rate',
+      'cost_per_conversion',
+      'conversions_value_per_cost',
+      'search_top_impression_share',
+      'search_absolute_top_impression_share',
+    ]) {
+      assert.ok(sheetHeaders.includes(header), `${sheetName} must preserve ${header}`);
+    }
+  }
   const columnFor = (name) => [...campaignSheet.cells.entries()].find(([reference, cell]) => reference.endsWith('1') && cell.value === name)?.[0].replace(/1$/u, '');
   assert.deepEqual(campaignSheet.cells.get(`${columnFor('campaign_name')}2`), { type: 's', value: '=SUM(1,2)' });
   assert.deepEqual(campaignSheet.cells.get(`${columnFor('clicks')}2`), { type: 'n', value: 0 });
   assert.equal(campaignSheet.cells.get(`${columnFor('average_cpc_micros')}2`)?.value ?? null, null);
+  assert.deepEqual(
+    campaignSheet.cells.get(`${columnFor('conversions_from_interactions_rate')}2`),
+    { type: 'n', value: 0.25 },
+  );
+  assert.deepEqual(
+    campaignSheet.cells.get(`${columnFor('cost_per_conversion')}2`),
+    { type: 'n', value: 125.5 },
+  );
+  assert.deepEqual(
+    campaignSheet.cells.get(`${columnFor('conversions_value_per_cost')}2`),
+    { type: 'n', value: 3.2 },
+  );
+  assert.deepEqual(
+    campaignSheet.cells.get(`${columnFor('search_top_impression_share')}2`),
+    { type: 'n', value: 0.6 },
+  );
+  assert.deepEqual(
+    campaignSheet.cells.get(`${columnFor('search_absolute_top_impression_share')}2`),
+    { type: 'n', value: 0.35 },
+  );
 
   const adsSheet = workbookA.sheets.find(({ name }) => name === '09_CURRENT_ADS');
   const adsColumn = (name) => [...adsSheet.cells.entries()].find(([reference, cell]) => reference.endsWith('1') && cell.value === name)?.[0].replace(/1$/u, '');

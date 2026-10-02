@@ -41,7 +41,7 @@ export interface GoogleAdsSearchReportingJobContext {
   customer_id: string;
   requested_date_start: string;
   requested_date_end: string;
-  dataset_schema_version: 1;
+  dataset_schema_version: 1 | 2;
 }
 
 export interface GoogleAdsCommonPerformanceMetrics {
@@ -56,6 +56,12 @@ export interface GoogleAdsCommonPerformanceMetrics {
   all_conversions_value: number | null;
 }
 
+export interface GoogleAdsConversionEfficiencyMetrics {
+  conversions_from_interactions_rate: number | null;
+  cost_per_conversion: number | null;
+  conversions_value_per_cost: number | null;
+}
+
 export interface GoogleAdsTopImpressionMetrics {
   top_impression_percentage: number | null;
   absolute_top_impression_percentage: number | null;
@@ -66,10 +72,13 @@ export interface GoogleAdsSearchShareMetrics extends GoogleAdsTopImpressionMetri
   search_budget_lost_impression_share: number | null;
   search_rank_lost_impression_share: number | null;
   search_click_share: number | null;
+  search_top_impression_share: number | null;
+  search_absolute_top_impression_share: number | null;
 }
 
 export interface GoogleAdsCampaignPerformanceRow
   extends GoogleAdsCommonPerformanceMetrics,
+    GoogleAdsConversionEfficiencyMetrics,
     GoogleAdsSearchShareMetrics {
   currency_code: string;
   time_zone: string;
@@ -88,6 +97,7 @@ export interface GoogleAdsCampaignPerformanceRow
 
 export interface GoogleAdsAdGroupPerformanceRow
   extends GoogleAdsCommonPerformanceMetrics,
+    GoogleAdsConversionEfficiencyMetrics,
     GoogleAdsSearchShareMetrics {
   campaign_id: string;
   campaign_name: string;
@@ -106,6 +116,7 @@ export interface GoogleAdsAdGroupPerformanceRow
 
 export interface GoogleAdsKeywordPerformanceRow
   extends GoogleAdsCommonPerformanceMetrics,
+    GoogleAdsConversionEfficiencyMetrics,
     GoogleAdsSearchShareMetrics {
   campaign_id: string;
   campaign_name: string;

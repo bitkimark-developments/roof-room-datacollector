@@ -11,6 +11,7 @@ import {
   GoogleAdsSearchReportingSource,
   type GoogleAdsSearchReportingDatasetDescriptor,
 } from '../google-ads/search-reporting-source';
+import { GoogleAdsConfigurationSource } from '../google-ads/configuration-source';
 import {
   GoogleSearchConsoleQuerySource,
   GoogleSearchConsoleSource,
@@ -174,6 +175,23 @@ export class GoogleApiRuntimeFactory {
         requester,
         descriptors,
       );
+  }
+
+
+  createConfigurationSource(input: {
+    workspace_id: string;
+  }): GoogleAdsConfigurationSource {
+    const connection = this.requireConnection(
+      input.workspace_id,
+      GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID,
+    );
+
+    return new GoogleAdsConfigurationSource(
+      normalizeGoogleAdsCustomerId(
+        requireMetadataString(connection, 'customer_id'),
+      ),
+      this.createGoogleAdsRequester(connection),
+    );
   }
 
   createKeywordPlannerSource(input: {

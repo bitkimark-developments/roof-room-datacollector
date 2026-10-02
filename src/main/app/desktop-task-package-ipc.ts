@@ -248,7 +248,10 @@ const isRunState = (value: unknown): boolean => {
       'recipe_id', 'recipe_version', 'workspace_id', 'account_identity', 'current_window',
     ])
     || taskPackage.recipe_id !== 'ADS_OPTIMIZATION_PACK'
-    || taskPackage.recipe_version !== 1
+    || (
+      taskPackage.recipe_version !== 1
+      && taskPackage.recipe_version !== 2
+    )
     || taskPackage.workspace_id !== run.workspace_id
     || !isAccount(accountIdentity)
     || !isPlainRecord(currentWindow)
@@ -282,7 +285,7 @@ const isRunState = (value: unknown): boolean => {
       && isNonEmptyString(context.customer_id)
       && context.requested_date_start === currentWindow.start
       && context.requested_date_end === currentWindow.end
-      && context.dataset_schema_version === 1
+      && context.dataset_schema_version === taskPackage.recipe_version
       && Number.isInteger(job.job_order)
       && (job.job_order as number) >= 0
       && isExecutionStatus(job.execution_status)

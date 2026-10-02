@@ -23,11 +23,16 @@ import { normalizeGscQueryRows, normalizeGscRows } from '../sources/google-searc
 import { normalizeSearchTerms } from '../sources/google-ads/search-terms-adapter';
 import { normalizeKeywordPlanner } from '../sources/google-ads/keyword-planner-adapter';
 import { GoogleAdsSearchReportingValidator } from '../sources/google-ads/search-reporting-validator';
+import { GoogleAdsConfigurationValidator } from '../sources/google-ads/configuration-validator';
 import { GSC_QUERY_PAGE_SOURCE_ID, GSC_QUERY_SOURCE_ID, GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_SOURCE_ID } from '../../shared/google-api';
 import {
   GOOGLE_ADS_SEARCH_REPORTING_DATASET_TYPES,
   GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID,
 } from '../../shared/google-ads-search-reporting';
+import {
+  GOOGLE_ADS_CONFIGURATION_DATASET_TYPES,
+  GOOGLE_ADS_CONFIGURATION_SOURCE_ID,
+} from '../../shared/google-ads-configuration';
 import { IKAS_PRODUCTS_SOURCE_ID } from '../../shared/ikas-products';
 import { BITKIMARK_SITEMAP_SOURCE_ID } from '../../shared/bitkimark-sitemap';
 import { SERPAPI_SOURCE_ID, SERPAPI_DATASET_TYPE } from '../../shared/serpapi';
@@ -51,8 +56,14 @@ class LazyWorkspaceSource implements CollectingDataSourceModule {
     readonly datasetTypes: readonly string[],
     private readonly repository: Pick<StateRepository, 'getRun'>,
     private readonly resolve: (workspaceId: string, context: SourceCollectionContext) => CollectingDataSourceModule | null,
+    private readonly capabilityOverrides: Partial<SourceCapabilities> = {},
   ) {}
-  getCapabilities(): SourceCapabilities { return capabilities(this.sourceMode); }
+  getCapabilities(): SourceCapabilities {
+    return {
+      ...capabilities(this.sourceMode),
+      ...this.capabilityOverrides,
+    };
+  }
   async checkReadiness(): Promise<SourceReadinessResult> {
     return { source_id: this.id, readiness_status: 'READY', checked_at: new Date().toISOString(), message: null };
   }
@@ -164,6 +175,15 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
     input.repository,
     (workspaceId) => googleApi.createSearchReportingSource({ workspace_id: workspaceId }),
   ));
+  sourceRegistry.register(new LazyWorkspaceSource(
+    GOOGLE_ADS_CONFIGURATION_SOURCE_ID,
+    'Google Ads Configuration',
+    'OFFICIAL_API',
+    GOOGLE_ADS_CONFIGURATION_DATASET_TYPES,
+    input.repository,
+    (workspaceId) => googleApi.createConfigurationSource({ workspace_id: workspaceId }),
+    { supports_custom_date_range: false },
+  ));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, 'Google Keyword Planner', 'OFFICIAL_API', ['KEYWORD_HISTORICAL_METRICS'], input.repository,
     (workspaceId) => googleApi.createKeywordPlannerSource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID, 'Google Keyword Planner Manual CSV', 'FILE_IMPORT', ['KEYWORD_HISTORICAL_METRICS'], input.repository,
@@ -182,6 +202,10 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
   validators.register(
     GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID,
     new GoogleAdsSearchReportingValidator(),
+  );
+  validators.register(
+    GOOGLE_ADS_CONFIGURATION_SOURCE_ID,
+    new GoogleAdsConfigurationValidator(),
   );
   validators.register(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, new GoogleApiCollectionValidator(GOOGLE_KEYWORD_PLANNER_SOURCE_ID));
   validators.register(GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID, new KeywordPlannerManualCsvValidator());

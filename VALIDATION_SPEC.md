@@ -132,6 +132,69 @@ The six reporting datasets remain independent Jobs.
 
 Do not generalize legacy `search_term_view` live evidence to other resources or Performance Max.
 
+### Google Ads configuration
+
+Validate immutable source/dataset/resource/customer context, artifact ownership, raw SearchStream structure, and provider-native row semantics before accepting configuration evidence.
+
+The five normal Conversion Configuration datasets:
+
+- `CONVERSION_ACTIONS`
+- `CUSTOMER_CONVERSION_GOALS`
+- `CONVERSION_GOAL_CAMPAIGN_CONFIGS`
+- `CAMPAIGN_CONVERSION_GOALS`
+- `CUSTOM_CONVERSION_GOALS`
+
+may validate a structurally valid, semantically valid zero-row SearchStream result as verified `NO_DATA`.
+
+`CUSTOMER_CONVERSION_TRACKING_SETTINGS` has a stricter cardinality contract: exactly one normalized customer row is required. Zero rows or more than one row are `QUERY_MISMATCH`, never `NO_DATA`. One valid row whose provider status is `NOT_CONVERSION_TRACKED` is valid evidence.
+
+Configuration evidence fails closed. Ownership mismatches are `INVALID_SCHEMA`; invalid immutable Job context, dataset/resource mismatch, or provider-row semantic/type mismatch are `QUERY_MISMATCH`; unreadable or non-JSON artifacts are `ERROR_NOT_DATA`; malformed SearchStream envelopes are `INVALID_SCHEMA`.
+
+Missing evidence remains distinct from `false`, zero, empty string, or inferred values. Requested customer context must not be accepted as observed provider ownership without provider evidence.
+
+Authentication, connection, quota, rate-limit, network, and other acquisition failures remain operational outcomes rather than configuration dataset-quality results.
+
+
+#### Campaign Settings v1
+
+`CAMPAIGN_SETTINGS`, `CAMPAIGN_BUDGETS`, and `CAMPAIGN_TARGETING_CRITERIA` follow the same fail-closed Google Ads configuration validation boundary.
+
+`VALID`:
+
+- provider-native dataset/resource identity matches;
+- Search-only campaign constraints are satisfied where required;
+- normalized rows preserve observed provider semantics.
+
+`NO_DATA`:
+
+- valid empty SearchStream evidence with the required canonical envelope may represent no observed rows;
+- empty or missing evidence is not converted into `NO_DATA`.
+
+`QUERY_MISMATCH`:
+
+- campaign or criterion semantic type mismatch;
+- invalid Search/type context;
+- incomplete or inconsistent geo resolver identity;
+- resolver output that does not match observed LOCATION references.
+
+`INVALID_SCHEMA`:
+
+- malformed targeting evidence bundle structure;
+- invalid artifact ownership;
+- missing required canonical bundle fields;
+- unsupported reconstructed evidence.
+
+Targeting validation accepts only provider-observed LOCATION, LANGUAGE, DEVICE, and AD_SCHEDULE criteria.
+
+LOCATION human-readable fields require resolver evidence and remain provenance-linked.
+
+No location evidence is fabricated when resolver data is unavailable.
+
+Operational provider resolver failures remain acquisition failures rather than dataset semantic validation results.
+
+
+Deterministic fixtures and gates establish contract behavior only. They do not constitute live-provider acceptance.
+
 ### Keyword Planner API
 
 Validate keyword/request mapping, monthly year/month rows, nullable search metrics, competition/bid fields where returned, and raw provider evidence.

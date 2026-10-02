@@ -15,7 +15,7 @@ import {
   type TaskPackageDatasetLoader,
 } from '../task-packages/task-package-evidence-resolver';
 import { TaskPackageStore } from '../task-packages/task-package-store';
-import { ADS_OPTIMIZATION_PACK_V1_RECIPE } from '../task-packages/ads-optimization-pack-recipe';
+import { ADS_OPTIMIZATION_PACK_V2_RECIPE } from '../task-packages/ads-optimization-pack-recipe';
 import { writeAdsOptimizationPackage } from '../export/ads-optimization-pack-exporter';
 import type { DesktopExecutionService } from './desktop-execution-service';
 import { resolveTaskPackageWorkbook } from './application-file-access';
@@ -37,7 +37,7 @@ const isDatasetType = (value: string): value is GoogleAdsSearchReportingDatasetT
 export const createAdsOptimizationPackDesktopDefinition = (dependencies: {
   publish_package: (taskPackage: AssembledTaskPackage) => Promise<{ package_id: string }>;
 }): DesktopTaskPackageDefinition => ({
-  recipe: ADS_OPTIMIZATION_PACK_V1_RECIPE,
+  recipe: ADS_OPTIMIZATION_PACK_V2_RECIPE,
   connection_source_id: 'google-ads-search-terms',
   normalize_account_identity: (safeMetadata) => ({
     field: 'customer_id',

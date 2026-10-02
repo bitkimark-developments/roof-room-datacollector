@@ -13,8 +13,15 @@ const { TaskPackageEvidenceResolver } = require(path.join(
   'main/task-packages/task-package-evidence-resolver.js',
 ));
 
-const requirement = ADS_OPTIMIZATION_PACK_V1_RECIPE.required_evidence[0];
-const recipe = { ...ADS_OPTIMIZATION_PACK_V1_RECIPE, required_evidence: [requirement] };
+const requirement = {
+  ...ADS_OPTIMIZATION_PACK_V1_RECIPE.required_evidence[0],
+  dataset_schema_version: 2,
+};
+const recipe = {
+  ...ADS_OPTIMIZATION_PACK_V1_RECIPE,
+  recipe_version: 2,
+  required_evidence: [requirement],
+};
 const currentWindow = { start: '2026-09-23', end: '2026-09-29' };
 const accountIdentity = { field: 'customer_id', value: '1234567890' };
 
@@ -56,7 +63,7 @@ const makeCandidate = ({
       customer_id: '1234567890',
       requested_date_start: start,
       requested_date_end: end,
-      dataset_schema_version: 1,
+      dataset_schema_version: 2,
       ...context,
     },
     job_order: 1,
@@ -224,7 +231,7 @@ async function main() {
     makeCandidate({ id: 'wrong_source', context: { source_id: 'google-ads-search-terms' }, job: { source_id: 'google-ads-search-terms' } }),
     makeCandidate({ id: 'wrong_dataset', context: { dataset_type: 'SEARCH_TERMS' } }),
     makeCandidate({ id: 'wrong_mode', context: { resource_mode: 'search_term_view' } }),
-    makeCandidate({ id: 'wrong_schema', context: { dataset_schema_version: 2 } }),
+    makeCandidate({ id: 'historical_v1_schema', context: { dataset_schema_version: 1 } }),
     makeCandidate({ id: 'wrong_scope', context: { campaign_type: 'PERFORMANCE_MAX' } }),
     makeCandidate({ id: 'invalid_validation', validation: 'INVALID_SCHEMA', artifact: { artifact_state: 'REJECTED' } }),
     makeCandidate({ id: 'missing_artifact', job: { accepted_artifact_id: null } }),

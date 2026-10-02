@@ -118,6 +118,9 @@ export class GoogleAdsSearchReportingSource implements CollectingDataSourceModul
         context.source_context,
         this.customerId,
       );
+      if (jobContext.dataset_schema_version !== 2) {
+        throw new Error('Google Ads reporting acquisition requires dataset schema version 2.');
+      }
       if (context.job_key !== jobContext.dataset_type) {
         throw new Error('Google Ads reporting Job key does not match the dataset.');
       }

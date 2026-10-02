@@ -356,9 +356,115 @@ RSA_ASSET_PERFORMANCE
 
 Preserve dataset/resource identity, provider-native units, date/segment context, and raw SearchStream evidence.
 
+Current `google-ads-search-reporting` acquisition emits dataset schema v2. Historical schema v1 Job contexts remain readable for preserved evidence, but current provider reacquisition must not run under a v1 context.
+
+For `CAMPAIGN_PERFORMANCE`, `AD_GROUP_PERFORMANCE`, and `KEYWORD_PERFORMANCE`, schema v2 additionally preserves provider-native:
+
+- `conversions_from_interactions_rate`
+- `cost_per_conversion`
+- `conversions_value_per_cost`
+- `search_top_impression_share`
+- `search_absolute_top_impression_share`
+
+`search_top_impression_share` and `search_absolute_top_impression_share` remain distinct from `top_impression_percentage` and `absolute_top_impression_percentage`.
+
+`cost_per_conversion` preserves the provider field as a numeric value and is not renamed into the `_micros` canonical field family.
+
 Legacy `google-ads-search-terms` remains compatible.
 
 Performance Max is outside this contract.
+
+### Google Ads configuration — Negatives v1
+
+`google-ads-configuration` is an `OFFICIAL_API` current-configuration snapshot source.
+
+Approved dataset schema v1 datasets are exactly:
+
+- `CAMPAIGN_NEGATIVE_KEYWORDS`
+- `AD_GROUP_NEGATIVE_KEYWORDS`
+- `SHARED_NEGATIVE_KEYWORDS`
+- `CAMPAIGN_NEGATIVE_KEYWORD_LISTS`
+- `ACCOUNT_NEGATIVE_KEYWORD_LISTS`
+
+The immutable Job context contains exactly source identity, dataset type, provider resource mode, customer ID, and `dataset_schema_version: 1`. This source is not date-windowed and does not support custom date ranges.
+
+The adopted v1 boundary is keyword negatives only. Campaign-direct and ad-group-direct negatives preserve provider criterion identity and require SEARCH campaign scope, provider criterion type `KEYWORD`, and `negative: true`. Shared negative keyword members remain separate shared-criterion evidence. Campaign-list and account-list attachments remain separate provider attachment evidence.
+
+Direct criteria, shared members, campaign-list attachments, and account-list attachments are independent evidence datasets. Do not reconstruct one dataset from another. In particular, an account attachment does not prove or reconstruct the members of its referenced shared set.
+
+Raw Google Ads SearchStream response bytes remain authoritative. Provider identities and provider-native status/type values remain evidence; `REMOVED` is preserved. Optional unavailable provider fields normalize to `null`, never empty strings, zero, or synthetic values.
+
+A structurally valid SearchStream response that normalizes to zero rows may validate as `NO_DATA`. Malformed envelopes or semantic normalization failures fail closed and must not be converted into `NO_DATA`. Missing remains distinct from zero.
+
+This source reuses the existing canonical Google Ads Workspace connection and authenticated requester. It does not create a separate `google-ads-configuration` credential or connection record.
+
+Negatives v1 is not part of an adopted package, preset, analysis, recommendation, or export recipe contract.
+
+
+### Google Ads configuration — Campaign Settings v1
+
+Campaign Settings v1 adds these provider-native snapshot datasets:
+
+- `CAMPAIGN_SETTINGS`
+- `CAMPAIGN_BUDGETS`
+- `CAMPAIGN_TARGETING_CRITERIA`
+
+They remain under the existing Google Ads configuration source and Workspace Google Ads connection boundary.
+
+CAMPAIGN_SETTINGS grain: one row per Campaign resource.
+
+Scope is Search-only where required by the provider contract.
+
+Preserved provider-native evidence includes campaign identity, status, advertising channel type, keyword match type, bidding configuration, network settings, geo routing, and returned AI Max-related fields.
+
+CAMPAIGN_BUDGETS grain: one row per CampaignBudget resource.
+
+Budget evidence preserves amount micros, delivery method, explicit shared state, reference count, and provider-native resource relationships.
+
+CAMPAIGN_TARGETING_CRITERIA grain: one row per CampaignCriterion resource.
+
+Accepted targeting types:
+- LOCATION
+- LANGUAGE
+- DEVICE
+- AD_SCHEDULE
+
+Targeting evidence preserves provider-native criterion identity, negative LOCATION evidence, observed LOCATION references, resolver provenance, and lossless raw evidence bundle contents.
+
+Human-readable geo fields require provider resolver evidence.
+
+Missing raw evidence, malformed evidence bundles, and reconstructed evidence are not accepted.
+
+REMOVED snapshots remain historical provider observations. No effective-current state is synthesized.
+
+### Google Ads configuration — Conversion Configuration v1
+
+`google-ads-configuration` also owns six provider-native Conversion Configuration schema-v1 snapshot datasets:
+
+- `CONVERSION_ACTIONS` → `CONVERSION_ACTION`
+- `CUSTOMER_CONVERSION_GOALS` → `CUSTOMER_CONVERSION_GOAL`
+- `CONVERSION_GOAL_CAMPAIGN_CONFIGS` → `CONVERSION_GOAL_CAMPAIGN_CONFIG`
+- `CAMPAIGN_CONVERSION_GOALS` → `CAMPAIGN_CONVERSION_GOAL`
+- `CUSTOM_CONVERSION_GOALS` → `CUSTOM_CONVERSION_GOAL`
+- `CUSTOMER_CONVERSION_TRACKING_SETTINGS` → `CUSTOMER`
+
+Together with the five Negatives v1 datasets, the current `google-ads-configuration` family contains exactly eleven independent dataset types.
+
+Conversion Configuration v1 is a current-configuration snapshot contract. It has no requested date window and keeps `supports_custom_date_range: false`.
+
+Raw Google Ads SearchStream response bytes remain authoritative. Normalized rows preserve provider resource identity, lifecycle/status values, real `false` and zero values, and nullable optional evidence without fabricating replacements.
+
+`CONVERSION_ACTIONS` preserves provider-native action identity, status/type/category/origin, ownership, counting and goal flags, lookback settings, attribution settings, default value/currency settings, and Google Analytics 4 linkage where returned. `include_in_conversions_metric` is preserved only as legacy provider evidence; RoofRoom does not reinterpret it as a current effective-goal decision.
+
+`CUSTOM_CONVERSION_GOALS.conversion_action_resource_names` preserves provider-returned membership exactly. A provider-returned empty array remains `[]`; missing or unproven membership must not be normalized into an empty array.
+
+Requested `customer_id` is immutable request context and must not be copied into observed ownership or conversion-customer fields without provider evidence.
+
+RoofRoom does not derive an effective campaign conversion-goal model from these datasets. It does not infer goal precedence, bidding behavior, or optimization intent.
+
+Conversion Configuration v1 is not part of an adopted package, preset, analysis, recommendation, or export recipe contract.
+
+The family reuses the existing canonical Google Ads Workspace connection and authenticated requester. It does not add a configuration-specific credential, connection type, or Developer Token requirement.
 
 ### Keyword Planner
 
@@ -414,9 +520,13 @@ Indexes accepted source datasets separately and preserves exact Run/Job/source/a
 
 No cross-source row join is implied.
 
-### `ADS_OPTIMIZATION_PACK v1`
+### `ADS_OPTIMIZATION_PACK v2`
 
-Requires exactly the six approved Google Ads SEARCH reporting datasets.
+Active recipe version is 2 and requires exactly the six approved Google Ads SEARCH reporting datasets at dataset schema v2.
+
+Historical recipe/schema v1 packages remain readable. They are not compatible CURRENT evidence or PREVIOUS baselines for the active v2 recipe.
+
+Task Package manifest format remains `manifest_version: 1`. Supported recipe/schema pairs are exactly `1/1` and `2/2`; mixed pairs fail closed.
 
 Current window semantics are code-defined and exact.
 

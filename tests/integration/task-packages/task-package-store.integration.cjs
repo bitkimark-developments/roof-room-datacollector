@@ -115,6 +115,18 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 async function main() {
   assert.equal(parseTaskPackageManifest(manifestFor()).package_kind, 'INITIAL_BASELINE');
   assert.equal(parseTaskPackageManifest(manifestFor({ comparison: true })).gap_days, 8);
+
+  const validV2 = clone(manifestFor());
+  validV2.recipe_version = 2;
+  validV2.dataset_schema_version = 2;
+  for (const entry of validV2.evidence) {
+    entry.origin.dataset_schema_version = 2;
+  }
+  const parsedV2 = parseTaskPackageManifest(validV2);
+  assert.equal(parsedV2.manifest_version, 1);
+  assert.equal(parsedV2.recipe_version, 2);
+  assert.equal(parsedV2.dataset_schema_version, 2);
+
   const validFiltered = clone(manifestFor());
   validFiltered.evidence[0].disposition = 'REUSED_FILTERED';
   validFiltered.evidence[0].transformation = {
@@ -131,6 +143,18 @@ async function main() {
   const unsupportedVersion = clone(manifestFor());
   unsupportedVersion.manifest_version = 2;
   invalidCases.push(unsupportedVersion);
+
+  const mixedRecipe2Schema1 = clone(manifestFor());
+  mixedRecipe2Schema1.recipe_version = 2;
+  invalidCases.push(mixedRecipe2Schema1);
+
+  const mixedRecipe1Schema2 = clone(manifestFor());
+  mixedRecipe1Schema2.dataset_schema_version = 2;
+  for (const entry of mixedRecipe1Schema2.evidence) {
+    entry.origin.dataset_schema_version = 2;
+  }
+  invalidCases.push(mixedRecipe1Schema2);
+
   const duplicateRequired = clone(manifestFor());
   duplicateRequired.required_datasets[5] = duplicateRequired.required_datasets[0];
   invalidCases.push(duplicateRequired);

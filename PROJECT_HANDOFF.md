@@ -1,11 +1,11 @@
 # RoofRoom Data Collector — Project Handoff
 
 **Checkpoint date:** 2026-10-02
-**Current branch:** `main`
-**Integrated code checkpoint:** `5e7c34d`
-**Repository state:** `main` clean and synchronized at handoff publication
-**Current stage:** `BLOG_WRITING_PACK v1` integrated; configuration-blocked Task Package review IPC fix deterministically verified and integrated
-**Current action:** repository is clean and synchronized; stop until the next explicit implementation task is approved
+**Current branch:** `feat/google-ads-campaign-settings-v1`
+**Production implementation checkpoint:** `08f3c43`
+**Repository state:** Google Ads Campaign Settings v1 production behavior is committed; this handoff update records the deterministic verification checkpoint and adopted contract documentation
+**Current stage:** Google Ads Campaign Settings v1 is implemented and deterministically verified; live-provider acceptance was not performed
+**Current action:** complete the canonical documentation checkpoint and retain future Google Ads configuration extensions as independent scoped work
 
 ---
 
@@ -29,10 +29,18 @@ Authoritative repository:
 
 Observed current state:
 
-    branch:                     main
-    integrated code checkpoint: 5e7c34d
+    branch:                     feat/google-ads-campaign-settings-v1
+    production implementation:  08f3c43
 
-Working tree was clean at the observed checkpoint.
+The Conversion Configuration production implementation is committed. The focused Conversion Configuration gate and this canonical documentation update form the slice-closing checkpoint that contains this handoff revision.
+
+Observed implementation checkpoints on this branch:
+
+- `09f7bfc` — define the six-dataset Conversion Configuration contract and exact GAQL;
+- `6404296` — normalize the six provider-native resources;
+- `f032c54` — collect the six datasets through the existing configuration source;
+- `b0dbd78` — validate conversion configuration and tracking-settings cardinality;
+- `e473870` — verify production registration of the full configuration family and existing connection reuse.
 
 Local and remote feature/fix branches used by the completed work were cleaned up after their relevant commits or patch-equivalent changes were integrated.
 
@@ -57,7 +65,8 @@ The application now includes:
 - generalized Production Data Package export;
 - post-R1 desktop UX/operations hardening;
 - Google Ads SEARCH reporting family;
-- `ADS_OPTIMIZATION_PACK v1`;
+- Google Ads configuration Negatives v1 and Conversion Configuration v1 snapshot family;
+- `ADS_OPTIMIZATION_PACK v2` with historical v1 read compatibility;
 - `BLOG_WRITING_PACK v1`.
 
 Google Trends remains the reference browser-export source, not the generic Core model.
@@ -132,8 +141,27 @@ Also implemented:
   - `SEARCH_TERMS`
   - `AD_PERFORMANCE`
   - `RSA_ASSET_PERFORMANCE`
+- reporting schema v2 for current acquisition, with historical schema v1 evidence remaining readable but not reacquirable;
+- schema v2 Campaign/Ad Group/Keyword reporting preserves conversion-efficiency metrics plus Search Top/Absolute Top impression share as distinct provider-native fields;
+- eleven-dataset `google-ads-configuration` snapshot family composed of:
+  - Negatives v1:
+    - `CAMPAIGN_NEGATIVE_KEYWORDS`
+    - `AD_GROUP_NEGATIVE_KEYWORDS`
+    - `SHARED_NEGATIVE_KEYWORDS`
+    - `CAMPAIGN_NEGATIVE_KEYWORD_LISTS`
+    - `ACCOUNT_NEGATIVE_KEYWORD_LISTS`
+  - Conversion Configuration v1:
+    - `CONVERSION_ACTIONS`
+    - `CUSTOMER_CONVERSION_GOALS`
+    - `CONVERSION_GOAL_CAMPAIGN_CONFIGS`
+    - `CAMPAIGN_CONVERSION_GOALS`
+    - `CUSTOM_CONVERSION_GOALS`
+    - `CUSTOMER_CONVERSION_TRACKING_SETTINGS`
+- immutable configuration schema-v1 Job context with no requested date window;
+- provider-native Conversion Configuration normalization preserving null, real false/zero values, lifecycle/status evidence, ownership, and custom-goal membership without requested-to-observed fabrication;
+- tracking-settings validation requiring exactly one normalized customer row, including valid `NOT_CONVERSION_TRACKED` evidence;
 - deterministic Keyword Planner 3-month and YoY derived change fields from accepted monthly history;
-- `ADS_OPTIMIZATION_PACK v1`;
+- `ADS_OPTIMIZATION_PACK v2`;
 - `BLOG_WRITING_PACK v1`.
 
 Performance Max remains outside the approved Google Ads reporting contract.
@@ -153,6 +181,8 @@ Current production credential behavior includes:
 
 The Google Ads Developer Token is retired from active application behavior. Legacy persisted fields may remain readable only for backward compatibility.
 
+The full Google Ads configuration family, including Negatives v1 and Conversion Configuration v1, reuses the existing Workspace Google Ads connection keyed by the legacy Search Terms source. It does not create a separate configuration-source credential or Workspace connection record.
+
 Do not reintroduce Developer Token setup as a current requirement without a new approved contract.
 
 ---
@@ -165,14 +195,15 @@ The generic Production Data Package consumes accepted evidence and keeps source 
 
 It does not perform cross-source analysis.
 
-### `ADS_OPTIMIZATION_PACK v1`
+### `ADS_OPTIMIZATION_PACK v2`
 
 A source-neutral Task Package layer above accepted evidence.
 
 It:
 
-- requires the six approved Google Ads SEARCH reporting datasets;
+- requires the six approved Google Ads SEARCH reporting datasets at dataset schema v2;
 - uses exact compatible accepted evidence;
+- rejects historical schema v1 evidence as CURRENT or PREVIOUS input for the active v2 recipe while preserving historical v1 readability;
 - may deterministically filter broader DAILY evidence only by real `performance_date` rows;
 - never reconstructs, interpolates, allocates, averages, or infers unavailable source evidence;
 - does not own provider acquisition or retry;
@@ -218,6 +249,16 @@ SerpApi secure provisioning has packaged human-observed acceptance, but credenti
 
 The expanded six-dataset Google Ads SEARCH reporting family is deterministically complete; live acceptance for the additional resources remains a separate explicitly authorized step.
 
+Google Ads configuration Negatives v1 remains deterministically verified across its five dataset contracts.
+
+Conversion Configuration v1 is implemented and deterministically verified across its six dataset/resource contracts, exact GAQL, provider-native normalization, raw SearchStream acquisition, fail-closed semantic validation, five-dataset verified `NO_DATA` behavior, exactly-one-row tracking-settings cardinality, production registration, existing Ads connection reuse, and snapshot-specific capability behavior.
+
+The focused Conversion Configuration gate passed with `PASS GOOGLE-ADS-CONVERSION-CONFIGURATION-GATE-001`. The Negatives gate, production source-composition test, and Google Ads SEARCH reporting gate also passed after the conversion changes, without live-provider calls. `npx tsc --noEmit` passed.
+
+The literal nested-worktree `npm run lint` invocation reproduced the previously observed duplicate `eslint-plugin-import` resolution failure from the worktree and parent repository configurations. With the worktree-local ESLint configuration isolated via `--no-eslintrc --config`, lint exited 0 with zero errors and two non-blocking `import/no-duplicates` warnings in the existing configuration-source import structure. Repository lint configuration was not changed.
+
+Live-provider acceptance for Conversion Configuration v1 was not performed. No packaged/runtime acceptance claim is made for this slice.
+
 Do not convert deterministic, packaged, credential, or feasibility evidence into a live-provider claim.
 
 ---
@@ -248,19 +289,18 @@ Do not reopen without new failing evidence or explicit scope approval:
 
 ## 10. Exact next action
 
-The completed Blog Writing Pack work, repository-guidance cleanup, and configuration-blocked Task Package review IPC fix are integrated into `main` and synchronized with `origin/main`.
+The Google Ads Conversion Configuration v1 slice is implemented and deterministically verified on `feat/google-ads-conversion-configuration-v1`.
 
-The Task Package IPC regression was verified RED before the fix, GREEN after the fix, and the deterministic desktop Task Package gate passed.
-
-Do not begin a new implementation slice automatically.
+The adopted scope covers the six conversion-configuration datasets within the existing eleven-dataset `google-ads-configuration` family. It does not derive effective campaign goals, make Performance Max claims, or add package/preset/export integration.
 
 Next:
 
-1. wait for the next explicit task or scope decision;
-2. when one is approved, start from this Handoff and load only the smallest relevant authority set;
-3. run broader packaging or live-provider verification only when the new task or claimed outcome requires it.
+1. complete this slice-closing focused-gate and canonical-documentation checkpoint;
+2. do not push or merge without explicit authorization;
+3. keep `09_CAMPAIGN_SETTINGS` as the next approved independent Google Ads configuration scope;
+4. do not expand this completed slice while beginning that next scope.
 
-No current merge, push, branch-cleanup, or repository-recovery action remains pending.
+Do not run a live provider request merely to reconfirm an already deterministic result.
 
 ---
 

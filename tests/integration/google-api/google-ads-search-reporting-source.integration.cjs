@@ -9,6 +9,7 @@ const {
 } = require(path.join(buildRoot, 'main/sources/google-ads/search-reporting-source.js'));
 const {
   createGoogleAdsReportingJobContext,
+  requireGoogleAdsReportingJobContext,
 } = require(path.join(buildRoot, 'main/sources/google-ads/search-reporting-request.js'));
 const {
   GoogleApiRuntimeFactory,
@@ -30,8 +31,16 @@ assert.deepEqual(baseContext, {
   customer_id: '1234567890',
   requested_date_start: '2026-09-01',
   requested_date_end: '2026-09-07',
+  dataset_schema_version: 2,
+});
+
+const historicalV1Context = requireGoogleAdsReportingJobContext({
+  ...baseContext,
   dataset_schema_version: 1,
 });
+assert.equal(historicalV1Context.dataset_schema_version, 1);
+assert.equal(Object.isFrozen(historicalV1Context), true);
+
 assert.deepEqual(
   Object.keys(baseContext).sort(),
   [
@@ -98,6 +107,8 @@ const collectionContext = {
     { ...baseContext, resource_mode: 'keyword_view' },
     { ...baseContext, dataset_type: 'SHOPPING_PERFORMANCE' },
     { ...baseContext, customer_id: '9999999999' },
+    { ...baseContext, dataset_schema_version: 1 },
+    { ...baseContext, dataset_schema_version: 3 },
     { ...baseContext, recommendation_score: 0.7 },
   ];
   for (const invalidContext of invalidContexts) {

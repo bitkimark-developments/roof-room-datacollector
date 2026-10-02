@@ -279,7 +279,20 @@ export const parseTaskPackageManifest = (value: unknown): TaskPackageManifestV1 
     throw new Error('manifest.package_id is unsafe.');
   }
   literal(record.recipe_id, 'ADS_OPTIMIZATION_PACK', 'manifest.recipe_id');
-  literal(record.recipe_version, 1, 'manifest.recipe_version');
+  const recipeVersion = integer(record.recipe_version, 'manifest.recipe_version', 1);
+  const datasetSchemaVersion = integer(
+    record.dataset_schema_version,
+    'manifest.dataset_schema_version',
+    1,
+  );
+  if (
+    !(
+      (recipeVersion === 1 && datasetSchemaVersion === 1)
+      || (recipeVersion === 2 && datasetSchemaVersion === 2)
+    )
+  ) {
+    throw new Error('manifest recipe/schema version pair is unsupported.');
+  }
   const packageKind = string(record.package_kind, 'manifest.package_kind');
   if (packageKind !== 'INITIAL_BASELINE' && packageKind !== 'COMPARISON') {
     throw new Error('manifest.package_kind is invalid.');
@@ -296,6 +309,9 @@ export const parseTaskPackageManifest = (value: unknown): TaskPackageManifestV1 
   }
   if (!Array.isArray(record.evidence)) throw new Error('manifest.evidence must be an array.');
   const evidence = record.evidence.map(evidenceEntry);
+  if (evidence.some(({ origin }) => origin.dataset_schema_version !== datasetSchemaVersion)) {
+    throw new Error('manifest evidence dataset schema version is inconsistent.');
+  }
   const roles: TaskPackageRole[] = packageKind === 'COMPARISON' ? ['CURRENT', 'PREVIOUS'] : ['CURRENT'];
   if (evidence.length !== requiredDatasets.length * roles.length) {
     throw new Error('manifest.evidence does not cover every required dataset and role.');
@@ -342,7 +358,7 @@ export const parseTaskPackageManifest = (value: unknown): TaskPackageManifestV1 
     manifest_version: 1,
     package_id: packageId,
     recipe_id: 'ADS_OPTIMIZATION_PACK',
-    recipe_version: 1,
+    recipe_version: recipeVersion,
     recipe_label: string(record.recipe_label, 'manifest.recipe_label'),
     package_kind: packageKind,
     workspace_id: string(record.workspace_id, 'manifest.workspace_id'),
@@ -357,7 +373,7 @@ export const parseTaskPackageManifest = (value: unknown): TaskPackageManifestV1 
       previous_window: previousWindow,
       gap_days: parsedGapDays,
     }),
-    dataset_schema_version: literal(record.dataset_schema_version, 1, 'manifest.dataset_schema_version'),
+    dataset_schema_version: datasetSchemaVersion,
     required_datasets: requiredDatasets,
     evidence,
     excluded_coverage: parseExcludedCoverage(record.excluded_coverage),
