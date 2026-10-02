@@ -18,6 +18,7 @@ import { readGoogleProviderConfiguration } from './google-provider-configuration
 
 export {
   GOOGLE_ADS_SCOPE,
+  GOOGLE_ANALYTICS_READONLY_SCOPE,
   GOOGLE_SEARCH_CONSOLE_READONLY_SCOPE,
   createGoogleOAuthAuthorization,
   exchangeGoogleAuthorizationCode,

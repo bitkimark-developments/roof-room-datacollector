@@ -565,7 +565,12 @@ export class WorkspaceConnectionManagementService {
   private async findReusableAdsCredential(
     intent: ConnectGoogleWorkspaceConnectionIntent,
   ): Promise<string | null> {
-    if (intent.source_id === 'google-search-console-query-page') return null;
+    if (
+      intent.source_id === 'google-search-console-query-page'
+      || intent.source_id === 'google-analytics-4'
+    ) {
+      return null;
+    }
     const siblingSourceId = intent.source_id === 'google-ads-search-terms'
       ? 'google-keyword-planner'
       : 'google-ads-search-terms';
@@ -590,7 +595,10 @@ export class WorkspaceConnectionManagementService {
     intent: ReconnectGoogleWorkspaceConnectionIntent,
     expectedCredentialRef: string,
   ): DesktopGoogleConnectionSourceId[] {
-    if (intent.source_id === 'google-search-console-query-page') {
+    if (
+      intent.source_id === 'google-search-console-query-page'
+      || intent.source_id === 'google-analytics-4'
+    ) {
       return [intent.source_id];
     }
     const siblingSourceId = intent.source_id === 'google-ads-search-terms'

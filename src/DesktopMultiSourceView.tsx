@@ -2883,6 +2883,8 @@ export function DesktopMultiSourceView() {
         });
       } else if (sourceId === 'serpapi') {
         return;
+      } else if (sourceId === 'google-analytics-4') {
+        return;
       } else if (sourceId === 'google-search-console-query-page') {
         const siteUrl = draft.site_url.trim();
         if (action !== 'RECONNECT_GOOGLE' && siteUrl.length === 0) {
@@ -5453,9 +5455,12 @@ export function DesktopMultiSourceView() {
                         === connection.source_id;
                       const isGoogle = connection.source_id !== 'serpapi';
                       const requiredMetadataReady = connection.source_id
-                        === 'google-search-console-query-page'
-                        ? draft.site_url.trim().length > 0
-                        : draft.customer_id.trim().length > 0;
+                        === 'google-analytics-4'
+                        ? false
+                        : connection.source_id
+                          === 'google-search-console-query-page'
+                          ? draft.site_url.trim().length > 0
+                          : draft.customer_id.trim().length > 0;
                       const providerReady = googleProviderConfiguration
                         ?.oauth_application_status === 'AVAILABLE';
 
@@ -5477,7 +5482,9 @@ export function DesktopMultiSourceView() {
                             Readiness: {connection.readiness_status}
                           </p>
 
-                          {isGoogle && (
+                          {isGoogle
+                            && connection.source_id !== 'google-analytics-4'
+                            && (
                             <div className="rr-connection-fields">
                               {connection.source_id
                                 === 'google-search-console-query-page'

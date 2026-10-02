@@ -43,6 +43,7 @@ export const DESKTOP_CREDENTIAL_MANAGED_SOURCE_IDS = [
   'google-search-console-query-page',
   'google-ads-search-terms',
   'google-keyword-planner',
+  'google-analytics-4',
   'serpapi',
 ] as const;
 

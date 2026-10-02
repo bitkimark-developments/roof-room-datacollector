@@ -20,6 +20,8 @@ export const GOOGLE_SEARCH_CONSOLE_READONLY_SCOPE =
   'https://www.googleapis.com/auth/webmasters.readonly';
 export const GOOGLE_ADS_SCOPE =
   'https://www.googleapis.com/auth/adwords';
+export const GOOGLE_ANALYTICS_READONLY_SCOPE =
+  'https://www.googleapis.com/auth/analytics.readonly';
 
 export interface GoogleOAuthApplicationConfiguration {
   client_id: string;
@@ -171,11 +173,19 @@ const normalizeApplicationConfiguration = (
 
 const requiredScopesForSource = (
   sourceId: DesktopGoogleConnectionSourceId,
-): readonly string[] => (
-  sourceId === 'google-search-console-query-page'
-    ? [GOOGLE_SEARCH_CONSOLE_READONLY_SCOPE]
-    : [GOOGLE_ADS_SCOPE]
-);
+): readonly string[] => {
+  switch (sourceId) {
+    case 'google-search-console-query-page':
+      return [GOOGLE_SEARCH_CONSOLE_READONLY_SCOPE];
+    case 'google-ads-search-terms':
+    case 'google-keyword-planner':
+      return [GOOGLE_ADS_SCOPE];
+    case 'google-analytics-4':
+      return [GOOGLE_ANALYTICS_READONLY_SCOPE];
+    default:
+      throw new GoogleOAuthAcquisitionError('OAUTH_ACQUISITION_FAILED');
+  }
+};
 
 const recordSafeDiagnostic = (
   recorder: ((event: GoogleOAuthSafeDiagnosticEvent) => void) | undefined,

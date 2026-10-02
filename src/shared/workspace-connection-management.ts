@@ -1,4 +1,7 @@
 import type {
+  GoogleAnalytics4ConnectionMetadata,
+} from './google-analytics-4';
+import type {
   DesktopCredentialManagedSourceId,
 } from './desktop-multisource';
 
@@ -6,6 +9,7 @@ export const DESKTOP_GOOGLE_CONNECTION_SOURCE_IDS = [
   'google-search-console-query-page',
   'google-ads-search-terms',
   'google-keyword-planner',
+  'google-analytics-4',
 ] as const;
 
 export type DesktopGoogleConnectionSourceId =
@@ -68,6 +72,10 @@ export type GoogleConnectionMetadataIntent =
       | 'google-ads-search-terms'
       | 'google-keyword-planner';
     metadata: GoogleAdsConnectionMetadata;
+  }
+  | {
+    source_id: 'google-analytics-4';
+    metadata: GoogleAnalytics4ConnectionMetadata;
   };
 
 export type ManageWorkspaceConnectionIntent = {
@@ -100,6 +108,10 @@ export type ReconnectGoogleWorkspaceConnectionIntent = {
       | 'google-ads-search-terms'
       | 'google-keyword-planner';
     metadata?: GoogleAdsConnectionMetadata;
+  }
+  | {
+    source_id: 'google-analytics-4';
+    metadata?: GoogleAnalytics4ConnectionMetadata;
   }
 );
 

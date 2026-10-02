@@ -2,6 +2,9 @@ import {
   DESKTOP_CREDENTIAL_MANAGED_SOURCE_IDS,
   type DesktopCredentialManagedSourceId,
 } from '../../shared/desktop-multisource';
+import type {
+  GoogleAnalytics4ConnectionMetadata,
+} from '../../shared/google-analytics-4';
 import {
   DESKTOP_GOOGLE_CONNECTION_SOURCE_IDS,
   type ConnectGoogleWorkspaceConnectionIntent,
@@ -67,6 +70,12 @@ const requireTrimmedString = (value: unknown): string => {
   return normalized;
 };
 
+const requireDigitsOnlyString = (value: unknown): string => {
+  const normalized = requireTrimmedString(value);
+  if (!/^\d+$/.test(normalized)) return invalidIntent();
+  return normalized;
+};
+
 const isGoogleSourceId = (
   value: unknown,
 ): value is DesktopGoogleConnectionSourceId => (
@@ -90,6 +99,14 @@ const normalizeGoogleMetadata = (
     requireExactKeys(metadata, ['site_url']);
     const normalized: GoogleSearchConsoleConnectionMetadata = {
       site_url: requireTrimmedString(metadata.site_url),
+    };
+    return normalized;
+  }
+
+  if (sourceId === 'google-analytics-4') {
+    requireExactKeys(metadata, ['property_id']);
+    const normalized: GoogleAnalytics4ConnectionMetadata = {
+      property_id: requireDigitsOnlyString(metadata.property_id),
     };
     return normalized;
   }
@@ -123,6 +140,13 @@ const normalizeRequiredGoogleIntent = (
       workspace_id: workspaceId,
       source_id: intent.source_id,
       metadata: metadata as GoogleSearchConsoleConnectionMetadata,
+    };
+  }
+  if (intent.source_id === 'google-analytics-4') {
+    return {
+      workspace_id: workspaceId,
+      source_id: intent.source_id,
+      metadata: metadata as GoogleAnalytics4ConnectionMetadata,
     };
   }
   return {
@@ -159,6 +183,13 @@ export const normalizeReconnectGoogleWorkspaceConnectionIntent = (
       workspace_id: workspaceId,
       source_id: intent.source_id,
       metadata: metadata as GoogleSearchConsoleConnectionMetadata,
+    };
+  }
+  if (intent.source_id === 'google-analytics-4') {
+    return {
+      workspace_id: workspaceId,
+      source_id: intent.source_id,
+      metadata: metadata as GoogleAnalytics4ConnectionMetadata,
     };
   }
   return {
