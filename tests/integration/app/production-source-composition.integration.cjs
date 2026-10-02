@@ -63,6 +63,7 @@ const runtime = createProductionCollectionRuntime({
 const ids = runtime.source_registry.list().map((source) => source.id).sort();
 assert.deepEqual(ids, [
   'bitkimark-sitemap',
+  'google-ads-configuration',
   'google-ads-search-reporting',
   'google-ads-search-terms',
   'google-keyword-planner',
@@ -84,6 +85,47 @@ assert.equal(
 assert.deepEqual(
   [...gscQuerySource.datasetTypes],
   ['QUERY'],
+);
+
+const configurationSource =
+  runtime.source_registry.get('google-ads-configuration');
+
+assert.equal(
+  configurationSource.sourceMode,
+  'OFFICIAL_API',
+);
+
+assert.deepEqual(
+  [...configurationSource.datasetTypes],
+  [
+    'CAMPAIGN_NEGATIVE_KEYWORDS',
+    'AD_GROUP_NEGATIVE_KEYWORDS',
+    'SHARED_NEGATIVE_KEYWORDS',
+    'CAMPAIGN_NEGATIVE_KEYWORD_LISTS',
+    'ACCOUNT_NEGATIVE_KEYWORD_LISTS',
+  ],
+);
+
+assert.equal(
+  configurationSource.getCapabilities().supports_custom_date_range,
+  false,
+  'Google Ads configuration snapshots must not advertise custom date ranges.',
+);
+
+assert.equal(
+  runtime.source_registry
+    .get('google-ads-search-reporting')
+    .getCapabilities()
+    .supports_custom_date_range,
+  true,
+  'Existing OFFICIAL_API sources must retain the current custom-date default.',
+);
+
+assert.equal(
+  runtime.validator_registry
+    .get('google-ads-configuration')
+    .constructor.name,
+  'GoogleAdsConfigurationValidator',
 );
 
 for (const id of ids) assert.doesNotThrow(() => runtime.validator_registry.get(id));
