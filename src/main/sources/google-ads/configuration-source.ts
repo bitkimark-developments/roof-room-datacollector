@@ -36,6 +36,16 @@ import {
   buildCustomConversionGoalsQuery,
   buildCustomerConversionTrackingSettingsQuery,
 } from './conversion-configuration-request';
+import {
+  buildCampaignSettingsQuery,
+  buildCampaignBudgetsQuery,
+  buildCampaignTargetingCriteriaQuery,
+  requestGoogleAdsGeoTargetConstantsRaw,
+} from './campaign-settings-request';
+import {
+  buildGoogleAdsCampaignTargetingEvidenceBundleBytes,
+  extractGoogleAdsCampaignTargetingGeoResourceNames,
+} from './campaign-settings-adapter';
 
 export interface GoogleAdsConfigurationDatasetDescriptor {
   readonly dataset_type: GoogleAdsConfigurationDatasetType;
@@ -99,6 +109,21 @@ readonly GoogleAdsConfigurationDatasetDescriptor[] = [
     dataset_type: 'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
     resource_mode: 'CUSTOMER',
     buildQuery: buildCustomerConversionTrackingSettingsQuery,
+  },
+  {
+    dataset_type: 'CAMPAIGN_SETTINGS',
+    resource_mode: 'CAMPAIGN',
+    buildQuery: buildCampaignSettingsQuery,
+  },
+  {
+    dataset_type: 'CAMPAIGN_BUDGETS',
+    resource_mode: 'CAMPAIGN_BUDGET',
+    buildQuery: buildCampaignBudgetsQuery,
+  },
+  {
+    dataset_type: 'CAMPAIGN_TARGETING_CRITERIA',
+    resource_mode: 'CAMPAIGN_CRITERION',
+    buildQuery: buildCampaignTargetingCriteriaQuery,
   },
 ];
 
@@ -247,9 +272,45 @@ implements CollectingDataSourceModule {
         {
           customer_id: jobContext.customer_id,
           query,
+          require_raw_body:
+            jobContext.dataset_type === 'CAMPAIGN_TARGETING_CRITERIA',
         },
         this.requester,
       );
+
+      let artifactBytes = raw.raw_bytes;
+
+      if (jobContext.dataset_type === 'CAMPAIGN_TARGETING_CRITERIA') {
+        const observedGeoResourceNames =
+          extractGoogleAdsCampaignTargetingGeoResourceNames(raw.body);
+
+        const uniqueGeoResourceNames = [
+          ...new Set(observedGeoResourceNames),
+        ];
+
+        if (uniqueGeoResourceNames.length === 0) {
+          artifactBytes =
+            buildGoogleAdsCampaignTargetingEvidenceBundleBytes({
+              search_stream_raw_bytes: raw.raw_bytes,
+            });
+        } else {
+          const geoRaw = await requestGoogleAdsGeoTargetConstantsRaw(
+            {
+              resource_names: uniqueGeoResourceNames,
+            },
+            this.requester,
+          );
+
+          artifactBytes =
+            buildGoogleAdsCampaignTargetingEvidenceBundleBytes({
+              search_stream_raw_bytes: raw.raw_bytes,
+              geo_target_suggestions: {
+                requested_resource_names: uniqueGeoResourceNames,
+                raw_bytes: geoRaw.raw_bytes,
+              },
+            });
+        }
+      }
 
       return {
         result_type: 'ARTIFACT_PRODUCED',
@@ -258,7 +319,7 @@ implements CollectingDataSourceModule {
             .toLowerCase()
             .replace(/_/gu, '-')}.json`,
         media_type: 'application/json',
-        bytes: raw.raw_bytes,
+        bytes: artifactBytes,
       };
     } catch (error) {
       return mapGoogleApiCollectionError(

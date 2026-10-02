@@ -123,7 +123,11 @@ export const googleAdsConfigurationContextAsJson = (
 ): JsonObject => ({ ...context });
 
 export const requestGoogleAdsConfigurationRaw = async (
-  input: { customer_id: string; query: string },
+  input: {
+    customer_id: string;
+    query: string;
+    require_raw_body?: boolean;
+  },
   requester: ApiRequester,
 ): Promise<{ body: unknown; raw_bytes: Uint8Array }> => {
   const response = await requester({
@@ -135,6 +139,12 @@ export const requestGoogleAdsConfigurationRaw = async (
   if (response.status < 200 || response.status >= 300) {
     throw new Error(
       `Google Ads provider error HTTP ${response.status}.`,
+    );
+  }
+
+  if (input.require_raw_body === true && !response.raw_body) {
+    throw new Error(
+      'Google Ads configuration request requires exact provider raw response bytes.',
     );
   }
 

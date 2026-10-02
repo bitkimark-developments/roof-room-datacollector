@@ -198,13 +198,25 @@ const collectionContext = {
         dataset_type: 'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
         resource_mode: 'CUSTOMER',
       },
+      {
+        dataset_type: 'CAMPAIGN_SETTINGS',
+        resource_mode: 'CAMPAIGN',
+      },
+      {
+        dataset_type: 'CAMPAIGN_BUDGETS',
+        resource_mode: 'CAMPAIGN_BUDGET',
+      },
+      {
+        dataset_type: 'CAMPAIGN_TARGETING_CRITERIA',
+        resource_mode: 'CAMPAIGN_CRITERION',
+      },
     ],
-    'Configuration source must register exactly the eleven approved dataset descriptors.',
+    'Configuration source must register exactly the fourteen approved dataset descriptors.',
   );
 
   assert.equal(
     GOOGLE_ADS_CONFIGURATION_DATASET_DESCRIPTORS.length,
-    11,
+    14,
   );
 
   assert.equal(
@@ -212,8 +224,8 @@ const collectionContext = {
       GOOGLE_ADS_CONFIGURATION_DATASET_DESCRIPTORS
         .map((entry) => entry.dataset_type),
     ).size,
-    11,
-    'Configuration descriptor registry must contain eleven unique datasets.',
+    14,
+    'Configuration descriptor registry must contain fourteen unique datasets.',
   );
 
   const conversionCases = [
