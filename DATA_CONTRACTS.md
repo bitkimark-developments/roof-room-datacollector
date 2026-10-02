@@ -356,6 +356,20 @@ RSA_ASSET_PERFORMANCE
 
 Preserve dataset/resource identity, provider-native units, date/segment context, and raw SearchStream evidence.
 
+Current `google-ads-search-reporting` acquisition emits dataset schema v2. Historical schema v1 Job contexts remain readable for preserved evidence, but current provider reacquisition must not run under a v1 context.
+
+For `CAMPAIGN_PERFORMANCE`, `AD_GROUP_PERFORMANCE`, and `KEYWORD_PERFORMANCE`, schema v2 additionally preserves provider-native:
+
+- `conversions_from_interactions_rate`
+- `cost_per_conversion`
+- `conversions_value_per_cost`
+- `search_top_impression_share`
+- `search_absolute_top_impression_share`
+
+`search_top_impression_share` and `search_absolute_top_impression_share` remain distinct from `top_impression_percentage` and `absolute_top_impression_percentage`.
+
+`cost_per_conversion` preserves the provider field as a numeric value and is not renamed into the `_micros` canonical field family.
+
 Legacy `google-ads-search-terms` remains compatible.
 
 Performance Max is outside this contract.
@@ -414,9 +428,13 @@ Indexes accepted source datasets separately and preserves exact Run/Job/source/a
 
 No cross-source row join is implied.
 
-### `ADS_OPTIMIZATION_PACK v1`
+### `ADS_OPTIMIZATION_PACK v2`
 
-Requires exactly the six approved Google Ads SEARCH reporting datasets.
+Active recipe version is 2 and requires exactly the six approved Google Ads SEARCH reporting datasets at dataset schema v2.
+
+Historical recipe/schema v1 packages remain readable. They are not compatible CURRENT evidence or PREVIOUS baselines for the active v2 recipe.
+
+Task Package manifest format remains `manifest_version: 1`. Supported recipe/schema pairs are exactly `1/1` and `2/2`; mixed pairs fail closed.
 
 Current window semantics are code-defined and exact.
 

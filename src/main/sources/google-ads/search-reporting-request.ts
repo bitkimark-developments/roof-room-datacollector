@@ -93,7 +93,10 @@ export const requireGoogleAdsReportingJobContext = (
   if (requestedDateStart > requestedDateEnd) {
     throw new Error('Google Ads reporting date range is reversed.');
   }
-  if (value.dataset_schema_version !== 1) {
+  if (
+    value.dataset_schema_version !== 1
+    && value.dataset_schema_version !== 2
+  ) {
     throw new Error('Google Ads reporting dataset schema version is unsupported.');
   }
 
@@ -105,7 +108,7 @@ export const requireGoogleAdsReportingJobContext = (
     customer_id: customerId,
     requested_date_start: requestedDateStart,
     requested_date_end: requestedDateEnd,
-    dataset_schema_version: 1,
+    dataset_schema_version: value.dataset_schema_version,
   });
 };
 
@@ -119,7 +122,7 @@ export const createGoogleAdsReportingJobContext = (
   customer_id: input.customer_id,
   requested_date_start: input.requested_date_start,
   requested_date_end: input.requested_date_end,
-  dataset_schema_version: 1,
+  dataset_schema_version: 2,
 });
 
 export const googleAdsReportingContextAsJson = (

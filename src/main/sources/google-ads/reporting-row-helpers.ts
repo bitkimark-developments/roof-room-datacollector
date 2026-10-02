@@ -1,5 +1,6 @@
 import type {
   GoogleAdsCommonPerformanceMetrics,
+  GoogleAdsConversionEfficiencyMetrics,
   GoogleAdsSearchShareMetrics,
 } from '../../../shared/google-ads-search-reporting';
 
@@ -98,6 +99,23 @@ export const normalizeCommonPerformanceMetrics = (
   ),
 });
 
+export const normalizeConversionEfficiencyMetrics = (
+  metrics: Record<string, unknown>,
+): GoogleAdsConversionEfficiencyMetrics => ({
+  conversions_from_interactions_rate: reportingNumberOrNull(
+    metrics.conversionsFromInteractionsRate,
+    'metrics.conversionsFromInteractionsRate',
+  ),
+  cost_per_conversion: reportingNumberOrNull(
+    metrics.costPerConversion,
+    'metrics.costPerConversion',
+  ),
+  conversions_value_per_cost: reportingNumberOrNull(
+    metrics.conversionsValuePerCost,
+    'metrics.conversionsValuePerCost',
+  ),
+});
+
 export const normalizeSearchShareMetrics = (
   metrics: Record<string, unknown>,
 ): GoogleAdsSearchShareMetrics => ({
@@ -116,6 +134,14 @@ export const normalizeSearchShareMetrics = (
   search_click_share: reportingNumberOrNull(
     metrics.searchClickShare,
     'metrics.searchClickShare',
+  ),
+  search_top_impression_share: reportingNumberOrNull(
+    metrics.searchTopImpressionShare,
+    'metrics.searchTopImpressionShare',
+  ),
+  search_absolute_top_impression_share: reportingNumberOrNull(
+    metrics.searchAbsoluteTopImpressionShare,
+    'metrics.searchAbsoluteTopImpressionShare',
   ),
   top_impression_percentage: reportingNumberOrNull(
     metrics.topImpressionPercentage,

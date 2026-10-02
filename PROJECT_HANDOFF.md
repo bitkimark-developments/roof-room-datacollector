@@ -57,7 +57,7 @@ The application now includes:
 - generalized Production Data Package export;
 - post-R1 desktop UX/operations hardening;
 - Google Ads SEARCH reporting family;
-- `ADS_OPTIMIZATION_PACK v1`;
+- `ADS_OPTIMIZATION_PACK v2` with historical v1 read compatibility;
 - `BLOG_WRITING_PACK v1`.
 
 Google Trends remains the reference browser-export source, not the generic Core model.
@@ -132,8 +132,10 @@ Also implemented:
   - `SEARCH_TERMS`
   - `AD_PERFORMANCE`
   - `RSA_ASSET_PERFORMANCE`
+- reporting schema v2 for current acquisition, with historical schema v1 evidence remaining readable but not reacquirable;
+- schema v2 Campaign/Ad Group/Keyword reporting preserves conversion-efficiency metrics plus Search Top/Absolute Top impression share as distinct provider-native fields;
 - deterministic Keyword Planner 3-month and YoY derived change fields from accepted monthly history;
-- `ADS_OPTIMIZATION_PACK v1`;
+- `ADS_OPTIMIZATION_PACK v2`;
 - `BLOG_WRITING_PACK v1`.
 
 Performance Max remains outside the approved Google Ads reporting contract.
@@ -165,14 +167,15 @@ The generic Production Data Package consumes accepted evidence and keeps source 
 
 It does not perform cross-source analysis.
 
-### `ADS_OPTIMIZATION_PACK v1`
+### `ADS_OPTIMIZATION_PACK v2`
 
 A source-neutral Task Package layer above accepted evidence.
 
 It:
 
-- requires the six approved Google Ads SEARCH reporting datasets;
+- requires the six approved Google Ads SEARCH reporting datasets at dataset schema v2;
 - uses exact compatible accepted evidence;
+- rejects historical schema v1 evidence as CURRENT or PREVIOUS input for the active v2 recipe while preserving historical v1 readability;
 - may deterministically filter broader DAILY evidence only by real `performance_date` rows;
 - never reconstructs, interpolates, allocates, averages, or infers unavailable source evidence;
 - does not own provider acquisition or retry;
@@ -248,19 +251,20 @@ Do not reopen without new failing evidence or explicit scope approval:
 
 ## 10. Exact next action
 
-The completed Blog Writing Pack work, repository-guidance cleanup, and configuration-blocked Task Package review IPC fix are integrated into `main` and synchronized with `origin/main`.
+Current working slice is the bounded Google Ads SEARCH reporting metrics/schema compatibility repair on `fix/google-ads-reporting-metrics`.
 
-The Task Package IPC regression was verified RED before the fix, GREEN after the fix, and the deterministic desktop Task Package gate passed.
-
-Do not begin a new implementation slice automatically.
+The implementation is deterministically verified but not yet committed by this handoff update.
 
 Next:
 
-1. wait for the next explicit task or scope decision;
-2. when one is approved, start from this Handoff and load only the smallest relevant authority set;
-3. run broader packaging or live-provider verification only when the new task or claimed outcome requires it.
+1. review the final documentation + code diff and create the repair checkpoint if approved;
+2. do not push or merge without explicit authorization;
+3. after this repair is checkpointed, resume the separately scoped Google Ads configuration work beginning with `05_NEGATIVES`;
+4. keep `08_CONVERSION_ACTIONS` and `09_CAMPAIGN_SETTINGS` as subsequent independent source-module slices.
 
-No current merge, push, branch-cleanup, or repository-recovery action remains pending.
+By-conversion-time/date reporting remains outside this repair and must not be added implicitly.
+
+Do not run a live provider request merely to reconfirm an already deterministic result.
 
 ---
 

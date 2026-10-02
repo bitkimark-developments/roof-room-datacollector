@@ -54,10 +54,15 @@ for (const field of [
   'metrics.conversions_value',
   'metrics.all_conversions',
   'metrics.all_conversions_value',
+  'metrics.conversions_from_interactions_rate',
+  'metrics.cost_per_conversion',
+  'metrics.conversions_value_per_cost',
   'metrics.search_impression_share',
   'metrics.search_budget_lost_impression_share',
   'metrics.search_rank_lost_impression_share',
   'metrics.search_click_share',
+  'metrics.search_top_impression_share',
+  'metrics.search_absolute_top_impression_share',
   'metrics.top_impression_percentage',
   'metrics.absolute_top_impression_percentage',
 ]) {
@@ -98,10 +103,15 @@ for (const field of [
   'metrics.conversions_value',
   'metrics.all_conversions',
   'metrics.all_conversions_value',
+  'metrics.conversions_from_interactions_rate',
+  'metrics.cost_per_conversion',
+  'metrics.conversions_value_per_cost',
   'metrics.search_impression_share',
   'metrics.search_budget_lost_impression_share',
   'metrics.search_rank_lost_impression_share',
   'metrics.search_click_share',
+  'metrics.search_top_impression_share',
+  'metrics.search_absolute_top_impression_share',
   'metrics.top_impression_percentage',
   'metrics.absolute_top_impression_percentage',
 ]) {
@@ -141,10 +151,15 @@ const campaignRows = normalizeCampaignPerformanceRows([
       conversionsValue: '0',
       allConversions: '0',
       allConversionsValue: '0',
+      conversionsFromInteractionsRate: '0.125',
+      costPerConversion: '2500000',
+      conversionsValuePerCost: '3.5',
       searchImpressionShare: null,
       searchBudgetLostImpressionShare: '0.25',
       searchRankLostImpressionShare: '0',
       searchClickShare: undefined,
+      searchTopImpressionShare: '0.4',
+      searchAbsoluteTopImpressionShare: '0.2',
       topImpressionPercentage: '0.5',
       absoluteTopImpressionPercentage: '0.1',
     },
@@ -173,10 +188,15 @@ assert.deepEqual(campaignRows[0], {
   conversions_value: 0,
   all_conversions: 0,
   all_conversions_value: 0,
+  conversions_from_interactions_rate: 0.125,
+  cost_per_conversion: 2500000,
+  conversions_value_per_cost: 3.5,
   search_impression_share: null,
   search_budget_lost_impression_share: 0.25,
   search_rank_lost_impression_share: 0,
   search_click_share: null,
+  search_top_impression_share: 0.4,
+  search_absolute_top_impression_share: 0.2,
   top_impression_percentage: 0.5,
   absolute_top_impression_percentage: 0.1,
 });
@@ -207,10 +227,15 @@ const adGroupRows = normalizeAdGroupPerformanceRows([
       conversionsValue: undefined,
       allConversions: '0',
       allConversionsValue: '0',
+      conversionsFromInteractionsRate: '0.2',
+      costPerConversion: '1250000',
+      conversionsValuePerCost: '2',
       searchImpressionShare: '0.8',
       searchBudgetLostImpressionShare: '0',
       searchRankLostImpressionShare: '0.2',
       searchClickShare: '0.75',
+      searchTopImpressionShare: '0.7',
+      searchAbsoluteTopImpressionShare: '0.4',
       topImpressionPercentage: '0.6',
       absoluteTopImpressionPercentage: '0.3',
     },
@@ -222,6 +247,11 @@ assert.equal(adGroupRows[0].effective_target_cpa_micros, null);
 assert.equal(adGroupRows[0].effective_target_roas, 2.5);
 assert.equal(adGroupRows[0].conversions, null);
 assert.equal(adGroupRows[0].all_conversions, 0);
+assert.equal(adGroupRows[0].conversions_from_interactions_rate, 0.2);
+assert.equal(adGroupRows[0].cost_per_conversion, 1250000);
+assert.equal(adGroupRows[0].conversions_value_per_cost, 2);
+assert.equal(adGroupRows[0].search_top_impression_share, 0.7);
+assert.equal(adGroupRows[0].search_absolute_top_impression_share, 0.4);
 
 assert.throws(
   () => normalizeCampaignPerformanceRows([{
