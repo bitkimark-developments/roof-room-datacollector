@@ -17,9 +17,19 @@ export const GOOGLE_ADS_CONVERSION_CONFIGURATION_DATASET_TYPES = [
   'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
 ] as const;
 
+export const GOOGLE_ADS_CAMPAIGN_SETTINGS_DATASET_TYPES = [
+  'CAMPAIGN_SETTINGS',
+  'CAMPAIGN_BUDGETS',
+  'CAMPAIGN_TARGETING_CRITERIA',
+] as const;
+
+export type GoogleAdsCampaignSettingsDatasetType =
+  (typeof GOOGLE_ADS_CAMPAIGN_SETTINGS_DATASET_TYPES)[number];
+
 export const GOOGLE_ADS_CONFIGURATION_DATASET_TYPES = [
   ...GOOGLE_ADS_NEGATIVES_DATASET_TYPES,
   ...GOOGLE_ADS_CONVERSION_CONFIGURATION_DATASET_TYPES,
+  ...GOOGLE_ADS_CAMPAIGN_SETTINGS_DATASET_TYPES,
 ] as const;
 
 export type GoogleAdsConfigurationDatasetType =
@@ -37,6 +47,9 @@ export const GOOGLE_ADS_CONFIGURATION_RESOURCE_MODE_BY_DATASET = {
   CAMPAIGN_CONVERSION_GOALS: 'CAMPAIGN_CONVERSION_GOAL',
   CUSTOM_CONVERSION_GOALS: 'CUSTOM_CONVERSION_GOAL',
   CUSTOMER_CONVERSION_TRACKING_SETTINGS: 'CUSTOMER',
+  CAMPAIGN_SETTINGS: 'CAMPAIGN',
+  CAMPAIGN_BUDGETS: 'CAMPAIGN_BUDGET',
+  CAMPAIGN_TARGETING_CRITERIA: 'CAMPAIGN_CRITERION',
 } as const satisfies Record<GoogleAdsConfigurationDatasetType, string>;
 
 export type GoogleAdsConfigurationResourceMode =
@@ -185,6 +198,92 @@ export interface GoogleAdsCustomerConversionTrackingSettingRow {
   google_ads_conversion_customer: string | null;
 }
 
+export interface GoogleAdsCampaignAssetAutomationSettingRow {
+  asset_automation_type: string;
+  asset_automation_status: string;
+}
+
+export interface GoogleAdsCampaignSettingsRow {
+  campaign_resource_name: string;
+  campaign_id: string;
+  campaign_name: string | null;
+  campaign_status: string;
+  campaign_keyword_match_type: string;
+  advertising_channel_type: string;
+  advertising_channel_sub_type: string;
+  start_date_time: string | null;
+  end_date_time: string | null;
+  campaign_budget_resource_name: string | null;
+  bidding_strategy_type: string;
+  bidding_strategy_resource_name: string | null;
+  manual_cpc_enhanced_cpc_enabled: boolean | null;
+  target_spend_cpc_bid_ceiling_micros: string | null;
+  target_spend_target_spend_micros: string | null;
+  maximize_conversions_target_cpa_micros: string | null;
+  maximize_conversion_value_target_roas: number | null;
+  target_cpa_target_cpa_micros: string | null;
+  target_roas_target_roas: number | null;
+  target_impression_share_location: string | null;
+  target_impression_share_location_fraction_micros: string | null;
+  target_impression_share_cpc_bid_ceiling_micros: string | null;
+  target_google_search: boolean;
+  target_search_network: boolean;
+  target_content_network: boolean;
+  target_partner_search_network: boolean;
+  positive_geo_target_type: string;
+  negative_geo_target_type: string;
+  tracking_url: string | null;
+  tracking_url_template: string | null;
+  final_url_suffix: string | null;
+  ai_max_enable_ai_max: boolean | null;
+  ai_max_bundling_required: boolean | null;
+  asset_automation_settings: GoogleAdsCampaignAssetAutomationSettingRow[];
+}
+
+export interface GoogleAdsCampaignBudgetRow {
+  campaign_budget_resource_name: string;
+  campaign_budget_id: string;
+  campaign_budget_name: string | null;
+  campaign_budget_status: string;
+  amount_micros: string | null;
+  delivery_method: string;
+  explicitly_shared: boolean;
+  reference_count: string;
+  total_amount_micros: string | null;
+  period: string;
+  type: string;
+}
+
+export interface GoogleAdsCampaignTargetingCriterionRow {
+  criterion_resource_name: string;
+  campaign_resource_name: string;
+  campaign_id: string;
+  campaign_name: string | null;
+  campaign_status: string;
+  criterion_id: string;
+  criterion_type: string;
+  negative: boolean;
+  criterion_status: string;
+  location_geo_target_constant_resource_name: string | null;
+  location_geo_target_constant_id: string | null;
+  location_geo_target_constant_name: string | null;
+  location_geo_target_constant_canonical_name: string | null;
+  location_geo_target_constant_country_code: string | null;
+  location_geo_target_constant_target_type: string | null;
+  location_geo_target_constant_status: string | null;
+  language_constant_resource_name: string | null;
+  language_constant_id: string | null;
+  language_constant_code: string | null;
+  language_constant_name: string | null;
+  language_constant_targetable: boolean | null;
+  device_type: string | null;
+  ad_schedule_day_of_week: string | null;
+  ad_schedule_start_hour: number | null;
+  ad_schedule_start_minute: string | null;
+  ad_schedule_end_hour: number | null;
+  ad_schedule_end_minute: string | null;
+}
+
 export type GoogleAdsConfigurationNormalizedRow =
   | GoogleAdsCampaignNegativeKeywordRow
   | GoogleAdsAdGroupNegativeKeywordRow
@@ -196,4 +295,7 @@ export type GoogleAdsConfigurationNormalizedRow =
   | GoogleAdsConversionGoalCampaignConfigRow
   | GoogleAdsCampaignConversionGoalRow
   | GoogleAdsCustomConversionGoalRow
-  | GoogleAdsCustomerConversionTrackingSettingRow;
+  | GoogleAdsCustomerConversionTrackingSettingRow
+  | GoogleAdsCampaignSettingsRow
+  | GoogleAdsCampaignBudgetRow
+  | GoogleAdsCampaignTargetingCriterionRow;

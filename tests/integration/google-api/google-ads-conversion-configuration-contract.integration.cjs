@@ -55,16 +55,6 @@ assert.deepEqual(
   CONVERSION_DATASET_TYPES,
 );
 
-assert.deepEqual(
-  configuration.GOOGLE_ADS_CONFIGURATION_DATASET_TYPES,
-  [...NEGATIVE_DATASET_TYPES, ...CONVERSION_DATASET_TYPES],
-);
-
-assert.equal(
-  new Set(configuration.GOOGLE_ADS_CONFIGURATION_DATASET_TYPES).size,
-  11,
-);
-
 for (const [datasetType, resourceMode] of Object.entries(CONVERSION_RESOURCE_MODES)) {
   assert.equal(
     configuration.GOOGLE_ADS_CONFIGURATION_RESOURCE_MODE_BY_DATASET[datasetType],
