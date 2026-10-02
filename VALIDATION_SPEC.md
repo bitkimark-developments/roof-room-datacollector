@@ -154,6 +154,45 @@ Missing evidence remains distinct from `false`, zero, empty string, or inferred 
 
 Authentication, connection, quota, rate-limit, network, and other acquisition failures remain operational outcomes rather than configuration dataset-quality results.
 
+
+#### Campaign Settings v1
+
+`CAMPAIGN_SETTINGS`, `CAMPAIGN_BUDGETS`, and `CAMPAIGN_TARGETING_CRITERIA` follow the same fail-closed Google Ads configuration validation boundary.
+
+`VALID`:
+
+- provider-native dataset/resource identity matches;
+- Search-only campaign constraints are satisfied where required;
+- normalized rows preserve observed provider semantics.
+
+`NO_DATA`:
+
+- valid empty SearchStream evidence with the required canonical envelope may represent no observed rows;
+- empty or missing evidence is not converted into `NO_DATA`.
+
+`QUERY_MISMATCH`:
+
+- campaign or criterion semantic type mismatch;
+- invalid Search/type context;
+- incomplete or inconsistent geo resolver identity;
+- resolver output that does not match observed LOCATION references.
+
+`INVALID_SCHEMA`:
+
+- malformed targeting evidence bundle structure;
+- invalid artifact ownership;
+- missing required canonical bundle fields;
+- unsupported reconstructed evidence.
+
+Targeting validation accepts only provider-observed LOCATION, LANGUAGE, DEVICE, and AD_SCHEDULE criteria.
+
+LOCATION human-readable fields require resolver evidence and remain provenance-linked.
+
+No location evidence is fabricated when resolver data is unavailable.
+
+Operational provider resolver failures remain acquisition failures rather than dataset semantic validation results.
+
+
 Deterministic fixtures and gates establish contract behavior only. They do not constitute live-provider acceptance.
 
 ### Keyword Planner API

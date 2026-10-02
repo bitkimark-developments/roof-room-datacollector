@@ -1,11 +1,11 @@
 # RoofRoom Data Collector — Project Handoff
 
 **Checkpoint date:** 2026-10-02
-**Current branch:** `feat/google-ads-conversion-configuration-v1`
-**Production implementation checkpoint:** `e473870`
-**Repository state:** Google Ads Conversion Configuration v1 production behavior is committed; this handoff update closes the slice with its focused gate and adopted contract documentation
-**Current stage:** Conversion Configuration v1 is implemented and deterministically verified; live-provider acceptance was not performed
-**Current action:** complete the slice-closing documentation checkpoint, then keep `09_CAMPAIGN_SETTINGS` as the next independent Google Ads configuration scope
+**Current branch:** `feat/google-ads-campaign-settings-v1`
+**Production implementation checkpoint:** `08f3c43`
+**Repository state:** Google Ads Campaign Settings v1 production behavior is committed; this handoff update records the deterministic verification checkpoint and adopted contract documentation
+**Current stage:** Google Ads Campaign Settings v1 is implemented and deterministically verified; live-provider acceptance was not performed
+**Current action:** complete the canonical documentation checkpoint and retain future Google Ads configuration extensions as independent scoped work
 
 ---
 
@@ -29,8 +29,8 @@ Authoritative repository:
 
 Observed current state:
 
-    branch:                     feat/google-ads-conversion-configuration-v1
-    production implementation:  e473870
+    branch:                     feat/google-ads-campaign-settings-v1
+    production implementation:  08f3c43
 
 The Conversion Configuration production implementation is committed. The focused Conversion Configuration gate and this canonical documentation update form the slice-closing checkpoint that contains this handoff revision.
 

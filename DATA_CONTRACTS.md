@@ -400,6 +400,43 @@ This source reuses the existing canonical Google Ads Workspace connection and au
 
 Negatives v1 is not part of an adopted package, preset, analysis, recommendation, or export recipe contract.
 
+
+### Google Ads configuration — Campaign Settings v1
+
+Campaign Settings v1 adds these provider-native snapshot datasets:
+
+- `CAMPAIGN_SETTINGS`
+- `CAMPAIGN_BUDGETS`
+- `CAMPAIGN_TARGETING_CRITERIA`
+
+They remain under the existing Google Ads configuration source and Workspace Google Ads connection boundary.
+
+CAMPAIGN_SETTINGS grain: one row per Campaign resource.
+
+Scope is Search-only where required by the provider contract.
+
+Preserved provider-native evidence includes campaign identity, status, advertising channel type, keyword match type, bidding configuration, network settings, geo routing, and returned AI Max-related fields.
+
+CAMPAIGN_BUDGETS grain: one row per CampaignBudget resource.
+
+Budget evidence preserves amount micros, delivery method, explicit shared state, reference count, and provider-native resource relationships.
+
+CAMPAIGN_TARGETING_CRITERIA grain: one row per CampaignCriterion resource.
+
+Accepted targeting types:
+- LOCATION
+- LANGUAGE
+- DEVICE
+- AD_SCHEDULE
+
+Targeting evidence preserves provider-native criterion identity, negative LOCATION evidence, observed LOCATION references, resolver provenance, and lossless raw evidence bundle contents.
+
+Human-readable geo fields require provider resolver evidence.
+
+Missing raw evidence, malformed evidence bundles, and reconstructed evidence are not accepted.
+
+REMOVED snapshots remain historical provider observations. No effective-current state is synthesized.
+
 ### Google Ads configuration — Conversion Configuration v1
 
 `google-ads-configuration` also owns six provider-native Conversion Configuration schema-v1 snapshot datasets:
