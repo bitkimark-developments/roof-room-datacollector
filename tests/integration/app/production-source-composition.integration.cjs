@@ -13,13 +13,40 @@ const { createProductionCollectionRuntime } = require(path.join(
 ));
 
 let trendsDispatches = 0;
+const requestedConnectionSourceIds = [];
+let credentialReads = 0;
+
 const repository = {
   getRun: () => ({ workspace_id: 'ws-test' }),
-  getSourceConnection: () => null,
+  getSourceConnection: (workspaceId, sourceId) => {
+    assert.equal(workspaceId, 'ws-test');
+    requestedConnectionSourceIds.push(sourceId);
+
+    if (sourceId !== 'google-ads-search-terms') {
+      return null;
+    }
+
+    return {
+      connection_id: 'existing-google-ads-connection',
+      workspace_id: workspaceId,
+      source_id: 'google-ads-search-terms',
+      credential_ref: 'existing-google-ads-credential',
+      safe_metadata: {
+        customer_id: '123-456-7890',
+        login_customer_id: '987-654-3210',
+      },
+      created_at: '2026-10-02T00:00:00.000Z',
+      updated_at: '2026-10-02T00:00:00.000Z',
+    };
+  },
 };
+
 const credentialStore = {
   hasCredential: async () => false,
-  readCredential: async () => '',
+  readCredential: async () => {
+    credentialReads += 1;
+    return '';
+  },
   writeCredential: async () => {},
   deleteCredential: async () => {},
 };
@@ -103,13 +130,37 @@ assert.deepEqual(
     'SHARED_NEGATIVE_KEYWORDS',
     'CAMPAIGN_NEGATIVE_KEYWORD_LISTS',
     'ACCOUNT_NEGATIVE_KEYWORD_LISTS',
+    'CONVERSION_ACTIONS',
+    'CUSTOMER_CONVERSION_GOALS',
+    'CONVERSION_GOAL_CAMPAIGN_CONFIGS',
+    'CAMPAIGN_CONVERSION_GOALS',
+    'CUSTOM_CONVERSION_GOALS',
+    'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
   ],
+);
+
+assert.equal(
+  configurationSource.datasetTypes.length,
+  11,
+  'Google Ads configuration must expose exactly eleven datasets.',
+);
+
+assert.equal(
+  new Set(configurationSource.datasetTypes).size,
+  11,
+  'Google Ads configuration dataset IDs must be unique.',
 );
 
 assert.equal(
   configurationSource.getCapabilities().supports_custom_date_range,
   false,
   'Google Ads configuration snapshots must not advertise custom date ranges.',
+);
+
+assert.equal(
+  configurationSource.getCapabilities().supports_api,
+  true,
+  'Google Ads configuration must remain an OFFICIAL_API source.',
 );
 
 assert.equal(
@@ -133,6 +184,37 @@ assert.equal(typeof runtime.orchestrator.runUntilBlocked, 'function');
 ;(async () => {
 const context = { run_id: 'run-test', job_id: 'job-test', attempt_id: 'attempt-test', attempt_number: 1, source_id: 'google-trends', job_key: 'group-1', query_group_id: 'group-1', requested_configuration: null, source_context: {} };
 await runtime.source_registry.get('google-trends').collect(context);
+
+const configurationResolution = await configurationSource.collect({
+  ...context,
+  source_id: 'google-ads-configuration',
+  job_key: 'CONVERSION_ACTIONS',
+  source_context: {},
+});
+
+assert.equal(
+  configurationResolution.result_type,
+  'FAILED',
+);
+
+assert.equal(
+  configurationResolution.error_code,
+  'SOURCE_CONFIGURATION_INVALID',
+  'Configuration source must resolve through the existing Ads connection before its own immutable-context validation.',
+);
+
+assert.deepEqual(
+  requestedConnectionSourceIds,
+  ['google-ads-search-terms'],
+  'Google Ads configuration must reuse only the existing Google Ads Workspace connection boundary.',
+);
+
+assert.equal(
+  credentialReads,
+  0,
+  'Resolving Google Ads configuration must not introduce an eager new credential read or credential type.',
+);
+
 const fixture = '/tmp/production-composition-ikas.xlsx';
 fs.writeFileSync(fixture, Buffer.from('not-a-real-workbook'));
 const ikasResult = await runtime.source_registry.get('ikas-products').collect({
