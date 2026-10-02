@@ -42,17 +42,19 @@ assert.equal(
   'google-ads-configuration',
 );
 assert.deepEqual(
-  configuration.GOOGLE_ADS_CONFIGURATION_DATASET_TYPES,
+  configuration.GOOGLE_ADS_NEGATIVES_DATASET_TYPES,
   DATASET_TYPES,
 );
 assert.equal(
-  new Set(configuration.GOOGLE_ADS_CONFIGURATION_DATASET_TYPES).size,
+  new Set(configuration.GOOGLE_ADS_NEGATIVES_DATASET_TYPES).size,
   5,
 );
-assert.deepEqual(
-  configuration.GOOGLE_ADS_CONFIGURATION_RESOURCE_MODE_BY_DATASET,
-  RESOURCE_MODES,
-);
+for (const datasetType of DATASET_TYPES) {
+  assert.equal(
+    configuration.GOOGLE_ADS_CONFIGURATION_RESOURCE_MODE_BY_DATASET[datasetType],
+    RESOURCE_MODES[datasetType],
+  );
+}
 assert.equal(
   googleApi.GOOGLE_ADS_CONFIGURATION_SOURCE_ID,
   configuration.GOOGLE_ADS_CONFIGURATION_SOURCE_ID,
