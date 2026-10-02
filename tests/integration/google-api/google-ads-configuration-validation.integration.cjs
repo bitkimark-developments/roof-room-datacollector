@@ -123,6 +123,107 @@ const rowsByDataset = {
   },
 };
 
+const conversionRowsByDataset = {
+  CONVERSION_ACTIONS: {
+    conversionAction: {
+      resourceName: 'customers/1234567890/conversionActions/9001',
+      id: '9001',
+      name: 'Purchase',
+      status: 'ENABLED',
+      type: 'WEBPAGE',
+      category: 'PURCHASE',
+      origin: 'WEBSITE',
+      ownerCustomer: 'customers/1234567890',
+      countingType: 'ONE_PER_CLICK',
+      primaryForGoal: true,
+      includeInConversionsMetric: false,
+      clickThroughLookbackWindowDays: '30',
+      viewThroughLookbackWindowDays: '1',
+      attributionModelSettings: {
+        attributionModel: 'GOOGLE_ADS_LAST_CLICK',
+        dataDrivenModelStatus: 'AVAILABLE',
+      },
+      valueSettings: {
+        defaultValue: 0,
+        defaultCurrencyCode: 'USD',
+        alwaysUseDefaultValue: false,
+      },
+      googleAnalytics4Settings: {
+        propertyId: '123456789',
+        eventName: 'purchase',
+      },
+    },
+  },
+
+  CUSTOMER_CONVERSION_GOALS: {
+    customerConversionGoal: {
+      resourceName:
+        'customers/1234567890/customerConversionGoals/PURCHASE~WEBSITE',
+      category: 'PURCHASE',
+      origin: 'WEBSITE',
+      biddable: false,
+    },
+  },
+
+  CONVERSION_GOAL_CAMPAIGN_CONFIGS: {
+    conversionGoalCampaignConfig: {
+      resourceName:
+        'customers/1234567890/conversionGoalCampaignConfigs/1001',
+      campaign: 'customers/1234567890/campaigns/1001',
+      goalConfigLevel: 'CUSTOMER',
+      customConversionGoal: null,
+    },
+    campaign: {
+      id: '1001',
+      name: 'Search Campaign',
+      status: 'ENABLED',
+    },
+  },
+
+  CAMPAIGN_CONVERSION_GOALS: {
+    campaignConversionGoal: {
+      resourceName:
+        'customers/1234567890/campaignConversionGoals/1001~PURCHASE~WEBSITE',
+      campaign: 'customers/1234567890/campaigns/1001',
+      category: 'PURCHASE',
+      origin: 'WEBSITE',
+      biddable: true,
+    },
+    campaign: {
+      id: '1001',
+      name: 'Search Campaign',
+      status: 'REMOVED',
+    },
+  },
+
+  CUSTOM_CONVERSION_GOALS: {
+    customConversionGoal: {
+      resourceName:
+        'customers/1234567890/customConversionGoals/9101',
+      id: '9101',
+      name: 'Qualified Purchase',
+      status: 'ENABLED',
+      conversionActions: [
+        'customers/1234567890/conversionActions/9001',
+      ],
+    },
+  },
+
+  CUSTOMER_CONVERSION_TRACKING_SETTINGS: {
+    customer: {
+      resourceName: 'customers/1234567890',
+      id: '1234567890',
+      conversionTrackingSetting: {
+        conversionTrackingStatus:
+          'CONVERSION_TRACKING_MANAGED_BY_THIS_CUSTOMER',
+        conversionTrackingId: '1234567890',
+        crossAccountConversionTrackingId: null,
+        googleAdsConversionCustomer: 'customers/1234567890',
+      },
+    },
+  },
+};
+
 const validationContext = (
   datasetType,
   body,
@@ -248,6 +349,161 @@ const assertNullDateMetadata = (decision, label) => {
 
     assertNullDateMetadata(decision, datasetType);
   }
+
+  /*
+   * Conversion Configuration datasets validate through the family-level
+   * dispatcher without changing the existing evidence envelope contract.
+   */
+  const validConversionAction = await validator.validate(
+    validationContext(
+      'CONVERSION_ACTIONS',
+      [{
+        results: [
+          conversionRowsByDataset.CONVERSION_ACTIONS,
+        ],
+      }],
+    ),
+  );
+
+  assert.equal(
+    validConversionAction.validation_status,
+    'VALID',
+    'CONVERSION_ACTIONS canonical evidence must validate.',
+  );
+  assertNullDateMetadata(
+    validConversionAction,
+    'CONVERSION_ACTIONS',
+  );
+
+  const emptyConversionDatasets = [
+    'CONVERSION_ACTIONS',
+    'CUSTOMER_CONVERSION_GOALS',
+    'CONVERSION_GOAL_CAMPAIGN_CONFIGS',
+    'CAMPAIGN_CONVERSION_GOALS',
+    'CUSTOM_CONVERSION_GOALS',
+  ];
+
+  for (const datasetType of emptyConversionDatasets) {
+    const decision = await validator.validate(
+      validationContext(
+        datasetType,
+        [{ results: [] }, {}],
+      ),
+    );
+
+    assert.equal(
+      decision.validation_status,
+      'NO_DATA',
+      `${datasetType} empty canonical evidence must remain NO_DATA.`,
+    );
+
+    assertNullDateMetadata(
+      decision,
+      `${datasetType} NO_DATA`,
+    );
+  }
+
+  const validTrackingSettings = await validator.validate(
+    validationContext(
+      'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
+      [{
+        results: [
+          conversionRowsByDataset
+            .CUSTOMER_CONVERSION_TRACKING_SETTINGS,
+        ],
+      }],
+    ),
+  );
+
+  assert.equal(
+    validTrackingSettings.validation_status,
+    'VALID',
+    'Exactly one tracking-settings row must validate.',
+  );
+
+  const notTrackedRow = structuredClone(
+    conversionRowsByDataset
+      .CUSTOMER_CONVERSION_TRACKING_SETTINGS,
+  );
+
+  notTrackedRow.customer.conversionTrackingSetting
+    .conversionTrackingStatus = 'NOT_CONVERSION_TRACKED';
+
+  const notTrackedDecision = await validator.validate(
+    validationContext(
+      'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
+      [{ results: [notTrackedRow] }],
+    ),
+  );
+
+  assert.equal(
+    notTrackedDecision.validation_status,
+    'VALID',
+    'NOT_CONVERSION_TRACKED is valid provider evidence.',
+  );
+
+  const emptyTrackingSettings = await validator.validate(
+    validationContext(
+      'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
+      [{ results: [] }, {}],
+    ),
+  );
+
+  assert.equal(
+    emptyTrackingSettings.validation_status,
+    'QUERY_MISMATCH',
+    'Tracking settings must never map zero rows to NO_DATA.',
+  );
+
+  const multipleTrackingSettings = await validator.validate(
+    validationContext(
+      'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
+      [{
+        results: [
+          conversionRowsByDataset
+            .CUSTOMER_CONVERSION_TRACKING_SETTINGS,
+          structuredClone(
+            conversionRowsByDataset
+              .CUSTOMER_CONVERSION_TRACKING_SETTINGS,
+          ),
+        ],
+      }],
+    ),
+  );
+
+  assert.equal(
+    multipleTrackingSettings.validation_status,
+    'QUERY_MISMATCH',
+    'Tracking settings must contain exactly one normalized row.',
+  );
+
+  /*
+   * Parsed SearchStream evidence with dataset-specific semantic
+   * mismatch must remain QUERY_MISMATCH, never NO_DATA.
+   */
+  const malformedConversionAction = structuredClone(
+    conversionRowsByDataset.CONVERSION_ACTIONS,
+  );
+
+  delete malformedConversionAction.conversionAction.status;
+
+  const malformedConversionDecision = await validator.validate(
+    validationContext(
+      'CONVERSION_ACTIONS',
+      [{ results: [malformedConversionAction] }],
+    ),
+  );
+
+  assert.equal(
+    malformedConversionDecision.validation_status,
+    'QUERY_MISMATCH',
+  );
+
+  assert.notEqual(
+    malformedConversionDecision.validation_status,
+    'NO_DATA',
+    'Conversion semantic mismatch must never become NO_DATA.',
+  );
 
   /*
    * Truthful NO_DATA requires a structurally valid SearchStream
@@ -633,7 +889,7 @@ const assertNullDateMetadata = (decision, label) => {
   );
 
   console.log(
-    'PASS GOOGLE-ADS-CONFIGURATION-VALIDATION-001: five configuration datasets validate canonical raw SearchStream evidence, fail closed on ownership/context/schema/semantic mismatch, and emit truthful NO_DATA without fabricated dates',
+    'PASS GOOGLE-ADS-CONFIGURATION-VALIDATION-001: eleven configuration datasets preserve validation semantics, conversion rows fail closed on semantic mismatch, and tracking settings require exactly one normalized row',
   );
 })().catch((error) => {
   console.error(error);

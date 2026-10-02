@@ -11,7 +11,7 @@ import {
 } from '../../../shared/google-ads-configuration';
 import {
   normalizeGoogleAdsConfigurationRows,
-} from './negatives-adapter';
+} from './configuration-normalizer';
 import {
   requireGoogleAdsConfigurationJobContext,
 } from './configuration-request';
@@ -145,6 +145,28 @@ implements CollectionValidator {
           ? error.message
           : 'Google Ads configuration row semantics are invalid.',
       );
+    }
+
+    if (
+      jobContext.dataset_type
+        === 'CUSTOMER_CONVERSION_TRACKING_SETTINGS'
+    ) {
+      if (normalizedRows.length !== 1) {
+        return failure(
+          'QUERY_MISMATCH',
+          'Google Ads customer conversion tracking settings must contain exactly one normalized row.',
+        );
+      }
+
+      return {
+        validation_status: 'VALID',
+        checks_total: 5,
+        checks_passed: 5,
+        checks_warning: 0,
+        checks_failed: 0,
+        findings: [],
+        validated_metadata: validatedMetadata(),
+      };
     }
 
     if (normalizedRows.length === 0) {
