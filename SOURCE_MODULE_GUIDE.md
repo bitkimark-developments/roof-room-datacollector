@@ -1,342 +1,285 @@
 # RoofRoom Data Collector — Source Module Guide
 
-**Status:** Canonical source onboarding and responsibility guide
-**Audience:** Engineers adding or reviewing source modules
+**Status:** Canonical source onboarding/integration guide
+**Scope:** How a source enters the existing Core without duplicating product, validation, or test authorities
 
 ---
 
 ## 1. Governing rule
 
-> A source module owns source-specific acquisition, parsing, validation, and error mapping. Shared lifecycle belongs to Core.
+> **Source modules own provider-specific behavior. Shared lifecycle and privileged infrastructure belong to Core.**
 
-Google Trends is the first implemented/reference browser-export module. It is an example, not a template that forces every source through query groups, Playwright, CSV, or Google-Trends-specific metadata.
+Google Trends is a reference integration, not a universal source template.
 
-## 2. Source onboarding gate
+---
 
-A source may be implemented only through:
+## 2. Scope routing
+
+Release scope belongs in `PROJECT_SPEC.md`.
+
+Current implementation status belongs in `PROJECT_HANDOFF.md`.
+
+Persisted/source-native semantics belong in `DATA_CONTRACTS.md`.
+
+Validation rules belong in `VALIDATION_SPEC.md`.
+
+Do not duplicate those documents here.
+
+---
+
+## 3. Onboarding gate
+
+A new source or materially different provider mode enters through:
 
 ```text
 feasibility/acquisition proof
-→ source, dataset, and mode contract
-→ explicit implementation permission
-→ one end-to-end vertical slice
-→ deterministic regression coverage
-→ limited explicit live acceptance
-→ release integration
+→ source + dataset + mode contract
+→ explicit implementation approval
+→ one vertical slice
+→ deterministic regression
+→ limited live acceptance where required
 ```
 
-The former “finish Google Trends before any other source” gate is superseded. A new source is gated by its own proof and contract, not by its position in a historical roadmap.
+Old roadmap references do not create implementation permission.
 
-## 3. Release 1.0 approved source families
-
-Approved Release 1.0 source families and acquisition paths include:
-
-- Google Trends Interest Over Time;
-- Google Search Console query, query+page, and date+query;
-- Google Ads SEARCH reporting family through the official API:
-  - `campaign`;
-  - `ad_group`;
-  - `keyword_view`;
-  - `search_term_view`;
-  - `ad_group_ad`;
-  - `ad_group_ad_asset_view`;
-- Google Ads Keyword Planner historical metrics through the official API;
-- Keyword Planner manual CSV fallback;
-- İkas Products XLSX import;
-- Bitkimark sitemap/public XML;
-- on-demand SERP through SerpApi.
-
-The expanded Google Ads SEARCH reporting family has a deterministic local implementation. The previously verified live provider path remains `search_term_view` for SEARCH; live acceptance for the additional reporting resources remains a separate explicit evidence step.
-
-Feasibility or scope approval is implementation permission, not automatic live acceptance. Semrush is not active R1 scope. Merchant Center, GA4, Performance Max, and other future modes/sources require their own gates.
+---
 
 ## 4. Identity model
 
-Keep these concepts distinct:
+Keep separate:
 
-- **source identity:** logical provider/source family;
-- **dataset identity:** the provider dataset being collected;
-- **source mode:** a materially distinct provider path/resource/semantic mode;
-- **acquisition mode:** browser export, official API, file import, HTTP/XML, or third-party API.
+```text
+source identity
+dataset identity
+source mode
+acquisition mode
+job identity
+```
 
-Do not invent or rename persisted source IDs, enums, or database fields before inspecting `src/shared`, `src/main/storage`, source registration/composition, configuration, IPC, and stored-data compatibility.
+Do not invent persisted IDs/enums/fields before inspecting live contracts.
 
-## 5. Current module interfaces
+---
 
-The current live repository defines:
+## 5. Source responsibilities
 
-- `DataSourceModule` for identity, capabilities, and readiness;
-- `CollectingDataSourceModule` for `collect(context)`;
-- `CollectionValidator` for source validation;
-- `SourceRegistry` for lowercase-hyphenated IDs;
-- `CollectionValidatorRegistry` for fail-closed source-keyed validator lookup;
-- `CollectionOrchestrator` for current run/job/attempt/artifact lifecycle.
-
-The shared collection and validation contexts carry persisted JSON-compatible `source_context` without requiring a `QueryGroup`. Current SQLite schema version 8 allows `query_group_id = NULL`, persists source-neutral Job identity/context, and permits one Run to contain Jobs from multiple source IDs under one Workspace. Collection and validator lookup both use each persisted Job's source identity. The Google Trends adapter reconstructs and validates its own query-group semantics from source context. The generalized desktop composition uses source-owned reviewed context; no source may fill unrelated fields with invented compatibility values.
-
-## 6. Required source responsibilities
-
-A source module may own:
+A source may own:
 
 - capability/readiness declaration;
-- conversion of an approved source request into source-specific job inputs;
-- provider/API/browser/file/HTTP interaction;
-- bounded pagination or multi-file behavior defined by the source contract;
+- source-specific Job context;
+- browser/API/file/HTTP interaction;
+- provider request construction/pagination;
 - raw response/file capture;
-- source-specific parsing;
-- observed metadata extraction;
+- parsing/normalization;
+- observed-context extraction;
 - semantic validation;
-- mapping provider conditions into safe operational results.
+- provider-specific error mapping.
 
-A source module must not:
+A source must not:
 
-- create its own parallel run/attempt database;
-- write outside StorageManager-approved boundaries;
+- create a parallel Run/Attempt lifecycle;
+- create a private state database;
+- own arbitrary storage roots;
 - overwrite raw evidence;
-- accept its own data without the Core validation lifecycle;
-- hide retries, refreshes, quota consumption, or provider failures;
-- expose secrets to renderer/UI/logs;
-- transform missing values into zero;
-- generate strategy, intent, or commercial recommendations.
+- bypass Core validation acceptance;
+- hide retries;
+- expose secrets;
+- convert missing to zero;
+- generate analysis/recommendations.
 
-## 7. Core integration responsibilities
+---
 
-Use existing Core for run/job/attempt state, reconciliation, resume/retry, source registration, storage, metadata/provenance, validation coordination, logging, export, and desktop/IPC coordination. Register each collecting module in `SourceRegistry` and its validator under the identical source ID in `CollectionValidatorRegistry`; missing, duplicate, and invalid mappings fail closed.
+## 6. Core services to reuse
 
-Credential/access and freshness/due are locked Core responsibilities. Their exact implementation may use compatible components rather than mandatory class names. A source declares needs and consumes safe services; it does not build its own secret store or scheduler.
+Reuse existing Core behavior for:
 
-## 8. Readiness, freshness, execution, and validation
+- Workspace / Run / Job / Attempt;
+- source registry;
+- resume/reconciliation/retry/cancellation;
+- artifact lifecycle/storage;
+- provenance;
+- validation coordination;
+- logging;
+- credential access;
+- readiness/freshness coordination;
+- accepted-evidence/package/export eligibility;
+- desktop/IPC.
 
-These are separate domains:
+If the Core cannot truthfully represent a real source requirement, evolve the shared contract through a separate tested compatibility slice.
 
-- readiness: prerequisites, configuration, file availability, access, authentication;
-- freshness: fresh, due/stale, import needed, on demand, unknown;
-- execution: what happened during this attempt;
-- validation: whether resulting evidence is trustworthy.
+Never fabricate provider placeholders to fit an old Core assumption.
 
-Do not encode a quota error as `NO_DATA`, an authentication error as `INVALID_SCHEMA`, or an on-demand policy as a failure.
+---
 
-Current implemented status values in `DATA_CONTRACTS.md` remain authoritative until explicitly migrated.
+## 7. Acquisition patterns
+
+### `BROWSER_EXPORT`
+
+Source owns provider interaction/export semantics.
+
+Core owns browser lifecycle, storage, and shared execution state.
+
+### `OFFICIAL_API`
+
+Source owns request/response/provider semantics.
+
+Core owns credential boundary and shared lifecycle.
+
+Preserve faithful raw provider response evidence before normalization where practical.
+
+### `FILE_IMPORT`
+
+Privileged code validates the selected path and preserves original bytes before parsing.
+
+Detect format from evidence, not extension alone.
+
+### `HTTP_XML`
+
+Keep retrieval bounded to the approved source contract.
+
+Preserve raw response and request/response metadata.
+
+### `THIRD_PARTY_API`
+
+Use explicit approved workloads and preserve provider evidence.
+
+Quota/access remains operational state.
+
+---
+
+## 8. Readiness / freshness / execution / validation
+
+Keep these domains separate:
+
+- readiness — can the source run?
+- freshness — should work run?
+- execution — what happened in this Attempt?
+- validation — can the evidence be trusted?
+
+Do not encode one domain as another.
+
+---
 
 ## 9. Raw evidence and provenance
 
-Every acquisition/import should preserve faithful raw evidence when practical:
+A successful acquisition/import should preserve faithful source evidence before normalization.
 
-- original CSV/XLSX/XML bytes;
-- raw API/third-party JSON or an equivalently faithful serialized response;
-- request-safe provider metadata;
-- retrieval/import time;
-- source/dataset/mode/acquisition identity;
-- requested and observed context;
-- run/job/attempt linkage;
-- checksum and byte size where available.
+Accepted evidence must remain traceable through source, Run, Job, Attempt, request/observation context, raw artifact, checksum where available, and validation.
 
-Normalized/derived output is separate. Rejected evidence remains available for audit unless a separately documented retention/security policy requires otherwise.
+Exact fields belong in `DATA_CONTRACTS.md`.
 
-## 10. `BROWSER_EXPORT` pattern
+---
 
-Use for Google Trends and only for sources with a verified browser-export path.
+## 10. Validation integration
 
-Requirements:
+Source validator receives trusted Core context plus source-specific requested/candidate evidence.
 
-1. acquire a browser page through shared browser lifecycle;
-2. use the application-owned persistent profile;
-3. verify provider state before and during interaction;
-4. use evidence-based semantic controls and bounded waits;
-5. capture supported provider download bytes directly into the candidate lifecycle;
-6. close only source-owned pages and allow Core to own browser shutdown;
-7. return structured, redacted diagnostics;
-8. stop on manual action, rate limit, or security controls without bypass/retry/refresh loops.
+It returns deterministic findings/outcomes.
 
-## 11. `OFFICIAL_API` pattern
+Core owns the final artifact acceptance transition.
 
-Use for GSC and Google Ads API sources.
+Source validation must not:
 
-Requirements:
+- invent observed values;
+- tolerate unknown schema silently;
+- convert operational failure into dataset quality;
+- bypass package/export eligibility.
 
-1. obtain scoped credentials through the Core security boundary;
-2. declare account/property/customer and API scope prerequisites without exposing secrets;
-3. build requests from explicit job context;
-4. bound pagination and preserve response/request provenance;
-5. preserve raw JSON before normalization where practical;
-6. map OAuth/access/quota/provider failures to operational outcomes;
-7. validate source-specific dimensions and metrics;
-8. never use development-only ADC/gcloud state as an undocumented production dependency.
+---
 
-## 12. `FILE_IMPORT` pattern
+## 11. Error and retry mapping
 
-The İkas Products slice uses content-based XLSX parsing and preserves the selected workbook bytes before parsing. Exact production column mapping remains evidence-bound to the current user-provided workbook; unsupported or unproven headers fail closed.
+Map failure at the narrowest truthful boundary:
 
-Use for İkas Products and Keyword Planner CSV fallback.
-
-Requirements:
-
-1. validate user-selected path through privileged main-process code;
-2. copy original bytes into run-scoped evidence before parsing;
-3. determine format from content/evidence, not extension alone;
-4. record original name, media type, size/checksum, and import time;
-5. parse with source-specific encoding/delimiter/workbook rules;
-6. preserve blanks as null;
-7. reject corrupt, unrelated, or unknown schemas;
-8. keep imported and API acquisition provenance distinct.
-
-## 13. `HTTP_XML` pattern
-
-The Bitkimark sitemap slice preserves the exact XML response bytes, validates URL-set structure, and emits deterministic substring annotations while retaining the complete URL inventory. It does not crawl pages or infer SEO meaning.
-
-Use for Bitkimark public sitemaps.
-
-Requirements:
-
-1. issue bounded standard HTTP requests to allowlisted expected hosts/URLs;
-2. preserve status, content type, requested/final URL, retrieval time, and raw bytes;
-3. reject HTML/error content masquerading as XML;
-4. parse sitemap index and child URL-set semantics;
-5. preserve `loc`, nullable `lastmod`, and parent-child relationship;
-6. do not infer business change from `lastmod` alone;
-7. avoid unbounded site crawling outside the approved sitemap contract.
-
-## 14. `THIRD_PARTY_API` pattern
-
-Use for explicit SerpApi batches.
-
-Requirements:
-
-1. obtain API key through the Core credential boundary;
-2. declare and check safe quota/readiness state;
-3. run only explicitly requested on-demand batches;
-4. preserve raw JSON and provider metadata;
-5. validate query/country/language/device and returned organic result structure;
-6. distinguish fewer/no results from quota/provider failure;
-7. never add intent, page-type, commercial-fit, or action recommendations;
-8. never run as an automatic continuous rank tracker.
-
-## 15. Validation integration
-
-The source validator receives the candidate artifact and trusted Core context, then returns deterministic status plus structured findings. `CollectionOrchestrator` resolves that validator from `job.source_id` for every attempt; shared Core must not select validators through provider-specific branches or one Run-wide default.
-
-Generic checks remain reusable. Source checks use stable namespaced IDs. Unsupported schema/mode fails visibly. Requested fields cannot be copied into observed fields without provider evidence.
-
-Only Core coordinates artifact acceptance and accepted-artifact references.
-
-## 16. Error and retry mapping
-
-Map errors at the narrowest truthful boundary:
-
-- source/configuration not ready;
-- authentication/access/manual action;
-- rate limit/quota;
-- network/provider response;
-- browser UI contract;
+- configuration/readiness;
+- authentication/access/manual;
+- quota/rate limit;
+- provider/network;
+- browser;
 - download/import;
 - parse/schema;
 - semantic validation;
-- storage/persistence.
+- persistence/storage.
 
-Retryability is policy, not optimism. Source modules do not automatically retry live providers. A Core-approved retry creates a new attempt and preserves prior evidence.
+Retryability is policy, not optimism.
 
-## 17. Source-specific notes
+Source modules do not run hidden provider retry loops.
 
-### Google Trends reference
+---
 
-The current implementation demonstrates browser lifecycle, externally configured jobs, sequential collection, direct provider-byte capture, run-scoped raw storage, validation, resume/retry, diagnostics, desktop workflow, and structured export. Reuse its Core integration patterns, not its provider selectors or query-group assumptions.
+## 12. Source-specific context rule
 
-### GSC
+When working on one source, read only that source's relevant sections from:
 
-Separate dataset dimensions and property/search-type context. Preserve provider limits and latency. Pagination and empty data require explicit semantics.
+- `DATA_CONTRACTS.md`;
+- `VALIDATION_SPEC.md`;
+- live source code/tests.
 
-### Google Ads SEARCH reporting
+Do not load all other source contracts by default.
 
-Use one `google-ads-search-reporting` source family with six independent dataset contracts:
+---
 
-- `CAMPAIGN_PERFORMANCE` → `campaign`;
-- `AD_GROUP_PERFORMANCE` → `ad_group`;
-- `KEYWORD_PERFORMANCE` → `keyword_view`;
-- `SEARCH_TERMS` → `search_term_view`;
-- `AD_PERFORMANCE` → `ad_group_ad`;
-- `RSA_ASSET_PERFORMANCE` → `ad_group_ad_asset_view`.
+## 13. Minimum implementation sequence
 
-Share credential/customer transport infrastructure where appropriate, but keep GAQL, parser/normalizer, semantic validation, raw evidence, and provenance dataset-specific. Retry/resume remains Job-level.
+```text
+inspect current Core/source contracts
+→ prove source-specific input/acquisition shape
+→ register source/readiness
+→ acquire/import one controlled evidence unit
+→ preserve raw
+→ parse/normalize
+→ validate
+→ persist provenance
+→ prove accepted/rejected state
+→ expose the minimum required desktop/package behavior
+```
 
-The legacy Search Terms quick-run remains compatible. Treat Performance Max or another Google Ads mode/resource as a separate scope and evidence gate.
+Prefer one vertical slice over a full provider surface.
 
-### Keyword Planner
+---
 
-Official API is primary; UTF-16 tab-separated manual CSV is fallback. Both normalize only after raw preservation and retain distinct acquisition provenance.
+## 14. Required deterministic coverage
 
-### İkas Products
+Add only the relevant minimum:
 
-Map exact fields only from the sanitized production shape (`Ikas Excel File`, 40 columns). `Ürün Grup ID` and `Varyant ID` are the source identifiers; `İsim`, `Kategoriler`, `Tip`, `Satış Fiyatı`, `İndirimli Fiyatı`, `Açıklama`, and `Slug` retain their source semantics. Product URL is unavailable in this export, and `Resim URL` remains image-only evidence. Match `Bitki Boyu (Saksı Dahil)` and `Saksı Tipi` by label across all three variant type/value pairs. Preserve blank stock/sale price and absent attributes as null; preserve both case-distinct sales-channel columns.
+- readiness/capability;
+- request/input mapping;
+- parser/normalizer;
+- semantic validation;
+- null/zero behavior;
+- malformed/non-data handling;
+- operational error mapping;
+- raw preservation;
+- provenance;
+- Core integration;
+- resume/retry/cancel where supported;
+- UI/IPC where exposed;
+- package/export eligibility.
 
-### Bitkimark public site
+Normal tests never call live providers.
 
-Limit acquisition to the approved sitemap/XML scope unless a new feasibility contract expands it.
+Verification depth belongs in `TEST_STRATEGY.md`.
 
-### SERP
+---
 
-On-demand batch only. Preserve provider evidence; do no downstream analysis.
+## 15. Definition of done
 
-## 18. Required test package
+A source/mode is complete only when:
 
-Every source adds:
+1. feasibility evidence exists;
+2. identity/semantics are explicit;
+3. shared Core lifecycle is used;
+4. raw evidence is preserved;
+5. parser/validator fail closed;
+6. missing values remain missing;
+7. operational failure stays separate from validation;
+8. provenance is complete;
+9. deterministic tests pass;
+10. unsupported modes fail visibly;
+11. required live acceptance is separately evidenced if claimed;
+12. `PROJECT_HANDOFF.md` reflects actual status.
 
-- readiness/capability tests;
-- parser tests from sanitized evidence;
-- source-semantic validation tests;
-- missing/null and malformed/non-data tests;
-- operational error mapping tests;
-- raw preservation/provenance tests;
-- fake/mocked Core vertical-slice integration;
-- resume/retry/cancellation tests where supported;
-- renderer/IPC tests when exposed;
-- export eligibility tests;
-- a separately guarded minimal live smoke command where needed.
+---
 
-Normal automated tests and CI never call live providers.
+## 16. Governing module rule
 
-## 19. Definition of done
-
-A source is complete only when:
-
-1. feasibility and source contract are documented;
-2. one real end-to-end vertical slice uses the shared Core;
-3. canonical raw evidence is preserved before transformation;
-4. parser and validator fail closed;
-5. credential/readiness/freshness behavior is explicit;
-6. persisted state and provenance are complete;
-7. deterministic tests pass without live calls;
-8. explicit limited live smoke evidence passes;
-9. desktop/export integration is truthful and usable;
-10. unsupported modes are visible;
-11. no secret or private production payload is committed;
-12. `PROJECT_HANDOFF.md` records actual, not planned, implementation state.
-
-## 20. User-facing task integration contract
-
-Where a source is exposed through the desktop product, its task integration should provide safe source-specific information without moving provider or security responsibilities into the renderer.
-
-Where applicable, the user-facing task surface should expose:
-
-- safe readiness state and an understandable blocking reason;
-- a direct remediation route when the blocker is actionable;
-- freshness separately from readiness, execution, and validation;
-- safe connection/account/property labels without credentials or unrestricted provider payloads;
-- structured or bounded primary inputs rather than developer-oriented mini-languages;
-- a reviewed summary of the exact normalized source intent before Start;
-- expected Job/request count when it is useful for quota, cost, or bounded-acquisition awareness;
-- task-level Recent Runs scoped to the active Workspace and source/task identity;
-- accepted evidence and export actions after collection.
-
-Secrets remain behind the Core credential boundary. Task components may initiate typed remediation intent but must not own credential storage, OAuth/API-token handling, or provider request construction.
-
-Compact text or bulk-paste formats may exist as optional convenience inputs, but they must normalize into the same validated structured model used by Review and Start.
-
-`FILE_IMPORT` tasks should expose safe selected-file information plus Replace/Remove actions while filesystem privilege and raw-byte handling remain outside the renderer.
-
-Sources with an approved bounded allowlist, such as the current Bitkimark sitemap scope, should use bounded selection as the primary UI rather than unrestricted free-form input.
-
-A source is not product-complete merely because its acquisition adapter works. Its prerequisites, remediation path, reviewed intent, operational result, validation outcome, and accepted evidence/export path must be understandable and usable without weakening the source/Core boundary.
-
-## 21. Governing module rule
-
-Preserve one Core lifecycle across every acquisition mode, while keeping provider semantics, credentials, raw evidence, and validation inside clear source-specific boundaries.
+> **Reuse one auditable Core lifecycle while keeping provider semantics and acquisition details inside the source boundary. Generalize only when real evidence requires it.**

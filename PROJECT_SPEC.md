@@ -1,330 +1,412 @@
 # RoofRoom Data Collector — Project Specification
 
-**Document:** `PROJECT_SPEC.md`  
-**Status:** Canonical Release 1.0 product specification
-**Scope:** Stable product boundaries, verified source scope, integrity rules, and release acceptance criteria
+**Status:** Canonical product and Release 1.0 scope
+**Scope:** Stable product boundary, source scope, integrity requirements, package boundaries, and release acceptance
 
 ---
 
 ## 1. Product definition
 
-RoofRoom Data Collector is a local-first, modular desktop data-collection application.
+RoofRoom Data Collector is a local-first, modular desktop data-collection and evidence-packaging application.
 
 Its governing workflow is:
 
-> **Collect → Preserve → Validate → Document → Export**
+```text
+Collect
+→ Preserve
+→ Validate
+→ Normalize where deterministic
+→ Document
+→ Package
+→ Export
+```
 
-The product collects trustworthy source evidence for later use. It is not an analysis or decision engine.
+Normalization and packaging are downstream representations. They never replace authoritative raw provider evidence.
 
-The Collector must not generate SEO strategy, keyword recommendations, blog-topic or page-type decisions, PDP/category/blog recommendations, SERP intent conclusions, or advertising, merchandising, and commercial decisions. Those activities belong to a separate downstream analysis or agentic layer.
+RoofRoom collects trustworthy provider evidence for downstream use.
+
+It is not an analysis, SEO, advertising, merchandising, scoring, recommendation, strategy, or decision engine.
+
+---
 
 ## 2. Product goals
 
-The application should:
+RoofRoom should:
 
-1. reduce repetitive manual acquisition and export work;
-2. host multiple independent source modules behind one shared Core;
-3. prefer verified, supported acquisition paths;
+1. reduce repetitive acquisition/import work;
+2. support independent source modules behind one source-neutral Core;
+3. prefer verified and supported acquisition paths;
 4. preserve original provider evidence whenever practical;
-5. trace every dataset to its source, run, job, attempt, request context, and raw artifact;
-6. validate acquired or imported evidence before canonical acceptance;
-7. expose incomplete, malformed, suspicious, unsupported, or blocked outcomes;
-8. support safe resume and job-level retry without erasing attempt history;
-9. preserve source-native meaning and missing-value semantics;
-10. export structured data suitable for downstream analysis.
-11. isolate each Run under exactly one first-class Workspace identity.
+5. keep every accepted dataset traceable through Workspace, Run, Job, Attempt, artifact, validation, request, and observation context;
+6. validate before canonical acceptance;
+7. surface unsupported, malformed, blocked, partial, or unavailable outcomes truthfully;
+8. preserve retry/resume history;
+9. preserve provider-native meaning and missing-value semantics;
+10. produce provenance-preserving packages/exports without becoming an analysis layer.
 
-Reliability, auditability, and recoverability take priority over collection speed.
+Reliability, auditability, reproducibility, and recoverability take priority over collection speed.
 
-## 3. Architecture principle
+---
 
-RoofRoom Data Collector is:
+## 3. Product architecture boundary
 
-> **One application with multiple independent source modules and shared Core infrastructure.**
+RoofRoom is:
 
-The shared Core owns cross-source lifecycle concerns. A source module owns only its provider-specific acquisition, parsing, semantic validation, and operational error mapping.
+> **One desktop application with multiple independent source modules sharing one Core.**
 
-Google Trends is the first implemented source and the reference browser-export module. It is not the entire product.
+Core owns shared lifecycle, privileged infrastructure, persistence, evidence lifecycle, credential boundaries, freshness, validation coordination, packages/export eligibility, and desktop coordination.
 
-Adding a source should extend the application rather than create another unrelated collector. Separate runtimes are justified only by concrete security, licensing, compatibility, deployment, or isolation requirements.
+Source modules own provider-specific acquisition, parsing, normalization, semantic validation, readiness requirements, and provider error mapping.
+
+Google Trends is the reference browser-export source, not the generic product model.
+
+Detailed ownership belongs in `ARCHITECTURE.md`.
+
+---
 
 ## 4. Release 1.0 source scope
 
-The source paths below passed feasibility checks using real provider, account, file, or endpoint evidence and are approved for implementation. **Feasibility approval does not mean the adapter is already implemented.** Current implementation status belongs in `PROJECT_HANDOFF.md`.
+Release 1.0 includes the source families whose acquisition paths passed approved feasibility gates.
 
-### 4.1 Google Trends
+Current implementation status belongs in `PROJECT_HANDOFF.md`.
 
-- Dataset: Interest Over Time.
-- Primary acquisition: Playwright-controlled Google Trends UI and the provider-supported CSV export.
-- Initial semantics: externally configured comparison groups, Turkey, All Categories, Web Search, Search Term.
-- Status: feasibility **FINAL PASS**; implemented reference source.
+### Google Trends
 
-Values from 0 through 100 are relative interest, not search counts. Independently normalized comparison groups retain group context and are not silently treated as globally comparable. Search Term and Topic datasets remain separate. Exact supported period behavior is defined by the live code and contracts, not inferred from historical documentation.
+- dataset: Interest Over Time;
+- acquisition: controlled Playwright + provider CSV export;
+- values `0..100` are relative interest, not search volume;
+- comparison-group context remains significant;
+- Search Term and Topic remain distinct.
 
-### 4.2 Google Search Console
+### Google Search Console
 
-- Primary acquisition: official Search Analytics API.
-- `google-search-console-query`: query-level dataset using the `query` dimension.
-- `google-search-console-query-page`: Query × Page dataset using `query` + `page`.
-- Query and Query × Page remain separate source/data contracts.
-- Native metrics: clicks, impressions, CTR, and average position.
-- Query Current + Previous 28 Days creates two independent Jobs:
-  - Current 28 complete days: today minus 28 days through yesterday.
-  - Previous 28 complete days: today minus 56 days through today minus 29 days.
-- Query × Page supports Current 28 Days, Current 90 Days, and Long 16 Calendar Months.
-- Both GSC contracts reuse the same Workspace GSC connection, Site URL metadata, and OAuth credential boundary.
-- Production Data Package output preserves query-only data as `QUERY` and Query × Page data as `QUERY_PAGE`.
-- Missing numeric provider values remain `NULL`/blank and are never converted to zero.
-- Raw Search Analytics response pages remain preserved separately from normalized output.
-- Status: feasibility **FINAL PASS**; these collection, validation, reviewed-task, and Data Package contracts are implemented.
+Official Search Analytics API.
 
-Privacy filtering, row limits, data latency, property identity, requested versus returned dimensions, exact requested date windows, and source identity must remain visible in provenance.
+Supported logical datasets include:
 
-### 4.3 Google Ads SEARCH reporting family
+- query-only `QUERY`;
+- Query × Page `QUERY_PAGE`.
 
-- Primary acquisition: official Google Ads API REST SearchStream.
-- Implemented source family: `google-ads-search-reporting`.
-- Release 1.0 scope is SEARCH only.
-- Implemented datasets/resources:
-  - `CAMPAIGN_PERFORMANCE` → `campaign`;
-  - `AD_GROUP_PERFORMANCE` → `ad_group`;
-  - `KEYWORD_PERFORMANCE` → `keyword_view`;
-  - `SEARCH_TERMS` → `search_term_view`;
-  - `AD_PERFORMANCE` → `ad_group_ad`;
-  - `RSA_ASSET_PERFORMANCE` → `ad_group_ad_asset_view`.
-- The existing `google-ads-search-terms` quick-run path remains supported for backward compatibility.
-- Raw SearchStream JSON is preserved before normalization.
-- Local deterministic implementation and validation coverage are complete for the six-dataset family.
-- Live provider acceptance for the expanded family remains a separate explicitly authorized evidence step.
+Reviewed task shapes include adjacent 28-day query windows and Query × Page 28-day, 90-day, and long-window collection.
 
-The previously verified live Google Ads proof remains `search_term_view` for a SEARCH campaign. That proof must not be generalized silently to Performance Max or another materially different campaign/resource mode. Performance Max and any other unapproved Google Ads reporting mode require their own scope and evidence gate.
+Preserve property identity, dimensions, requested dates, returned dimensions, provider limitations, raw pages, and native clicks/impressions/CTR/position.
 
-### 4.4 Google Ads Keyword Planner historical metrics
+### Google Ads SEARCH reporting
 
-- Primary acquisition: official Google Ads API.
-- Verified operation: `KeywordPlanIdeaService.GenerateKeywordHistoricalMetrics`.
-- Verified response shape: keyword, average monthly searches, competition, competition index, and 12 monthly search-volume rows.
-- Fallback: manual Keyword Planner CSV import.
-- Status: API and file feasibility **FINAL PASS**; implementation state is tracked separately.
+Official Google Ads REST SearchStream.
 
-The verified manual file uses UTF-16 text, tab-separated fields despite a `.csv` extension, and provider metadata/segmentation rows before keyword rows. Blank metrics remain `NULL`; they are never converted to zero.
+Approved family:
 
-### 4.5 İkas product catalog
+```text
+google-ads-search-reporting
+```
 
-- Acquisition: manually exported Products XLSX imported into RoofRoom.
-- Preserve the original workbook and normalize separately.
-- Blank stock remains `NULL`, never zero.
-- Status: feasibility **FINAL PASS**; implementation state is tracked separately.
+SEARCH-only datasets:
 
-### 4.6 Bitkimark public site
+- `CAMPAIGN_PERFORMANCE`
+- `AD_GROUP_PERFORMANCE`
+- `KEYWORD_PERFORMANCE`
+- `SEARCH_TERMS`
+- `AD_PERFORMANCE`
+- `RSA_ASSET_PERFORMANCE`
 
-- Acquisition: standard HTTP and sitemap/XML.
-- Verified structure: `sitemap.xml`, `blogs.xml`, `pages.xml`, `products.xml`, and `collections.xml`.
-- Preserve `loc` and `lastmod` where supplied.
-- Status: feasibility **FINAL PASS**; implementation state is tracked separately.
+The legacy `google-ads-search-terms` / `search_term_view` path remains compatible.
 
-`lastmod` is provider evidence. It must not be transformed into an unsupported conclusion that page content definitely changed.
+Performance Max and materially different Google Ads modes/resources require separate scope and evidence.
 
-### 4.7 SERP
+### Keyword Planner historical metrics
 
-- Provider: SerpApi Free.
-- Acquisition: explicit, on-demand query batches.
-- A real Turkey/Turkish Google Search smoke test and account/free-quota behavior were verified.
-- Status: feasibility **FINAL PASS**; implementation state is tracked separately.
+Primary: official Google Ads API.
+Fallback: manual provider CSV import.
 
-SERP is not a continuous rank tracker and must not automatically query the entire keyword universe on every refresh.
+Preserve keyword, average monthly searches, competition/index, monthly history, and returned bid metrics.
 
-The Collector may preserve query context, retrieval time, organic positions, title, URL, domain, snippet, provider feature data, raw JSON, and provider metadata. It must not derive dominant intent, commercial fit, recommended page type, `NEW BLOG`, `PDP FIRST`, or `CATEGORY FIRST`.
+API and file-import provenance remain distinct.
 
-### 4.8 Excluded and future sources
+API-only 3-month and YoY change fields may be derived deterministically from accepted monthly history under the locked data contract; they must be labelled derived and remain null when comparison evidence is unavailable or invalid.
 
-Semrush is not an active Release 1.0 requirement because no current paid/API acquisition path has been verified. Historical references do not put it back on the implementation roadmap.
+Manual CSV change fields remain provider-exported source evidence.
 
-Merchant Center, GA4, Google Ads modes/resources beyond the approved SEARCH reporting family, and other providers are extensibility examples only. Each requires a separate feasibility and scope gate.
+### İkas Products
 
-## 5. Acquisition vocabulary
+Manual Products XLSX import.
 
-| Acquisition mode | Release 1.0 use |
-|---|---|
-| `BROWSER_EXPORT` | Google Trends |
-| `OFFICIAL_API` | Google Search Console; Google Ads SEARCH reporting / Search Terms; Keyword Planner |
-| `FILE_IMPORT` | İkas Products XLSX; Keyword Planner CSV fallback |
-| `HTTP_XML` | Bitkimark public site |
-| `THIRD_PARTY_API` | SERP through SerpApi |
+Preserve the original workbook and evidence-backed production mapping.
 
-Source identity, dataset identity, source mode, and acquisition mode are separate concepts. These names are architectural vocabulary; they do not by themselves rename current persisted values, TypeScript unions, SQLite fields, or IPC contracts.
+Blank stock or unavailable values remain missing.
 
-## 6. Shared Core responsibilities
+### Bitkimark public site
 
-The Core conceptually owns:
+Bounded standard HTTP + sitemap/XML.
 
-- run and job management;
-- immutable attempt history;
-- resume, reconciliation, and retry coordination;
-- source registration and capability discovery;
-- browser lifecycle for sources that need a browser;
-- credential and access lifecycle through a dedicated security boundary;
-- freshness, due, and on-demand lifecycle;
-- raw, candidate, accepted, rejected, and derived artifact lifecycle;
-- storage and metadata/provenance;
-- validation orchestration;
-- structured logging and export coordination;
-- desktop UI and trusted IPC coordination.
+Preserve request/final URL context, response metadata, raw XML, sitemap relationships, `loc`, and nullable `lastmod`.
 
-Credential and freshness responsibilities are required, but this specification does not require classes with particular names. They must be integrated compatibly with the existing Core rather than used as justification for a rewrite.
+Do not infer a content change merely from `lastmod`.
+
+### SERP
+
+On-demand SerpApi acquisition.
+
+Preserve query context, location/language/device, retrieval time, raw provider JSON/metadata, organic evidence, and provider-returned features.
+
+Do not convert this evidence into intent, commercial-fit, page-type, SEO, or marketing recommendations inside the Collector.
+
+### Excluded / future
+
+Semrush is not active Release 1.0 scope.
+
+Merchant Center, GA4, unsupported Google Ads modes, arbitrary crawling/imports, continuous SERP tracking, and other providers require separate approved scope and feasibility.
+
+---
+
+## 5. Acquisition policy
+
+Preferred order:
+
+```text
+supported official API
+→ supported first-party export/UI
+→ controlled browser automation
+→ explicit file import or manual intervention where required
+```
+
+Conceptual acquisition modes:
+
+```text
+BROWSER_EXPORT
+OFFICIAL_API
+FILE_IMPORT
+HTTP_XML
+THIRD_PARTY_API
+```
+
+Source, dataset, source mode, and acquisition mode remain separate concepts.
+
+---
+
+## 6. Workspace and lifecycle boundary
+
+A Workspace is the first-class brand/business owner of Runs.
+
+A Run may contain Jobs from multiple sources.
+
+A Job is the independent execution/resume/retry unit.
+
+A retry creates a new immutable Attempt.
+
+One Workspace may have at most one active Run under the implemented active-status contract.
+
+All supported acquisition modes use the same trust lifecycle:
+
+```text
+intent
+→ readiness
+→ Run / Jobs
+→ Attempt
+→ acquire/import
+→ preserve raw candidate
+→ parse
+→ validate
+→ accept/warn/reject
+→ normalize where deterministic
+→ document/provenance
+→ package eligible evidence
+→ export
+```
+
+---
 
 ## 7. Security and provider policy
 
-Acquisition preference is: supported official API; supported first-party export; controlled browser automation; explicit user intervention or file import where necessary.
+RoofRoom must not:
 
-The application must not store user passwords; put OAuth refresh tokens, API keys, developer tokens, client secrets, or passwords in ordinary config, logs, exports, or documentation; use the user's normal browser profile; copy sessions without explicit consent; bypass CAPTCHA, 2FA, anti-bot controls, quotas, or rate limits; use CAPTCHA solvers or proxy rotation for evasion; or depend on undocumented/private endpoints as the default when a supported path exists.
+- store user passwords in ordinary application data;
+- expose OAuth tokens, API keys, client secrets, or equivalent secrets to renderer state;
+- put secrets in ordinary config, logs, exports, or documentation;
+- depend on the user's normal browser profile;
+- copy sessions without explicit consent;
+- bypass CAPTCHA, 2FA, anti-bot protections, quotas, or rate limits;
+- use CAPTCHA solvers or proxy rotation for evasion.
 
-Authentication or security intervention is an operational state such as `MANUAL_ACTION_REQUIRED`, not a dataset validation result. Rate limiting or quota exhaustion must stop unsafe automatic progress.
+Authentication, configuration, access, manual intervention, quota, and provider failures are operational states, not dataset-validation outcomes.
+
+---
 
 ## 8. Data-integrity rules
 
-### 8.1 Raw evidence
+### Raw evidence
 
-Original provider evidence should be immutable whenever practical. Examples include Google Trends CSV, Google API raw JSON, SerpApi raw JSON, original İkas XLSX, imported Keyword Planner CSV, and downloaded sitemap/XML.
+Raw provider/file evidence remains authoritative and immutable whenever practical.
 
-Parsing, normalization, or export creates separate representations. Rejected or suspicious evidence is not automatically deleted.
+Normalized, metadata, validation, package, and export artifacts remain separate.
 
-### 8.2 Missing values
+### Missing is not zero
 
-Missing, blank, withheld, unavailable, and zero are distinct. A missing value remains `NULL` or an empty output cell. Zero is used only when the source actually returned zero.
+Missing, withheld, absent, unavailable, and numeric zero are different states.
 
-### 8.3 Source semantics
+Missing remains null/absent/blank according to the representation.
 
-Metrics from different providers remain separate and explicitly named. Google Trends relative interest, Keyword Planner estimates, GSC observed performance, Google Ads account metrics, catalog facts, and third-party SERP data must not be collapsed into an invented generic score or volume.
+### Source semantics
 
-### 8.4 Requested and observed context
+Do not invent generic `score`, `demand`, `search_volume`, `commercial_value`, or equivalent fields that erase provider meaning.
 
-The requested date, geography, language, device, dimensions, selection mode, and source mode must remain distinguishable from provider-returned or observed context.
+### Requested versus observed
 
-### 8.5 Execution and validation
+Requested context and provider-proven observed context remain distinct.
 
-A successful API response, HTTP request, browser interaction, download, or file import does not automatically make a valid dataset. Execution status and validation status remain separate domains.
+Never copy a requested value into an observed field merely because the provider omitted evidence.
 
-## 9. Lifecycle
+### Execution versus validation
 
-All acquisition modes participate in the same trust lifecycle:
+A successful API response, browser action, download, import, parse, or file write does not automatically prove a trustworthy dataset.
 
-```text
-Plan job
-→ acquire or import
-→ preserve raw/candidate evidence
-→ parse
-→ validate
-→ accept, warn, or reject
-→ record provenance
-→ export eligible data
-```
+---
 
-Workspace, run, job, and attempt remain separate concepts. A Workspace identifies the brand/business boundary that owns a Run; every Run belongs to exactly one Workspace. A job is the independent resume/retry unit. A retry creates a new attempt and does not overwrite prior evidence. At most one Run may actively occupy a Workspace at a time.
+## 9. Credential, readiness, and freshness boundary
 
-`RETRY_REQUIRED` is a non-terminal Run state that releases the Workspace's active slot while preserving explicit retry eligibility. Reacquiring that slot, moving the eligible Job into execution, and creating the next Attempt must be one atomic operation. Restart discovery and reconciliation are scoped to an explicit Workspace.
+Credentials remain behind privileged Core/main-process boundaries.
 
-Freshness/readiness are separate from execution: freshness answers whether work is due, stale, fresh, needed, or on demand; readiness answers whether access, credentials, input, and source prerequisites permit work; execution answers what happened during a job; validation answers whether the resulting dataset can be trusted.
+Workspace connection state exposes only safe metadata and readiness.
 
-## 10. Desktop product boundary
+Freshness remains independent from:
 
-The desktop application should provide a non-technical workflow for seeing sources and their safe connection/readiness state; understanding freshness or import need; selecting configured work; starting explicit provider or import operations; viewing progress and operational stops; resuming or explicitly retrying eligible work; opening canonical evidence and accepted exports; and distinguishing raw technical archives from user-facing exports.
+- credential readiness;
+- execution;
+- validation.
 
-Provider credentials and sensitive content must not cross into the renderer except through strictly limited safe state. Workspace-owned connection metadata persists only safe source fields and a credential reference; readiness is source-specific and reports configuration/connection/manual states without exposing secrets.
+On-demand, manual-import, due, stale, fresh, and unknown states must not be collapsed into execution status.
 
-Workspace selection, Saved Collection Presets, Last Run Settings, reviewed Run Drafts, explicit run controls, and Workspace-scoped connection/readiness state are implemented application capabilities over the shared Core. The renderer remains presentation-oriented: it may request these actions through trusted IPC but must not own collection execution, credential storage, or provider request construction.
+---
 
-### 10.1 UX and operations hardening contract
+## 10. Package boundaries
 
-The desktop product must not expose a blocking state without an understandable reason and a direct user action when remediation is possible.
+### Production Data Package
 
-A user-facing readiness presentation should distinguish safe concepts such as:
+Packages accepted evidence without cross-source analysis.
 
-```text
-application/system health
-connection required
-input required
-file/import required
-manual action required
-ready
-```
+### Task Packages
 
-without collapsing the underlying readiness, freshness, execution, and validation domains.
+Task Packages assemble compatible accepted evidence. They do not authenticate, call providers, retry, or own acquisition.
 
-Workspace is the user-facing management surface for provider connections and safe account/property labels. Secret values remain behind the Core security boundary and must not be returned to the renderer.
+`ADS_OPTIMIZATION_PACK v1` follows this boundary.
 
-Task editing must prefer structured controls over compact developer-oriented mini-languages. Bulk paste/import may remain as an optional convenience, but the canonical reviewed artifact must be built from explicit validated user input.
+Its name does not authorize optimization recommendations; the package contains provider-native evidence and deterministic provenance only.
 
-Run history must communicate task/source, execution state, validation state, time, failure/retry state, evidence, and export actions without requiring the user to interpret internal IDs as the primary label.
+### Blog Writing Pack
 
-Presets are reusable configurations and therefore require a truthful create, inspect, edit, save, reopen, review, and run lifecycle. Destructive preset deletion must be explicit and confirmed.
+`BLOG_WRITING_PACK v1` is a fixed single-Run derived package over accepted evidence.
 
-Navigation and Workspace changes must not silently discard or cross-contaminate unsaved task/preset edits.
+It records truthful coverage and excludes out-of-recipe evidence.
 
-## 11. Storage and provenance
+It does not recollect, retry, create Attempts, mutate Run/Job state, or perform blog-topic/page-type recommendations.
 
-Canonical application state and raw run evidence use a deliberate application-owned location. A user-visible Downloads directory may contain intentional exported/copied files, but it is not the authoritative datastore.
+---
 
-Every accepted dataset must be traceable through stable identifiers to source and dataset semantics; acquisition/source mode; run, job, and attempt; requested and observed context; raw artifact and checksum where available; retrieval/import time; validation outcome; and application/schema version where applicable.
+## 11. Desktop product boundary
 
-Physical paths and exact database fields are governed by the live implementation and `DATA_CONTRACTS.md`.
+The desktop may:
 
-## 12. Testing policy
+- manage Workspaces;
+- show safe source readiness/connection state;
+- manage reusable presets/settings;
+- review supported collection tasks;
+- start explicit work;
+- show progress and remediation;
+- resume/retry/cancel where Core reports the action eligible;
+- open accepted evidence;
+- build/open/reveal supported packages.
 
-Normal unit, integration, regression, and CI tests must not call live providers. They use fixtures, mocks, fake source modules, and controlled local dependencies.
+Renderer remains presentation and user intent only.
 
-Live provider tests are explicit, limited, manual or separately invoked, and quota-aware. They verify access, response structure, parsing, and provenance rather than unstable exact business metrics.
+Privileged filesystem, database, browser, provider clients, credentials, and package verification remain in main/Core.
 
-SerpApi quota must not be consumed automatically. Google Ads, GSC, or Keyword Planner calls must not run in ordinary regression loops. Google Trends live actions remain explicitly guarded. Sanitized fixtures must come from observed provider behavior, not invented schemas presented as evidence.
+---
 
-## 13. Source implementation gate
+## 12. Storage and provenance
+
+SQLite stores operational state and references, not an analytical warehouse.
+
+Canonical raw evidence remains in application-owned storage.
+
+Accepted evidence must remain traceable to relevant:
+
+- Workspace;
+- source/dataset/mode;
+- Run;
+- Job;
+- Attempt;
+- raw artifact;
+- checksum where available;
+- retrieval/import time;
+- validation;
+- requested and observed context.
+
+Exact persisted contracts belong in `DATA_CONTRACTS.md`.
+
+---
+
+## 13. Testing policy
+
+Normal automated tests and CI must not call live providers.
+
+Use deterministic fixtures, mocks, fake sources, local files, and controlled local dependencies.
+
+Live/provider acceptance is explicit, limited, separately authorized, and quota-aware.
+
+Detailed verification depth belongs in `TEST_STRATEGY.md`.
+
+---
+
+## 14. Source implementation gate
+
+A new source or materially different provider mode enters through:
 
 ```text
 feasibility/acquisition proof
-→ source and dataset contract
-→ explicit implementation permission
-→ one end-to-end vertical slice
-→ deterministic regression coverage
-→ limited live acceptance evidence
-→ release integration
+→ source contract
+→ implementation approval
+→ one vertical slice
+→ deterministic regression
+→ limited explicit live acceptance where required
 ```
 
-No source is blocked merely because Google Trends must be “finished first.” It is blocked when its own feasibility, contract, permission, integrity, or test gate is missing.
+Historical documentation alone does not create implementation scope.
 
-## 14. Release 1.0 acceptance criteria
+---
 
-Release 1.0 is complete only when:
+## 15. Release acceptance rule
 
-1. every in-scope adapter is actually implemented and implementation is not confused with feasibility;
-2. each implemented source uses the shared run/job/attempt and artifact lifecycle;
-3. every source has real or sanitized evidence-based fixtures;
-4. raw evidence and provenance are preserved;
-5. missing values remain missing;
-6. requested and observed context are distinguishable;
-7. source-specific validation prevents suspicious evidence from canonical acceptance;
-8. operational access/quota failures remain separate from validation;
-9. safe resume/retry behavior is verified where supported;
-10. exports preserve source identity and metric semantics;
-11. credential and freshness responsibilities are implemented through Core-compatible boundaries;
-12. the desktop workflow exposes supported sources without leaking secrets;
-13. automated regression makes no live-provider requests;
-14. explicit live smoke evidence exists for each implemented acquisition path;
-15. unsupported source modes fail visibly rather than claiming completeness.
+A claimed Release 1.0 capability is complete only when the relevant implementation:
 
-The existing Google Trends MVP remains a completed reference slice only to the extent proven by live code and tests. It does not satisfy the multi-source Release 1.0 gate by itself.
+- uses the shared lifecycle;
+- preserves canonical raw evidence and provenance;
+- preserves missing/null semantics;
+- validates source-specific meaning;
+- keeps operational failure separate from dataset quality;
+- preserves retry/resume history;
+- exposes safe desktop/IPC behavior;
+- packages/exports only eligible evidence;
+- has deterministic regression coverage;
+- has live/provider evidence only where that claim is explicitly made.
 
-## 15. Document authority
+Unsupported or unverified modes must fail visibly.
 
-- `PROJECT_HANDOFF.md` records live repository state and the exact next action.
-- `ARCHITECTURE.md` records component boundaries and dependency direction.
-- `DATA_CONTRACTS.md` records identifiers, states, null semantics, and provenance contracts.
-- `VALIDATION_SPEC.md` records generic and source-specific validation behavior.
-- `TEST_STRATEGY.md` records deterministic and live-test gates.
-- `SOURCE_MODULE_GUIDE.md` records source onboarding and module boundaries.
-- `DECISIONS.md` preserves architecture decision history and supersession.
+---
 
-Fast-changing progress must not be written into this specification.
+## 16. Authority routing
 
-## 16. Governing product rule
+| Need | Authority |
+|---|---|
+| Current state / next action | `PROJECT_HANDOFF.md` |
+| Architecture | `ARCHITECTURE.md` |
+| Persistence / nulls / provenance | `DATA_CONTRACTS.md` |
+| Validation | `VALIDATION_SPEC.md` |
+| Verification depth | `TEST_STRATEGY.md` |
+| Source onboarding | `SOURCE_MODULE_GUIDE.md` |
+| Historical decisions | `DECISIONS.md` |
 
-The primary quality metric is not how much data the application collects. It is how reliably the evidence can be traced, preserved, validated, reproduced, audited, and exported without losing source meaning.
+---
+
+## 17. Governing product rule
+
+> **Collect trustworthy evidence, preserve its meaning and provenance, and package it without manufacturing facts or decisions.**

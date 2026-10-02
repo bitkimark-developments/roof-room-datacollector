@@ -1,384 +1,330 @@
 # RoofRoom Data Collector — Test Strategy
 
-**Status:** Canonical multi-source test strategy
-**Primary rule:** Normal automated tests never call live providers
+**Status:** Canonical verification strategy
+**Primary rule:** Normal automated tests and CI never call live providers
 
 ---
 
-## 1. Goals
+## 1. Goal
 
-Testing must prove that the application:
+Use the smallest deterministic evidence set that proves the changed boundary reliably.
 
-- preserves source evidence and semantics;
-- keeps run/job/attempt state coherent;
-- rejects malformed, suspicious, or mismatched data;
-- never replaces missing values with zero;
-- separates operational failure from validation;
-- resumes/retries without erasing history;
-- keeps credentials and privileged operations outside the renderer;
-- integrates independent source modules through shared Core;
-- can be verified deterministically without spending provider quota.
+Testing protects:
 
-## 2. Test categories
+- evidence preservation;
+- Run/Job/Attempt correctness;
+- persistence/migration integrity;
+- source semantics;
+- null/zero behavior;
+- requested/observed separation;
+- validation;
+- credential/IPC boundaries;
+- package integrity;
+- resume/retry/cancellation behavior.
+
+---
+
+## 2. Test levels
 
 ### Unit
 
-Pure parsing, validation, state transitions, ID/path rules, freshness calculations, readiness mapping, error mapping, and serializers.
+Pure parsing, validation, mapping, serialization, state transitions, helpers.
 
 ### Integration
 
-SQLite, filesystem storage, orchestration with fake sources, configuration adapters, import pipelines, API client boundaries with mocks, local HTTP/XML behavior, IPC, export, and desktop controller behavior.
+SQLite, filesystem, Core orchestration, source adapters, credentials, IPC, package stores/exporters, local HTTP.
 
 ### Renderer/UI
 
-Source selection, freshness/readiness display, input validation, progress, manual-action/error states, resume/retry intent, import selection, and file-access behavior through mocked IPC.
+User-visible intent/state/remediation/action availability.
 
-### Packaging/release
+### Packaging/runtime
 
-Type checks, lint, deterministic suites, package composition, Electron security boundary, schema integrity, and source-specific gates.
+Electron composition, packaged resources, signing/runtime startup, safe open/reveal behavior.
 
-### Live provider smoke
+### Live-provider acceptance
 
-Explicit, separately invoked, minimal, quota-aware checks using approved accounts/requests. They are not normal regression tests.
+Explicit, separate, minimal, quota-aware proof of current provider behavior.
 
-## 3. Non-negotiable live-provider policy
+Never routine regression.
 
-Unit, integration, regression, release-gate, and CI commands must not call Google Trends, GSC, Google Ads, Keyword Planner, SerpApi, or any other live provider.
+---
 
-Live commands must:
+## 3. Verification-depth rule
 
-1. require explicit invocation/confirmation;
-2. state which provider and approximate call scope they use;
-3. make the minimum request needed for the evidence goal;
-4. stop on authentication, manual action, rate limit, or quota exhaustion;
-5. avoid automatic retry, refresh, or evasion;
-6. record safe structure/provenance evidence without leaking secrets;
-7. avoid assertions on unstable exact business metric values.
+### Local/pure change
 
-SerpApi quota must never be consumed by an automated refresh or regression loop. Google Ads/GSC/Keyword Planner must not be repeatedly called while fixing deterministic tests.
+```text
+focused deterministic test
+```
 
-## 4. Fixture policy
+### Shared/reused contract
 
-Fixtures are sanitized representations of observed provider behavior. A hand-written model may test internal code, but it must not be described as proof of provider schema.
+```text
+focused test
++ affected regressions
+```
 
-Each fixture records, in a nearby README or manifest where practical:
+### Persistence / filesystem / IPC / credential / package-integrity change
 
-- source and dataset;
-- acquisition/source mode;
-- evidence origin and sanitization date;
-- removed sensitive fields;
-- encoding/delimiter/media type;
-- important provider limitations;
-- expected parser and validation result.
+```text
+focused integration
++ affected regressions
+```
 
-Fixtures must not contain OAuth tokens, API keys, developer tokens, passwords, cookies, private account identifiers that are not necessary, or production secrets.
+### Slice/checkpoint boundary
 
-## 5. Shared Core suite
+Run the relevant broader deterministic gate.
 
-The deterministic Core suite covers:
+### Release/runtime boundary
 
-- run creation, transition, aggregation, completion, cancellation, and manual action;
-- job ordering, independent failure, validation state, and accepted artifact references;
-- immutable attempt creation and retry history;
-- schema-v6 Workspace migration and required Run ownership;
-- database-backed one-active-Run enforcement across repository connections and restart;
-- SQLite migrations, foreign keys, strict status values, and integrity checks;
-- collision-safe raw storage, SHA-256/byte size, path containment, and immutability;
-- metadata and validation persistence;
-- sequential orchestration with fake sources;
-- reconciliation and resume behavior;
-- explicit retry limits;
-- atomic Workspace retry reacquisition, Job transition, and Attempt creation with rollback on conflict;
-- Workspace-scoped incomplete-Run discovery and cross-Workspace fail-closed resume planning;
-- structured log redaction;
-- renderer/main/preload privilege boundaries;
-- export eligibility and provenance.
+Run release/package/runtime verification only when that boundary is part of the claim.
 
-Multi-source Core tests include jobs that do not naturally have a Google Trends query group. Chained schema-v4/v5/v6 migration preservation, nullable `query_group_id`, persisted source context, Workspace ownership, and the fake JSON source lifecycle are deterministic release-gate coverage; no placeholder query group is used.
+### Live behavior
 
-The deterministic multi-source Run gate uses two independently registered fake sources and validators in one persisted Run. It proves truthful selected-source membership, per-Job collector/validator dispatch, same-key cross-source identity, continuation after a middle Job failure, restart/reconciliation, failed-only attempt-2 retry, immutable rejected evidence, and source/job/attempt-correct provenance. The validator-registry gate separately proves invalid and duplicate registrations, and unknown lookups, fail closed.
+Use the smallest separately authorized live acceptance that cannot be proven locally.
 
-## 6. Acquisition-mode suites
+Do not run broader gates merely for reassurance.
+
+---
+
+## 4. Default development loop
+
+```text
+inspect relevant live code + directly affected contract
+→ smallest failing deterministic test where practical
+→ observe RED
+→ minimum compatible implementation
+→ observe GREEN
+→ affected regressions if required
+→ diff/check
+```
+
+Do not repeatedly rerun unchanged gates.
+
+---
+
+## 5. Live-provider policy
+
+Normal unit, integration, regression, release-gate, and CI commands must not call:
+
+- Google Trends;
+- GSC;
+- Google Ads;
+- Keyword Planner;
+- SerpApi;
+- any future provider.
+
+A live command must be:
+
+- explicitly authorized;
+- bounded;
+- quota-aware;
+- non-destructive;
+- separate from deterministic verification;
+- stopped on auth/manual/rate-limit/quota/security intervention.
+
+Do not assert unstable exact business metrics.
+
+---
+
+## 6. Fixture policy
+
+Provider fixtures should preserve enough sanitized structure to prove:
+
+- source/dataset identity;
+- acquisition/source mode where relevant;
+- encoding/media shape;
+- parser behavior;
+- validation behavior;
+- provider limitations needed by the test.
+
+Never commit credentials, cookies, tokens, production secrets, or unnecessary private account identifiers.
+
+---
+
+## 7. Shared Core coverage
+
+Relevant Core tests cover:
+
+- Workspace ownership;
+- one-active-Run enforcement;
+- multi-source Run membership;
+- source-keyed Job identity;
+- nullable GT-only query groups;
+- immutable Attempts;
+- retry atomicity;
+- reconciliation/resume/cancellation;
+- migrations and integrity;
+- artifact state/storage/checksum;
+- provenance;
+- validator dispatch;
+- credentials/readiness;
+- freshness;
+- renderer/main privilege boundaries;
+- package/export eligibility.
+
+Use fake source-neutral collaborators where provider behavior is irrelevant.
+
+---
+
+## 8. Source coverage
+
+Each implemented source adds only the tests needed for its own contract:
+
+- request/input mapping;
+- parser/normalizer;
+- source validation;
+- missing/null/zero semantics;
+- malformed/non-data behavior;
+- provider operational error mapping;
+- raw preservation;
+- provenance;
+- Core integration;
+- UI/IPC only where exposed;
+- package/export eligibility.
+
+Detailed trust semantics belong in `VALIDATION_SPEC.md`.
+
+---
+
+## 9. Acquisition-mode coverage
 
 ### Browser export
 
-Deterministic tests cover selector/control contracts, bounded waits, provider-state mapping, direct byte capture, no unauthorized refresh/retry, source page cleanup, and fail-closed diagnostics. Live browser smoke remains explicit.
+Test verified interaction contract, bounded waits, provider-state mapping, byte capture, browser ownership, fail-closed behavior.
 
 ### Official API
 
-Tests use mocked clients or sanitized response fixtures for pagination, dimensions, request mapping, error/auth/quota mapping, raw JSON preservation, cancellation, and provenance. No live OAuth or API call occurs in ordinary tests.
+Mock/sanitize requests, pagination/streaming, responses, auth/quota mapping, cancellation, raw preservation, provenance.
 
 ### File import
 
-Tests use local fixtures for file selection boundaries, original-byte preservation, MIME/signature checks, encoding/delimiter detection, workbook/CSV parsing, malformed input, null behavior, duplicate import/collision policy, and provenance.
+Use controlled fixture files for path validation, original-byte preservation, format detection, encoding/workbook parsing, malformed input, null semantics.
 
 ### HTTP/XML
 
-Tests use XML fixtures or a controlled local HTTP server for status/content mismatch, malformed XML, sitemap index/child relationships, URL validation, duplicate rows, missing `lastmod`, and raw response preservation.
+Use fixtures or local HTTP for content mismatch, XML parsing, relationships, duplicates, optional fields, raw-response preservation.
 
 ### Third-party API
 
-Tests use mocked SerpApi responses for success, fewer/no organic results, provider errors, quota mapping, context, raw JSON, and no analysis fields. They never spend real search quota.
+Mock success/no-results/errors/quota/request context/raw evidence.
 
-## 7. Source-specific deterministic matrix
+---
 
-### Google Trends
+## 10. Credential and security coverage
 
-Keep all current deterministic suites covering provider state/probe, query controls, geography, date period/range/dialog, fixed filters, download selection/capture, parser, validation, collecting source, runtime composition, Core persistence, batch flow, desktop workflow, export, and UI diagnostics.
+Where affected, prove:
 
-Current test IDs and scripts in the repository remain evidence; documentation does not renumber them. New period changes must update contract, UI, propagation, date derivation, validation cadence, and resume snapshot tests together.
+- secrets never cross renderer IPC;
+- secrets do not appear in logs/config/exports/findings/packages;
+- safeStorage/credential references behave correctly;
+- masked native secret ingress does not place secrets in argv/temporary files/clipboard;
+- cancellation/failure preserves prior valid credential state;
+- source readiness reflects real configuration state.
 
-### Google Search Console
+---
 
-Required coverage:
+## 11. Freshness coverage
 
-- query, query+page, and date+query request/response contracts;
-- OAuth/readiness mapping without live access;
-- pagination/row handling;
-- metric and dimension parsing;
-- empty response versus operational failure;
-- requested/observed date and property provenance;
-- raw JSON preservation and validation.
+Where affected, prove:
 
-### Google Ads SEARCH reporting family
+- freshness is deterministic;
+- readiness/freshness are separate;
+- accepted completed evidence advances last success;
+- failed/rejected/candidate evidence does not;
+- on-demand sources do not become refresh loops;
+- clock logic is controllable.
 
-Required deterministic coverage includes:
+---
 
-- exact source-family and six-dataset contract;
-- dataset-to-resource-mode mapping;
-- canonical REST SearchStream envelope flattening;
-- malformed, empty, and multi-envelope response behavior;
-- raw JSON preservation and immutability;
-- GAQL/request mapping for `campaign`, `ad_group`, `keyword_view`, `search_term_view`, `ad_group_ad`, and `ad_group_ad_asset_view`;
-- SEARCH-only fail-closed behavior;
-- exact requested date context;
-- native metric parsing, missing `NULL`, and true-zero preservation;
-- verified empty result → `NO_DATA`;
-- malformed/schema-changed response rejection;
-- customer/source/dataset/date provenance;
-- API/auth/access/quota/provider failure mapping;
-- independent dataset Job behavior;
-- Production Data Package loading for all six accepted datasets;
-- existing `google-ads-search-terms` quick-run regression compatibility.
+## 12. Package coverage
 
-The aggregate `test:m3:google-ads-search-reporting` gate remains deterministic and must make no live Google Ads request. Live acceptance is separately invoked and quota-conscious.
+### Production Data Package
 
-### ADS_OPTIMIZATION_PACK v1 Slice B
+Prove accepted-only loading, source separation, integrity/provenance, no raw mutation.
 
-`npm run test:m7:ads-optimization-pack` is the deterministic aggregate gate for the recipe/window policy, accepted-evidence resolution, immutable package storage, CURRENT/PREVIOUS assembly, Ads workbook export, and an integrated local six-dataset package flow. It uses temporary run-scoped raw artifacts and local repository/storage fixtures only; it constructs no requester or acquirer and makes no live provider call.
+### `ADS_OPTIMIZATION_PACK v1`
 
-Required coverage includes exact reuse, exact-window `NO_DATA`, rejection of broader `NO_DATA`, exact `performance_date` filtering of broader populated DAILY rows, acquisition timestamps as provenance rather than freshness eligibility, visible `NOT_READY`, deterministic baseline/tie selection, gap recording, historical snapshot preservation, strict manifest/transformation validation, path/symlink/checksum/row-count failures, atomic non-overwriting publication, raw-byte immutability, literal formula-like strings, deterministic nested arrays, and null/zero behavior. The focused gate is included once in the deterministic release gate. Live Google Ads acceptance remains a separate gate.
+Prove exact compatibility, current/previous window rules, no reconstruction, deterministic evidence reuse, immutable publication, safe manifest/table/workbook validation, trusted desktop Review/Start/Open contracts.
 
-### ADS_OPTIMIZATION_PACK v1 Slice C
+### `BLOG_WRITING_PACK v1`
 
-`npm run test:m7:ads-optimization-pack-desktop` deterministically covers local Review, authoritative Start re-resolution, missing-only SEARCH Job reservation, local publication/duplicate reuse, package-ID-only opening, trusted IPC/preload validation, and production composition with fake execution/open seams. Desktop UI smoke covers the Task Package catalog branch, six requirement outcomes, exact-window `NO_DATA` copy, missing-versus-zero distinction, baseline/comparison/duplicate states, Core-owned retry, terminal re-review, and absence of optimization judgments. The Slice C aggregate and desktop UI smoke each appear once in the release gate and make no live provider call.
+Prove fixed recipe filtering, truthful coverage, Keyword Planner provenance separation, immutable publication, package/data consistency, workbook structure, trusted Build/Open/Reveal, and no acquisition/retry side effects.
 
-### Keyword Planner
+---
 
-Required API coverage includes historical-metrics request mapping, keyword identity, average searches, competition/index, monthly rows, nullable bid/volume fields, and operational error mapping.
+## 13. Resume/retry/cancellation coverage
 
-Required import coverage includes UTF-16, tab delimiter despite `.csv`, leading provider metadata/segmentation rows, blank metric `NULL`, unrelated/malformed input, original-byte preservation, and API/import provenance distinction.
+Where supported, prove:
 
-### İkas Products
+- accepted work is not recollected unnecessarily;
+- interrupted state reconciles before new work;
+- retry creates a new Attempt;
+- retry ownership/active-slot changes are atomic;
+- earlier evidence remains preserved;
+- quota/manual conditions do not loop;
+- cancellation does not fabricate provider interruption.
 
-Required coverage includes valid real-shape workbook, blank stock, product/variant identity, missing required fields, corrupt workbook, original preservation, normalized linkage, and no missing-to-zero conversion.
+---
 
-### Bitkimark public site
+## 14. UI / IPC coverage
 
-Required coverage includes sitemap index, blogs/pages/products/collections children, `loc`, nullable `lastmod`, malformed XML, HTML error content, duplicate/foreign URLs, HTTP failures, and provenance.
+Test only behavior exposed by the changed slice:
 
-### SERP
+- safe source/connection state;
+- remediation actions;
+- reviewed inputs;
+- start/resume/retry/cancel intent;
+- progress;
+- accepted-evidence opening;
+- package review/build/open/reveal;
+- rejection of invalid renderer inputs.
 
-Required coverage includes successful organic results, fewer results, no organic results, provider error, quota exhaustion, query/country/language/device context, nullable fields, raw JSON, and a regression assertion that Collector output contains no intent or recommendation fields.
+Privileged objects and secrets must not cross IPC.
 
-## 8. Credential and freshness tests
+---
 
-Credential boundary tests must prove:
+## 15. Evidence claims
 
-- secrets do not appear in renderer IPC, logs, docs, configuration snapshots, validation findings, or exports;
-- missing/expired/denied access maps to safe readiness/operational states;
-- development-only credentials are not an implicit production runtime dependency;
-- source modules receive access through a controlled Core boundary.
-
-Freshness tests must prove:
-
-- fresh, due, stale/import-needed, on-demand, and unknown semantics are deterministic;
-- readiness and freshness are independent;
-- SERP on-demand policy does not schedule all-keyword refresh;
-- clock-dependent logic uses an injected/fixed clock;
-- successful collection/import updates freshness only after the required acceptance boundary.
-
-The implemented states are `FRESH`, `DUE`, `STALE`, `IMPORT_NEEDED`, `ON_DEMAND`, and `UNKNOWN`; policy kinds are `UNKNOWN`, `ON_DEMAND`, `MANUAL_IMPORT`, and `INTERVAL`.
-
-## 9. Validation and integrity tests
-
-Every source must test:
-
-- valid evidence;
-- zero-byte/non-data/error content;
-- malformed or changed schema;
-- missing required identity;
-- missing numeric values remaining null;
-- true zero remaining zero;
-- requested/observed mismatch;
-- rejected artifact excluded from normal export;
-- accepted-with-warning retains warning;
-- raw bytes/checksum unchanged after parse/export;
-- validation result and execution result remain distinct.
-
-## 10. Resume/retry tests
-
-Source integration must prove:
-
-- completed accepted jobs are not recollected;
-- interrupted attempts reconcile before new work;
-- failed-job retry creates a new attempt;
-- old artifacts and errors remain preserved;
-- manual action does not create an unauthorized automatic retry;
-- rate-limited/quota-exhausted sources do not loop;
-- file-import retry does not overwrite the original artifact;
-- multi-source runs can make safe progress without corrupting another source's state.
-- a source-specific validator is never reused for another source merely because both Jobs belong to one Run.
-
-## 11. UI and IPC tests
-
-Connection/readiness infrastructure is covered by deterministic v8 migration and Workspace readiness vertical-slice tests. They verify isolation, duplicate logical connection enforcement, credential availability states, unsupported-source fail-closed behavior, and secret-free persistence.
-
-Freshness coverage uses a fixed clock and schema-v8 accepted Job history. It verifies exact due/stale boundaries, manual-import/on-demand/unknown policies, Workspace/source isolation, invalid policy and timestamp rejection, repository reopen, no advancement before accepted Job completion, readiness independence, and separate renderer labels. It performs no provider request and starts no scheduler.
-
-Google request-composition tests use a deterministic `safeStorage` adapter and fake HTTP responses to verify encrypted-at-rest credential files, PKCE material, browser-bootstrap composition, form-encoded refresh exchange, bearer and Ads headers, bounded explicit live guards, reauthorization state, missing-credential failure, and absence of secret propagation. They never open a browser or call Google.
-
-SerpApi source coverage uses sanitized deterministic JSON and fake credentials/transport to verify one request per query, Workspace isolation, Türkiye/Turkish/Desktop parameters, exact raw preservation, first-ten organic/PAA normalization, nullable fields, readiness, quota/timeout stop behavior, and independent query-level Job plans. No SerpApi request runs in deterministic tests.
-
-The guarded `m3:live-serpapi` command has a deterministic argument test proving unconfirmed or unbounded invocations exit before Electron/provider activity.
-
-The Workspace preset checkpoint is covered by deterministic schema-v7 migration and repository reservation vertical-slice tests, including Workspace isolation, preset immutability, atomic Last Run update/rollback, immutable resolved snapshots, and reopen persistence.
-
-Generalized desktop coverage uses a compact controller integration test for heterogeneous source planning, readiness blocking, Workspace-scoped draft sanitization, and reservation, plus a package test for separate datasets, manifest/failure evidence, Successful Only filtering, and NULL preservation. Existing UI smoke remains a localhost-only renderer check; no provider requests are part of these tests.
-
-UXH2 coverage preserves the read-only Workspace connection boundary and adds deterministic write-side layers. Repository tests cover exact delete/restore, global reference counts, atomic shared rebind, and safe-metadata updates on schema v8. Service tests cover serialization, shared references, compensation, fail-closed lookup errors, Google OAuth Connect/Reconnect, SerpApi fresh-reference provision/replacement, and secret-free outcomes. Native-ingress tests inject a fake child process and cover fixed stdin program delivery, empty secret argv, bounded pipes, chunking, multibyte overflow, timeout, cancellation, malformed output, and process/pipe failure without opening a prompt. Acquirer tests use fake ingress/store boundaries to cover structural validation, one fresh write, and cleanup. Main IPC/preload tests cover trust-first exact intent validation, dedicated allowlisted channels, safe output validation, and the unchanged read method. Composition tests keep OAuth/system-browser/native ingress/credential storage in main. Renderer smoke tests cover status-specific SerpApi Provision/Re-provision/Replace actions without a secret input, row pending state, double-submit prevention, fixed errors, cleanup warnings, and exactly one safe reread after every result path. The end-to-end security regression proves a synthetic key reaches the privileged store exactly once and is absent from renderer intent/response, diagnostics, captured logs, ordinary config/export writes, and safe read serialization. These focused tests are part of `npm run test:release:gate` and make no live provider call or real native prompt.
-
-Test safe source summaries, readiness/freshness distinction, selection/import input, start/cancel/resume/retry intent, progress and validation display, unsupported/manual/quota states, canonical file opening, export opening, and strict rejection of invalid renderer inputs.
-
-The renderer must not receive tokens, API keys, unrestricted paths, raw account payloads, or browser objects.
-
-## 12. Export tests
-
-Deterministic non-Google source coverage includes one İkas XLSX raw-preservation/parser/validator slice covering the production 40-column mapping, label-based variant attributes, nullable sale price/stock, URL-vs-image separation, and source-native availability, plus one Bitkimark XML inventory/annotation/validator slice; live provider requests remain excluded from routine gates.
-
-The guarded Bitkimark live-sitemap command has a deterministic `BITKIMARK-LIVE-CMD-001` test. It proves exact confirmation and HTTPS URL validation before fetch, one-request/no-retry behavior, raw-byte hash/size preservation, parser/validator acceptance and annotation counts, safe summary output, and controlled HTTP failure handling. The command itself is acceptance-only and is never run by deterministic gates.
-
-Exports must:
-
-- include only eligible accepted/accepted-with-warning data;
-- preserve source/dataset/acquisition labels;
-- keep provider-native metric names and units;
-- preserve query/comparison and requested/observed context;
-- keep missing cells empty and real zeros numeric;
-- link provenance to raw evidence;
-- distinguish separate sources/sheets/tables;
-- refuse unsafe overwrite/collision;
-- never turn Downloads into canonical raw storage.
-
-Generic production Data Package coverage must exercise every implemented Release 1.0 source through its accepted raw artifact and verified native parser/normalizer. It must also prove exact Job/source binding, same-source multi-Job filename separation, persisted dataset provenance, NULL preservation, terminal-Run enforcement, rejection of changed bytes/checksums and mismatched identities, failed/rejected omission from normalized datasets, and safe failure retention in Export All. These tests use sanitized local fixtures and make no provider request.
-
-`npm run test:m6:blog-writing-pack` is the deterministic Blog Writing Pack aggregate gate. It covers exact recipe filtering, COMPLETE/PARTIAL/MISSING/verified-NO_DATA coverage, Keyword Planner API/CSV provenance separation, trusted workbook identity, fixed workbook/null/zero semantics, immutable atomic package publication, manifest/dataset consistency, safe package-ID file access, local-only desktop Build/Open/Reveal IPC, and Run-scoped UI state. The aggregate runs once inside the full deterministic release gate and makes no live provider request.
-
-Target-mac Blog packaged acceptance is separate from deterministic regression. It requires a fresh arm64 `.app`, valid local code-signature structure, successful packaged launch, usable Run Detail/export surfaces, and absence of path/token/secret/stack leakage. When a truthful accepted in-recipe Run already exists, acceptance also exercises packaged Blog Build/Open/Reveal against that evidence; no synthetic accepted Run is created merely to satisfy the check.
-
-## 13. Commands and gate design
-
-The current `package.json` exposes focused deterministic scripts and `npm run test:release:gate`. Existing script names remain valid until implementation changes them.
-
-Every future source adds:
-
-- focused parser/validator tests;
-- acquisition-boundary tests;
-- Core vertical-slice integration tests;
-- UI/IPC tests where exposed;
-- its deterministic script to the relevant release gate;
-- a separately guarded live smoke command, if live evidence is required.
-
-Every source composition used by `CollectionOrchestrator` also registers its validator under the same source ID. A missing validator is a fail-closed composition error.
-
-No ordinary gate may invoke that live command.
-
-## 14. Development stage gate
-
-For each implementation slice:
+Keep distinct:
 
 ```text
-repository/live-contract audit
-→ bounded implementation plan
-→ focused deterministic RED
-→ confirm the failure is the intended failure
-→ minimal implementation
-→ focused GREEN
-→ relevant regressions
-→ typecheck / lint / diff check
-→ full deterministic release gate at the coherent slice boundary
-→ package/smoke when IPC, preload, packaging, privileged file/connection behavior, or integrated packaged journeys changed
-→ review diff
-→ technical commit
-→ handoff/documentation checkpoint
-→ fast-forward local main
-→ post-merge verification
-→ limited explicit live smoke only when separately required and authorized
+test exists
+test ran
+test passed
+release gate passed
+package built
+packaged runtime accepted
+live provider accepted
 ```
 
-Expensive verification is batched at coherent boundaries rather than after every small edit. A broad failing gate triggers systematic debugging: reproduce, inspect evidence, trace the root cause, test one hypothesis, apply the smallest justified fix, then rerun the affected verification.
+Historical PASS evidence is historical.
 
-Test results are recorded as PASS only when the exact command ran successfully. Historical results remain historical and must be labeled with their checkpoint/date.
+Do not claim a later changed implementation passed unless the relevant gate was rerun.
 
-## 15. Release 1.0 gate
+Current verification state belongs in `PROJECT_HANDOFF.md`.
 
-Release 1.0 requires:
+---
 
-1. Core deterministic suite passing;
-2. each in-scope implemented source's fixture/parser/validator/acquisition integration passing;
-3. credential and freshness boundaries passing;
-4. renderer/IPC and export integrity passing;
-5. package/build checks passing on the target environment;
-6. separately approved live smoke evidence for every implemented acquisition path;
-7. no live provider call in automated regression/CI;
-8. no unverified source mode presented as complete;
-9. no secrets in repository or test artifacts;
-10. exact command evidence recorded in `PROJECT_HANDOFF.md`.
+## 16. Release/checkpoint gate
 
-Google Trends passing alone is a source checkpoint, not the complete multi-source Release 1.0 gate.
+At a release or substantial shared checkpoint, require the relevant combination of:
 
-Target-mac packaging acceptance is separate from the deterministic release gate. It requires a fresh `npm run package`, an actual `.app` artifact, valid local code-signature structure, packaged external runtime dependencies, and an isolated launch from outside the repository so local `node_modules` cannot mask a missing packaged dependency. Apple Developer ID signing and notarization remain separate distribution credentials, not prerequisites for local R1 acceptance.
+- shared Core deterministic coverage;
+- affected source suites;
+- credential/security coverage where changed;
+- freshness coverage where changed;
+- UI/IPC coverage where changed;
+- package/export integrity;
+- type/lint/build checks where required by the boundary;
+- packaging/runtime checks when claimed;
+- explicit live acceptance only when separately authorized.
 
-## 16. Governing test rule
+No live provider request belongs inside the ordinary deterministic release gate.
 
-Prefer deterministic evidence. Use live providers only for the smallest explicit proof that cannot be established locally, and never turn an external account or quota into a routine regression dependency.
+---
 
-## 17. UX & Operations Hardening test program
+## 17. Governing test rule
 
-The post-R1 UX/Operations Hardening program adds deterministic user-journey coverage without weakening the existing source/data-integrity gates.
-
-Required slices and primary proofs:
-
-- **UXH0 Reality Lock:** no feature-code change; repository/UI capability matrix must be evidence-based.
-- **UXH1 Status & Remediation:** every blocking readiness presentation has a reason and remediation action; readiness and freshness remain independent.
-- **UXH2 Workspace Connections:** safe read, Google Connect/Reconnect, metadata Manage, Disconnect, and SerpApi native-prompt provisioning are covered through privileged main-process service/IPC boundaries, shared-reference/fresh-reference compensation tests, renderer pending/refresh behavior, and leak-negatives. Deterministic gates never open the real prompt or call SerpApi; packaged prompt/store acceptance remains separately authorization-gated.
-- **UXH3 Task Detail Remediation:** no supported task ends at a dead-end `CONFIGURATION REQUIRED` state.
-- **UXH4 Structured Editors:** Keyword Planner/SerpApi add/edit/remove and duplicate/empty validation are deterministic; Review receives the exact normalized user intent.
-- **UXH5 File Import UX:** selected file preview/replace/remove is deterministic; path privileges remain in main/Core; original bytes remain unchanged.
-- **UXH6 Bitkimark Selector:** only approved sitemap URLs can be selected through the primary UI; selected count equals planned request count.
-- **UXH7 Run History/Detail:** task/source, execution state, validation state, failure reason, retry, evidence, and export actions derive from persisted Core state.
-- **UXH8 Task Recent Runs:** Workspace + task/source filtering is correct and cannot leak another task/workspace history.
-- **UXH9 Presets:** create/edit/rename/duplicate/delete/reopen/review/run is covered; delete confirmation and persisted content are verified.
-- **UXH10 Editing Safety:** navigation/workspace changes do not silently discard or cross-contaminate dirty edits.
-- **UXH11 Source Context:** safe property/account/scope/request/file information is displayed without secret leakage.
-- **UXH12 Dashboard:** summary counts derive from the same readiness/run/freshness truth as task/run surfaces.
-- **UXH13 Polish:** accessibility/readability changes must not alter machine contracts.
-- **UXH14 Integrated Gate:** packaged end-to-end connection/configure/review/run/evidence/export, file-import, failure/retry, preset, and Workspace-isolation journeys pass.
-
-For renderer/main boundary changes, tests must include invalid IPC input and privilege-boundary negatives.
-
-For credential UX changes, assert that OAuth tokens, API keys, developer tokens, client secrets, passwords, unrestricted paths, and raw account payloads never enter renderer state, logs, validation findings, configuration snapshots, or exports.
-
-For editing flows, use fixed deterministic inputs; do not rely on live providers.
-
-At coherent UXH slice boundaries run focused GREEN, relevant regressions, typecheck, lint, `git diff --check`, and the full deterministic release gate. Run packaging/smoke when IPC, preload, packaging, privileged file/connection behavior, or final integrated user journeys change.
+> **Prove the changed boundary with the minimum sufficient deterministic evidence; use live providers only for explicit proof that cannot be established locally.**

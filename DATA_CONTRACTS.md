@@ -1,7 +1,7 @@
 # RoofRoom Data Collector — Data Contracts
 
-**Status:** Canonical contracts reconciled with SQLite schema version 8 and current TypeScript interfaces
-**Rule:** Conceptual multi-source additions do not silently rename implemented persisted values
+**Status:** Canonical contracts reconciled with schema v8 and current source/package contracts
+**Scope:** Persisted IDs/states, null semantics, provenance, source-native meaning, and package evidence rules
 
 ---
 
@@ -10,60 +10,70 @@
 1. Preserve source meaning.
 2. Missing is not zero.
 3. Raw evidence is immutable whenever practical.
-4. Stable machine identifiers and human labels are different concerns.
+4. Requested and observed context remain distinct.
 5. Execution and validation are separate domains.
-6. Requested and observed/provider-returned context remain distinguishable.
-7. Source identity, dataset identity, source mode, and acquisition mode are separate.
-8. Feasibility evidence does not imply an implemented persistence contract.
+6. Source, dataset, source mode, and acquisition mode are separate.
+7. Stable machine IDs and human labels are different concerns.
+8. Documentation does not perform a migration.
 
-## 2. Naming and serialization
+---
 
-Persisted JSON and database fields use `snake_case`. TypeScript implementation properties may follow the established repository style where already public.
+## 2. Serialization
 
-- Calendar dates use `YYYY-MM-DD`.
-- Persisted timestamps use parseable UTC ISO 8601 values ending in `Z`.
-- Provider-native calendar dates remain dates rather than being converted arbitrarily to instants.
-- Configuration, metadata, validation, and exported contracts are versioned independently from the application version where a schema version exists.
+Persisted JSON/database fields use `snake_case`.
 
-## 3. Current implemented identity contracts
+Dates:
 
-The current code accepts lowercase hyphenated source IDs. Release 1.0 implements these source-module identities:
+```text
+YYYY-MM-DD
+```
 
-| `source_id` | Module/acquisition mode | Dataset type |
+Persisted timestamps:
+
+```text
+UTC ISO 8601 ending in Z
+```
+
+Provider-native calendar dates remain dates unless the provider contract proves otherwise.
+
+---
+
+## 3. Current source identities
+
+Implemented source/module identities include:
+
+| `source_id` | Acquisition | Main dataset(s) |
 |---|---|---|
-| `google-trends` | `GOOGLE_TRENDS_UI` / browser export | `INTEREST_OVER_TIME` |
+| `google-trends` | `BROWSER_EXPORT` | `INTEREST_OVER_TIME` |
+| `google-search-console-query` | `OFFICIAL_API` | `QUERY` |
 | `google-search-console-query-page` | `OFFICIAL_API` | `QUERY_PAGE` |
 | `google-ads-search-terms` | `OFFICIAL_API` | `SEARCH_TERMS` |
-| `google-ads-search-reporting` | `OFFICIAL_API` | `CAMPAIGN_PERFORMANCE`, `AD_GROUP_PERFORMANCE`, `KEYWORD_PERFORMANCE`, `SEARCH_TERMS`, `AD_PERFORMANCE`, `RSA_ASSET_PERFORMANCE` |
+| `google-ads-search-reporting` | `OFFICIAL_API` | six SEARCH reporting datasets |
 | `google-keyword-planner` | `OFFICIAL_API` | `KEYWORD_HISTORICAL_METRICS` |
 | `google-keyword-planner-csv` | `FILE_IMPORT` | `KEYWORD_HISTORICAL_METRICS` |
 | `ikas-products` | `FILE_IMPORT` | `PRODUCTS` |
 | `bitkimark-sitemap` | `HTTP_XML` | `SITEMAP_URLS` |
 | `serpapi` | `THIRD_PARTY_API` | `GOOGLE_SERP` |
 
-Reviewed Job context may narrow a provider surface further, such as Google Ads `search_term_view`, without changing the source module's acquisition mode.
+Google Trends query-group IDs match the live implementation contract and remain GT-specific.
 
-The current query configuration requires `source_id = google-trends` and group IDs matching `GT[0-9]{2}`. These are current implementation facts, not a requirement that every future source use query groups.
-
-Current run IDs use:
+Current Run IDs:
 
 ```text
-rr_<UTC timestamp>_<6 lowercase hexadecimal characters>
+rr_<UTC timestamp>_<6 lowercase hex>
 ```
 
-Current Workspace IDs use:
+Current Workspace IDs:
 
 ```text
-ws_<UTC timestamp>_<6 lowercase hexadecimal characters>
+ws_<UTC timestamp>_<6 lowercase hex>
 ```
 
-Exact future source IDs, dataset IDs, and source-mode strings must be introduced through source-contract implementation work. Architectural examples in this document are not persisted enums until code/schema/tests adopt them.
+---
 
-## 4. Current implemented status contracts
+## 4. Current persisted statuses
 
-These values match `src/shared/run-job.ts` and SQLite schema version 8 and must not be renamed without an explicit migration.
-
-### Run status
+### Run
 
 ```text
 PENDING
@@ -76,7 +86,7 @@ FAILED
 CANCELLED
 ```
 
-### Execution status
+### Execution
 
 ```text
 PENDING
@@ -89,7 +99,7 @@ MANUAL_ACTION_REQUIRED
 RETRY_PENDING
 ```
 
-### Validation status
+### Validation
 
 ```text
 NOT_RUN
@@ -102,82 +112,78 @@ DATE_MISMATCH
 QUERY_MISMATCH
 ```
 
-Operational causes such as authentication required, access denied, rate limited, quota exhausted, provider error, import failure, or unsupported source mode are not new validation statuses. They belong in readiness/control/error contracts and may map to existing execution outcomes until a separately designed persisted contract is implemented.
+Operational auth/config/quota/provider/import failures are not automatically validation statuses.
 
-## 5. Current readiness and capability contracts
+---
 
-Source-module readiness values are:
+## 5. Readiness and freshness domains
 
-```text
-READY
-NOT_CONFIGURED
-AUTHENTICATION_REQUIRED
-MANUAL_ACTION_REQUIRED
-UNAVAILABLE
-ERROR
-```
+Source readiness and desktop remediation are separate from freshness.
 
-Workspace/desktop readiness uses the separate user-action-oriented values:
+Safe readiness may represent states such as ready, configuration required, connection required, file required, manual action required, unavailable, or error according to the implemented boundary.
+
+Freshness is source-neutral and conceptually includes:
 
 ```text
-READY
-CONFIGURATION_REQUIRED
-CONNECTION_REQUIRED
-FILE_REQUIRED
-MANUAL_ACTION_REQUIRED
+FRESH
+DUE
+STALE
+IMPORT_NEEDED
+ON_DEMAND
+UNKNOWN
 ```
 
-Current capabilities expose:
+Do not collapse readiness, freshness, execution, and validation into one state.
 
-```text
-requires_browser
-requires_oauth
-may_require_manual_login
-supports_custom_date_range
-supports_direct_export
-supports_api
-supports_resume
-max_concurrency
-```
+---
 
-Future credential/access work may need richer safe states, but existing values are not renamed by this document.
-
-## 6. Run, job, and attempt
+## 6. Workspace / Run / Job / Attempt
 
 ```text
 Workspace
 └── Run
     └── Job
         ├── Attempt 1
-        ├── Attempt 2
         └── Attempt N
 ```
 
 ### Workspace
 
-A Workspace records `workspace_id`, a non-empty human `workspace_name`, and `created_at`. It is the first-class brand/business ownership boundary for Runs. The deterministic development Workspace created by migration is technical compatibility only and is not a user-facing default or legacy product type.
+Stores first-class brand/business identity.
 
 ### Run
 
-A run records one coordinated operation, required `workspace_id`, application version, ordered selected-source membership, timestamps, status, and an immutable requested/configuration snapshot. One Run belongs to exactly one Workspace and may contain Jobs from multiple source IDs.
+Requires `workspace_id`.
 
-The active Run set is exactly `PENDING`, `RUNNING`, and `MANUAL_ACTION_REQUIRED`; SQLite permits no more than one member of that set per Workspace. `RETRY_REQUIRED` is non-terminal and retry-eligible but does not occupy the active slot. Retry reacquisition, eligible Job transition, and next-Attempt creation are atomic. Incomplete-Run discovery and resume planning require Workspace scope.
+May contain Jobs from multiple sources.
 
-Legacy Google Trends snapshots keep their query-group shape. Existing generic single-source snapshots remain readable as arbitrary JSON objects. A new generic multi-source snapshot represents actual membership through a `sources` array and must not use the first Job's source or a fabricated `multi-source` value as a singular Run-level source identity.
+One Workspace may have at most one active Run in the implemented active-status set.
 
 ### Job
 
-A job is the independent execution, resume, and retry unit. It records source identity, stable `job_key`, JSON-compatible source context, order, execution/validation states, attempt count, and accepted artifact reference. Its identity within a Run is `source_id + job_key`; the same `job_key` is valid under two different sources, while a duplicate pair remains invalid.
+Independent execution/resume/retry unit.
 
-`query_group_id` is nullable and Google-Trends/legacy-specific. Non-Google-Trends jobs use `NULL`; they never fabricate a query group or sentinel. Google Trends jobs retain `job_key === query_group_id` and persist their real query-group context.
+Identity within a Run:
+
+```text
+source_id + job_key
+```
+
+`query_group_id` is nullable and GT/legacy-specific.
+
+Non-GT Jobs use no fake query group.
 
 ### Attempt
 
-An attempt records one job execution, attempt number, execution state, candidate artifact, validation reference, operational error code, and timestamps. Retrying creates a new attempt; previous attempts are not overwritten.
+Immutable execution history.
 
-## 7. Current artifact contracts
+Retry creates a new Attempt and preserves previous attempts/artifacts/validations/error evidence.
 
-### Artifact kind
+---
+
+## 7. Artifact contract
+
+Current kinds include:
 
 ```text
 RAW_SOURCE_FILE
@@ -188,7 +194,7 @@ EXPORT_XLSX
 LOG_FILE
 ```
 
-### Artifact state
+Current states:
 
 ```text
 CANDIDATE
@@ -198,13 +204,19 @@ REJECTED
 SUPERSEDED
 ```
 
-An artifact record includes `artifact_id`, run/job linkage, attempt number, source, kind/state, filename, relative path, media type, byte size, SHA-256 when available, and creation time.
+Artifact provenance includes Run/Job/Attempt/source identity, path, media type, byte size, SHA-256 where available, and timestamps.
 
-Raw provider evidence begins as a candidate, remains preserved after validation failure when practical, and is never rewritten into its normalized representation.
+Raw evidence is never rewritten into normalized output.
+
+---
 
 ## 8. SQLite boundary
 
-Current database schema version: `8`.
+Current schema version:
+
+```text
+8
+```
 
 Implemented tables:
 
@@ -221,13 +233,15 @@ workspace_last_run_settings
 workspace_source_connections
 ```
 
-There is no implemented `errors`, credential-secret, freshness-cache, dataset-instance, or source catalog table. Freshness is derived from accepted completed Job history, while credential secrets remain behind the Core credential-store boundary rather than in SQLite.
+There is no general analytical warehouse.
 
-Schema v5 introduced multi-source Runs through `selected_sources_json`, per-Job `source_id`, composite Job uniqueness, and source-scoped artifact relationships. Schema v6 preserves those snapshots and adds required Workspace ownership, `RETRY_REQUIRED`, and the partial unique active-Run index. Pre-v6 Runs migrate to the deterministic technical development Workspace; the compatibility row does not create a nullable or implicit ownership path for new Run APIs.
+Credential secrets remain outside SQLite.
 
-SQLite stores operational records and references; filesystem artifacts store raw bytes and detailed documents. Foreign keys, strict tables, schema migrations, and existing status checks remain authoritative.
+Freshness is derived from accepted completed Job history.
 
-## 9. Raw, candidate, accepted, and derived lifecycle
+---
+
+## 9. Evidence lifecycle
 
 ```text
 provider/file bytes
@@ -235,282 +249,259 @@ provider/file bytes
 → parse
 → source validation
 → ACCEPTED | ACCEPTED_WITH_WARNING | REJECTED
-→ separate metadata/validation/normalized/export artifacts
+→ optional deterministic normalization
+→ metadata / validation / package / export artifacts
 ```
 
-Validation failure does not justify deleting provider evidence. Only accepted or accepted-with-warning evidence may enter normal data exports.
+Rejected raw evidence remains preserved when practical.
+
+Only eligible accepted evidence enters normal packages/exports.
+
+---
 
 ## 10. Provenance baseline
 
-Every accepted dataset must be traceable to:
+Accepted evidence must remain traceable to relevant:
 
 ```text
+workspace_id
 run_id
 job_id
-attempt identity or attempt_number
+attempt
 source_id
 source_mode
 dataset_type
+acquisition mode
 raw_artifact_id
 raw_relative_path
-retrieved_at or imported_at
-application_version
+byte_size / sha256 where available
+retrieved_at / imported_at
 validation_status
 requested context
 observed context where proven
+application/schema version
 ```
 
-Collection and validation are both selected from the persisted Job's `source_id`. Source-specific validators fail closed when Job or artifact source identity does not match their registered source.
+Provider-specific provenance may add fields required by that source.
 
-Where supported, raw artifacts carry byte size and SHA-256. Dataset schema version and application version are separate concepts.
+Do not force unrelated provider metadata into a generic record.
 
-Google Trends metadata remains backward compatible at metadata schema version 1 and includes query-group, country, category, search type, selection type, requested dates, actual dates, and raw artifact linkage. A non-query-group job emits source-neutral metadata schema version 2 with source, job, attempt, raw artifact, validation, and persisted source-context evidence rather than fake Google Trends fields.
+---
 
-## 11. Requested versus observed context
+## 11. Requested versus observed
 
-Do not copy requested values into observed fields merely because the provider response omitted evidence.
-
-Examples that may need separate fields:
+Examples:
 
 ```text
-requested_date_start / observed_date_start
-requested_date_end / observed_date_end
-requested_country / observed_country
-requested_dimensions / returned_dimensions
-requested_source_mode / observed_source_mode
-requested_device / observed_device
+requested dates      / observed dates
+requested dimensions / returned dimensions
+requested country    / observed country
+requested mode       / observed mode
+requested device     / observed device
 ```
 
-An unavailable observed value remains `NULL`.
+Requested values must not populate observed fields without provider evidence.
 
-## 12. Missing-value and numeric rules
+Unavailable observed values remain missing.
 
-- JSON missing numeric evidence is `null` or an absent optional field according to the source schema.
-- SQLite uses `NULL`.
-- CSV/XLSX uses an empty field/cell.
-- A numeric zero is preserved as zero only when returned by the provider.
-- Blank stock, blank metrics, withheld values, and parse failures must not become zero.
-- Provider-native units remain explicit: for example `cost_micros`, `ctr`, `position`, `avg_monthly_searches`, or `relative_interest`.
-- Do not create generic `score`, `demand`, or `search_volume` fields that erase source semantics.
+---
 
-## 13. Conceptual multi-source identity
+## 12. Missing and numeric semantics
 
-The following are Release 1.0 logical source families, not automatically implemented source IDs:
-
-- Google Trends;
-- Google Search Console;
-- Google Ads Search Terms;
-- Google Ads Keyword Planner;
-- İkas Products;
-- Bitkimark public site;
-- SERP/SerpApi.
-
-Keyword Planner API and manual CSV are acquisition/source modes for one logical dataset family, not necessarily two sources. Similarly, future Google Ads resources with materially different semantics must retain their source mode and must not be merged silently.
-
-## 14. Acquisition-mode contract
-
-The conceptual vocabulary is:
+Canonical missing representations:
 
 ```text
-BROWSER_EXPORT
-OFFICIAL_API
-FILE_IMPORT
-HTTP_XML
-THIRD_PARTY_API
+JSON   → null or absent optional field
+SQLite → NULL
+CSV    → blank
+XLSX   → empty cell
 ```
 
-An implementation must preserve acquisition mode in provenance. Adding these strings to documentation does not add them to a current persisted union.
+True numeric zero remains zero only when actually returned or deterministically derived under an approved contract.
 
-## 15. Freshness contract
+Do not turn parse failures, blanks, withheld values, absent stock, or unavailable provider metrics into zero.
 
-Schema v8 adds `workspace_source_connections`, one logical record per `(workspace_id, source_id)`. It contains only `credential_ref`, source-owned safe metadata, and timestamps; credential secrets are held by the secure backend boundary and never serialized into SQLite or run configuration.
+Provider-native units remain explicit.
 
-Google OAuth bundles are addressed only by opaque `credential_ref` and stored as OS-encrypted files. Google Ads customer/login-customer IDs remain safe connection metadata; refresh tokens, client secrets, and developer-token compatibility values remain encrypted credential material.
+---
 
-SerpApi connections store only an opaque `credential_ref` and safe source metadata. Each `serpapi` Job carries query, `TR`/`tr`/desktop/Google request context and no API key. The exact provider JSON response is preserved as raw evidence; normalized `GOOGLE_SERP` rows use `ORGANIC` or provider-returned `PAA` result types, nullable fields, and at most the first ten organic results.
+## 13. Source-native semantics
 
-The guarded manual smoke command is single-query and first-page only; it persists through the existing Run/Job/Attempt/artifact/validation lifecycle and never retries quota, authentication, provider, network, or timeout failures.
+### Google Trends
 
-Schema v7 adds `saved_collection_presets` (Workspace-owned durable reusable JSON objects) and `workspace_last_run_settings` (one system-managed JSON object per Workspace). Presets may retain relative source rules; each reserved Run Snapshot stores resolved absolute dates and reference date. Drafts are TypeScript-only and do not persist automatically. Last Run Settings records the last attempted configuration after successful Run reservation.
+`relative_interest` is provider-native 0–100 relative interest.
 
-Freshness is an implemented domain separate from readiness, execution, and validation.
+Comparison-group context remains part of identity/meaning.
 
-The generalized desktop contract uses a temporary sanitized `RunDraft`, source-card readiness, and an immutable snapshot created by Core reservation. Multi-source packages contain separate Job-keyed source datasets plus `MANIFEST.json`, `FAILURES.json`, and `DATASETS.json`. The dataset index records output filename, Run/Job/source/dataset identity, row count, validation status, accepted raw artifact identity/checksum, acquisition time, and sanitized requested context. Failed or rejected Jobs never produce fabricated normalized rows, and Successful Only excludes failed datasets while retaining Run identity. Production export re-verifies raw file ownership, kind/state, byte size, and SHA-256 before source-native parsing.
-
-The safe derived result supports:
-
-```text
-last_successful_at
-explicit policy
-next_due_at
-FRESH / DUE / STALE
-IMPORT_NEEDED
-ON_DEMAND
-UNKNOWN
-```
-
-Policy kinds are `UNKNOWN`, `ON_DEMAND`, `MANUAL_IMPORT`, and `INTERVAL`. No freshness table is required: `last_successful_at` is the latest completed source Job with an accepted artifact and an accepted validation status. SerpApi is always `ON_DEMAND`; manual İkas and Keyword Planner CSV sources are `IMPORT_NEEDED` before their first accepted import and `FRESH` afterward. Other sources remain `UNKNOWN` without an approved cadence, unless safe source configuration supplies an explicit bounded interval policy.
-
-## 16. Credential/access contract
-
-Configuration may contain source enablement, refresh policy, property/account references safe to display, country/language/device, query groups, and import patterns.
-
-Ordinary configuration, logs, raw exports, and documentation must not contain passwords, OAuth refresh tokens, client secrets, API keys, or developer tokens.
-
-The renderer receives only safe readiness/connection state. The secure storage reference and secret value remain inside the Core security boundary.
-
-The implemented desktop Workspace connection read contract is `DesktopWorkspaceConnectionView` with exactly `source_id`, `credential_status`, and `readiness_status`. Credential status is `NOT_CONFIGURED`, `AVAILABLE`, or `MISSING` and remains separate from desktop readiness. `credential_ref` is an internal persistence/security reference and is not part of the renderer-visible contract.
-
-The renderer write contract has five exact intent families: Google source plus source-safe metadata for Manage and Connect; Google source plus optional source-safe metadata for Reconnect; credential-managed source identity only for Disconnect; and Workspace ID plus the literal source `serpapi` for `PROVISION_SERPAPI`. GSC metadata is `site_url`; Ads and Keyword Planner metadata is `customer_id` plus optional `login_customer_id`. The SerpApi intent contains no API key, prompt text, metadata, credential reference, or process option. Unknown top-level or metadata fields and secret-shaped fields are rejected before service delegation. Mutation results contain only `source_id`, action, and `SUCCEEDED` or `SUCCEEDED_WITH_CLEANUP_WARNING`; failures contain only a fixed error code, optional source identity, and retryable flag. SerpApi provisioning adds fixed cancellation, ingress-failure, and invalid-input error codes without exposing native output or raw errors.
-
-Schema-v8 connection mutation does not add a table or migration. Row deletion targets one exact `(workspace_id, source_id)` and can restore the complete removed record for compensation. Credential-reference counts are global across Workspaces and sources. Rebind requires an exact Workspace, unique source allowlist, exact expected old reference, and replacement reference; optional allowlisted safe-metadata updates commit in the same transaction. Google Ads and Keyword Planner are rebound together only when the same-Workspace sibling currently uses the exact old reference. Removing a connection row is distinct from deleting credential material, which occurs only after the global reference count reaches zero.
-
-SerpApi API-key plaintext exists only inside the main-owned ingress/acquirer call chain long enough for offline structure validation and the `CredentialStore` write. The native adapter uses fixed AppleScript over stdin and bounded private process pipes; plaintext, native stdout/stderr, and the fresh `credential_ref` are not renderer, configuration, diagnostic, validation, raw-artifact, or export fields. New provisioning publishes a row only after the fresh store write. Replacement writes a fresh reference and atomically rebinds the exact SerpApi row; a failed publication/rebind deletes the new unreferenced material, while old material is eligible for deletion only after committed rebind and a global zero-reference result.
-
-## 17. Source-specific dataset semantics
-
-The İkas Products import is `FILE_IMPORT`; the original XLSX is canonical evidence and normalized product fields remain nullable when absent. Bitkimark sitemap acquisition is `HTTP_XML`; canonical URL inventory and raw XML are preserved, with deterministic keyword annotations kept as derived data.
-
-### Google Trends — Interest Over Time
-
-Preserve query-group ID, query identity/order, geography, category, search type, selection type, requested/observed period, temporal bucket, and nullable relative-interest values. Duplicate queries in separate groups remain separate comparison contexts.
+Do not convert it to absolute search counts.
 
 ### Google Search Console
 
-Supported conceptual datasets:
+Keep `QUERY` and `QUERY_PAGE` contracts distinct.
 
-- query: `query`, `clicks`, `impressions`, `ctr`, `position`;
-- query + page: the above plus `page`;
-- date + query: the query metrics plus provider-native `date`.
-
-Preserve property, search type, request dates, returned dimensions, pagination/row handling, and provider completeness/privacy limitations.
+Preserve clicks, impressions, CTR, position, dimensions, property/search-type/date context, raw response pages, and provider limitations.
 
 ### Google Ads SEARCH reporting
 
-The implemented family source is:
+Approved SEARCH-only datasets:
 
 ```text
-source_id: google-ads-search-reporting
-acquisition_mode: OFFICIAL_API
-campaign_type: SEARCH
-dataset_schema_version: 1
+CAMPAIGN_PERFORMANCE
+AD_GROUP_PERFORMANCE
+KEYWORD_PERFORMANCE
+SEARCH_TERMS
+AD_PERFORMANCE
+RSA_ASSET_PERFORMANCE
 ```
 
-Dataset/resource contracts are:
+Preserve dataset/resource identity, provider-native units, date/segment context, and raw SearchStream evidence.
 
-```text
-CAMPAIGN_PERFORMANCE   → campaign
-AD_GROUP_PERFORMANCE   → ad_group
-KEYWORD_PERFORMANCE    → keyword_view
-SEARCH_TERMS           → search_term_view
-AD_PERFORMANCE         → ad_group_ad
-RSA_ASSET_PERFORMANCE  → ad_group_ad_asset_view
-```
+Legacy `google-ads-search-terms` remains compatible.
 
-Every reporting Job preserves `customer_id`, exact requested date bounds, dataset identity, resource mode, and SEARCH campaign scope. Canonical SearchStream JSON remains the raw provider artifact and normalization happens separately.
+Performance Max is outside this contract.
 
-Performance rows preserve provider-native dates and metrics. Monetary values remain explicitly named in micros where supplied. Missing numeric evidence remains `NULL`; true provider zero remains zero.
+### Keyword Planner
 
-Configuration/snapshot fields and historical performance-window fields retain different temporal semantics. A current configuration value must not be presented as historical configuration unless a historical artifact actually recorded it.
+Preserve provider-native monthly history.
 
-The existing `google-ads-search-terms` / `search_term_view` quick-run contract remains valid for backward compatibility. Performance Max or another unapproved Google Ads resource/mode must not be represented as complete evidence under this SEARCH family.
+For API evidence, `change_3_month` and `change_yoy` may be deterministic RoofRoom-derived fields under the locked month-comparison rules.
 
-### ADS_OPTIMIZATION_PACK v1 Task Packages
+They remain null if required evidence is missing or baseline is zero.
 
-`ADS_OPTIMIZATION_PACK` version `1` requires exactly the six SEARCH reporting datasets above. CURRENT is the last seven complete calendar days. The first complete package is `INITIAL_BASELINE`; a later `COMPARISON` uses the stored CURRENT snapshot of the latest compatible non-overlapping package as PREVIOUS. PREVIOUS is never refetched, and current configuration is never copied backward to fill missing historical configuration.
+Do not widen provider requests merely to manufacture YoY.
 
-CURRENT evidence compatibility requires exact Workspace/account identity, source, dataset, resource mode, SEARCH scope, dataset schema version, accepted artifact/validation state, and sufficient date coverage. Acquisition and snapshot timestamps remain provenance and may break deterministic ties, but acquisition date is not an eligibility or freshness requirement.
+For manual CSV, provider-exported change fields remain source-native imported evidence.
 
-Reuse is restricted to:
+### İkas
 
-- an exact compatible populated dataset for the exact requested window;
-- verified `NO_DATA` only for the exact requested window;
-- a broader populated DAILY dataset filtered only by exact `performance_date` rows inside the requested window.
+Preserve original XLSX and exact evidence-backed field mapping.
 
-A broader `NO_DATA` result cannot cover a narrower window. Aggregate reconstruction, inference, interpolation, averaging, subtraction, and proportional allocation are prohibited. Missing required evidence produces a visible `NOT_READY` result rather than an invented empty dataset.
+Blank sale price/stock remain missing.
 
-Each immutable package manifest records recipe/package identity, Workspace/customer identity, CURRENT/PREVIOUS windows, gap, required datasets, disposition, transformation, row count, source Run/Job/Attempt/Artifact/checksum/validation identities, acquisition/snapshot timestamps, and role-specific derived table references. Table references include deterministic relative filenames, row counts, and SHA-256. Manifest parsing and package scanning reject malformed schemas, unsafe paths, symlinks, checksum or row-count mismatch, inconsistent transformations, secrets, and analysis fields.
+Do not create storefront URLs when unavailable.
 
-The workbook and JSON tables preserve provider-native evidence only. `null` remains blank/null, true zero remains numeric zero, nested Ads arrays are deterministic JSON strings in XLSX, and formula-like provider text remains a literal string cell. No recommendation, delta, score, winner/loser, GO/PAUSE, or optimization judgment is generated.
+### Bitkimark
 
-Desktop Review accepts only Workspace and recipe identity and returns safe package state plus the six requirement outcomes. Start carries the reviewed recipe/version, reference date, exact CURRENT window, and account identity, but the main process re-resolves all authoritative state before acting. Ready evidence may publish locally; missing evidence may reserve only missing `google-ads-search-reporting` SEARCH Jobs through Core. A terminal collection Run requires a fresh Review before publication. Existing identical verified packages are returned rather than duplicated. Open accepts only `package_id`; stored manifest/workbook resolution, containment, regular-file/symlink checks, and Electron shell access remain main-process responsibilities. These contracts add no SQLite table or schema migration.
-
-### BLOG_WRITING_PACK v1 derived packages
-
-`BLOG_WRITING_PACK` version `1` packages accepted evidence from exactly one existing Run. Its logical families are `INTEREST_OVER_TIME`, `QUERY_PAGE`, `SEARCH_TERMS`, `KEYWORD_HISTORICAL_METRICS`, `PRODUCTS`, `SITEMAP_URLS`, and `GOOGLE_SERP`. GSC `QUERY` and the six-dataset `google-ads-search-reporting` family are outside this recipe.
-
-Zero accepted in-recipe datasets is `NOT_READY` and produces no package. With at least one accepted dataset, every family is recorded as `COVERED`, `PARTIAL`, or `MISSING`; overall coverage is `COMPLETE` only when every expected family is `COVERED`, otherwise the published package is `PARTIAL`. Verified `NO_DATA` may cover a family without fabricating rows. Missing, failed, rejected, auth/quota, parser, schema, or unrelated evidence must not be relabeled `NO_DATA`.
-
-Keyword Planner API and manual CSV evidence remain provenance-distinct. If both are accepted they both survive; an unused failed alternate acquisition path does not by itself make the logical Keyword Planner family partial when another accepted path satisfies it.
-
-Each successful explicit build receives a new immutable `package_id` under `ApplicationDirectories.data/blog-writing-packs/<package_id>/`. The package preserves generic `MANIFEST.json`, indexed dataset evidence, safe failures, Blog-specific `BLOG_PACKAGE.json`, and the fixed `BLOG_WRITING_PACK.xlsx`. Raw provider artifacts remain in canonical Run storage. Package provenance retains Run/Job/Attempt/artifact/checksum/validation/request context without allowing provider row content to overwrite trusted source or Job identity. Missing XLSX values remain empty cells and real numeric zero remains numeric zero.
-
-Blog package creation is local-only and adds no acquisition, retry, recollection, Run/Job transition, Attempt creation, SQLite table, or schema migration. Open/Reveal accept trusted package identity only; filesystem containment, symlink, regular-file, manifest, dataset, checksum, row-count, and XLSX structural checks remain privileged main-process responsibilities.
-
-### Keyword Planner historical metrics
-
-Preserve keyword, average monthly searches, competition, competition index, monthly rows (`year`, `month`, nullable searches), and bid metrics when returned. API and manual CSV outputs may normalize to compatible tables while retaining distinct acquisition provenance.
-
-For the `OFFICIAL_API` source mode:
-
-- `monthly_history` remains provider-native evidence and must not be rewritten to support derived metrics.
-- `change_3_month` is derived from monthly history by comparing the latest available month with the month exactly two calendar months earlier: `(latest - baseline) / baseline * 100`.
-- `change_yoy` is derived from monthly history by comparing the latest available month with the same calendar month in the previous year: `(latest - baseline) / baseline * 100`.
-- A derived change remains `NULL` when either required monthly value is missing, the required comparison month is absent, or the baseline is zero.
-- The collector must not silently widen the reviewed/requested provider date range merely to manufacture YoY evidence. If the same month from the previous year is not present in the accepted raw monthly history, `change_yoy` remains `NULL`.
-- Derived 3-month and YoY values must never be represented as provider-native Google Ads metrics.
-
-For the `FILE_IMPORT` Keyword Planner CSV source mode, `Three month change` and `YoY change` are provider-exported fields from the imported file. They remain source-native imported values rather than RoofRoom-derived calculations.
-
-Missing values remain `NULL`; they are never silently converted to zero.
-
-### İkas Products
-
-Preserve the original XLSX. The verified production export uses sheet `Ikas Excel File`, 40 columns, and 856 variant rows (88 product groups). Product identity maps to `Ürün Grup ID` and `Varyant ID`; title, categories, type, prices, description, and slug map to their exact Turkish source headers. `Resim URL` is image evidence only: `url` remains `NULL` unless an explicit storefront URL column/configuration exists. `Bitki Boyu (Saksı Dahil)` and `Saksı Tipi` are extracted by label across the three variant type/value pairs. Blank sale price and stock remain `NULL`; source-native stock/activity evidence is preserved and availability is derived deterministically without replacing missing values with zero.
-
-### Bitkimark public site
-
-Preserve requested URL, response/retrieval metadata, raw XML, sitemap kind, child/parent relationship, `loc`, and nullable `lastmod`. HTML/error content must not be parsed as valid XML data.
+Preserve request/response metadata, raw XML, sitemap relationships, `loc`, nullable `lastmod`.
 
 ### SERP
 
-Preserve query, country, language, device, retrieval time, provider, raw JSON/metadata, and returned organic position/title/URL/domain/snippet. Missing fields remain `NULL`. Analysis fields such as dominant intent, commercial fit, recommended page type, and action are prohibited in Collector output.
+Preserve request context, raw JSON/provider metadata, organic result evidence, and provider-returned features.
 
-Quota/plan facts are operational metadata, not SERP business data.
+Do not add analysis/recommendation fields.
 
-## 18. Validation detail
+---
 
-Current structured findings contain:
+## 14. Workspace configuration contracts
+
+Saved Collection Presets and Last Run Settings are Workspace-owned reusable configuration.
+
+A reviewed Run persists its own immutable resolved snapshot.
+
+Run reservation and Last Run Settings update are atomic under the implemented contract.
+
+Workspace source connections store only safe metadata and opaque credential references.
+
+Secret material remains behind the credential-store boundary.
+
+---
+
+## 15. Package contracts
+
+### Production Data Package
+
+Indexes accepted source datasets separately and preserves exact Run/Job/source/artifact/checksum/request provenance.
+
+No cross-source row join is implied.
+
+### `ADS_OPTIMIZATION_PACK v1`
+
+Requires exactly the six approved Google Ads SEARCH reporting datasets.
+
+Current window semantics are code-defined and exact.
+
+Evidence reuse is permitted only when compatibility is proven.
+
+A broader populated DAILY artifact may be filtered only using real date rows.
+
+A broader `NO_DATA` result cannot prove a narrower window.
+
+PREVIOUS comes from a verified immutable prior package, never from reconstruction.
+
+No interpolation, subtraction, averaging, allocation, or historical configuration backfill may manufacture evidence.
+
+Package manifests/tables/workbooks are derived outputs; raw artifacts remain canonical.
+
+### `BLOG_WRITING_PACK v1`
+
+Fixed logical families:
+
+```text
+INTEREST_OVER_TIME
+QUERY_PAGE
+SEARCH_TERMS
+KEYWORD_HISTORICAL_METRICS
+PRODUCTS
+SITEMAP_URLS
+GOOGLE_SERP
+```
+
+Out-of-recipe evidence is excluded before loading.
+
+Zero accepted in-recipe datasets is `NOT_READY`.
+
+Otherwise coverage is truthful per family; overall package is complete only when every expected family is covered.
+
+Verified `NO_DATA` may satisfy coverage without fabricated rows.
+
+Keyword Planner API/manual provenance remains distinct.
+
+Blog packaging is local-only and creates no provider call, retry, Attempt, Run/Job transition, or schema migration.
+
+---
+
+## 16. Validation findings
+
+Structured findings include:
 
 ```text
 check_id
-severity: INFO | WARNING | ERROR
+severity
 passed
 message
 expected
 actual
 ```
 
-The summary stores validation status and check totals. Source-specific checks use stable namespaces. A new provider condition should usually become a structured finding or operational error code rather than expanding the global validation enum automatically.
+Severity:
 
-## 19. Export semantics
+```text
+INFO
+WARNING
+ERROR
+```
 
-Exports retain source, dataset, and provenance boundaries. Different metrics are not averaged or renamed into a shared commercial meaning. Missing values stay empty; true zeros stay numeric zero; rejected artifacts are excluded from normal data sheets.
+Prefer source-specific findings/operational codes over unnecessary global validation-status expansion.
 
-User-visible Downloads copies, if introduced, are derived exports downstream of canonical run-scoped evidence and never become the authoritative raw artifact.
+---
 
-## 20. Contract-change gate
+## 17. Contract-change gate
 
-Any change to persisted IDs, statuses, SQLite columns/check constraints, artifact paths, TypeScript interfaces, or IPC data requires:
+Any change to persisted IDs, statuses, SQLite schema/constraints, artifact paths, TypeScript interfaces, IPC contracts, or serialization meaning requires:
 
-1. inspection of current code and stored data;
-2. compatibility/migration design;
-3. deterministic tests;
-4. explicit implementation approval;
-5. documentation of the actual adopted contract.
+```text
+inspect live implementation and compatibility
+→ add deterministic failing coverage
+→ design migration/compatibility if needed
+→ implement explicitly
+→ verify affected boundaries
+→ document the adopted contract
+```
 
-No documentation-only reconciliation performs such a migration.
+Documentation alone never performs a migration.
 
-## 21. Governing data rule
+---
 
-If the source did not provide or prove a value, the Collector must not invent it, infer it as fact, or replace it with zero.
+## 18. Governing data rule
+
+> **If provider evidence does not prove a value, RoofRoom must not invent it, infer it as source fact, copy it from the request into observation, or replace it with zero.**

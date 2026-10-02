@@ -1,96 +1,56 @@
 # RoofRoom Data Collector — Planning Contract
 
-This file defines how substantial implementation work is planned in this repository.
+Use the existing planning locations:
 
-## Existing planning system
+```text
+docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md
+docs/superpowers/plans/YYYY-MM-DD-<topic>.md
+```
 
 Do not create a second planning tree.
 
-Use the existing Superpowers locations:
+## When a design/spec is needed
 
-- approved architectural/product designs: `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
-- implementation plans: `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`
+Use a design before implementation when a task materially changes:
 
-`PROJECT_HANDOFF.md` is not an implementation-plan backlog. It records verified current state and the exact next action.
-
-## When a design/spec is required
-
-Use a design/spec before implementation when work changes or adds one or more of:
-
-- persisted schema or migrations;
-- shared Core contracts;
+- persisted schema/migrations;
+- shared Core/public contracts;
 - source/dataset/source-mode semantics;
-- credential or security boundaries;
-- validation/export eligibility rules;
+- credential/security boundaries;
+- validation/package/export eligibility;
 - desktop IPC/public contracts;
-- task/package assembly behavior;
-- provider acquisition behavior that has not already been verified.
+- provider acquisition behavior not already locked.
 
-Small bug fixes with an already-locked contract may proceed directly to a focused implementation plan when repository evidence supports that scope.
+Small fixes inside an already-approved contract may use a short focused plan.
 
-## Implementation-plan structure
+## Plan content
 
-Plans should be executable by a fresh engineer or agent and should contain, as applicable:
+A plan should contain only what is needed to execute safely:
 
-1. Goal
-2. Current repository evidence
-3. Scope
-4. Out of scope
-5. Architecture / contract impact
-6. Exact files
-7. Interfaces produced/consumed
-8. Tests first
-9. Implementation steps
-10. Verification commands
-11. Documentation updates
-12. Git checkpoint
-13. Acceptance criteria
+1. goal;
+2. inspected current evidence;
+3. scope / out of scope;
+4. exact affected files/interfaces;
+5. failing deterministic test or verification entry point where applicable;
+6. minimal implementation steps;
+7. relevant verification;
+8. acceptance criteria;
+9. documentation/Git checkpoint only when required.
 
-Use exact repository paths after inspection. Do not invent files, interfaces, source IDs, persisted fields, provider behavior, or test commands.
+Use real inspected paths/commands. Do not invent files, provider behavior, contracts, or test commands.
 
 ## Task sizing
 
-Prefer the smallest vertical slice that can be independently reviewed and verified.
+Prefer the smallest independently reviewable vertical slice.
 
-For behavior changes, use red-green TDD unless the approved design explicitly establishes another verification method.
+Do not combine unrelated cleanup, architecture generalization, provider acceptance, or release work into the same plan.
 
-Each meaningful task should end with:
+Verification depth belongs in `TEST_STRATEGY.md`.
 
-- targeted deterministic verification;
-- relevant type/lint/build checks;
-- `git diff --check`;
-- a narrow commit when the working tree permits an isolated checkpoint.
+Provider/live-test safety belongs in the Project instructions and source contracts.
 
-Run the full deterministic release gate at milestone/checkpoint boundaries or when the change can affect shared behavior.
+## Completion
 
-## Provider and live-test rule
+A plan is not implementation evidence.
 
-Ordinary tests and CI must not call live providers.
-
-A live smoke/acceptance action must be:
-
-- explicitly named;
-- separately invoked;
-- bounded and quota-aware;
-- authorized independently from deterministic verification.
-
-Do not use live provider calls to debug deterministic code or tests.
-
-## Dirty working tree
-
-Before edits, inspect `git status --short`.
-
-Unrelated user/WIP changes are protected:
-
-- do not overwrite them;
-- do not reset them;
-- do not hide them with stash by default;
-- do not include them in a checkpoint commit.
-
-If an isolated commit cannot be made safely, leave the work uncommitted and report the exact conflict.
-
-## Documentation completion rule
-
-Do not claim planned work as implemented.
-
-Update `PROJECT_HANDOFF.md` only from verified repository evidence and actual commands/results. Stable product/architecture/contract changes belong in their canonical documents, not only in the handoff.
+Update `PROJECT_HANDOFF.md` only from verified repository state and actual results, and only when the current checkpoint/next action materially changes.

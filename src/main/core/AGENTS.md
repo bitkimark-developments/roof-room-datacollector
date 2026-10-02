@@ -1,52 +1,17 @@
-# Shared Core — Codex Instructions
+# Shared Core — Scoped Instructions
 
-These instructions apply to `src/main/core/**` in addition to the repository root `AGENTS.md`.
+Applies to `src/main/core/**` in addition to root `AGENTS.md`.
 
-## Boundary
+Core must remain source-neutral.
 
-Core owns source-neutral lifecycle and infrastructure behavior. It must not acquire provider-specific semantics merely because a new source needs them.
+Own shared lifecycle/infrastructure such as Workspace, Run/Job/Attempt, retry/resume/reconciliation, source registration, artifact/provenance coordination, validation coordination, readiness/freshness infrastructure, logging, and security abstractions.
 
-Core may own reusable concerns such as:
+Provider-specific resources, selectors, worksheet columns, query syntax, response fields, and semantic validation belong in source modules.
 
-- Run / Job / Attempt lifecycle;
-- retry, resume, reconciliation, and cancellation;
-- source registration and readiness/freshness coordination;
-- artifact state and storage abstractions;
-- metadata/provenance infrastructure;
-- validation coordination;
-- credential/security abstractions;
-- logging and export eligibility.
+Do not add fake provider placeholders or provider-specific Core branches to satisfy an existing generic constraint.
 
-Provider-specific resources, fields, selectors, worksheet columns, query syntax, and semantic validators belong in source modules.
+Before changing a shared contract, inspect the live shared type/persistence boundary and only the directly affected canonical authority.
 
-Do not add Core branches for concepts such as Google Ads campaign, keyword, search term, RSA, asset, Google Trends query group, GSC dimensions, SERP fields, or İkas columns unless the abstraction is demonstrably source-neutral.
+Persisted/schema changes require compatible deterministic migration/regression evidence.
 
-## Contract safety
-
-Before changing Core contracts, inspect:
-
-- `DATA_CONTRACTS.md`;
-- `ARCHITECTURE.md`;
-- `TEST_STRATEGY.md`;
-- current shared types in `src/shared/`;
-- current SQLite migrations/repository behavior when persistence is affected.
-
-Do not rename persisted IDs, statuses, enums, fields, IPC contracts, or snapshot shapes casually.
-
-Persisted/schema changes require an explicit compatible migration path and deterministic migration/regression tests. Never use fake provider-specific placeholder values to satisfy a generic Core constraint.
-
-## Evidence and retry
-
-Keep execution result, validation result, and artifact eligibility distinct.
-
-A retry creates a new Attempt and preserves previous attempts, artifacts, validations, and error evidence.
-
-Do not recollect already completed accepted work merely to simplify orchestration.
-
-## Testing
-
-Test Core behavior with deterministic fake/source-neutral collaborators where practical.
-
-Do not introduce live provider calls into Core tests.
-
-For shared behavior changes, run focused Core tests first and the repository release gate before a checkpoint when impact is cross-source.
+Use focused deterministic Core tests; never add live provider calls to Core tests.
