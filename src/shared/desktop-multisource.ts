@@ -23,6 +23,7 @@ export const SUPPORTED_DESKTOP_SOURCE_IDS = [
   'google-search-console-query-page',
   'google-ads-search-terms',
   'google-keyword-planner',
+  'google-analytics-4',
   'google-keyword-planner-csv',
   'ikas-products',
   'bitkimark-sitemap',
