@@ -374,6 +374,32 @@ Legacy `google-ads-search-terms` remains compatible.
 
 Performance Max is outside this contract.
 
+### Google Ads configuration — Negatives v1
+
+`google-ads-configuration` is an `OFFICIAL_API` current-configuration snapshot source.
+
+Approved dataset schema v1 datasets are exactly:
+
+- `CAMPAIGN_NEGATIVE_KEYWORDS`
+- `AD_GROUP_NEGATIVE_KEYWORDS`
+- `SHARED_NEGATIVE_KEYWORDS`
+- `CAMPAIGN_NEGATIVE_KEYWORD_LISTS`
+- `ACCOUNT_NEGATIVE_KEYWORD_LISTS`
+
+The immutable Job context contains exactly source identity, dataset type, provider resource mode, customer ID, and `dataset_schema_version: 1`. This source is not date-windowed and does not support custom date ranges.
+
+The adopted v1 boundary is keyword negatives only. Campaign-direct and ad-group-direct negatives preserve provider criterion identity and require SEARCH campaign scope, provider criterion type `KEYWORD`, and `negative: true`. Shared negative keyword members remain separate shared-criterion evidence. Campaign-list and account-list attachments remain separate provider attachment evidence.
+
+Direct criteria, shared members, campaign-list attachments, and account-list attachments are independent evidence datasets. Do not reconstruct one dataset from another. In particular, an account attachment does not prove or reconstruct the members of its referenced shared set.
+
+Raw Google Ads SearchStream response bytes remain authoritative. Provider identities and provider-native status/type values remain evidence; `REMOVED` is preserved. Optional unavailable provider fields normalize to `null`, never empty strings, zero, or synthetic values.
+
+A structurally valid SearchStream response that normalizes to zero rows may validate as `NO_DATA`. Malformed envelopes or semantic normalization failures fail closed and must not be converted into `NO_DATA`. Missing remains distinct from zero.
+
+This source reuses the existing canonical Google Ads Workspace connection and authenticated requester. It does not create a separate `google-ads-configuration` credential or connection record.
+
+Negatives v1 is not part of an adopted package, preset, analysis, recommendation, or export recipe contract.
+
 ### Keyword Planner
 
 Preserve provider-native monthly history.

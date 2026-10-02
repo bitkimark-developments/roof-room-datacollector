@@ -1,11 +1,11 @@
 # RoofRoom Data Collector — Project Handoff
 
 **Checkpoint date:** 2026-10-02
-**Current branch:** `main`
-**Integrated code checkpoint:** `5e7c34d`
-**Repository state:** `main` clean and synchronized at handoff publication
-**Current stage:** `BLOG_WRITING_PACK v1` integrated; configuration-blocked Task Package review IPC fix deterministically verified and integrated
-**Current action:** repository is clean and synchronized; stop until the next explicit implementation task is approved
+**Current branch:** `feat/google-ads-negatives-v1`
+**Production implementation checkpoint:** `8929306`
+**Repository state:** Google Ads Negatives v1 production implementation is committed; this handoff update closes the slice with its focused gate and adopted contract documentation
+**Current stage:** `05_NEGATIVES` implemented and deterministically verified; live-provider acceptance was not performed
+**Current action:** after the slice-closing checkpoint, the next approved separate Google Ads configuration scope is `08_CONVERSION_ACTIONS`; keep `09_CAMPAIGN_SETTINGS` subsequent
 
 ---
 
@@ -29,10 +29,10 @@ Authoritative repository:
 
 Observed current state:
 
-    branch:                     main
-    integrated code checkpoint: 5e7c34d
+    branch:                     feat/google-ads-negatives-v1
+    production implementation:  8929306
 
-Working tree was clean at the observed checkpoint.
+The production implementation is committed. The focused Negatives gate and this canonical documentation update form the slice-closing checkpoint that contains this handoff revision.
 
 Local and remote feature/fix branches used by the completed work were cleaned up after their relevant commits or patch-equivalent changes were integrated.
 
@@ -57,6 +57,7 @@ The application now includes:
 - generalized Production Data Package export;
 - post-R1 desktop UX/operations hardening;
 - Google Ads SEARCH reporting family;
+- Google Ads configuration Negatives v1 snapshot family;
 - `ADS_OPTIMIZATION_PACK v2` with historical v1 read compatibility;
 - `BLOG_WRITING_PACK v1`.
 
@@ -134,6 +135,13 @@ Also implemented:
   - `RSA_ASSET_PERFORMANCE`
 - reporting schema v2 for current acquisition, with historical schema v1 evidence remaining readable but not reacquirable;
 - schema v2 Campaign/Ad Group/Keyword reporting preserves conversion-efficiency metrics plus Search Top/Absolute Top impression share as distinct provider-native fields;
+- five-dataset `google-ads-configuration` Negatives v1 snapshot family:
+  - `CAMPAIGN_NEGATIVE_KEYWORDS`
+  - `AD_GROUP_NEGATIVE_KEYWORDS`
+  - `SHARED_NEGATIVE_KEYWORDS`
+  - `CAMPAIGN_NEGATIVE_KEYWORD_LISTS`
+  - `ACCOUNT_NEGATIVE_KEYWORD_LISTS`
+- immutable Negatives schema-v1 Job context with no requested date window;
 - deterministic Keyword Planner 3-month and YoY derived change fields from accepted monthly history;
 - `ADS_OPTIMIZATION_PACK v2`;
 - `BLOG_WRITING_PACK v1`.
@@ -154,6 +162,8 @@ Current production credential behavior includes:
 - safe renderer-visible connection/readiness states only.
 
 The Google Ads Developer Token is retired from active application behavior. Legacy persisted fields may remain readable only for backward compatibility.
+
+Google Ads configuration Negatives v1 reuses the existing Workspace Google Ads connection keyed by the legacy Search Terms source. It does not create a separate configuration-source credential or Workspace connection record.
 
 Do not reintroduce Developer Token setup as a current requirement without a new approved contract.
 
@@ -221,6 +231,12 @@ SerpApi secure provisioning has packaged human-observed acceptance, but credenti
 
 The expanded six-dataset Google Ads SEARCH reporting family is deterministically complete; live acceptance for the additional resources remains a separate explicitly authorized step.
 
+Google Ads configuration Negatives v1 is implemented and deterministically verified across its five dataset contracts, query builders, normalization paths, raw SearchStream acquisition, fail-closed validation, truthful `NO_DATA`, production registration, existing Ads connection reuse, and snapshot-specific capability override.
+
+The focused Negatives gate passed, the affected production source-composition regression passed, and the affected Google Ads SEARCH reporting gate passed without live-provider calls. `npx tsc --noEmit` passed after the metadata typing correction. ESLint reported zero errors when the repository lint script was run with the worktree-local ESLint configuration isolated; the unqualified nested-worktree invocation otherwise encounters duplicate plugin resolution from identical worktree and parent repository configs.
+
+Live-provider acceptance for Negatives v1 was not performed.
+
 Do not convert deterministic, packaged, credential, or feasibility evidence into a live-provider claim.
 
 ---
@@ -251,18 +267,18 @@ Do not reopen without new failing evidence or explicit scope approval:
 
 ## 10. Exact next action
 
-Current working slice is the bounded Google Ads SEARCH reporting metrics/schema compatibility repair on `fix/google-ads-reporting-metrics`.
+The bounded Google Ads configuration `05_NEGATIVES` slice is implemented and deterministically verified on `feat/google-ads-negatives-v1`.
 
-The implementation is deterministically verified but not yet committed by this handoff update.
+The adopted Negatives v1 scope is complete without live-provider acceptance. It does not include placements, brand exclusions, IP exclusions, topics/content labels/webpages, mutations, Performance Max claims, package/preset/export integration, conversion actions, or campaign settings.
 
 Next:
 
-1. review the final documentation + code diff and create the repair checkpoint if approved;
+1. create the slice-closing focused-gate and canonical-documentation checkpoint;
 2. do not push or merge without explicit authorization;
-3. after this repair is checkpointed, resume the separately scoped Google Ads configuration work beginning with `05_NEGATIVES`;
-4. keep `08_CONVERSION_ACTIONS` and `09_CAMPAIGN_SETTINGS` as subsequent independent source-module slices.
+3. use `08_CONVERSION_ACTIONS` as the next approved separate Google Ads configuration implementation scope;
+4. keep `09_CAMPAIGN_SETTINGS` subsequent and independent.
 
-By-conversion-time/date reporting remains outside this repair and must not be added implicitly.
+Do not broaden Negatives v1 while beginning the next slice.
 
 Do not run a live provider request merely to reconfirm an already deterministic result.
 
