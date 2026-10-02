@@ -117,9 +117,83 @@ export interface GoogleAdsAccountNegativeKeywordListRow {
   shared_set_type: string | null;
 }
 
+export interface GoogleAdsConversionActionRow {
+  conversion_action_resource_name: string;
+  conversion_action_id: string;
+  conversion_action_name: string | null;
+  conversion_action_status: string;
+  conversion_action_type: string;
+  conversion_action_category: string;
+  conversion_action_origin: string;
+  owner_customer: string | null;
+  counting_type: string | null;
+  primary_for_goal: boolean;
+  include_in_conversions_metric: boolean | null;
+  click_through_lookback_window_days: string | null;
+  view_through_lookback_window_days: string | null;
+  attribution_model: string | null;
+  data_driven_model_status: string | null;
+  default_value: number | null;
+  default_currency_code: string | null;
+  always_use_default_value: boolean | null;
+  google_analytics_4_property_id: string | null;
+  google_analytics_4_event_name: string | null;
+}
+
+export interface GoogleAdsCustomerConversionGoalRow {
+  resource_name: string;
+  category: string;
+  origin: string;
+  biddable: boolean;
+}
+
+export interface GoogleAdsConversionGoalCampaignConfigRow {
+  resource_name: string;
+  campaign_resource_name: string;
+  campaign_id: string;
+  campaign_name: string | null;
+  campaign_status: string;
+  goal_config_level: string;
+  custom_conversion_goal_resource_name: string | null;
+}
+
+export interface GoogleAdsCampaignConversionGoalRow {
+  resource_name: string;
+  campaign_resource_name: string;
+  campaign_id: string;
+  campaign_name: string | null;
+  campaign_status: string;
+  category: string;
+  origin: string;
+  biddable: boolean;
+}
+
+export interface GoogleAdsCustomConversionGoalRow {
+  resource_name: string;
+  id: string;
+  name: string | null;
+  status: string;
+  conversion_action_resource_names: string[];
+}
+
+export interface GoogleAdsCustomerConversionTrackingSettingRow {
+  customer_resource_name: string;
+  customer_id: string;
+  conversion_tracking_status: string;
+  conversion_tracking_id: string | null;
+  cross_account_conversion_tracking_id: string | null;
+  google_ads_conversion_customer: string | null;
+}
+
 export type GoogleAdsConfigurationNormalizedRow =
   | GoogleAdsCampaignNegativeKeywordRow
   | GoogleAdsAdGroupNegativeKeywordRow
   | GoogleAdsSharedNegativeKeywordRow
   | GoogleAdsCampaignNegativeKeywordListRow
-  | GoogleAdsAccountNegativeKeywordListRow;
+  | GoogleAdsAccountNegativeKeywordListRow
+  | GoogleAdsConversionActionRow
+  | GoogleAdsCustomerConversionGoalRow
+  | GoogleAdsConversionGoalCampaignConfigRow
+  | GoogleAdsCampaignConversionGoalRow
+  | GoogleAdsCustomConversionGoalRow
+  | GoogleAdsCustomerConversionTrackingSettingRow;
