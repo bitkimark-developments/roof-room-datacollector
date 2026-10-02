@@ -8,10 +8,15 @@ import {
 import {
   normalizeGoogleAdsConversionConfigurationRows,
 } from './conversion-configuration-adapter';
+import {
+  normalizeGoogleAdsCampaignSettingsRows,
+  type GoogleAdsCampaignSettingsNormalizationOptions,
+} from './campaign-settings-adapter';
 
 export const normalizeGoogleAdsConfigurationRows = (
   datasetType: GoogleAdsConfigurationDatasetType,
   rows: Record<string, unknown>[],
+  options: GoogleAdsCampaignSettingsNormalizationOptions = {},
 ): GoogleAdsConfigurationNormalizedRow[] => {
   switch (datasetType) {
     case 'CAMPAIGN_NEGATIVE_KEYWORDS':
@@ -28,6 +33,15 @@ export const normalizeGoogleAdsConfigurationRows = (
     case 'CUSTOM_CONVERSION_GOALS':
     case 'CUSTOMER_CONVERSION_TRACKING_SETTINGS':
       return normalizeGoogleAdsConversionConfigurationRows(datasetType, rows);
+
+    case 'CAMPAIGN_SETTINGS':
+    case 'CAMPAIGN_BUDGETS':
+    case 'CAMPAIGN_TARGETING_CRITERIA':
+      return normalizeGoogleAdsCampaignSettingsRows(
+        datasetType,
+        rows,
+        options,
+      );
 
     default:
       throw new Error(

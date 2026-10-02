@@ -226,17 +226,17 @@ export interface GoogleAdsCampaignSettingsRow {
   target_impression_share_location: string | null;
   target_impression_share_location_fraction_micros: string | null;
   target_impression_share_cpc_bid_ceiling_micros: string | null;
-  target_google_search: boolean;
-  target_search_network: boolean;
-  target_content_network: boolean;
-  target_partner_search_network: boolean;
+  target_google_search: boolean | null;
+  target_search_network: boolean | null;
+  target_content_network: boolean | null;
+  target_partner_search_network: boolean | null;
   positive_geo_target_type: string;
   negative_geo_target_type: string;
   tracking_url: string | null;
   tracking_url_template: string | null;
   final_url_suffix: string | null;
   ai_max_enable_ai_max: boolean | null;
-  ai_max_bundling_required: boolean | null;
+  ai_max_bundling_required: string | null;
   asset_automation_settings: GoogleAdsCampaignAssetAutomationSettingRow[];
 }
 
@@ -247,8 +247,8 @@ export interface GoogleAdsCampaignBudgetRow {
   campaign_budget_status: string;
   amount_micros: string | null;
   delivery_method: string;
-  explicitly_shared: boolean;
-  reference_count: string;
+  explicitly_shared: boolean | null;
+  reference_count: string | null;
   total_amount_micros: string | null;
   period: string;
   type: string;
@@ -262,7 +262,7 @@ export interface GoogleAdsCampaignTargetingCriterionRow {
   campaign_status: string;
   criterion_id: string;
   criterion_type: string;
-  negative: boolean;
+  negative: boolean | null;
   criterion_status: string;
   location_geo_target_constant_resource_name: string | null;
   location_geo_target_constant_id: string | null;
