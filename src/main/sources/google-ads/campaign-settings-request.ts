@@ -5,7 +5,10 @@ import type { ApiRequester } from '../google-api/api-helpers';
 
 export const buildCampaignSettingsQuery = (
   _context: GoogleAdsConfigurationJobContext,
-): string => `SELECT
+): string => {
+  void _context;
+
+  return `SELECT
   campaign.resource_name,
   campaign.id,
   campaign.name,
@@ -42,10 +45,14 @@ export const buildCampaignSettingsQuery = (
   campaign.asset_automation_settings
 FROM campaign
 WHERE campaign.advertising_channel_type = 'SEARCH'`;
+};
 
 export const buildCampaignBudgetsQuery = (
   _context: GoogleAdsConfigurationJobContext,
-): string => `SELECT
+): string => {
+  void _context;
+
+  return `SELECT
   campaign_budget.resource_name,
   campaign_budget.id,
   campaign_budget.name,
@@ -58,10 +65,14 @@ export const buildCampaignBudgetsQuery = (
   campaign_budget.period,
   campaign_budget.type
 FROM campaign_budget`;
+};
 
 export const buildCampaignTargetingCriteriaQuery = (
   _context: GoogleAdsConfigurationJobContext,
-): string => `SELECT
+): string => {
+  void _context;
+
+  return `SELECT
   campaign_criterion.resource_name,
   campaign_criterion.campaign,
   campaign_criterion.criterion_id,
@@ -93,6 +104,7 @@ WHERE campaign.advertising_channel_type = 'SEARCH'
     'DEVICE',
     'AD_SCHEDULE'
   )`;
+};
 
 export const requestGoogleAdsGeoTargetConstantsRaw = async (
   input: { resource_names: readonly string[] },
