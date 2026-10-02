@@ -1,10 +1,11 @@
 # RoofRoom Data Collector — Project Handoff
 
 **Checkpoint date:** 2026-10-02
-**Current branch:** `feat/blog-writing-pack-v1`
-**Observed HEAD:** `14d6ce9`
-**Current stage:** `BLOG_WRITING_PACK v1` implementation and packaged acceptance complete
-**Current action:** stop for explicit integration / merge / push decision before starting new implementation
+**Current branch:** `main`
+**Integrated code checkpoint:** `5e7c34d`
+**Repository state:** `main` clean; handoff refresh pending commit/push
+**Current stage:** `BLOG_WRITING_PACK v1` integrated; configuration-blocked Task Package review IPC fix deterministically verified and integrated
+**Current action:** repository is clean and synchronized; stop until the next explicit implementation task is approved
 
 ---
 
@@ -28,21 +29,13 @@ Authoritative repository:
 
 Observed current state:
 
-```text
-branch: feat/blog-writing-pack-v1
-HEAD:   14d6ce9
-```
+    branch:      main
+    integrated code checkpoint: 5e7c34d
+    branch:                     main
 
-Tracked working tree was clean at the observed checkpoint.
+Working tree was clean at the observed checkpoint.
 
-Only these historical untracked files remained:
-
-```text
-CODEX_HANDOFF_CURRENT.md
-PROJECT_HANDOFF.pre-20260820.md
-```
-
-They are stale history, not current authority.
+Local and remote feature/fix branches used by the completed work were cleaned up after their relevant commits or patch-equivalent changes were integrated.
 
 ---
 
@@ -256,18 +249,19 @@ Do not reopen without new failing evidence or explicit scope approval:
 
 ## 10. Exact next action
 
-The observed branch is clean for tracked files and has advanced beyond the Section 64 implementation checkpoint.
+The completed Blog Writing Pack work, repository-guidance cleanup, and configuration-blocked Task Package review IPC fix are integrated into `main` and synchronized with `origin/main`.
+
+The Task Package IPC regression was verified RED before the fix, GREEN after the fix, and the deterministic desktop Task Package gate passed.
 
 Do not begin a new implementation slice automatically.
 
 Next:
 
-1. review the current `feat/blog-writing-pack-v1` checkpoint;
-2. decide explicitly whether to merge/push/integrate it;
-3. archive or remove the two stale root-level historical handoff files separately;
-4. only after a new task is approved, load the smallest authority set required for that task.
+1. wait for the next explicit task or scope decision;
+2. when one is approved, start from this Handoff and load only the smallest relevant authority set;
+3. run broader packaging or live-provider verification only when the new task or claimed outcome requires it.
 
-Do not run a live provider request merely to reconfirm an already deterministic or packaged result.
+No current merge, push, branch-cleanup, or repository-recovery action remains pending.
 
 ---
 
