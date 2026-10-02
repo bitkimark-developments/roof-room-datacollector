@@ -13,6 +13,13 @@ const {
 ));
 
 const {
+  normalizeGoogleAdsConfigurationRows,
+} = require(path.join(
+  buildRoot,
+  'main/sources/google-ads/configuration-normalizer.js',
+));
+
+const {
   createGoogleAdsConfigurationJobContext,
 } = require(path.join(
   buildRoot,
@@ -28,6 +35,7 @@ const {
 
 const {
   GOOGLE_ADS_CONFIGURATION_DATASET_TYPES,
+  GOOGLE_ADS_CONFIGURATION_RESOURCE_MODE_BY_DATASET,
 } = require(path.join(
   buildRoot,
   'shared/google-ads-configuration.js',
@@ -71,6 +79,76 @@ const collectionContext = {
   assert.equal(Object.isFrozen(baseContext), true);
 
   assert.deepEqual(
+    normalizeGoogleAdsConfigurationRows(
+      'CAMPAIGN_NEGATIVE_KEYWORDS',
+      [{
+        campaign: {
+          id: '1001',
+          name: 'Search Campaign',
+          advertisingChannelType: 'SEARCH',
+        },
+        campaignCriterion: {
+          resourceName: 'customers/123/campaignCriteria/1001~2001',
+          criterionId: '2001',
+          status: 'REMOVED',
+          type: 'KEYWORD',
+          negative: true,
+          keyword: {
+            text: 'free',
+            matchType: 'BROAD',
+          },
+        },
+      }],
+    ),
+    [{
+      campaign_id: '1001',
+      campaign_name: 'Search Campaign',
+      campaign_advertising_channel_type: 'SEARCH',
+      campaign_criterion_resource_name:
+        'customers/123/campaignCriteria/1001~2001',
+      campaign_criterion_id: '2001',
+      campaign_criterion_status: 'REMOVED',
+      campaign_criterion_type: 'KEYWORD',
+      campaign_criterion_negative: true,
+      keyword_text: 'free',
+      keyword_match_type: 'BROAD',
+    }],
+    'Family dispatcher must delegate Negatives datasets to the existing adapter.',
+  );
+
+  assert.deepEqual(
+    normalizeGoogleAdsConfigurationRows(
+      'CUSTOMER_CONVERSION_GOALS',
+      [{
+        customerConversionGoal: {
+          resourceName:
+            'customers/123/customerConversionGoals/PURCHASE~WEBSITE',
+          category: 'PURCHASE',
+          origin: 'WEBSITE',
+          biddable: false,
+        },
+      }],
+    ),
+    [{
+      resource_name:
+        'customers/123/customerConversionGoals/PURCHASE~WEBSITE',
+      category: 'PURCHASE',
+      origin: 'WEBSITE',
+      biddable: false,
+    }],
+    'Family dispatcher must delegate conversion datasets to the conversion adapter.',
+  );
+
+  assert.throws(
+    () => normalizeGoogleAdsConfigurationRows(
+      'UNSUPPORTED_CONFIGURATION_DATASET',
+      [],
+    ),
+    /unsupported/iu,
+    'Family dispatcher must fail closed for an unsupported dataset.',
+  );
+
+  assert.deepEqual(
     GOOGLE_ADS_CONFIGURATION_DATASET_DESCRIPTORS.map((entry) => ({
       dataset_type: entry.dataset_type,
       resource_mode: entry.resource_mode,
@@ -96,9 +174,222 @@ const collectionContext = {
         dataset_type: 'ACCOUNT_NEGATIVE_KEYWORD_LISTS',
         resource_mode: 'CUSTOMER_NEGATIVE_CRITERION',
       },
+      {
+        dataset_type: 'CONVERSION_ACTIONS',
+        resource_mode: 'CONVERSION_ACTION',
+      },
+      {
+        dataset_type: 'CUSTOMER_CONVERSION_GOALS',
+        resource_mode: 'CUSTOMER_CONVERSION_GOAL',
+      },
+      {
+        dataset_type: 'CONVERSION_GOAL_CAMPAIGN_CONFIGS',
+        resource_mode: 'CONVERSION_GOAL_CAMPAIGN_CONFIG',
+      },
+      {
+        dataset_type: 'CAMPAIGN_CONVERSION_GOALS',
+        resource_mode: 'CAMPAIGN_CONVERSION_GOAL',
+      },
+      {
+        dataset_type: 'CUSTOM_CONVERSION_GOALS',
+        resource_mode: 'CUSTOM_CONVERSION_GOAL',
+      },
+      {
+        dataset_type: 'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
+        resource_mode: 'CUSTOMER',
+      },
     ],
-    'Configuration source must register exactly the five approved dataset descriptors.',
+    'Configuration source must register exactly the eleven approved dataset descriptors.',
   );
+
+  assert.equal(
+    GOOGLE_ADS_CONFIGURATION_DATASET_DESCRIPTORS.length,
+    11,
+  );
+
+  assert.equal(
+    new Set(
+      GOOGLE_ADS_CONFIGURATION_DATASET_DESCRIPTORS
+        .map((entry) => entry.dataset_type),
+    ).size,
+    11,
+    'Configuration descriptor registry must contain eleven unique datasets.',
+  );
+
+  const conversionCases = [
+    {
+      dataset_type: 'CONVERSION_ACTIONS',
+      query:
+        'SELECT conversion_action.resource_name, conversion_action.id, '
+        + 'conversion_action.name, conversion_action.status, '
+        + 'conversion_action.type, conversion_action.category, '
+        + 'conversion_action.origin, conversion_action.owner_customer, '
+        + 'conversion_action.counting_type, conversion_action.primary_for_goal, '
+        + 'conversion_action.include_in_conversions_metric, '
+        + 'conversion_action.click_through_lookback_window_days, '
+        + 'conversion_action.view_through_lookback_window_days, '
+        + 'conversion_action.attribution_model_settings.attribution_model, '
+        + 'conversion_action.attribution_model_settings.data_driven_model_status, '
+        + 'conversion_action.value_settings.default_value, '
+        + 'conversion_action.value_settings.default_currency_code, '
+        + 'conversion_action.value_settings.always_use_default_value, '
+        + 'conversion_action.google_analytics_4_settings.property_id, '
+        + 'conversion_action.google_analytics_4_settings.event_name '
+        + 'FROM conversion_action',
+    },
+    {
+      dataset_type: 'CUSTOMER_CONVERSION_GOALS',
+      query:
+        'SELECT customer_conversion_goal.resource_name, '
+        + 'customer_conversion_goal.category, '
+        + 'customer_conversion_goal.origin, '
+        + 'customer_conversion_goal.biddable '
+        + 'FROM customer_conversion_goal',
+    },
+    {
+      dataset_type: 'CONVERSION_GOAL_CAMPAIGN_CONFIGS',
+      query:
+        'SELECT conversion_goal_campaign_config.resource_name, '
+        + 'conversion_goal_campaign_config.campaign, '
+        + 'conversion_goal_campaign_config.goal_config_level, '
+        + 'conversion_goal_campaign_config.custom_conversion_goal, '
+        + 'campaign.id, campaign.name, campaign.status '
+        + 'FROM conversion_goal_campaign_config',
+    },
+    {
+      dataset_type: 'CAMPAIGN_CONVERSION_GOALS',
+      query:
+        'SELECT campaign_conversion_goal.resource_name, '
+        + 'campaign_conversion_goal.campaign, '
+        + 'campaign_conversion_goal.category, '
+        + 'campaign_conversion_goal.origin, '
+        + 'campaign_conversion_goal.biddable, '
+        + 'campaign.id, campaign.name, campaign.status '
+        + 'FROM campaign_conversion_goal',
+    },
+    {
+      dataset_type: 'CUSTOM_CONVERSION_GOALS',
+      query:
+        'SELECT custom_conversion_goal.resource_name, '
+        + 'custom_conversion_goal.id, '
+        + 'custom_conversion_goal.name, '
+        + 'custom_conversion_goal.status, '
+        + 'custom_conversion_goal.conversion_actions '
+        + 'FROM custom_conversion_goal',
+    },
+    {
+      dataset_type: 'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
+      query:
+        'SELECT customer.resource_name, customer.id, '
+        + 'customer.conversion_tracking_setting.conversion_tracking_status, '
+        + 'customer.conversion_tracking_setting.conversion_tracking_id, '
+        + 'customer.conversion_tracking_setting.cross_account_conversion_tracking_id, '
+        + 'customer.conversion_tracking_setting.google_ads_conversion_customer '
+        + 'FROM customer',
+    },
+  ];
+
+  for (const conversionCase of conversionCases) {
+    const matchingDescriptors =
+      GOOGLE_ADS_CONFIGURATION_DATASET_DESCRIPTORS.filter(
+        (entry) => entry.dataset_type === conversionCase.dataset_type,
+      );
+
+    assert.equal(
+      matchingDescriptors.length,
+      1,
+      `${conversionCase.dataset_type} must have exactly one descriptor.`,
+    );
+
+    assert.equal(
+      matchingDescriptors[0].resource_mode,
+      GOOGLE_ADS_CONFIGURATION_RESOURCE_MODE_BY_DATASET[
+        conversionCase.dataset_type
+      ],
+    );
+
+    const conversionContext =
+      createGoogleAdsConfigurationJobContext({
+        dataset_type: conversionCase.dataset_type,
+        customer_id: '1234567890',
+      });
+
+    const conversionRequests = [];
+    const conversionRawText =
+      `[{"results":[{"dataset":"${conversionCase.dataset_type}"}]}]`;
+    const conversionRawBytes =
+      new TextEncoder().encode(conversionRawText);
+
+    const conversionSource =
+      new GoogleAdsConfigurationSource(
+        '1234567890',
+        async (request) => {
+          conversionRequests.push(request);
+
+          return {
+            status: 200,
+            body: [{
+              results: [{
+                dataset: conversionCase.dataset_type,
+              }],
+            }],
+            raw_body: conversionRawBytes,
+          };
+        },
+      );
+
+    const conversionResult =
+      await conversionSource.collect({
+        source_id: 'google-ads-configuration',
+        job_key: conversionCase.dataset_type,
+        source_context: conversionContext,
+      });
+
+    assert.equal(
+      conversionResult.result_type,
+      'ARTIFACT_PRODUCED',
+      `${conversionCase.dataset_type} must produce raw evidence.`,
+    );
+
+    assert.equal(
+      conversionRequests.length,
+      1,
+      `${conversionCase.dataset_type} must make exactly one provider request.`,
+    );
+
+    assert.equal(
+      conversionRequests[0].url,
+      'https://googleads.googleapis.com/v25/customers/1234567890/googleAds:searchStream',
+      `${conversionCase.dataset_type} must use the immutable configured customer.`,
+    );
+
+    assert.equal(conversionRequests[0].method, 'POST');
+
+    assert.deepEqual(
+      conversionRequests[0].body,
+      { query: conversionCase.query },
+      `${conversionCase.dataset_type} must send the exact approved GAQL.`,
+    );
+
+    assert.deepEqual(
+      Buffer.from(conversionResult.bytes),
+      Buffer.from(conversionRawBytes),
+      `${conversionCase.dataset_type} must preserve response.raw_body exactly.`,
+    );
+
+    assert.equal(
+      conversionResult.preferred_filename,
+      `google-ads-${conversionCase.dataset_type
+        .toLowerCase()
+        .replace(/_/gu, '-')}.json`,
+    );
+
+    assert.equal(
+      Object.hasOwn(conversionResult, 'rows'),
+      false,
+      'Acquisition must preserve raw evidence rather than return normalized rows.',
+    );
+  }
 
   const providerRequests = [];
   const rawText =

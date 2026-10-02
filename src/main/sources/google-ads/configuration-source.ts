@@ -28,6 +28,14 @@ import {
   buildCampaignNegativeKeywordListsQuery,
   buildAccountNegativeKeywordListsQuery,
 } from './negatives-request';
+import {
+  buildConversionActionsQuery,
+  buildCustomerConversionGoalsQuery,
+  buildConversionGoalCampaignConfigsQuery,
+  buildCampaignConversionGoalsQuery,
+  buildCustomConversionGoalsQuery,
+  buildCustomerConversionTrackingSettingsQuery,
+} from './conversion-configuration-request';
 
 export interface GoogleAdsConfigurationDatasetDescriptor {
   readonly dataset_type: GoogleAdsConfigurationDatasetType;
@@ -61,6 +69,36 @@ readonly GoogleAdsConfigurationDatasetDescriptor[] = [
     dataset_type: 'ACCOUNT_NEGATIVE_KEYWORD_LISTS',
     resource_mode: 'CUSTOMER_NEGATIVE_CRITERION',
     buildQuery: buildAccountNegativeKeywordListsQuery,
+  },
+  {
+    dataset_type: 'CONVERSION_ACTIONS',
+    resource_mode: 'CONVERSION_ACTION',
+    buildQuery: buildConversionActionsQuery,
+  },
+  {
+    dataset_type: 'CUSTOMER_CONVERSION_GOALS',
+    resource_mode: 'CUSTOMER_CONVERSION_GOAL',
+    buildQuery: buildCustomerConversionGoalsQuery,
+  },
+  {
+    dataset_type: 'CONVERSION_GOAL_CAMPAIGN_CONFIGS',
+    resource_mode: 'CONVERSION_GOAL_CAMPAIGN_CONFIG',
+    buildQuery: buildConversionGoalCampaignConfigsQuery,
+  },
+  {
+    dataset_type: 'CAMPAIGN_CONVERSION_GOALS',
+    resource_mode: 'CAMPAIGN_CONVERSION_GOAL',
+    buildQuery: buildCampaignConversionGoalsQuery,
+  },
+  {
+    dataset_type: 'CUSTOM_CONVERSION_GOALS',
+    resource_mode: 'CUSTOM_CONVERSION_GOAL',
+    buildQuery: buildCustomConversionGoalsQuery,
+  },
+  {
+    dataset_type: 'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
+    resource_mode: 'CUSTOMER',
+    buildQuery: buildCustomerConversionTrackingSettingsQuery,
   },
 ];
 

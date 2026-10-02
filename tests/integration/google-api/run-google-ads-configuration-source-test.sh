@@ -9,6 +9,7 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 
 npx tsc \
   src/main/sources/google-ads/configuration-request.ts \
+  src/main/sources/google-ads/configuration-normalizer.ts \
   src/main/sources/google-ads/configuration-source.ts \
   src/main/sources/google-api/google-api-runtime.ts \
   --rootDir src \
