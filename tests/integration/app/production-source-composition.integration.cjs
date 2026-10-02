@@ -136,18 +136,21 @@ assert.deepEqual(
     'CAMPAIGN_CONVERSION_GOALS',
     'CUSTOM_CONVERSION_GOALS',
     'CUSTOMER_CONVERSION_TRACKING_SETTINGS',
+    'CAMPAIGN_SETTINGS',
+    'CAMPAIGN_BUDGETS',
+    'CAMPAIGN_TARGETING_CRITERIA',
   ],
 );
 
 assert.equal(
   configurationSource.datasetTypes.length,
-  11,
-  'Google Ads configuration must expose exactly eleven datasets.',
+  14,
+  'Google Ads configuration must expose exactly fourteen datasets.',
 );
 
 assert.equal(
   new Set(configurationSource.datasetTypes).size,
-  11,
+  14,
   'Google Ads configuration dataset IDs must be unique.',
 );
 
