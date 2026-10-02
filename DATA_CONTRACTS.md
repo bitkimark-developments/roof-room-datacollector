@@ -400,6 +400,35 @@ This source reuses the existing canonical Google Ads Workspace connection and au
 
 Negatives v1 is not part of an adopted package, preset, analysis, recommendation, or export recipe contract.
 
+### Google Ads configuration — Conversion Configuration v1
+
+`google-ads-configuration` also owns six provider-native Conversion Configuration schema-v1 snapshot datasets:
+
+- `CONVERSION_ACTIONS` → `CONVERSION_ACTION`
+- `CUSTOMER_CONVERSION_GOALS` → `CUSTOMER_CONVERSION_GOAL`
+- `CONVERSION_GOAL_CAMPAIGN_CONFIGS` → `CONVERSION_GOAL_CAMPAIGN_CONFIG`
+- `CAMPAIGN_CONVERSION_GOALS` → `CAMPAIGN_CONVERSION_GOAL`
+- `CUSTOM_CONVERSION_GOALS` → `CUSTOM_CONVERSION_GOAL`
+- `CUSTOMER_CONVERSION_TRACKING_SETTINGS` → `CUSTOMER`
+
+Together with the five Negatives v1 datasets, the current `google-ads-configuration` family contains exactly eleven independent dataset types.
+
+Conversion Configuration v1 is a current-configuration snapshot contract. It has no requested date window and keeps `supports_custom_date_range: false`.
+
+Raw Google Ads SearchStream response bytes remain authoritative. Normalized rows preserve provider resource identity, lifecycle/status values, real `false` and zero values, and nullable optional evidence without fabricating replacements.
+
+`CONVERSION_ACTIONS` preserves provider-native action identity, status/type/category/origin, ownership, counting and goal flags, lookback settings, attribution settings, default value/currency settings, and Google Analytics 4 linkage where returned. `include_in_conversions_metric` is preserved only as legacy provider evidence; RoofRoom does not reinterpret it as a current effective-goal decision.
+
+`CUSTOM_CONVERSION_GOALS.conversion_action_resource_names` preserves provider-returned membership exactly. A provider-returned empty array remains `[]`; missing or unproven membership must not be normalized into an empty array.
+
+Requested `customer_id` is immutable request context and must not be copied into observed ownership or conversion-customer fields without provider evidence.
+
+RoofRoom does not derive an effective campaign conversion-goal model from these datasets. It does not infer goal precedence, bidding behavior, or optimization intent.
+
+Conversion Configuration v1 is not part of an adopted package, preset, analysis, recommendation, or export recipe contract.
+
+The family reuses the existing canonical Google Ads Workspace connection and authenticated requester. It does not add a configuration-specific credential, connection type, or Developer Token requirement.
+
 ### Keyword Planner
 
 Preserve provider-native monthly history.
