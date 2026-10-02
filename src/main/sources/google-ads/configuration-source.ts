@@ -21,8 +21,8 @@ import {
   requestGoogleAdsConfigurationRaw,
   requireGoogleAdsConfigurationJobContext,
 } from './configuration-request';
-import { buildCampaignNegativeKeywordsQuery } from './negatives-request';
 import {
+  buildCampaignNegativeKeywordsQuery,
   buildAdGroupNegativeKeywordsQuery,
   buildSharedNegativeKeywordsQuery,
   buildCampaignNegativeKeywordListsQuery,
