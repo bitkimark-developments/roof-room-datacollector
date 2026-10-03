@@ -1266,6 +1266,30 @@ async function main() {
       },
       {
         source_id:
+          'google-ads-search-reporting',
+        credential_status:
+          'NOT_CONFIGURED',
+        readiness_status:
+          'READY',
+      },
+      {
+        source_id:
+          'google-ads-change-history',
+        credential_status:
+          'NOT_CONFIGURED',
+        readiness_status:
+          'READY',
+      },
+      {
+        source_id:
+          'google-ads-configuration',
+        credential_status:
+          'NOT_CONFIGURED',
+        readiness_status:
+          'READY',
+      },
+      {
+        source_id:
           'google-analytics-4',
         credential_status:
           'NOT_CONFIGURED',
