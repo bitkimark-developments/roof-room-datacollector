@@ -9,6 +9,9 @@ export const DESKTOP_GOOGLE_CONNECTION_SOURCE_IDS = [
   'google-search-console-query-page',
   'google-ads-search-terms',
   'google-keyword-planner',
+  'google-ads-search-reporting',
+  'google-ads-change-history',
+  'google-ads-configuration',
   'google-analytics-4',
 ] as const;
 
@@ -70,7 +73,10 @@ export type GoogleConnectionMetadataIntent =
   | {
     source_id:
       | 'google-ads-search-terms'
-      | 'google-keyword-planner';
+      | 'google-keyword-planner'
+      | 'google-ads-search-reporting'
+      | 'google-ads-change-history'
+      | 'google-ads-configuration';
     metadata: GoogleAdsConnectionMetadata;
   }
   | {
@@ -106,7 +112,10 @@ export type ReconnectGoogleWorkspaceConnectionIntent = {
   | {
     source_id:
       | 'google-ads-search-terms'
-      | 'google-keyword-planner';
+      | 'google-keyword-planner'
+      | 'google-ads-search-reporting'
+      | 'google-ads-change-history'
+      | 'google-ads-configuration';
     metadata?: GoogleAdsConnectionMetadata;
   }
   | {

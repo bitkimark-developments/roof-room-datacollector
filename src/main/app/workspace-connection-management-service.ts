@@ -562,33 +562,59 @@ export class WorkspaceConnectionManagementService {
     return success(intent.source_id, 'RECONNECT_GOOGLE', outcome);
   }
 
+  private readonly reusableGoogleAdsSourceIds = [
+    'google-ads-search-terms',
+    'google-keyword-planner',
+    'google-ads-search-reporting',
+    'google-ads-change-history',
+    'google-ads-configuration',
+  ] as const;
+
   private async findReusableAdsCredential(
     intent: ConnectGoogleWorkspaceConnectionIntent,
   ): Promise<string | null> {
     if (
-      intent.source_id === 'google-search-console-query-page'
-      || intent.source_id === 'google-analytics-4'
+      !this.reusableGoogleAdsSourceIds.includes(
+        intent.source_id as typeof this.reusableGoogleAdsSourceIds[number],
+      )
     ) {
       return null;
     }
-    const siblingSourceId = intent.source_id === 'google-ads-search-terms'
-      ? 'google-keyword-planner'
-      : 'google-ads-search-terms';
-    const sibling = this.dependencies.repository.getSourceConnection(
-      intent.workspace_id,
-      siblingSourceId,
-    );
-    if (sibling?.credential_ref === null || sibling === null) return null;
-    try {
-      const compatible =
-        await this.dependencies.google_credential_acquirer.isCompatible(
-          sibling.credential_ref,
-          [GOOGLE_ADS_SCOPE],
+
+    for (const sourceId of this.reusableGoogleAdsSourceIds) {
+      if (sourceId === intent.source_id) {
+        continue;
+      }
+
+      const sibling =
+        this.dependencies.repository.getSourceConnection(
+          intent.workspace_id,
+          sourceId,
         );
-      return compatible ? sibling.credential_ref : null;
-    } catch {
-      return null;
+
+      if (
+        sibling === null
+        || sibling.credential_ref === null
+      ) {
+        continue;
+      }
+
+      try {
+        const compatible =
+          await this.dependencies.google_credential_acquirer.isCompatible(
+            sibling.credential_ref,
+            [GOOGLE_ADS_SCOPE],
+          );
+
+        if (compatible) {
+          return sibling.credential_ref;
+        }
+      } catch {
+        continue;
+      }
     }
+
+    return null;
   }
 
   private googleRebindSourceIds(
@@ -596,21 +622,36 @@ export class WorkspaceConnectionManagementService {
     expectedCredentialRef: string,
   ): DesktopGoogleConnectionSourceId[] {
     if (
-      intent.source_id === 'google-search-console-query-page'
-      || intent.source_id === 'google-analytics-4'
+      !this.reusableGoogleAdsSourceIds.includes(
+        intent.source_id as typeof this.reusableGoogleAdsSourceIds[number],
+      )
     ) {
       return [intent.source_id];
     }
-    const siblingSourceId = intent.source_id === 'google-ads-search-terms'
-      ? 'google-keyword-planner'
-      : 'google-ads-search-terms';
-    const sibling = this.dependencies.repository.getSourceConnection(
-      intent.workspace_id,
-      siblingSourceId,
-    );
-    return sibling?.credential_ref === expectedCredentialRef
-      ? [intent.source_id, siblingSourceId]
-      : [intent.source_id];
+
+    const reboundSourceIds: DesktopGoogleConnectionSourceId[] = [
+      intent.source_id,
+    ];
+
+    for (const sourceId of this.reusableGoogleAdsSourceIds) {
+      if (sourceId === intent.source_id) {
+        continue;
+      }
+
+      const sibling =
+        this.dependencies.repository.getSourceConnection(
+          intent.workspace_id,
+          sourceId,
+        );
+
+      if (
+        sibling?.credential_ref === expectedCredentialRef
+      ) {
+        reboundSourceIds.push(sourceId);
+      }
+    }
+
+    return reboundSourceIds;
   }
 
   private async readGoogleConfiguration(

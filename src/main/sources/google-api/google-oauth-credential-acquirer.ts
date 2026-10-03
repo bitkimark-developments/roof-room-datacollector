@@ -179,6 +179,9 @@ const requiredScopesForSource = (
       return [GOOGLE_SEARCH_CONSOLE_READONLY_SCOPE];
     case 'google-ads-search-terms':
     case 'google-keyword-planner':
+    case 'google-ads-search-reporting':
+    case 'google-ads-change-history':
+    case 'google-ads-configuration':
       return [GOOGLE_ADS_SCOPE];
     case 'google-analytics-4':
       return [GOOGLE_ANALYTICS_READONLY_SCOPE];

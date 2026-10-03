@@ -16,6 +16,9 @@ import type {
 import type { FreshnessStatus } from './freshness';
 import type { ArtifactRecord } from './artifact';
 import type { AttemptRecord } from './attempt';
+import type {
+  WorkspaceSourceConnectionRecord,
+} from './workspace-connection';
 
 export const SUPPORTED_DESKTOP_SOURCE_IDS = [
   'google-trends',
@@ -23,6 +26,9 @@ export const SUPPORTED_DESKTOP_SOURCE_IDS = [
   'google-search-console-query-page',
   'google-ads-search-terms',
   'google-keyword-planner',
+  'google-ads-search-reporting',
+  'google-ads-change-history',
+  'google-ads-configuration',
   'google-analytics-4',
   'google-keyword-planner-csv',
   'ikas-products',
@@ -43,6 +49,9 @@ export const DESKTOP_CREDENTIAL_MANAGED_SOURCE_IDS = [
   'google-search-console-query-page',
   'google-ads-search-terms',
   'google-keyword-planner',
+  'google-ads-search-reporting',
+  'google-ads-change-history',
+  'google-ads-configuration',
   'google-analytics-4',
   'serpapi',
 ] as const;
@@ -177,7 +186,9 @@ export interface DesktopMultiSourceRepository {
     preset_id: string,
   ): void;
   getLastRunSettings(workspace_id: string): LastRunSettingsRecord | null;
-  listSourceConnections(workspace_id: string): Array<{ source_id: string; credential_ref: string | null }>;
+  listSourceConnections(
+    workspace_id: string,
+  ): WorkspaceSourceConnectionRecord[];
   reserveRunFromJobPlans(input: {
     workspace_id: string;
     application_version: string;

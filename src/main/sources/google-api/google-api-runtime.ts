@@ -10,6 +10,12 @@ import {
 import {
   GOOGLE_ADS_CHANGE_HISTORY_SOURCE_ID,
 } from '../../../shared/google-ads-change-history';
+import {
+  GOOGLE_ADS_CONFIGURATION_SOURCE_ID,
+} from '../../../shared/google-ads-configuration';
+import {
+  GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID,
+} from '../../../shared/google-ads-search-reporting';
 import type { CredentialStore } from '../../core/credential-store';
 import type { StateRepository } from '../../storage/state-repository';
 import { GoogleAdsSearchTermsSource, GoogleKeywordPlannerSource } from '../google-ads/google-ads-sources';
@@ -222,7 +228,7 @@ export class GoogleApiRuntimeFactory {
   ): GoogleAdsSearchReportingSource {
     const connection = this.requireConnection(
       input.workspace_id,
-      GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID,
+      GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID,
     );
     const customerId = normalizeGoogleAdsCustomerId(
       requireMetadataString(connection, 'customer_id'),
@@ -243,7 +249,7 @@ export class GoogleApiRuntimeFactory {
   }): GoogleAdsChangeHistorySource {
     const connection = this.requireConnection(
       input.workspace_id,
-      GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID,
+      GOOGLE_ADS_CHANGE_HISTORY_SOURCE_ID,
     );
 
     return new GoogleAdsChangeHistorySource(
@@ -263,7 +269,7 @@ export class GoogleApiRuntimeFactory {
   }): GoogleAdsConfigurationSource {
     const connection = this.requireConnection(
       input.workspace_id,
-      GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID,
+      GOOGLE_ADS_CONFIGURATION_SOURCE_ID,
     );
 
     return new GoogleAdsConfigurationSource(

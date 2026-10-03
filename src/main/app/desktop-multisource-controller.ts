@@ -37,6 +37,17 @@ import { RetryPolicy } from '../core/retry-policy';
 import { RunManager } from '../core/run-manager';
 import { createSearchTermsJobContext } from '../sources/google-ads/search-terms-request';
 import {
+  createGoogleAdsReportingJobContext,
+  googleAdsReportingContextAsJson,
+} from '../sources/google-ads/search-reporting-request';
+import {
+  createGoogleAdsChangeHistoryJobContext,
+} from '../sources/google-ads/google-ads-change-history-request';
+import {
+  createGoogleAdsConfigurationJobContext,
+  googleAdsConfigurationContextAsJson,
+} from '../sources/google-ads/configuration-request';
+import {
   createKeywordPlannerJobContext,
   keywordPlannerContextAsJson,
   resolveKeywordPlannerHistoricalScope,
@@ -344,6 +355,136 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
       return [];
     }
   }
+
+  if (sourceId === 'google-ads-search-reporting') {
+    if (
+      !Array.isArray(config.datasets)
+      || typeof config.customer_id !== 'string'
+      || typeof config.requested_date_start !== 'string'
+      || typeof config.requested_date_end !== 'string'
+    ) {
+      return [];
+    }
+
+    const customerId =
+      config.customer_id;
+
+    const requestedDateStart =
+      config.requested_date_start;
+
+    const requestedDateEnd =
+      config.requested_date_end;
+
+    try {
+      return config.datasets.map((dataset) => {
+        const context =
+          googleAdsReportingContextAsJson(
+            createGoogleAdsReportingJobContext({
+              dataset_type:
+                dataset as never,
+              customer_id:
+                customerId as string,
+              requested_date_start:
+                requestedDateStart as string,
+              requested_date_end:
+                requestedDateEnd as string,
+            }),
+          );
+
+        return {
+          source_id:
+            sourceId,
+          job_key:
+            context.dataset_type as string,
+          query_group_id:
+            null as string | null,
+          source_context:
+            context,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  if (sourceId === 'google-ads-change-history') {
+    if (
+      typeof config.customer_id !== 'string'
+      || typeof config.requested_date_start !== 'string'
+      || typeof config.requested_date_end !== 'string'
+      || typeof config.dataset_type !== 'string'
+    ) {
+      return [];
+    }
+
+    try {
+      const context =
+        createGoogleAdsChangeHistoryJobContext({
+          source_id:
+            sourceId,
+          dataset_type:
+            config.dataset_type as never,
+          customer_id:
+            config.customer_id,
+          requested_date_start:
+            config.requested_date_start,
+          requested_date_end:
+            config.requested_date_end,
+          dataset_schema_version:
+            1,
+        });
+
+      return [{
+        source_id:
+          sourceId,
+        job_key:
+          context.dataset_type,
+        query_group_id:
+          null as string | null,
+        source_context:
+          { ...context },
+      }];
+    } catch {
+      return [];
+    }
+  }
+
+  if (sourceId === 'google-ads-configuration') {
+    if (
+      !Array.isArray(config.datasets)
+      || typeof config.customer_id !== 'string'
+    ) {
+      return [];
+    }
+
+    try {
+      return config.datasets.map((dataset) => {
+        const context =
+          googleAdsConfigurationContextAsJson(
+            createGoogleAdsConfigurationJobContext({
+              dataset_type:
+                dataset as never,
+              customer_id:
+                config.customer_id as string,
+            }),
+          );
+
+        return {
+          source_id:
+            sourceId,
+          job_key:
+            context.dataset_type as string,
+          query_group_id:
+            null as string | null,
+          source_context:
+            context,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
   if (sourceId === 'google-ads-search-terms') return plans(Array.isArray(config.jobs) ? config.jobs : [{}], (_item, index) => `search-terms-${index + 1}`);
   if (sourceId === 'ikas-products') {
     try {
@@ -373,7 +514,7 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
         query_group_id:
           null as string | null,
         source_context:
-          context,
+          { ...context },
       }];
     } catch {
       return [];
@@ -1698,6 +1839,224 @@ export class DesktopMultiSourceController {
         resolved_configuration: resolvedConfiguration,
       };
     }
+
+    if (sourceId === 'google-ads-search-reporting') {
+      if (
+        !Array.isArray(config.datasets)
+        || typeof config.customer_id !== 'string'
+        || typeof config.requested_date_start !== 'string'
+        || typeof config.requested_date_end !== 'string'
+      ) {
+        return null;
+      }
+
+      try {
+        const jobs = config.datasets.map(
+          (dataset) =>
+            googleAdsReportingContextAsJson(
+              createGoogleAdsReportingJobContext({
+                dataset_type:
+                  dataset as never,
+                customer_id:
+                  config.customer_id as string,
+                requested_date_start:
+                  config.requested_date_start as string,
+                requested_date_end:
+                  config.requested_date_end as string,
+              }),
+            ),
+        );
+
+        const reusableConfiguration =
+          cloneConfiguration(
+            draft.reusable_configuration,
+          );
+
+        const resolvedConfiguration =
+          cloneConfiguration(
+            draft.reusable_configuration,
+          );
+
+        const sources =
+          asJsonObjectValue(
+            resolvedConfiguration.sources,
+          );
+
+        sources[sourceId] = {
+          ...asJsonObjectValue(
+            sources[sourceId],
+          ),
+          jobs,
+        };
+
+        resolvedConfiguration.sources =
+          sources;
+
+        return {
+          workspace_id:
+            draft.workspace_id,
+          task_id:
+            sourceId,
+          source_id:
+            sourceId,
+          reference_date:
+            formatLocalReferenceDate(
+              this.now(),
+            ),
+          resolved_at:
+            this.now().toISOString(),
+          reusable_configuration:
+            reusableConfiguration,
+          resolved_configuration:
+            resolvedConfiguration,
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    if (sourceId === 'google-ads-change-history') {
+      if (
+        typeof config.dataset_type !== 'string'
+        || typeof config.customer_id !== 'string'
+        || typeof config.requested_date_start !== 'string'
+        || typeof config.requested_date_end !== 'string'
+      ) {
+        return null;
+      }
+
+      try {
+        const jobContext =
+          createGoogleAdsChangeHistoryJobContext({
+            dataset_type:
+              config.dataset_type as never,
+            customer_id:
+              config.customer_id as string,
+            requested_date_start:
+              config.requested_date_start as string,
+            requested_date_end:
+              config.requested_date_end as string,
+          });
+
+        const reusableConfiguration =
+          cloneConfiguration(
+            draft.reusable_configuration,
+          );
+
+        const resolvedConfiguration =
+          cloneConfiguration(
+            draft.reusable_configuration,
+          );
+
+        const sources =
+          asJsonObjectValue(
+            resolvedConfiguration.sources,
+          );
+
+        sources[sourceId] = {
+          ...asJsonObjectValue(
+            sources[sourceId],
+          ),
+          jobs: [
+            { ...jobContext },
+          ],
+        };
+
+        resolvedConfiguration.sources =
+          sources;
+
+        return {
+          workspace_id:
+            draft.workspace_id,
+          task_id:
+            sourceId,
+          source_id:
+            sourceId,
+          reference_date:
+            formatLocalReferenceDate(
+              this.now(),
+            ),
+          resolved_at:
+            this.now().toISOString(),
+          reusable_configuration:
+            reusableConfiguration,
+          resolved_configuration:
+            resolvedConfiguration,
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    if (sourceId === 'google-ads-configuration') {
+      if (
+        typeof config.dataset_type !== 'string'
+        || typeof config.customer_id !== 'string'
+      ) {
+        return null;
+      }
+
+      try {
+        const jobContext =
+          googleAdsConfigurationContextAsJson(
+            createGoogleAdsConfigurationJobContext({
+              dataset_type:
+                config.dataset_type as never,
+              customer_id:
+                config.customer_id as string,
+            }),
+          );
+
+        const reusableConfiguration =
+          cloneConfiguration(
+            draft.reusable_configuration,
+          );
+
+        const resolvedConfiguration =
+          cloneConfiguration(
+            draft.reusable_configuration,
+          );
+
+        const sources =
+          asJsonObjectValue(
+            resolvedConfiguration.sources,
+          );
+
+        sources[sourceId] = {
+          ...asJsonObjectValue(
+            sources[sourceId],
+          ),
+          jobs: [
+            jobContext,
+          ],
+        };
+
+        resolvedConfiguration.sources =
+          sources;
+
+        return {
+          workspace_id:
+            draft.workspace_id,
+          task_id:
+            sourceId,
+          source_id:
+            sourceId,
+          reference_date:
+            formatLocalReferenceDate(
+              this.now(),
+            ),
+          resolved_at:
+            this.now().toISOString(),
+          reusable_configuration:
+            reusableConfiguration,
+          resolved_configuration:
+            resolvedConfiguration,
+        };
+      } catch {
+        return null;
+      }
+    }
+
 
     if (
       sourceId === 'google-keyword-planner'

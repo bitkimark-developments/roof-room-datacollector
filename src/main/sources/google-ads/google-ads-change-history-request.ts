@@ -1,3 +1,4 @@
+import type { JsonObject } from '../../../shared/run-job';
 import {
   GOOGLE_ADS_CHANGE_HISTORY_DATASET_TYPES,
   GOOGLE_ADS_CHANGE_HISTORY_SOURCE_ID,
@@ -128,6 +129,11 @@ export const createGoogleAdsChangeHistoryJobContext = (
     dataset_schema_version: 1,
   };
 };
+
+export const googleAdsChangeHistoryContextAsJson = (
+  context: GoogleAdsChangeHistoryJobContext,
+): JsonObject => ({ ...context });
+
 
 export interface GoogleAdsChangeHistoryQueryDateRange {
   requested_date_start: string;
