@@ -294,7 +294,9 @@ Completed deterministic source checkpoints:
 - Google Analytics 4 source vertical slice;
 - Google Ads Change History source vertical slice;
 - Google Keyword Planner validator migration;
-- Google Ads Campaign Settings v1 gate.
+- Google Ads Campaign Settings v1 gate;
+- Google Ads Negatives v1 checkpoint;
+- Google Ads Search Reporting checkpoint.
 
 Next:
 
