@@ -1,5 +1,5 @@
 import type { ApplicationDirectories } from '../../shared/bootstrap-status';
-import type { CollectingDataSourceModule, SourceCollectionContext, SourceCollectionResult, CollectionValidator, CollectionValidationContext, CollectionValidationDecision } from '../../shared/collection';
+import type { CollectingDataSourceModule, SourceCollectionContext, SourceCollectionResult } from '../../shared/collection';
 import type { SourceCapabilities, SourceReadinessResult } from '../../shared/source';
 import type { StructuredLogSink } from '../../shared/logging';
 import type { StateRepository } from '../storage/state-repository';
@@ -19,9 +19,9 @@ import { IkasProductsSource } from '../sources/ikas/ikas-products-source';
 import { KeywordPlannerManualCsvSource } from '../sources/google-ads/keyword-planner-csv-source';
 import { KeywordPlannerManualCsvValidator } from '../sources/google-ads/keyword-planner-csv-validator';
 import { KeywordPlannerValidator } from '../sources/google-ads/keyword-planner-validator';
+import { GoogleAdsSearchTermsValidator } from '../sources/google-ads/search-terms-validator';
 import { GoogleSearchConsoleValidator } from '../sources/google-search-console/google-search-console-validator';
 import { BitkimarkSitemapSource } from '../sources/bitkimark/bitkimark-sitemap-source';
-import { normalizeSearchTerms } from '../sources/google-ads/search-terms-adapter';
 import { GoogleAdsSearchReportingValidator } from '../sources/google-ads/search-reporting-validator';
 import { GoogleAdsConfigurationValidator } from '../sources/google-ads/configuration-validator';
 import { GoogleAdsChangeHistoryValidator } from '../sources/google-ads/google-ads-change-history-validator';
@@ -90,25 +90,6 @@ class LazyWorkspaceSource implements CollectingDataSourceModule {
   }
 }
 
-class GoogleApiCollectionValidator implements CollectionValidator {
-  constructor(private readonly sourceId: string) {}
-  async validate(context: CollectionValidationContext): Promise<CollectionValidationDecision> {
-    if (context.job.source_id !== this.sourceId || context.artifact.source_id !== this.sourceId) return { validation_status: 'INVALID_SCHEMA', checks_total: 1, checks_passed: 0, checks_warning: 0, checks_failed: 1, findings: [] };
-    try {
-      const fs = await import('node:fs/promises');
-      const body = JSON.parse(new TextDecoder().decode(await fs.readFile(context.absolute_path))) as unknown;
-      let count = 0;
-      if (this.sourceId === GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID) {
-        count = normalizeSearchTerms(body).length;
-      } else {
-        throw new Error(`Unsupported source id: ${this.sourceId}`);
-      }
-      return { validation_status: count > 0 ? 'VALID' as const : 'NO_DATA' as const, checks_total: 1, checks_passed: 1, checks_warning: 0, checks_failed: 0, findings: [] };
-    } catch (error) {
-      return { validation_status: 'INVALID_SCHEMA' as const, checks_total: 1, checks_passed: 0, checks_warning: 0, checks_failed: 1, findings: [{ check_id: 'GOOGLE_API_SCHEMA', severity: 'ERROR' as const, passed: false, message: error instanceof Error ? error.message : 'Invalid Google API artifact.', expected: 'Provider response matching source contract', actual: 'Invalid schema' }] };
-    }
-  }
-}
 
 export interface ProductionCollectionRuntime {
   source_registry: SourceRegistry;
@@ -200,7 +181,10 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
     GSC_QUERY_SOURCE_ID,
     new GoogleSearchConsoleValidator(GSC_QUERY_SOURCE_ID),
   );
-  validators.register(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, new GoogleApiCollectionValidator(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID));
+  validators.register(
+    GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID,
+    new GoogleAdsSearchTermsValidator(),
+  );
   validators.register(
     GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID,
     new GoogleAdsSearchReportingValidator(),
