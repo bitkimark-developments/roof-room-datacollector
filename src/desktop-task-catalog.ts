@@ -147,6 +147,21 @@ export const DESKTOP_TASK_CATALOG:
     {
       task_kind: 'COLLECTION',
       task_id:
+        'google-analytics-4',
+      source_id:
+        'google-analytics-4',
+      task_name:
+        'Google Analytics 4',
+      description:
+        'First-party GA4 Content Performance and Paid Funnel evidence.',
+      group:
+        'GOOGLE',
+      default_summary:
+        'Explicit absolute date range · Content Performance + Paid Funnel',
+    },
+    {
+      task_kind: 'COLLECTION',
+      task_id:
         'keyword-planner-historical-metrics',
       source_id:
         'google-keyword-planner',

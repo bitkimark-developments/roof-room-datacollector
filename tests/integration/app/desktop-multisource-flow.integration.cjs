@@ -1210,6 +1210,8 @@ async function main() {
             'CONNECTION_REQUIRED',
           'google-keyword-planner':
             'CONFIGURATION_REQUIRED',
+          'google-analytics-4':
+            'CONFIGURATION_REQUIRED',
           serpapi: 'READY',
         };
 
@@ -1257,6 +1259,14 @@ async function main() {
       {
         source_id:
           'google-keyword-planner',
+        credential_status:
+          'NOT_CONFIGURED',
+        readiness_status:
+          'CONFIGURATION_REQUIRED',
+      },
+      {
+        source_id:
+          'google-analytics-4',
         credential_status:
           'NOT_CONFIGURED',
         readiness_status:

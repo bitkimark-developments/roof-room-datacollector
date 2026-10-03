@@ -159,6 +159,12 @@ const validationContext = ({
   artifactBody,
   startDate = '2026-10-01',
   endDate = '2026-10-07',
+  includeSessionFilter =
+    datasetType === 'GA4_PAID_FUNNEL',
+  sessionFilter = {
+    session_source: 'google',
+    session_medium: 'cpc',
+  },
   overrides = {},
 }) => {
   artifactSequence += 1;
@@ -179,6 +185,9 @@ const validationContext = ({
     dataset_type: datasetType,
     start_date: startDate,
     end_date: endDate,
+    ...(includeSessionFilter
+      ? { session_filter: sessionFilter }
+      : {}),
   };
 
   const run = {
@@ -306,6 +315,51 @@ const decisionFor = async (
     actual_date_end: '2026-10-03',
     country_name: null,
   });
+
+  const missingPaidFilter = await decisionFor(
+    'GA4_PAID_FUNNEL',
+    paidValidBundle,
+    {
+      includeSessionFilter: false,
+    },
+  );
+
+  assert.equal(
+    missingPaidFilter.validation_status,
+    'QUERY_MISMATCH',
+    'Paid Funnel validation must reject missing locked session filter context',
+  );
+
+  const wrongPaidFilter = await decisionFor(
+    'GA4_PAID_FUNNEL',
+    paidValidBundle,
+    {
+      sessionFilter: {
+        session_source: 'bing',
+        session_medium: 'cpc',
+      },
+    },
+  );
+
+  assert.equal(
+    wrongPaidFilter.validation_status,
+    'QUERY_MISMATCH',
+    'Paid Funnel validation must reject changed session filter semantics',
+  );
+
+  const contentWithPaidFilter = await decisionFor(
+    'GA4_CONTENT_PERFORMANCE',
+    contentValidBundle,
+    {
+      includeSessionFilter: true,
+    },
+  );
+
+  assert.equal(
+    contentWithPaidFilter.validation_status,
+    'QUERY_MISMATCH',
+    'Content Performance must reject Paid Funnel-only filter context',
+  );
 
   const noDataBundle = bundle({
     datasetType: 'GA4_CONTENT_PERFORMANCE',

@@ -7,9 +7,11 @@ import type {
 } from '../../../shared/collection';
 import {
   GA4_DATASET_TYPES,
+  GA4_PAID_FUNNEL_SESSION_FILTER,
   GOOGLE_ANALYTICS_4_SOURCE_ID,
   type GoogleAnalytics4DatasetType,
   type GoogleAnalytics4RawBundle,
+  type GoogleAnalytics4RequestContext,
 } from '../../../shared/google-analytics-4';
 import {
   normalizeGoogleAnalytics4Rows,
@@ -134,20 +136,33 @@ const requireIsoDate = (
 
 const requireJobContext = (
   value: unknown,
-): {
-  dataset_type: GoogleAnalytics4DatasetType;
-  start_date: string;
-  end_date: string;
-} => {
+): GoogleAnalytics4RequestContext => {
   if (!isRecord(value)) {
     throw new Error('GA4 source_context is required.');
   }
 
-  const allowedKeys = new Set([
-    'dataset_type',
-    'start_date',
-    'end_date',
-  ]);
+  if (!isDatasetType(value.dataset_type)) {
+    throw new Error(
+      'GA4 source_context dataset type is unsupported.',
+    );
+  }
+
+  const datasetType = value.dataset_type;
+
+  const allowedKeys = new Set(
+    datasetType === 'GA4_PAID_FUNNEL'
+      ? [
+          'dataset_type',
+          'start_date',
+          'end_date',
+          'session_filter',
+        ]
+      : [
+          'dataset_type',
+          'start_date',
+          'end_date',
+        ],
+  );
 
   if (
     Object.keys(value).some(
@@ -156,12 +171,6 @@ const requireJobContext = (
   ) {
     throw new Error(
       'GA4 source_context contains unsupported fields.',
-    );
-  }
-
-  if (!isDatasetType(value.dataset_type)) {
-    throw new Error(
-      'GA4 source_context dataset type is unsupported.',
     );
   }
 
@@ -180,8 +189,33 @@ const requireJobContext = (
     );
   }
 
+  if (datasetType === 'GA4_PAID_FUNNEL') {
+    const sessionFilter = value.session_filter;
+
+    if (
+      !isRecord(sessionFilter)
+      || Object.keys(sessionFilter).length !== 2
+      || sessionFilter.session_source
+        !== GA4_PAID_FUNNEL_SESSION_FILTER.session_source
+      || sessionFilter.session_medium
+        !== GA4_PAID_FUNNEL_SESSION_FILTER.session_medium
+    ) {
+      throw new Error(
+        'GA4 Paid Funnel source_context must preserve the locked google / cpc session filter.',
+      );
+    }
+
+    return {
+      dataset_type: datasetType,
+      start_date: startDate,
+      end_date: endDate,
+      session_filter:
+        GA4_PAID_FUNNEL_SESSION_FILTER,
+    };
+  }
+
   return {
-    dataset_type: value.dataset_type,
+    dataset_type: datasetType,
     start_date: startDate,
     end_date: endDate,
   };

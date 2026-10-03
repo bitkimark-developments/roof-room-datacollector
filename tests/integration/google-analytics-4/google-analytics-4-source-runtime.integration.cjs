@@ -54,6 +54,12 @@ const context = ({
   sourceId = 'google-analytics-4',
   startDate = '2026-10-01',
   endDate = '2026-10-07',
+  includeSessionFilter =
+    datasetType === 'GA4_PAID_FUNNEL',
+  sessionFilter = {
+    session_source: 'google',
+    session_medium: 'cpc',
+  },
 } = {}) => ({
   run_id: 'run-ga4',
   job_id: 'job-ga4',
@@ -67,6 +73,9 @@ const context = ({
     dataset_type: datasetType,
     start_date: startDate,
     end_date: endDate,
+    ...(includeSessionFilter
+      ? { session_filter: sessionFilter }
+      : {}),
   },
 });
 
@@ -206,6 +215,59 @@ const responseFor = ({
         .andGroup.expressions[1]
         .filter.stringFilter.value,
       'cpc',
+    );
+
+    const callsBeforeInvalidFilter = calls.length;
+
+    const missingPaidFilter = await source.collect(context({
+      datasetType: 'GA4_PAID_FUNNEL',
+      includeSessionFilter: false,
+    }));
+
+    assert.equal(
+      missingPaidFilter.result_type,
+      'FAILED',
+    );
+    assert.equal(
+      missingPaidFilter.error_code,
+      'SOURCE_CONFIGURATION_INVALID',
+    );
+
+    const wrongPaidFilter = await source.collect(context({
+      datasetType: 'GA4_PAID_FUNNEL',
+      sessionFilter: {
+        session_source: 'bing',
+        session_medium: 'cpc',
+      },
+    }));
+
+    assert.equal(
+      wrongPaidFilter.result_type,
+      'FAILED',
+    );
+    assert.equal(
+      wrongPaidFilter.error_code,
+      'SOURCE_CONFIGURATION_INVALID',
+    );
+
+    const contentWithPaidFilter = await source.collect(context({
+      datasetType: 'GA4_CONTENT_PERFORMANCE',
+      includeSessionFilter: true,
+    }));
+
+    assert.equal(
+      contentWithPaidFilter.result_type,
+      'FAILED',
+    );
+    assert.equal(
+      contentWithPaidFilter.error_code,
+      'SOURCE_CONFIGURATION_INVALID',
+    );
+
+    assert.equal(
+      calls.length,
+      callsBeforeInvalidFilter,
+      'invalid immutable GA4 filter context must fail before provider interaction',
     );
 
     const callsBeforeInvalid = calls.length;

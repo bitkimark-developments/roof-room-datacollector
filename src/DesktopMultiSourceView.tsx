@@ -57,6 +57,7 @@ type WorkspaceConnectionDraft = {
   site_url: string;
   customer_id: string;
   login_customer_id: string;
+  property_id: string;
 };
 
 type WorkspaceConnectionAction =
@@ -70,6 +71,7 @@ const EMPTY_WORKSPACE_CONNECTION_DRAFT: WorkspaceConnectionDraft = {
   site_url: '',
   customer_id: '',
   login_customer_id: '',
+  property_id: '',
 };
 
 const CONNECTION_ERROR_COPY: Record<string, string> = {
@@ -182,6 +184,16 @@ import type {
   JsonObject,
   RunRecord,
 } from './shared/run-job';
+
+const isValidAbsoluteDateRange = (
+  start: string,
+  end: string,
+): boolean => {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(start)) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(end)) return false;
+
+  return start <= end;
+};
 
 const getReviewedDateSummary = (
   review: DesktopReview,
@@ -876,6 +888,16 @@ export function DesktopMultiSourceView() {
     } | null>(
       null,
     );
+
+  const [
+    ga4StartDate,
+    setGa4StartDate,
+  ] = useState('');
+
+  const [
+    ga4EndDate,
+    setGa4EndDate,
+  ] = useState('');
 
   const [
     keywordPlannerGroupDrafts,
@@ -1830,6 +1852,22 @@ export function DesktopMultiSourceView() {
         included: true,
         task_id: task.task_id,
         date_policy: task.date_policy,
+      };
+    }
+
+    if (task.source_id === 'google-analytics-4') {
+      if (!isValidAbsoluteDateRange(
+        ga4StartDate,
+        ga4EndDate,
+      )) {
+        return null;
+      }
+
+      return {
+        included: true,
+        task_id: task.task_id,
+        start_date: ga4StartDate,
+        end_date: ga4EndDate,
       };
     }
 
@@ -2884,7 +2922,46 @@ export function DesktopMultiSourceView() {
       } else if (sourceId === 'serpapi') {
         return;
       } else if (sourceId === 'google-analytics-4') {
-        return;
+        const propertyId = draft.property_id.trim();
+
+        if (
+          action !== 'RECONNECT_GOOGLE'
+          && propertyId.length === 0
+        ) {
+          setMessage(
+            'Enter a Property ID before updating this connection.',
+          );
+          return;
+        }
+
+        const metadata = propertyId.length === 0
+          ? undefined
+          : { property_id: propertyId };
+
+        if (action === 'MANAGE') {
+          response = await window.roofroom
+            .manageDesktopWorkspaceConnection({
+              workspace_id: workspaceId,
+              source_id: sourceId,
+              metadata: metadata!,
+            });
+        } else if (action === 'CONNECT_GOOGLE') {
+          response = await window.roofroom
+            .connectGoogleDesktopWorkspaceConnection({
+              workspace_id: workspaceId,
+              source_id: sourceId,
+              metadata: metadata!,
+            });
+        } else {
+          response = await window.roofroom
+            .reconnectGoogleDesktopWorkspaceConnection({
+              workspace_id: workspaceId,
+              source_id: sourceId,
+              ...(metadata === undefined
+                ? {}
+                : { metadata }),
+            });
+        }
       } else if (sourceId === 'google-search-console-query-page') {
         const siteUrl = draft.site_url.trim();
         if (action !== 'RECONNECT_GOOGLE' && siteUrl.length === 0) {
@@ -3482,6 +3559,14 @@ export function DesktopMultiSourceView() {
               )
               || (
                 selectedTask.source_id
+                  === 'google-analytics-4'
+                && isValidAbsoluteDateRange(
+                  ga4StartDate,
+                  ga4EndDate,
+                )
+              )
+              || (
+                selectedTask.source_id
                   === 'google-keyword-planner'
                 && parseKeywordPlannerGroups(
                   keywordPlannerGroupDrafts,
@@ -3745,6 +3830,47 @@ export function DesktopMultiSourceView() {
                           )}
                         </div>
                       )
+                      : selectedTask.source_id
+                          === 'google-analytics-4'
+                        ? (
+                          <div
+                            className="rr-structured-editor"
+                          >
+                            <label className="rr-field">
+                              <span>
+                                GA4 start date
+                              </span>
+                              <input
+                                aria-label="GA4 start date"
+                                type="text"
+                                value={ga4StartDate}
+                                placeholder="YYYY-MM-DD"
+                                onChange={(event) => {
+                                  setGa4StartDate(
+                                    event.target.value,
+                                  );
+                                }}
+                              />
+                            </label>
+
+                            <label className="rr-field">
+                              <span>
+                                GA4 end date
+                              </span>
+                              <input
+                                aria-label="GA4 end date"
+                                type="text"
+                                value={ga4EndDate}
+                                placeholder="YYYY-MM-DD"
+                                onChange={(event) => {
+                                  setGa4EndDate(
+                                    event.target.value,
+                                  );
+                                }}
+                              />
+                            </label>
+                          </div>
+                        )
                       : selectedTask.source_id
                           === 'google-keyword-planner-csv'
                         ? (
@@ -5456,7 +5582,7 @@ export function DesktopMultiSourceView() {
                       const isGoogle = connection.source_id !== 'serpapi';
                       const requiredMetadataReady = connection.source_id
                         === 'google-analytics-4'
-                        ? false
+                        ? draft.property_id.trim().length > 0
                         : connection.source_id
                           === 'google-search-console-query-page'
                           ? draft.site_url.trim().length > 0
@@ -5482,66 +5608,85 @@ export function DesktopMultiSourceView() {
                             Readiness: {connection.readiness_status}
                           </p>
 
-                          {isGoogle
-                            && connection.source_id !== 'google-analytics-4'
-                            && (
+                          {isGoogle && (
                             <div className="rr-connection-fields">
                               {connection.source_id
-                                === 'google-search-console-query-page'
+                                === 'google-analytics-4'
                                 ? (
                                   <label className="rr-field">
-                                    <span>Site URL</span>
+                                    <span>Property ID</span>
                                     <input
-                                      aria-label={`Site URL for ${connection.source_id}`}
+                                      aria-label={`Property ID for ${connection.source_id}`}
                                       type="text"
+                                      inputMode="numeric"
                                       autoComplete="off"
-                                      value={draft.site_url}
+                                      value={draft.property_id}
                                       onChange={(event) => {
                                         updateWorkspaceConnectionDraft(
                                           connection.source_id,
-                                          'site_url',
+                                          'property_id',
                                           event.target.value,
                                         );
                                       }}
                                     />
                                   </label>
                                 )
-                                : (
-                                  <>
+                                : connection.source_id
+                                    === 'google-search-console-query-page'
+                                  ? (
                                     <label className="rr-field">
-                                      <span>Customer ID</span>
+                                      <span>Site URL</span>
                                       <input
-                                        aria-label={`Customer ID for ${connection.source_id}`}
+                                        aria-label={`Site URL for ${connection.source_id}`}
                                         type="text"
                                         autoComplete="off"
-                                        value={draft.customer_id}
+                                        value={draft.site_url}
                                         onChange={(event) => {
                                           updateWorkspaceConnectionDraft(
                                             connection.source_id,
-                                            'customer_id',
+                                            'site_url',
                                             event.target.value,
                                           );
                                         }}
                                       />
                                     </label>
-                                    <label className="rr-field">
-                                      <span>Login customer ID (optional)</span>
-                                      <input
-                                        aria-label={`Login customer ID for ${connection.source_id}`}
-                                        type="text"
-                                        autoComplete="off"
-                                        value={draft.login_customer_id}
-                                        onChange={(event) => {
-                                          updateWorkspaceConnectionDraft(
-                                            connection.source_id,
-                                            'login_customer_id',
-                                            event.target.value,
-                                          );
-                                        }}
-                                      />
-                                    </label>
-                                  </>
-                                )}
+                                  )
+                                  : (
+                                    <>
+                                      <label className="rr-field">
+                                        <span>Customer ID</span>
+                                        <input
+                                          aria-label={`Customer ID for ${connection.source_id}`}
+                                          type="text"
+                                          autoComplete="off"
+                                          value={draft.customer_id}
+                                          onChange={(event) => {
+                                            updateWorkspaceConnectionDraft(
+                                              connection.source_id,
+                                              'customer_id',
+                                              event.target.value,
+                                            );
+                                          }}
+                                        />
+                                      </label>
+                                      <label className="rr-field">
+                                        <span>Login customer ID (optional)</span>
+                                        <input
+                                          aria-label={`Login customer ID for ${connection.source_id}`}
+                                          type="text"
+                                          autoComplete="off"
+                                          value={draft.login_customer_id}
+                                          onChange={(event) => {
+                                            updateWorkspaceConnectionDraft(
+                                              connection.source_id,
+                                              'login_customer_id',
+                                              event.target.value,
+                                            );
+                                          }}
+                                        />
+                                      </label>
+                                    </>
+                                  )}
                             </div>
                           )}
 

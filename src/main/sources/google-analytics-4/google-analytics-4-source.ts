@@ -5,6 +5,7 @@ import type {
 } from '../../../shared/collection';
 import {
   GA4_DATASET_TYPES,
+  GA4_PAID_FUNNEL_SESSION_FILTER,
   GOOGLE_ANALYTICS_4_SOURCE_ID,
   type GoogleAnalytics4DatasetType,
   type GoogleAnalytics4RequestContext,
@@ -102,6 +103,34 @@ const requireJobContext = (
     );
   }
 
+  const datasetType =
+    context.source_context.dataset_type;
+
+  const allowedKeys = new Set(
+    datasetType === 'GA4_PAID_FUNNEL'
+      ? [
+          'dataset_type',
+          'start_date',
+          'end_date',
+          'session_filter',
+        ]
+      : [
+          'dataset_type',
+          'start_date',
+          'end_date',
+        ],
+  );
+
+  if (
+    Object.keys(context.source_context).some(
+      (key) => !allowedKeys.has(key),
+    )
+  ) {
+    throw new Error(
+      'GA4 source context contains unsupported fields.',
+    );
+  }
+
   const startDate = requireDate(
     context.source_context.start_date,
   );
@@ -116,18 +145,40 @@ const requireJobContext = (
     );
   }
 
-  if (
-    context.job_key
-      !== context.source_context.dataset_type
-  ) {
+  if (context.job_key !== datasetType) {
     throw new Error(
       'GA4 Job key does not match the dataset.',
     );
   }
 
+  if (datasetType === 'GA4_PAID_FUNNEL') {
+    const sessionFilter =
+      context.source_context.session_filter;
+
+    if (
+      !isRecord(sessionFilter)
+      || Object.keys(sessionFilter).length !== 2
+      || sessionFilter.session_source
+        !== GA4_PAID_FUNNEL_SESSION_FILTER.session_source
+      || sessionFilter.session_medium
+        !== GA4_PAID_FUNNEL_SESSION_FILTER.session_medium
+    ) {
+      throw new Error(
+        'GA4 Paid Funnel requires the locked google / cpc session filter.',
+      );
+    }
+
+    return {
+      dataset_type: datasetType,
+      start_date: startDate,
+      end_date: endDate,
+      session_filter:
+        GA4_PAID_FUNNEL_SESSION_FILTER,
+    };
+  }
+
   return {
-    dataset_type:
-      context.source_context.dataset_type,
+    dataset_type: datasetType,
     start_date: startDate,
     end_date: endDate,
   };

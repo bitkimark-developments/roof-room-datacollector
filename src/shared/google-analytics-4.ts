@@ -13,11 +13,23 @@ export interface GoogleAnalytics4ConnectionMetadata {
   property_id: string;
 }
 
-export interface GoogleAnalytics4RequestContext {
-  dataset_type: GoogleAnalytics4DatasetType;
-  start_date: string;
-  end_date: string;
-}
+export const GA4_PAID_FUNNEL_SESSION_FILTER = {
+  session_source: 'google',
+  session_medium: 'cpc',
+} as const;
+
+export type GoogleAnalytics4RequestContext =
+  | {
+      dataset_type: 'GA4_CONTENT_PERFORMANCE';
+      start_date: string;
+      end_date: string;
+    }
+  | {
+      dataset_type: 'GA4_PAID_FUNNEL';
+      start_date: string;
+      end_date: string;
+      session_filter: typeof GA4_PAID_FUNNEL_SESSION_FILTER;
+    };
 
 export interface GoogleAnalytics4ProviderMetadata {
   currency_code: string | null;

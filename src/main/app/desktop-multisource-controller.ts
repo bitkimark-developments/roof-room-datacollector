@@ -71,6 +71,9 @@ import {
   SERPAPI_TASK_ID,
 } from '../sources/serpapi/serpapi-request';
 import { createSerpApiJobPlans } from '../sources/serpapi/serpapi-job-plans';
+import {
+  createGoogleAnalytics4JobPlans,
+} from '../sources/google-analytics-4/google-analytics-4-job-plans';
 
 export interface DesktopReadinessReader {
   getReadiness(
@@ -211,6 +214,24 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
     const value = asObject(item);
     return { source_id: sourceId, job_key: key(value, index), query_group_id: sourceId === 'google-trends' ? key(value, index) : null, source_context: value as JsonObject };
   });
+  if (sourceId === 'google-analytics-4') {
+    if (
+      typeof config.start_date !== 'string'
+      || typeof config.end_date !== 'string'
+    ) {
+      return [];
+    }
+
+    try {
+      return createGoogleAnalytics4JobPlans({
+        start_date: config.start_date,
+        end_date: config.end_date,
+      });
+    } catch {
+      return [];
+    }
+  }
+
   if (sourceId === 'google-trends') {
     const groups =
       Array.isArray(config.query_groups)

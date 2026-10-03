@@ -117,6 +117,17 @@ const sourceCards = [
     configuration_summary: 'Historical Metrics',
   },
   {
+    source_id: 'google-analytics-4',
+    source_name: 'Google Analytics 4',
+    included: false,
+    readiness_status: 'READY',
+    freshness_status: 'UNKNOWN',
+    last_successful_at: null,
+    next_due_at: null,
+    configuration_summary:
+      'Content Performance + Paid Funnel',
+  },
+  {
     source_id: 'google-keyword-planner-csv',
     source_name: 'Keyword Planner Manual CSV',
     included: false,
@@ -326,6 +337,11 @@ const main = async () => {
           },
           {
             source_id: 'google-keyword-planner',
+            credential_status: 'NOT_CONFIGURED',
+            readiness_status: 'CONFIGURATION_REQUIRED',
+          },
+          {
+            source_id: 'google-analytics-4',
             credential_status: 'NOT_CONFIGURED',
             readiness_status: 'CONFIGURATION_REQUIRED',
           },
@@ -654,6 +670,56 @@ const main = async () => {
           reviewDesktopDraft: async (reviewDraft) => {
             window.__reviewedDesktopDraft =
               reviewDraft;
+
+            const ga4Config =
+              reviewDraft
+                ?.reusable_configuration
+                ?.sources
+                ?.['google-analytics-4'];
+
+            if (ga4Config?.task_id === 'google-analytics-4') {
+              const reviewedArtifact = {
+                workspace_id: 'ws_fixture',
+                task_id: 'google-analytics-4',
+                source_id: 'google-analytics-4',
+                reference_date: ga4Config.end_date,
+                resolved_at: '2026-09-30T12:00:00.000Z',
+                reusable_configuration:
+                  reviewDraft.reusable_configuration,
+                resolved_configuration: {
+                  sources: {
+                    'google-analytics-4': {
+                      ...ga4Config,
+                      requested_date_start:
+                        ga4Config.start_date,
+                      requested_date_end:
+                        ga4Config.end_date,
+                    },
+                  },
+                },
+              };
+
+              window.__reviewedDesktopArtifact =
+                reviewedArtifact;
+
+              return {
+                workspace: {
+                  workspace_id: 'ws_fixture',
+                  workspace_name: 'Acceptance Workspace',
+                },
+                origin: reviewDraft.origin,
+                included_sources: ['google-analytics-4'],
+                source_cards: [{
+                  source_id: 'google-analytics-4',
+                  included: true,
+                  readiness_status: 'READY',
+                }],
+                job_count: 2,
+                can_start: true,
+                blocking_sources: [],
+                reviewed_draft: reviewedArtifact,
+              };
+            }
 
             const adsConfig = reviewDraft?.reusable_configuration?.sources?.['google-ads-search-terms'];
             if (adsConfig?.included) {
@@ -2234,7 +2300,7 @@ const main = async () => {
     }).waitFor();
 
     const dashboard = page.getByTestId('operations-dashboard');
-    assert.equal(await dashboard.getByText('3 ready', { exact: true }).count(), 1);
+    assert.equal(await dashboard.getByText('4 ready', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('2 need connection', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('2 need import', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('1 needs attention', { exact: true }).count(), 1);
@@ -2292,6 +2358,7 @@ const main = async () => {
       'google-search-console-query-page',
       'google-ads-search-terms',
       'google-keyword-planner',
+      'google-analytics-4',
       'serpapi',
     ]) {
       assert.equal(
@@ -2343,6 +2410,9 @@ const main = async () => {
     );
     const plannerConnection = page.getByTestId(
       'workspace-connection-google-keyword-planner',
+    );
+    const ga4Connection = page.getByTestId(
+      'workspace-connection-google-analytics-4',
     );
     const serpApiConnection = page.getByTestId(
       'workspace-connection-serpapi',
@@ -2414,6 +2484,7 @@ const main = async () => {
     assert.equal(await adsConnection.getByRole('button', { name: 'Reconnect' }).count(), 1);
     assert.equal(await adsConnection.getByRole('button', { name: 'Disconnect' }).count(), 1);
     assert.equal(await plannerConnection.getByRole('button', { name: 'Connect' }).count(), 1);
+    assert.equal(await ga4Connection.getByRole('button', { name: 'Connect' }).count(), 1);
     assert.equal(await serpApiConnection.getByRole('button', { name: 'Replace API key' }).count(), 1);
     assert.equal(await serpApiConnection.getByRole('button', { name: 'Disconnect' }).count(), 1);
     assert.equal(await serpApiConnection.locator('input[type="text"], input[type="password"]').count(), 0);
@@ -2427,6 +2498,26 @@ const main = async () => {
     assert.equal(await page.getByLabel('Login customer ID for google-ads-search-terms').inputValue(), '');
     assert.equal(await page.getByLabel('Customer ID for google-keyword-planner', { exact: true }).inputValue(), '');
     assert.equal(await page.getByLabel('Login customer ID for google-keyword-planner').inputValue(), '');
+
+    assert.equal(
+      await page.getByLabel(
+        'Property ID for google-analytics-4',
+        { exact: true },
+      ).inputValue(),
+      '',
+    );
+
+    assert.equal(
+      await ga4Connection.getByText(/Measurement ID/i).count(),
+      0,
+      'GA4 Workspace connection must not request a Measurement ID.',
+    );
+
+    assert.equal(
+      await ga4Connection.getByText(/API Key/i).count(),
+      0,
+      'GA4 Workspace connection must not request an API key.',
+    );
 
     await page.getByLabel('Site URL for google-search-console-query-page').fill(
       ' sc-domain:managed.example ',
@@ -2502,6 +2593,46 @@ const main = async () => {
       { exact: true },
     ).waitFor();
 
+
+    await page.getByLabel(
+      'Property ID for google-analytics-4',
+      { exact: true },
+    ).fill(' 123456789 ');
+
+    const ga4ReadCountBefore =
+      await page.evaluate(
+        () => window.__workspaceConnectionReadCount,
+      );
+
+    await ga4Connection.getByRole(
+      'button',
+      { name: 'Connect' },
+    ).click();
+
+    await page.waitForFunction(
+      (before) =>
+        window.__workspaceConnectionReadCount > before,
+      ga4ReadCountBefore,
+    );
+
+    assert.deepEqual(
+      await page.evaluate(
+        () =>
+          window.__workspaceConnectionMutationCalls.at(-1),
+      ),
+      [
+        'connectGoogleDesktopWorkspaceConnection',
+        {
+          workspace_id: 'ws_fixture',
+          source_id: 'google-analytics-4',
+          metadata: {
+            property_id: '123456789',
+          },
+        },
+      ],
+      'GA4 Connect must send only trimmed Property ID through the typed Google connection method.',
+    );
+
     await page.evaluate(() => {
       window.__holdWorkspaceMutation = true;
       window.__nextWorkspaceConnectionState = window.__workspaceConnectionState.map(
@@ -2521,7 +2652,7 @@ const main = async () => {
       .evaluate((button) => button.click());
     assert.equal(
       await page.evaluate(() => window.__workspaceConnectionMutationCalls.length),
-      4,
+      5,
       'A pending SerpApi provisioning action must not double-submit.',
     );
     await page.evaluate(() => window.__releaseWorkspaceMutation());
@@ -2652,12 +2783,12 @@ const main = async () => {
 
     assert.equal(
       await page.evaluate(() => window.__workspaceConnectionReadCount),
-      17,
+      18,
       'Initial read, the OAuth provider update, and every connection mutation must reread exactly once.',
     );
     assert.deepEqual(
       await page.evaluate(() => window.__workspaceConnectionReadsAfterMutation),
-      [0, 0, ...Array.from({ length: 15 }, (_, index) => index + 1)],
+      [0, 0, ...Array.from({ length: 16 }, (_, index) => index + 1)],
       'The OAuth provider update and every connection mutation branch must perform exactly one final reread.',
     );
     assert.deepEqual(
@@ -2677,6 +2808,11 @@ const main = async () => {
           workspace_id: 'ws_fixture',
           source_id: 'google-keyword-planner',
           metadata: { customer_id: '789' },
+        }],
+        ['connectGoogleDesktopWorkspaceConnection', {
+          workspace_id: 'ws_fixture',
+          source_id: 'google-analytics-4',
+          metadata: { property_id: '123456789' },
         }],
         ...Array.from({ length: 11 }, () => [
           'provisionSerpApiDesktopWorkspaceConnection',
@@ -3234,7 +3370,7 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      12,
+      13,
     );
 
     const homeGscCard = page.getByTestId('task-card').filter({ hasText: 'GSC — Current 90 Days' });
@@ -3280,7 +3416,7 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      12,
+      13,
     );
 
     await page.getByText(
@@ -4314,6 +4450,130 @@ const main = async () => {
     console.log('PASS ADS-REVIEW-UI-001: Ads task sends date policy and starts the exact reviewed artifact');
 
     await page.reload();
+
+    const ga4TaskCard =
+      page.getByTestId('task-card')
+        .filter({ hasText: 'Google Analytics 4' });
+
+    assert.equal(
+      await ga4TaskCard.count(),
+      1,
+      'Desktop task catalog must expose one Google Analytics 4 collection task.',
+    );
+
+    await ga4TaskCard.getByText(
+      'READY',
+      { exact: true },
+    ).waitFor();
+
+    await ga4TaskCard.click();
+
+    assert.equal(
+      await page.getByText(
+        'First-party GA4 Content Performance and Paid Funnel evidence.',
+        { exact: true },
+      ).count(),
+      1,
+      'GA4 task detail must identify both approved datasets.',
+    );
+
+    const ga4ReviewButton =
+      page.getByRole(
+        'button',
+        {
+          name: 'Review Quick Run',
+          exact: true,
+        },
+      );
+
+    assert.equal(
+      await ga4ReviewButton.isEnabled(),
+      false,
+      'GA4 Review requires an explicit absolute date range.',
+    );
+
+    await page.getByLabel(
+      'GA4 start date',
+      { exact: true },
+    ).fill('2026-09-30');
+
+    await page.getByLabel(
+      'GA4 end date',
+      { exact: true },
+    ).fill('2026-09-01');
+
+    assert.equal(
+      await ga4ReviewButton.isEnabled(),
+      false,
+      'A reversed GA4 date range must fail closed.',
+    );
+
+    await page.getByLabel(
+      'GA4 start date',
+      { exact: true },
+    ).fill('2026-09-01');
+
+    await page.getByLabel(
+      'GA4 end date',
+      { exact: true },
+    ).fill('2026-09-30');
+
+    assert.equal(
+      await ga4ReviewButton.isEnabled(),
+      true,
+      'A valid explicit GA4 date range must be reviewable.',
+    );
+
+    await ga4ReviewButton.click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name: 'Review Quick Run',
+        exact: true,
+      },
+    ).waitFor();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () => window
+          .__reviewedDesktopDraft
+          .reusable_configuration
+          .sources['google-analytics-4'],
+      ),
+      {
+        included: true,
+        task_id: 'google-analytics-4',
+        start_date: '2026-09-01',
+        end_date: '2026-09-30',
+      },
+      'GA4 renderer must send only task identity and explicit absolute dates to Review.',
+    );
+
+    await page.getByRole(
+      'button',
+      {
+        name: 'Start Run',
+        exact: true,
+      },
+    ).click();
+
+    assert.deepEqual(
+      await page.evaluate(
+        () => window.__startedDesktopDraft,
+      ),
+      await page.evaluate(
+        () => window.__reviewedDesktopArtifact,
+      ),
+      'GA4 Start must forward the exact reviewed artifact.',
+    );
+
+    console.log(
+      'PASS GA4-REVIEW-UI-001: explicit absolute dates review two GA4 jobs and start the exact reviewed artifact',
+    );
+
+    await page.reload();
+
     const unreadyPlannerCard = page.getByTestId('task-card').filter({ hasText: 'Keyword Planner — Historical Metrics' });
     await unreadyPlannerCard.getByText('CONNECTION REQUIRED', { exact: true }).waitFor();
     await unreadyPlannerCard.click();
