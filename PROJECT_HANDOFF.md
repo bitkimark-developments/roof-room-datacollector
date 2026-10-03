@@ -443,6 +443,31 @@ Not performed:
 
 ---
 
+## Google Ads Search Reporting checkpoint
+
+Completed:
+- Google Ads Search Reporting vertical slice is deterministically verified.
+- Six canonical SEARCH reporting datasets preserve provider-native semantics:
+  - CAMPAIGN_PERFORMANCE
+  - AD_GROUP_PERFORMANCE
+  - KEYWORD_PERFORMANCE
+  - SEARCH_TERMS
+  - AD_PERFORMANCE
+  - RSA_ASSET_PERFORMANCE
+- SearchStream raw evidence handling, normalization, and fail-closed validation boundaries are verified.
+- Core remains source-neutral and Google Ads reporting semantics remain inside the source module.
+
+Verification:
+- Google Ads Search Reporting gate passed.
+- Contract, source, SearchStream, normalization, and validation integration checks passed.
+
+Not performed:
+- Live Google Ads API verification.
+- Real credential verification.
+- Packaged desktop runtime verification.
+
+---
+
 ## 13. Governing handoff rule
 
 > **Record where the repository is now, what remains unproven, and the next smallest safe action. Keep history in Git, not in the active handoff.**
