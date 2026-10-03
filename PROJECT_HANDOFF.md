@@ -289,18 +289,20 @@ Do not reopen without new failing evidence or explicit scope approval:
 
 ## 10. Exact next action
 
-The Google Ads Conversion Configuration v1 slice is implemented and deterministically verified on `feat/google-ads-conversion-configuration-v1`.
+Completed deterministic source checkpoints:
 
-The adopted scope covers the six conversion-configuration datasets within the existing eleven-dataset `google-ads-configuration` family. It does not derive effective campaign goals, make Performance Max claims, or add package/preset/export integration.
+- Google Analytics 4 source vertical slice;
+- Google Ads Change History source vertical slice;
+- Google Keyword Planner validator migration;
+- Google Ads Campaign Settings v1 gate.
 
 Next:
 
-1. complete this slice-closing focused-gate and canonical-documentation checkpoint;
-2. do not push or merge without explicit authorization;
-3. keep `09_CAMPAIGN_SETTINGS` as the next approved independent Google Ads configuration scope;
-4. do not expand this completed slice while beginning that next scope.
+1. preserve completed source boundaries and evidence checkpoints;
+2. select the next approved independent source scope from current repository state;
+3. do not expand completed slices without explicit scope.
 
-Do not run a live provider request merely to reconfirm an already deterministic result.
+Do not run live provider requests merely to reconfirm already deterministic results.
 
 ---
 
@@ -392,6 +394,28 @@ Verification:
 - Keyword Planner reviewed API integration tests passed.
 - Production source composition verification passed.
 - Related Google Ads Change History and export regression checks passed.
+
+Not performed:
+- Live Google Ads API verification.
+- Real credential verification.
+- Packaged desktop runtime verification.
+
+---
+
+## Google Ads Campaign Settings v1 checkpoint
+
+Completed:
+- Campaign Settings remains within the existing `google-ads-configuration` source family.
+- Provider-native Campaign Settings contract, query, normalization, and validation boundaries are implemented.
+- Core remains source-neutral and provider semantics remain inside the Google Ads source module.
+
+Verification:
+- Google Ads Campaign Settings gate passed.
+- Contract, normalization, source, and validation integration checks passed.
+
+Export boundary:
+- No dedicated Campaign Settings export mapping was identified as required.
+- Existing package/export behavior remains unchanged.
 
 Not performed:
 - Live Google Ads API verification.
