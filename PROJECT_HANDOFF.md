@@ -342,6 +342,40 @@ Never upgrade one category into another without evidence.
 
 ---
 
+
+## Asset collection preset checkpoint
+
+Completed deterministic preset preparation:
+
+- Added `Google Ads Growth Rebuild` reusable collection preset.
+- Added `Blog Agentic Content Research` reusable collection preset.
+- Added terminal seed script:
+  - `scripts/create-asset-presets.ts`
+- Verified presets persist through the existing `saved_collection_presets` repository boundary.
+
+Preset scope remains configuration-only:
+- Presets define source inclusion and collection configuration.
+- Provider evidence semantics remain owned by source modules.
+- Missing provider inputs (query groups, date ranges, sites, etc.) must remain explicit and are not inferred.
+
+## Future preset catalog milestone
+
+Expand reusable preset catalog with predefined collection groups:
+
+Ads Growth:
+- 7 day Ads Growth
+- 14 day Ads Growth
+- 30 day Ads Growth
+- 60 day Ads Growth
+
+Blog Agentic:
+- 7 day Blog Trend Research
+- 14 day Blog Trend Research
+- 30 day Blog Trend Research
+- 60 day Blog Trend Research
+
+This milestone is focused on preset coverage and user workflow improvements. It does not move provider semantics or evidence handling into presets.
+
 ## Latest completed source checkpoints
 
 Latest completed vertical slices:
