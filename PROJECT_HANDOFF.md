@@ -424,6 +424,25 @@ Not performed:
 
 ---
 
+## Google Ads Negatives v1 checkpoint
+
+Completed:
+- Google Ads negative evidence contracts are verified.
+- Five negative dataset/resource contracts preserve provider-native semantics.
+- Negative keyword normalization preserves identities, nulls, and provider status.
+- Core remains source-neutral and Google Ads semantics remain inside the source module.
+
+Verification:
+- Google Ads Negatives gate passed.
+- Contract, normalization, configuration source, and validation integration checks passed.
+
+Not performed:
+- Live Google Ads API verification.
+- Real credential verification.
+- Packaged desktop runtime verification.
+
+---
+
 ## 13. Governing handoff rule
 
 > **Record where the repository is now, what remains unproven, and the next smallest safe action. Keep history in Git, not in the active handoff.**
