@@ -90,6 +90,7 @@ const runtime = createProductionCollectionRuntime({
 const ids = runtime.source_registry.list().map((source) => source.id).sort();
 assert.deepEqual(ids, [
   'bitkimark-sitemap',
+  'google-ads-change-history',
   'google-ads-configuration',
   'google-ads-search-reporting',
   'google-ads-search-terms',

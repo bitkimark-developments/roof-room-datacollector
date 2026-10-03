@@ -381,6 +381,25 @@ These require separate explicit verification scope.
 
 ---
 
+## Keyword Planner validator migration checkpoint
+
+Completed:
+- Google Keyword Planner validation ownership moved from generic Google API validator path to dedicated KeywordPlannerValidator.
+- Existing source identity and dataset contracts preserved.
+- Existing Keyword Planner deterministic tests remain passing.
+
+Verification:
+- Keyword Planner reviewed API integration tests passed.
+- Production source composition verification passed.
+- Related Google Ads Change History and export regression checks passed.
+
+Not performed:
+- Live Google Ads API verification.
+- Real credential verification.
+- Packaged desktop runtime verification.
+
+---
+
 ## 13. Governing handoff rule
 
 > **Record where the repository is now, what remains unproven, and the next smallest safe action. Keep history in Git, not in the active handoff.**

@@ -18,10 +18,10 @@ import { BitkimarkSitemapValidator } from '../sources/bitkimark/bitkimark-sitema
 import { IkasProductsSource } from '../sources/ikas/ikas-products-source';
 import { KeywordPlannerManualCsvSource } from '../sources/google-ads/keyword-planner-csv-source';
 import { KeywordPlannerManualCsvValidator } from '../sources/google-ads/keyword-planner-csv-validator';
+import { KeywordPlannerValidator } from '../sources/google-ads/keyword-planner-validator';
 import { BitkimarkSitemapSource } from '../sources/bitkimark/bitkimark-sitemap-source';
 import { normalizeGscQueryRows, normalizeGscRows } from '../sources/google-search-console/query-page-adapter';
 import { normalizeSearchTerms } from '../sources/google-ads/search-terms-adapter';
-import { normalizeKeywordPlanner } from '../sources/google-ads/keyword-planner-adapter';
 import { GoogleAdsSearchReportingValidator } from '../sources/google-ads/search-reporting-validator';
 import { GoogleAdsConfigurationValidator } from '../sources/google-ads/configuration-validator';
 import { GoogleAdsChangeHistoryValidator } from '../sources/google-ads/google-ads-change-history-validator';
@@ -113,33 +113,7 @@ class GoogleApiCollectionValidator implements CollectionValidator {
               : normalizeGscRows(page).length;
         }
       } else if (this.sourceId === GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID) count = normalizeSearchTerms(body).length;
-      else {
-        const sourceContext =
-          context.source_context as {
-            group_id?: unknown;
-            keywords?: unknown;
-          };
-
-        const groupId =
-          typeof sourceContext.group_id === 'string'
-            ? sourceContext.group_id
-            : '';
-
-        const requestedKeywords =
-          Array.isArray(sourceContext.keywords)
-            ? sourceContext.keywords.filter(
-              (value): value is string =>
-                typeof value === 'string',
-            )
-            : [];
-
-        count =
-          normalizeKeywordPlanner(
-            body,
-            groupId,
-            requestedKeywords,
-          ).length;
-      }
+      else throw new Error(`Unsupported source id: ${this.sourceId}`);
       return { validation_status: count > 0 ? 'VALID' as const : 'NO_DATA' as const, checks_total: 1, checks_passed: 1, checks_warning: 0, checks_failed: 0, findings: [] };
     } catch (error) {
       return { validation_status: 'INVALID_SCHEMA' as const, checks_total: 1, checks_passed: 0, checks_warning: 0, checks_failed: 1, findings: [{ check_id: 'GOOGLE_API_SCHEMA', severity: 'ERROR' as const, passed: false, message: error instanceof Error ? error.message : 'Invalid Google API artifact.', expected: 'Provider response matching source contract', actual: 'Invalid schema' }] };
@@ -244,7 +218,10 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
     GOOGLE_ADS_CHANGE_HISTORY_SOURCE_ID,
     new GoogleAdsChangeHistoryValidator(),
   );
-  validators.register(GOOGLE_KEYWORD_PLANNER_SOURCE_ID, new GoogleApiCollectionValidator(GOOGLE_KEYWORD_PLANNER_SOURCE_ID));
+  validators.register(
+    GOOGLE_KEYWORD_PLANNER_SOURCE_ID,
+    new KeywordPlannerValidator(),
+  );
   validators.register(GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID, new KeywordPlannerManualCsvValidator());
   validators.register(IKAS_PRODUCTS_SOURCE_ID, new IkasProductsValidator());
   validators.register(BITKIMARK_SITEMAP_SOURCE_ID, new BitkimarkSitemapValidator());
