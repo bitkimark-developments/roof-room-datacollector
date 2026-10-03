@@ -25,6 +25,12 @@ if [ -f src/main/sources/google-analytics-4/google-analytics-4-job-plans.ts ]; t
   )
 fi
 
+if [ -f src/main/sources/google-analytics-4/google-analytics-4-readiness.ts ]; then
+  SOURCES+=(
+    src/main/sources/google-analytics-4/google-analytics-4-readiness.ts
+  )
+fi
+
 npx tsc \
   "${SOURCES[@]}" \
   --rootDir src \

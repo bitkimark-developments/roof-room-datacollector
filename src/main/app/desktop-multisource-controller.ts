@@ -2059,6 +2059,52 @@ export class DesktopMultiSourceController {
 
 
     if (
+      sourceId === 'google-analytics-4'
+    ) {
+      if (
+        typeof config.start_date !== 'string'
+        || typeof config.end_date !== 'string'
+      ) {
+        return null;
+      }
+
+      try {
+        createGoogleAnalytics4JobPlans({
+          start_date: config.start_date,
+          end_date: config.end_date,
+        });
+
+        const resolvedAt =
+          this.now();
+
+        return {
+          workspace_id:
+            draft.workspace_id,
+          task_id:
+            sourceId,
+          source_id:
+            sourceId,
+          reference_date:
+            formatLocalReferenceDate(
+              resolvedAt,
+            ),
+          resolved_at:
+            resolvedAt.toISOString(),
+          reusable_configuration:
+            cloneConfiguration(
+              draft.reusable_configuration,
+            ),
+          resolved_configuration:
+            cloneConfiguration(
+              draft.reusable_configuration,
+            ),
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    if (
       sourceId === 'google-keyword-planner'
     ) {
       if (

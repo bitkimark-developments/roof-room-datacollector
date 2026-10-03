@@ -69,6 +69,9 @@ import {
   createElectronGoogleOAuthCredentialAcquirer,
   createElectronGoogleProviderConfigurationService,
 } from './main/app/google-api-electron-composition';
+import {
+  evaluateGoogleAnalytics4Readiness,
+} from './main/sources/google-analytics-4/google-analytics-4-readiness';
 import type { GoogleProviderConfigurationService } from './main/sources/google-api/google-provider-configuration';
 import {
   createElectronSerpApiCredentialAcquirer,
@@ -997,6 +1000,12 @@ const initializeBootstrapStatus =
       const providerConfigurationService =
         createElectronGoogleProviderConfigurationService(credentialStore);
       googleProviderConfigurationService = providerConfigurationService;
+
+      const googleOAuthCredentialAcquirer =
+        createElectronGoogleOAuthCredentialAcquirer(
+          credentialStore,
+        );
+
       const readinessRegistry = new ReadinessRegistry(desktopRepository, credentialStore);
       const freshnessRegistry = new FreshnessRegistry(desktopRepository);
       for (const sourceId of SUPPORTED_DESKTOP_SOURCE_IDS) {
@@ -1130,6 +1139,37 @@ const initializeBootstrapStatus =
                   readiness_status: 'CONFIGURATION_REQUIRED',
                 };
               }
+
+              if (
+                source_id === 'google-analytics-4'
+              ) {
+                const connection =
+                  desktopRepository.getSourceConnection(
+                    workspace_id,
+                    source_id,
+                  );
+
+                return {
+                  ...readiness,
+                  readiness_status:
+                    await evaluateGoogleAnalytics4Readiness({
+                      base_status:
+                        readiness.readiness_status,
+                      connection,
+                      is_credential_compatible:
+                        (
+                          credentialRef,
+                          requiredScopes,
+                        ) =>
+                          googleOAuthCredentialAcquirer
+                            .isCompatible(
+                              credentialRef,
+                              requiredScopes,
+                            ),
+                    }),
+                };
+              }
+
               return readiness;
             },
           },
@@ -1292,9 +1332,7 @@ const initializeBootstrapStatus =
           repository: desktopRepository,
           credential_store: credentialStore,
           google_credential_acquirer:
-            createElectronGoogleOAuthCredentialAcquirer(
-              credentialStore,
-            ),
+            googleOAuthCredentialAcquirer,
           serpapi_credential_acquirer:
             createElectronSerpApiCredentialAcquirer(
               credentialStore,

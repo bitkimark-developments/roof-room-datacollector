@@ -31,6 +31,176 @@ assert.equal(
   'GA4 Job planner must be exported',
 );
 
+const readinessModulePath = path.join(
+  buildRoot,
+  'main',
+  'sources',
+  'google-analytics-4',
+  'google-analytics-4-readiness.js',
+);
+
+assert.ok(
+  fs.existsSync(readinessModulePath),
+  'GA4 source-local readiness helper module must exist',
+);
+
+const {
+  evaluateGoogleAnalytics4Readiness,
+} = require(readinessModulePath);
+
+assert.equal(
+  typeof evaluateGoogleAnalytics4Readiness,
+  'function',
+  'GA4 readiness helper must be exported',
+);
+
+const connection = (
+  safeMetadata,
+  credentialRef = 'google:ga4-test',
+) => ({
+  connection_id: 'conn_ga4_test',
+  workspace_id: 'ws_ga4_readiness',
+  source_id: 'google-analytics-4',
+  credential_ref: credentialRef,
+  safe_metadata: safeMetadata,
+  created_at: '2026-10-03T00:00:00.000Z',
+  updated_at: '2026-10-03T00:00:00.000Z',
+});
+
+const readinessVerification = (async () => {
+
+assert.equal(
+  await evaluateGoogleAnalytics4Readiness({
+    base_status: 'READY',
+    connection: connection({}),
+    is_credential_compatible: async () => true,
+  }),
+  'CONFIGURATION_REQUIRED',
+  'missing GA4 Property ID must block readiness',
+);
+
+assert.equal(
+  await evaluateGoogleAnalytics4Readiness({
+    base_status: 'READY',
+    connection: connection({ property_id: 'abc' }),
+    is_credential_compatible: async () => true,
+  }),
+  'CONFIGURATION_REQUIRED',
+  'non-numeric GA4 Property ID must block readiness',
+);
+
+assert.equal(
+  await evaluateGoogleAnalytics4Readiness({
+    base_status: 'READY',
+    connection: connection(
+      { property_id: '123456789' },
+      null,
+    ),
+    is_credential_compatible: async () => true,
+  }),
+  'CONNECTION_REQUIRED',
+  'GA4 connection without credential ref must not be READY',
+);
+
+let compatibilityCall = null;
+
+assert.equal(
+  await evaluateGoogleAnalytics4Readiness({
+    base_status: 'READY',
+    connection: connection({
+      property_id: '123456789',
+    }),
+    is_credential_compatible: async (
+      credentialRef,
+      requiredScopes,
+    ) => {
+      compatibilityCall = {
+        credential_ref: credentialRef,
+        required_scopes: [...requiredScopes],
+      };
+      return false;
+    },
+  }),
+  'CONNECTION_REQUIRED',
+  'credential lacking Analytics scope must require reconnection',
+);
+
+assert.deepEqual(
+  compatibilityCall,
+  {
+    credential_ref: 'google:ga4-test',
+    required_scopes: [
+      'https://www.googleapis.com/auth/analytics.readonly',
+    ],
+  },
+  'GA4 readiness must check the exact Analytics readonly scope',
+);
+
+assert.equal(
+  await evaluateGoogleAnalytics4Readiness({
+    base_status: 'READY',
+    connection: connection({
+      property_id: '123456789',
+    }),
+    is_credential_compatible: async () => {
+      throw new Error('credential inspection failure');
+    },
+  }),
+  'CONNECTION_REQUIRED',
+  'credential compatibility inspection must fail closed',
+);
+
+assert.equal(
+  await evaluateGoogleAnalytics4Readiness({
+    base_status: 'READY',
+    connection: connection({
+      property_id: '123456789',
+    }),
+    is_credential_compatible: async () => true,
+  }),
+  'READY',
+  'numeric Property ID plus Analytics-compatible credential must be READY',
+);
+
+assert.equal(
+  await evaluateGoogleAnalytics4Readiness({
+    base_status: 'CONFIGURATION_REQUIRED',
+    connection: connection({
+      property_id: '123456789',
+    }),
+    is_credential_compatible: async () => true,
+  }),
+  'CONFIGURATION_REQUIRED',
+  'GA4-specific readiness must preserve an existing blocking base status',
+);
+
+})();
+
+const mainSource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    'src',
+    'main.ts',
+  ),
+  'utf8',
+);
+
+assert.equal(
+  mainSource.includes(
+    'await evaluateGoogleAnalytics4Readiness({',
+  ),
+  true,
+  'production desktop composition must invoke GA4-specific readiness',
+);
+
+assert.equal(
+  mainSource.includes(
+    'is_credential_compatible:',
+  ),
+  true,
+  'production composition must supply privileged credential compatibility checking',
+);
+
 const plans = createGoogleAnalytics4JobPlans({
   start_date: '2026-09-01',
   end_date: '2026-09-30',
@@ -173,6 +343,8 @@ assert.throws(
 
 
 (async () => {
+await readinessVerification;
+
 const {
   DesktopMultiSourceController,
 } = require(
@@ -292,7 +464,34 @@ assert.equal(
   'READY GA4 with explicit absolute dates must be startable',
 );
 
-await controller.startDraft(draft);
+assert.ok(
+  review.reviewed_draft,
+  'GA4 review must produce a canonical reviewed draft',
+);
+
+assert.equal(
+  review.reviewed_draft.source_id,
+  'google-analytics-4',
+);
+
+assert.equal(
+  review.reviewed_draft.task_id,
+  'google-analytics-4',
+);
+
+assert.deepEqual(
+  review.reviewed_draft.resolved_configuration.sources['google-analytics-4'],
+  {
+    included: true,
+    start_date: '2026-09-01',
+    end_date: '2026-09-30',
+  },
+  'GA4 reviewed configuration must preserve the exact absolute requested date range',
+);
+
+await controller.startDraft(
+  review.reviewed_draft,
+);
 
 assert.equal(
   reservations.length,
