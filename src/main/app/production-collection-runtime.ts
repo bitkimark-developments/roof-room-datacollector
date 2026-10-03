@@ -19,8 +19,8 @@ import { IkasProductsSource } from '../sources/ikas/ikas-products-source';
 import { KeywordPlannerManualCsvSource } from '../sources/google-ads/keyword-planner-csv-source';
 import { KeywordPlannerManualCsvValidator } from '../sources/google-ads/keyword-planner-csv-validator';
 import { KeywordPlannerValidator } from '../sources/google-ads/keyword-planner-validator';
+import { GoogleSearchConsoleValidator } from '../sources/google-search-console/google-search-console-validator';
 import { BitkimarkSitemapSource } from '../sources/bitkimark/bitkimark-sitemap-source';
-import { normalizeGscQueryRows, normalizeGscRows } from '../sources/google-search-console/query-page-adapter';
 import { normalizeSearchTerms } from '../sources/google-ads/search-terms-adapter';
 import { GoogleAdsSearchReportingValidator } from '../sources/google-ads/search-reporting-validator';
 import { GoogleAdsConfigurationValidator } from '../sources/google-ads/configuration-validator';
@@ -98,22 +98,11 @@ class GoogleApiCollectionValidator implements CollectionValidator {
       const fs = await import('node:fs/promises');
       const body = JSON.parse(new TextDecoder().decode(await fs.readFile(context.absolute_path))) as unknown;
       let count = 0;
-      if (
-        this.sourceId === GSC_QUERY_PAGE_SOURCE_ID
-        || this.sourceId === GSC_QUERY_SOURCE_ID
-      ) {
-        if (!Array.isArray(body)) {
-          throw new Error('GSC artifact must contain the raw pages array.');
-        }
-
-        for (const page of body) {
-          count +=
-            this.sourceId === GSC_QUERY_SOURCE_ID
-              ? normalizeGscQueryRows(page).length
-              : normalizeGscRows(page).length;
-        }
-      } else if (this.sourceId === GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID) count = normalizeSearchTerms(body).length;
-      else throw new Error(`Unsupported source id: ${this.sourceId}`);
+      if (this.sourceId === GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID) {
+        count = normalizeSearchTerms(body).length;
+      } else {
+        throw new Error(`Unsupported source id: ${this.sourceId}`);
+      }
       return { validation_status: count > 0 ? 'VALID' as const : 'NO_DATA' as const, checks_total: 1, checks_passed: 1, checks_warning: 0, checks_failed: 0, findings: [] };
     } catch (error) {
       return { validation_status: 'INVALID_SCHEMA' as const, checks_total: 1, checks_passed: 0, checks_warning: 0, checks_failed: 1, findings: [{ check_id: 'GOOGLE_API_SCHEMA', severity: 'ERROR' as const, passed: false, message: error instanceof Error ? error.message : 'Invalid Google API artifact.', expected: 'Provider response matching source contract', actual: 'Invalid schema' }] };
@@ -203,8 +192,14 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
     GOOGLE_ANALYTICS_4_SOURCE_ID,
     new GoogleAnalytics4Validator(),
   );
-  validators.register(GSC_QUERY_PAGE_SOURCE_ID, new GoogleApiCollectionValidator(GSC_QUERY_PAGE_SOURCE_ID));
-  validators.register(GSC_QUERY_SOURCE_ID, new GoogleApiCollectionValidator(GSC_QUERY_SOURCE_ID));
+  validators.register(
+    GSC_QUERY_PAGE_SOURCE_ID,
+    new GoogleSearchConsoleValidator(GSC_QUERY_PAGE_SOURCE_ID),
+  );
+  validators.register(
+    GSC_QUERY_SOURCE_ID,
+    new GoogleSearchConsoleValidator(GSC_QUERY_SOURCE_ID),
+  );
   validators.register(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, new GoogleApiCollectionValidator(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID));
   validators.register(
     GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID,
