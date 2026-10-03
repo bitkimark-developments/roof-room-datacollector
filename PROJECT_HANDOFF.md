@@ -338,6 +338,49 @@ Never upgrade one category into another without evidence.
 
 ---
 
+## Latest completed source checkpoints
+
+Latest completed vertical slices:
+
+- Google Analytics 4 source vertical slice
+  Commit:
+  161b2be feat: add google analytics 4 source vertical slice
+
+- Google Ads Change History source vertical slice
+  Commit:
+  0cc9d20 feat: add google ads change history source vertical slice
+
+### Completion details for Google Ads Change History
+
+Completed deterministic verification:
+- shared source contract
+- provider request boundary
+- raw artifact preservation path
+- provider row normalization
+- fail-closed validation
+- production runtime registration
+- validator registration
+- export/package loading
+
+Architecture verification:
+- Provider-specific Google Ads Change History semantics remain outside Core.
+- Source identity and dataset identity are represented through shared contracts.
+- Core remains source-neutral.
+
+### Verification boundary
+
+Completed:
+- deterministic integration verification
+
+Not performed:
+- live Google Ads API verification
+- real credential verification
+- packaged desktop runtime verification
+
+These require separate explicit verification scope.
+
+---
+
 ## 13. Governing handoff rule
 
 > **Record where the repository is now, what remains unproven, and the next smallest safe action. Keep history in Git, not in the active handoff.**
