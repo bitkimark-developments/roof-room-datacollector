@@ -24,7 +24,12 @@ import { normalizeSearchTerms } from '../sources/google-ads/search-terms-adapter
 import { normalizeKeywordPlanner } from '../sources/google-ads/keyword-planner-adapter';
 import { GoogleAdsSearchReportingValidator } from '../sources/google-ads/search-reporting-validator';
 import { GoogleAdsConfigurationValidator } from '../sources/google-ads/configuration-validator';
+import { GoogleAnalytics4Validator } from '../sources/google-analytics-4/google-analytics-4-validator';
 import { GSC_QUERY_PAGE_SOURCE_ID, GSC_QUERY_SOURCE_ID, GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_CSV_SOURCE_ID, GOOGLE_KEYWORD_PLANNER_SOURCE_ID } from '../../shared/google-api';
+import {
+  GA4_DATASET_TYPES,
+  GOOGLE_ANALYTICS_4_SOURCE_ID,
+} from '../../shared/google-analytics-4';
 import {
   GOOGLE_ADS_SEARCH_REPORTING_DATASET_TYPES,
   GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID,
@@ -163,6 +168,17 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
     input.serpApiRequester,
   );
 
+  sourceRegistry.register(new LazyWorkspaceSource(
+    GOOGLE_ANALYTICS_4_SOURCE_ID,
+    'Google Analytics 4',
+    'OFFICIAL_API',
+    GA4_DATASET_TYPES,
+    input.repository,
+    (workspaceId) =>
+      googleApi.createGoogleAnalytics4Source({
+        workspace_id: workspaceId,
+      }),
+  ));
   sourceRegistry.register(new LazyWorkspaceSource(GSC_QUERY_PAGE_SOURCE_ID, 'Google Search Console Query × Page', 'OFFICIAL_API', ['QUERY_PAGE'], input.repository, (workspaceId) => googleApi.createSearchConsoleSource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GSC_QUERY_SOURCE_ID, 'Google Search Console Query', 'OFFICIAL_API', ['QUERY'], input.repository, (workspaceId) => googleApi.createSearchConsoleQuerySource({ workspace_id: workspaceId })));
   sourceRegistry.register(new LazyWorkspaceSource(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, 'Google Ads Search Terms', 'OFFICIAL_API', ['SEARCH_TERMS'], input.repository,
@@ -196,6 +212,10 @@ export const createProductionCollectionRuntime = (input: ProductionCollectionRun
 
   const validators = new CollectionValidatorRegistry();
   validators.register('google-trends', new GoogleTrendsCollectionValidator());
+  validators.register(
+    GOOGLE_ANALYTICS_4_SOURCE_ID,
+    new GoogleAnalytics4Validator(),
+  );
   validators.register(GSC_QUERY_PAGE_SOURCE_ID, new GoogleApiCollectionValidator(GSC_QUERY_PAGE_SOURCE_ID));
   validators.register(GSC_QUERY_SOURCE_ID, new GoogleApiCollectionValidator(GSC_QUERY_SOURCE_ID));
   validators.register(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID, new GoogleApiCollectionValidator(GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID));

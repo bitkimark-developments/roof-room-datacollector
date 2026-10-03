@@ -93,6 +93,7 @@ assert.deepEqual(ids, [
   'google-ads-configuration',
   'google-ads-search-reporting',
   'google-ads-search-terms',
+  'google-analytics-4',
   'google-keyword-planner',
   'google-keyword-planner-csv',
   'google-search-console-query',

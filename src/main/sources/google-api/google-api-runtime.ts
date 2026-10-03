@@ -4,6 +4,9 @@ import {
   GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID,
   GOOGLE_KEYWORD_PLANNER_SOURCE_ID,
 } from '../../../shared/google-api';
+import {
+  GOOGLE_ANALYTICS_4_SOURCE_ID,
+} from '../../../shared/google-analytics-4';
 import type { CredentialStore } from '../../core/credential-store';
 import type { StateRepository } from '../../storage/state-repository';
 import { GoogleAdsSearchTermsSource, GoogleKeywordPlannerSource } from '../google-ads/google-ads-sources';
@@ -16,6 +19,9 @@ import {
   GoogleSearchConsoleQuerySource,
   GoogleSearchConsoleSource,
 } from '../google-search-console/google-search-console-source';
+import {
+  GoogleAnalytics4Source,
+} from '../google-analytics-4/google-analytics-4-source';
 import { createFetchApiRequester, type ApiRequester } from './api-helpers';
 import {
   assertGoogleLiveAcceptanceConfirmation,
@@ -58,6 +64,20 @@ const normalizeGoogleAdsCustomerId = (value: string): string => {
   return normalized;
 };
 
+const normalizeGoogleAnalytics4PropertyId = (
+  value: string,
+): string => {
+  const normalized = value.trim();
+
+  if (!/^\d+$/u.test(normalized)) {
+    throw new Error(
+      'Google Analytics 4 Property ID must contain digits only.',
+    );
+  }
+
+  return normalized;
+};
+
 export class GoogleApiRuntimeFactory {
   constructor(
     private readonly repository: Pick<
@@ -80,6 +100,40 @@ export class GoogleApiRuntimeFactory {
       throw new Error(`Google source credential is not configured: ${sourceId}`);
     }
     return connection;
+  }
+
+  createGoogleAnalytics4Source(input: {
+    workspace_id: string;
+  }): GoogleAnalytics4Source {
+    const connection = this.requireConnection(
+      input.workspace_id,
+      GOOGLE_ANALYTICS_4_SOURCE_ID,
+    );
+
+    const propertyId =
+      normalizeGoogleAnalytics4PropertyId(
+        requireMetadataString(
+          connection,
+          'property_id',
+        ),
+      );
+
+    const oauth = new GoogleOAuthClient(
+      this.credentialStore,
+      connection.credential_ref as string,
+      this.requester,
+      () => this.markReauthorizationRequired(
+        connection,
+      ),
+    );
+
+    return new GoogleAnalytics4Source(
+      propertyId,
+      createAuthenticatedRequester(
+        oauth,
+        this.requester,
+      ),
+    );
   }
 
   createSearchConsoleSource(input: {
