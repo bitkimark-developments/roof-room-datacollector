@@ -19,6 +19,7 @@ import { parseBitkimarkSitemap } from '../sources/bitkimark/bitkimark-sitemap-pa
 import { parseSerpApiResponse } from '../sources/serpapi/serpapi-parser';
 import { requireSerpApiJobContext } from '../sources/serpapi/serpapi-request';
 import { GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID } from '../../shared/google-ads-search-reporting';
+import { GOOGLE_ADS_CHANGE_HISTORY_SOURCE_ID } from '../../shared/google-ads-change-history';
 import { normalizeCampaignPerformanceRows } from '../sources/google-ads/campaigns-adapter';
 import { normalizeAdGroupPerformanceRows } from '../sources/google-ads/ad-groups-adapter';
 import { normalizeKeywordPerformanceRows } from '../sources/google-ads/keywords-adapter';
@@ -26,6 +27,7 @@ import { normalizeAdPerformanceRows } from '../sources/google-ads/ads-adapter';
 import { normalizeRsaAssetPerformanceRows } from '../sources/google-ads/rsa-assets-adapter';
 import { requireGoogleAdsReportingJobContext } from '../sources/google-ads/search-reporting-request';
 import { flattenGoogleAdsSearchStream } from '../sources/google-ads/search-stream-response';
+import { normalizeGoogleAdsChangeHistoryRows } from '../sources/google-ads/google-ads-change-history-adapter';
 
 const ACCEPTED_VALIDATION = new Set(['VALID', 'LOW_DATA', 'NO_DATA']);
 
@@ -220,6 +222,24 @@ export class ProductionDataPackageLoader {
       }
       case 'google-ads-search-terms':
         return { dataset_type: 'SEARCH_TERMS', rows: jsonRows(normalizeSearchTerms(decodeJson(bytes, 'Google Ads Search Terms accepted artifact'))) };
+      case GOOGLE_ADS_CHANGE_HISTORY_SOURCE_ID: {
+        const providerRows =
+          flattenGoogleAdsSearchStream(
+            decodeJson(
+              bytes,
+              'Google Ads Change History accepted artifact',
+            ),
+          );
+
+        return {
+          dataset_type: 'CHANGE_HISTORY',
+          rows: jsonRows(
+            normalizeGoogleAdsChangeHistoryRows(
+              providerRows,
+            ),
+          ),
+        };
+      }
       case GOOGLE_ADS_SEARCH_REPORTING_SOURCE_ID: {
         const context = requireGoogleAdsReportingJobContext(job.source_context);
         if (job.job_key !== context.dataset_type) {

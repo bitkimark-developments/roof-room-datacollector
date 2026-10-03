@@ -135,7 +135,7 @@ async function main() {
     run_status: 'COMPLETED',
     selected_sources: [
       'google-trends', 'google-search-console-query-page', 'google-search-console-query', 'google-ads-search-terms', 'google-ads-search-reporting', 'google-keyword-planner',
-      'google-keyword-planner-csv', 'ikas-products', 'bitkimark-sitemap', 'serpapi',
+      'google-keyword-planner-csv', 'ikas-products', 'bitkimark-sitemap', 'serpapi', 'google-ads-change-history',
     ],
   };
 
@@ -196,6 +196,11 @@ async function main() {
       bytes: jsonBytes({ search_metadata: { status: 'Success' }, search_parameters: { q: 'ficus', gl: 'tr', hl: 'tr', device: 'desktop', engine: 'google', start: 0 }, organic_results: [{ position: 1, title: 'Ficus', link: 'https://example.com/ficus' }], related_questions: [] }),
       source_context: { task_id: 'serpapi-serp-snapshot', source_id: 'serpapi', source_mode: 'THIRD_PARTY_API', dataset_type: 'GOOGLE_SERP', job_key: 'q-1', query: 'ficus', country_code: 'TR', language_code: 'tr', device: 'desktop', engine: 'google', organic_limit: 10, snapshot_date: '2026-09-19' }, validation_status: 'VALID',
     },
+    {
+      source_id: 'google-ads-change-history', job_key: 'CHANGE_HISTORY', filename: 'change_history.json', media_type: 'application/json',
+      bytes: jsonBytes([{ results: [{ change_event: { change_date_time: '2026-10-03T10:00:00Z', user_email: 'user@example.com', client_type: 'GOOGLE_ADS_WEB_CLIENT', change_resource_type: 'CAMPAIGN', change_resource_name: 'customers/123/campaigns/456', resource_change_operation: 'UPDATE' } }] }]),
+      source_context: {}, validation_status: 'VALID',
+    },
   ];
 
   const jobs = [];
@@ -236,7 +241,7 @@ async function main() {
     'INTEREST_OVER_TIME', 'QUERY_PAGE', 'QUERY', 'SEARCH_TERMS',
     'CAMPAIGN_PERFORMANCE', 'AD_GROUP_PERFORMANCE', 'KEYWORD_PERFORMANCE', 'SEARCH_TERMS',
     'AD_PERFORMANCE', 'RSA_ASSET_PERFORMANCE', 'CAMPAIGN_PERFORMANCE', 'KEYWORD_HISTORICAL_METRICS',
-    'KEYWORD_HISTORICAL_METRICS', 'PRODUCTS', 'SITEMAP_URLS', 'GOOGLE_SERP',
+    'KEYWORD_HISTORICAL_METRICS', 'PRODUCTS', 'SITEMAP_URLS', 'GOOGLE_SERP', 'CHANGE_HISTORY',
   ]);
   assert.equal(datasets.filter((dataset) => dataset.provenance.validation_status !== 'NO_DATA').every((dataset) => dataset.rows.length > 0), true);
 
@@ -249,6 +254,10 @@ async function main() {
   assert.equal(datasets.find((dataset) => dataset.source_id === 'ikas-products').rows[0].sale_price, null);
   assert.equal(datasets.find((dataset) => dataset.source_id === 'bitkimark-sitemap').rows[0].parent_sitemap_url, 'https://bitkimark.com/sitemap.xml');
   assert.equal(datasets.find((dataset) => dataset.source_id === 'serpapi').rows[0].result_type, 'ORGANIC');
+  const changeHistory = datasets.find((dataset) => dataset.source_id === 'google-ads-change-history');
+  assert.equal(changeHistory.dataset_type, 'CHANGE_HISTORY');
+  assert.equal(changeHistory.rows.length, 1);
+  assert.equal(changeHistory.rows[0].resource_change_operation, 'UPDATE');
   const campaignReporting = datasets.find((dataset) => dataset.job_key === 'CAMPAIGN_PERFORMANCE');
   assert.equal(campaignReporting.rows[0].campaign_budget_amount_micros, 0);
   assert.equal(campaignReporting.rows[0].clicks, null);

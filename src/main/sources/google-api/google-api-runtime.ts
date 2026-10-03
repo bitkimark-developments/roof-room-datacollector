@@ -7,6 +7,9 @@ import {
 import {
   GOOGLE_ANALYTICS_4_SOURCE_ID,
 } from '../../../shared/google-analytics-4';
+import {
+  GOOGLE_ADS_CHANGE_HISTORY_SOURCE_ID,
+} from '../../../shared/google-ads-change-history';
 import type { CredentialStore } from '../../core/credential-store';
 import type { StateRepository } from '../../storage/state-repository';
 import { GoogleAdsSearchTermsSource, GoogleKeywordPlannerSource } from '../google-ads/google-ads-sources';
@@ -22,6 +25,9 @@ import {
 import {
   GoogleAnalytics4Source,
 } from '../google-analytics-4/google-analytics-4-source';
+import {
+  GoogleAdsChangeHistorySource,
+} from '../google-ads/google-ads-change-history-source';
 import { createFetchApiRequester, type ApiRequester } from './api-helpers';
 import {
   assertGoogleLiveAcceptanceConfirmation,
@@ -229,6 +235,26 @@ export class GoogleApiRuntimeFactory {
         requester,
         descriptors,
       );
+  }
+
+
+  createGoogleAdsChangeHistorySource(input: {
+    workspace_id: string;
+  }): GoogleAdsChangeHistorySource {
+    const connection = this.requireConnection(
+      input.workspace_id,
+      GOOGLE_ADS_SEARCH_TERMS_SOURCE_ID,
+    );
+
+    return new GoogleAdsChangeHistorySource(
+      normalizeGoogleAdsCustomerId(
+        requireMetadataString(
+          connection,
+          'customer_id',
+        ),
+      ),
+      this.createGoogleAdsRequester(connection),
+    );
   }
 
 
