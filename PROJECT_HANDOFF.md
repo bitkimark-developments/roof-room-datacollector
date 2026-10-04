@@ -392,7 +392,7 @@ Deterministically verified:
 
 No 15-day or 60-day asset preset variant is part of the current approved catalog.
 
-Runtime visibility of the reconciled production Saved Preset catalog remains a separate desktop observation until explicitly checked.
+Runtime visibility of the reconciled production Saved Preset catalog was explicitly observed in the development desktop runtime: Bitkimark Production was selected by default and the Saved Presets list showed Bitkimark - Test, Google Ads Growth, Blog - 7 Day, Blog - 14 Day, and Blog - 30 Day.
 
 ## Latest completed source checkpoints
 
