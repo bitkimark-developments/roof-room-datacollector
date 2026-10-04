@@ -125,6 +125,7 @@ export interface DesktopReview {
   job_count: number;
   can_start: boolean;
   blocking_sources: string[];
+  planning_blocking_sources: string[];
   reviewed_draft:
     DesktopReviewedRunDraft | null;
 }

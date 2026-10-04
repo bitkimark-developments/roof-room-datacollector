@@ -180,6 +180,111 @@ async function main() {
     'Default desktop Workspace must prefer a real Workspace over the migration-compatibility Workspace.',
   );
 
+  const planningCoverageWorkspace = {
+    workspace_id:
+      'ws_planning_coverage',
+    workspace_name:
+      'Planning Coverage',
+    created_at:
+      '2026-10-04T00:00:00.000Z',
+  };
+
+  const planningCoverageController =
+    new DesktopMultiSourceController({
+      repository: {
+        getWorkspace:
+          (workspaceId) =>
+            workspaceId
+              === planningCoverageWorkspace.workspace_id
+              ? planningCoverageWorkspace
+              : null,
+        listWorkspaces:
+          () => [planningCoverageWorkspace],
+        listSourceConnections:
+          () => [],
+      },
+      readiness: {
+        getReadiness:
+          async (
+            workspaceId,
+            sourceId,
+          ) =>
+            READY(
+              workspaceId,
+              sourceId,
+            ),
+      },
+      application_version:
+        'test',
+      source_order: [
+        'google-trends',
+        'serpapi',
+      ],
+      job_planner:
+        (
+          sourceId,
+          sourceConfig,
+        ) =>
+          sourceId === 'google-trends'
+            ? [{
+                source_id:
+                  sourceId,
+                job_key:
+                  'google-trends-job',
+                query_group_id:
+                  null,
+                source_context:
+                  structuredClone(
+                    sourceConfig,
+                  ),
+              }]
+            : [],
+    });
+
+  const planningCoverageReview =
+    await planningCoverageController
+      .reviewDraft({
+        workspace_id:
+          planningCoverageWorkspace
+            .workspace_id,
+        origin: {
+          kind:
+            'SAVED_PRESET',
+          preset_id:
+            'sp_planning_coverage',
+        },
+        reusable_configuration: {
+          sources: {
+            'google-trends': {
+              included: true,
+            },
+            serpapi: {
+              included: true,
+            },
+          },
+        },
+        source_cards: [],
+      });
+
+  assert.equal(
+    planningCoverageReview.job_count,
+    1,
+    'Fixture must prove that one included source planned work while the other silently produced zero Jobs.',
+  );
+
+  assert.equal(
+    planningCoverageReview.can_start,
+    false,
+    'Preset Review must fail closed when any included source produces zero Jobs.',
+  );
+
+  assert.deepEqual(
+    planningCoverageReview
+      .planning_blocking_sources,
+    ['serpapi'],
+    'Review must identify the included source that produced zero Jobs without misclassifying it as a readiness blocker.',
+  );
+
   let releaseCancellationExecution;
   let physicalCancelCalls = 0;
   let cancelFinished = false;

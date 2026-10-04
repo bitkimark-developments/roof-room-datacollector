@@ -872,6 +872,22 @@ export class DesktopMultiSourceController {
         includedSources,
       );
 
+    const plannedSourceIds =
+      new Set(
+        plans.map(
+          (plan) =>
+            plan.source_id,
+        ),
+      );
+
+    const planningBlockingSources =
+      includedSources.filter(
+        (sourceId) =>
+          !plannedSourceIds.has(
+            sourceId,
+          ),
+      );
+
     return {
       workspace,
       origin:
@@ -884,9 +900,12 @@ export class DesktopMultiSourceController {
         plans.length,
       can_start:
         blockingSources.length === 0
+        && planningBlockingSources.length === 0
         && plans.length > 0,
       blocking_sources:
         blockingSources,
+      planning_blocking_sources:
+        planningBlockingSources,
       reviewed_draft:
         reviewedDraft,
     };
