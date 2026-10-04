@@ -1,7 +1,7 @@
 # Multi-Source Reviewed Run Artifact Design
 
 **Date:** 2026-10-05
-**Status:** Proposed — approved direction, written review pending
+**Status:** Approved
 
 ## Problem
 
