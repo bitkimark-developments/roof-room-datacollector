@@ -107,8 +107,9 @@ export interface DesktopRunDraft extends RunDraft {
 
 export interface DesktopReviewedRunDraft {
   workspace_id: string;
-  task_id: string;
-  source_id: string;
+  task_id: string | null;
+  source_id: string | null;
+  included_sources: string[];
   reference_date: string;
   resolved_at: string;
   reusable_configuration:
@@ -217,12 +218,36 @@ export const isDesktopReviewedRunDraft = (
   const draft =
     value as Partial<DesktopReviewedRunDraft>;
 
+  const hasValidTaskId =
+    draft.task_id === null
+    || (
+      typeof draft.task_id === 'string'
+      && draft.task_id.trim().length > 0
+    );
+
+  const hasValidSourceId =
+    draft.source_id === null
+    || (
+      typeof draft.source_id === 'string'
+      && draft.source_id.trim().length > 0
+    );
+
+  const hasValidIncludedSources =
+    Array.isArray(
+      draft.included_sources,
+    )
+    && draft.included_sources.length > 0
+    && draft.included_sources.every(
+      (sourceId) =>
+        typeof sourceId === 'string'
+        && sourceId.trim().length > 0,
+    );
+
   return typeof draft.workspace_id === 'string'
     && draft.workspace_id.trim().length > 0
-    && typeof draft.task_id === 'string'
-    && draft.task_id.trim().length > 0
-    && typeof draft.source_id === 'string'
-    && draft.source_id.trim().length > 0
+    && hasValidTaskId
+    && hasValidSourceId
+    && hasValidIncludedSources
     && typeof draft.reference_date === 'string'
     && draft.reference_date.trim().length > 0
     && typeof draft.resolved_at === 'string'

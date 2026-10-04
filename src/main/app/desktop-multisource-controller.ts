@@ -1065,6 +1065,15 @@ export class DesktopMultiSourceController {
       );
     }
 
+    if (
+      reviewedDraft.source_id === null
+      || reviewedDraft.task_id === null
+    ) {
+      throw new Error(
+        'Multi-source reviewed Run Start is not supported by this execution path yet.',
+      );
+    }
+
     const reusableSource =
       sourceConfig(
         reviewedDraft
@@ -1957,6 +1966,9 @@ export class DesktopMultiSourceController {
         workspace_id: draft.workspace_id,
         task_id: SERPAPI_TASK_ID,
         source_id: sourceId,
+        included_sources: [
+          sourceId,
+        ],
         reference_date: referenceDate,
         resolved_at: resolvedAt.toISOString(),
         reusable_configuration: reusableConfiguration,
@@ -2004,6 +2016,9 @@ export class DesktopMultiSourceController {
         workspace_id: draft.workspace_id,
         task_id: taskId,
         source_id: sourceId,
+        included_sources: [
+          sourceId,
+        ],
         reference_date: range.reference_date,
         resolved_at: resolvedAt.toISOString(),
         reusable_configuration: reusableConfiguration,
@@ -2070,6 +2085,9 @@ export class DesktopMultiSourceController {
             sourceId,
           source_id:
             sourceId,
+          included_sources: [
+            sourceId,
+          ],
           reference_date:
             formatLocalReferenceDate(
               this.now(),
@@ -2143,6 +2161,9 @@ export class DesktopMultiSourceController {
             sourceId,
           source_id:
             sourceId,
+          included_sources: [
+            sourceId,
+          ],
           reference_date:
             formatLocalReferenceDate(
               this.now(),
@@ -2212,6 +2233,9 @@ export class DesktopMultiSourceController {
             sourceId,
           source_id:
             sourceId,
+          included_sources: [
+            sourceId,
+          ],
           reference_date:
             formatLocalReferenceDate(
               this.now(),
@@ -2255,6 +2279,9 @@ export class DesktopMultiSourceController {
             sourceId,
           source_id:
             sourceId,
+          included_sources: [
+            sourceId,
+          ],
           reference_date:
             formatLocalReferenceDate(
               resolvedAt,
@@ -2375,6 +2402,9 @@ export class DesktopMultiSourceController {
           KEYWORD_PLANNER_TASK_ID,
         source_id:
           sourceId,
+        included_sources: [
+          sourceId,
+        ],
         reference_date:
           formatLocalReferenceDate(
             resolvedAt,
@@ -2454,6 +2484,9 @@ export class DesktopMultiSourceController {
           IKAS_PRODUCTS_TASK_ID,
         source_id:
           sourceId,
+        included_sources: [
+          sourceId,
+        ],
         reference_date:
           formatLocalReferenceDate(
             resolvedAt,
@@ -2529,6 +2562,9 @@ export class DesktopMultiSourceController {
           KEYWORD_PLANNER_CSV_TASK_ID,
         source_id:
           sourceId,
+        included_sources: [
+          sourceId,
+        ],
         reference_date:
           formatLocalReferenceDate(
             resolvedAt,
@@ -2566,6 +2602,9 @@ export class DesktopMultiSourceController {
         workspace_id: draft.workspace_id,
         task_id: BITKIMARK_SITEMAP_TASK_ID,
         source_id: sourceId,
+        included_sources: [
+          sourceId,
+        ],
         reference_date: formatLocalReferenceDate(resolvedAt),
         resolved_at: resolvedAt.toISOString(),
         reusable_configuration: reusableConfiguration,
@@ -2693,6 +2732,9 @@ export class DesktopMultiSourceController {
           'google-trends-interest-over-time',
         source_id:
           sourceId,
+        included_sources: [
+          sourceId,
+        ],
         reference_date:
           range.reference_date,
         resolved_at:
@@ -2798,6 +2840,9 @@ export class DesktopMultiSourceController {
           taskId,
         source_id:
           sourceId,
+        included_sources: [
+          sourceId,
+        ],
         reference_date:
           referenceDate,
         resolved_at:
@@ -2961,6 +3006,9 @@ export class DesktopMultiSourceController {
         taskId,
       source_id:
         sourceId,
+      included_sources: [
+        sourceId,
+      ],
       reference_date:
         range.reference_date,
       resolved_at:

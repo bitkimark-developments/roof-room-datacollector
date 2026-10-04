@@ -133,6 +133,113 @@ const createFixture = (
 };
 
 async function main() {
+  const multiSourceReviewedArtifact = {
+    workspace_id:
+      'ws_reviewed_contract',
+    task_id:
+      null,
+    source_id:
+      null,
+    included_sources: [
+      'google-trends',
+      'serpapi',
+    ],
+    reference_date:
+      '2026-10-05',
+    resolved_at:
+      '2026-10-05T09:00:00.000Z',
+    reusable_configuration: {
+      sources: {
+        'google-trends': {
+          included: true,
+        },
+        serpapi: {
+          included: true,
+        },
+      },
+    },
+    resolved_configuration: {
+      sources: {
+        'google-trends': {
+          included: true,
+        },
+        serpapi: {
+          included: true,
+        },
+      },
+    },
+  };
+
+  assert.equal(
+    isDesktopReviewedRunDraft(
+      multiSourceReviewedArtifact,
+    ),
+    true,
+    'Reviewed artifact contract must accept nullable root task/source identity for a real multi-source Run.',
+  );
+
+  assert.equal(
+    isDesktopReviewedRunDraft({
+      ...multiSourceReviewedArtifact,
+      task_id:
+        'google-trends-quick-run',
+      source_id:
+        'google-trends',
+      included_sources: [
+        'google-trends',
+      ],
+    }),
+    true,
+    'Reviewed artifact contract must remain compatible with real single-source task/source identity.',
+  );
+
+  const {
+    included_sources:
+      _missingIncludedSources,
+    ...withoutIncludedSources
+  } = {
+    ...multiSourceReviewedArtifact,
+    task_id:
+      'google-trends-quick-run',
+    source_id:
+      'google-trends',
+  };
+
+  assert.equal(
+    isDesktopReviewedRunDraft(
+      withoutIncludedSources,
+    ),
+    false,
+    'Reviewed artifact contract must reject a missing included_sources collection.',
+  );
+
+  assert.equal(
+    isDesktopReviewedRunDraft({
+      ...multiSourceReviewedArtifact,
+      task_id:
+        'google-trends-quick-run',
+      source_id:
+        'google-trends',
+      included_sources: [],
+    }),
+    false,
+    'Reviewed artifact contract must reject an empty included_sources collection.',
+  );
+
+  assert.equal(
+    isDesktopReviewedRunDraft({
+      ...multiSourceReviewedArtifact,
+      task_id:
+        'google-trends-quick-run',
+      source_id:
+        'google-trends',
+      included_sources:
+        'google-trends',
+    }),
+    false,
+    'Reviewed artifact contract must reject non-array included_sources.',
+  );
+
   const defaultWorkspaceController =
     new DesktopMultiSourceController({
       repository: {
@@ -648,6 +755,9 @@ async function main() {
         'gsc-current-90-days',
       source_id:
         'google-search-console-query-page',
+      included_sources: [
+        'google-search-console-query-page',
+      ],
       reference_date:
         '2026-09-14',
       resolved_at:
