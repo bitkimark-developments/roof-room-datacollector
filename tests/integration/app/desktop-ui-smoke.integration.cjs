@@ -3370,12 +3370,16 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      13,
+      19,
     );
 
     const homeGscCard = page.getByTestId('task-card').filter({ hasText: 'GSC — Current 90 Days' });
     assert.equal(await homeGscCard.getByText('DUE', { exact: true }).count(), 1);
-    const homeAdsCard = page.getByTestId('task-card').filter({ hasText: 'Google Ads — Search Terms' });
+    const homeAdsCard = page.getByTestId('task-card').filter({
+      has: page.getByText('Google Ads — Search Terms', {
+        exact: true,
+      }),
+    });
     assert.equal(await homeAdsCard.getByText('CONNECTION REQUIRED', { exact: true }).count(), 1);
     assert.equal(await homeAdsCard.getByText('DUE', { exact: true }).count(), 1, 'Freshness DUE remains visible while readiness is blocked.');
     const homeIkasCard = page.getByTestId('task-card').filter({ hasText: 'İkas — Products Import' });
@@ -3416,7 +3420,7 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      13,
+      19,
     );
 
     await page.getByText(
@@ -4403,7 +4407,11 @@ const main = async () => {
     );
     await page.reload();
 
-    const blockedAdsCard = page.getByTestId('task-card').filter({ hasText: 'Google Ads — Search Terms' });
+    const blockedAdsCard = page.getByTestId('task-card').filter({
+      has: page.getByText('Google Ads — Search Terms', {
+        exact: true,
+      }),
+    });
     await blockedAdsCard.getByText('CONNECTION REQUIRED', { exact: true }).waitFor();
     await blockedAdsCard.click();
 
@@ -4431,7 +4439,11 @@ const main = async () => {
 
     await page.addInitScript(() => { window.__adsReady = true; });
     await page.reload();
-    const adsCard = page.getByTestId('task-card').filter({ hasText: 'Google Ads — Search Terms' });
+    const adsCard = page.getByTestId('task-card').filter({
+      has: page.getByText('Google Ads — Search Terms', {
+        exact: true,
+      }),
+    });
     await adsCard.getByText('READY', { exact: true }).waitFor();
     await adsCard.click();
     assert.equal(await page.getByText('Scope: SEARCH campaigns · search_term_view', { exact: true }).count(), 1);

@@ -345,36 +345,54 @@ Never upgrade one category into another without evidence.
 
 ## Asset collection preset checkpoint
 
-Completed deterministic preset preparation:
+Current verified Saved Preset catalog for the Bitkimark Production Workspace:
 
-- Added `Google Ads Growth Rebuild` reusable collection preset.
-- Added `Blog Agentic Content Research` reusable collection preset.
-- Added terminal seed script:
-  - `scripts/create-asset-presets.ts`
-- Verified presets persist through the existing `saved_collection_presets` repository boundary.
+- `Google Ads Growth`
+- `Blog - 7 Day`
+- `Blog - 14 Day`
+- `Blog - 30 Day`
 
-Preset scope remains configuration-only:
-- Presets define source inclusion and collection configuration.
-- Provider evidence semantics remain owned by source modules.
-- Missing provider inputs (query groups, date ranges, sites, etc.) must remain explicit and are not inferred.
+`Google Ads Growth` preserves the existing Growth preset identity while using the complete approved Growth evidence collection configuration.
 
-## Future preset catalog milestone
+The three Blog presets share the same seven evidence families:
 
-Expand reusable preset catalog with predefined collection groups:
+- Google Trends Interest Over Time
+- Google Search Console Query × Page
+- Google Ads Search Terms
+- Google Keyword Planner historical metrics
+- İkas Products
+- SerpApi Google SERP
+- Bitkimark Sitemap
 
-Ads Growth:
-- 7 day Ads Growth
-- 14 day Ads Growth
-- 30 day Ads Growth
-- 60 day Ads Growth
+Only the GSC Query × Page and Google Ads Search Terms rolling request windows vary between the Blog presets. Their reusable configurations retain relative 7/14/30-day policies, while Review/Start resolves those requests into exact absolute dates for execution and the Run configuration snapshot.
 
-Blog Agentic:
-- 7 day Blog Trend Research
-- 14 day Blog Trend Research
-- 30 day Blog Trend Research
-- 60 day Blog Trend Research
+Google Trends retains its existing 24-calendar-month policy. Keyword Planner, İkas, Sitemap, and SerpApi retain their own source semantics.
 
-This milestone is focused on preset coverage and user workflow improvements. It does not move provider semantics or evidence handling into presets.
+The Saved Preset seed path is idempotent:
+
+- existing target presets are updated in place;
+- the legacy `Google Ads Growth Rebuild` record migrates to `Google Ads Growth` without replacing its `preset_id`;
+- the legacy `Blog Agentic Content Research` record migrates to `Blog - 30 Day` without replacing its `preset_id`;
+- missing `Blog - 7 Day` and `Blog - 14 Day` records are created;
+- conflicting legacy/target duplicates fail closed instead of being silently deleted or merged.
+
+Production persistence was reconciled against the Bitkimark Production Workspace after a verified SQLite backup. Exact persisted configurations were compared with the production preset factories, and the unrelated `Bitkimark - Test` Saved Preset was preserved unchanged.
+
+Deterministically verified:
+
+- 7/14/30 desktop date-policy resolution;
+- truthful GSC Query × Page and Ads Search Terms task identities;
+- exact Growth and Blog reusable configurations;
+- multi-source Review/Start absolute-window resolution with reusable-relative / run-snapshot separation;
+- duplicate-free idempotent seed behavior and legacy identity preservation;
+- existing desktop multi-source regressions;
+- desktop UI preset lifecycle regressions;
+- GA4 desktop planning regressions;
+- TypeScript compilation.
+
+No 15-day or 60-day asset preset variant is part of the current approved catalog.
+
+Runtime visibility of the reconciled production Saved Preset catalog remains a separate desktop observation until explicitly checked.
 
 ## Latest completed source checkpoints
 

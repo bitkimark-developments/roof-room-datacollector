@@ -1,7 +1,7 @@
 import type { ReusableCollectionConfiguration } from '../../shared/collection-configuration';
 
 export const GOOGLE_ADS_GROWTH_REBUILD_PRESET_NAME =
-  'Google Ads Growth Rebuild';
+  'Google Ads Growth';
 
 export const createGoogleAdsGrowthRebuildPreset =
 (): ReusableCollectionConfiguration => ({

@@ -79,6 +79,57 @@ export const DESKTOP_TASK_CATALOG:
     {
       task_kind: 'COLLECTION',
       task_id:
+        'gsc-query-page-current-7-days',
+      source_id:
+        'google-search-console-query-page',
+      task_name:
+        'GSC — Query × Page Current 7 Days',
+      description:
+        'Current Query × Page Search Console performance dataset for the latest 7 complete days.',
+      group:
+        'GOOGLE',
+      default_summary:
+        'Today − 7 days → yesterday',
+      date_policy:
+        'TODAY_MINUS_7_TO_YESTERDAY',
+    },
+    {
+      task_kind: 'COLLECTION',
+      task_id:
+        'gsc-query-page-current-14-days',
+      source_id:
+        'google-search-console-query-page',
+      task_name:
+        'GSC — Query × Page Current 14 Days',
+      description:
+        'Current Query × Page Search Console performance dataset for the latest 14 complete days.',
+      group:
+        'GOOGLE',
+      default_summary:
+        'Today − 14 days → yesterday',
+      date_policy:
+        'TODAY_MINUS_14_TO_YESTERDAY',
+    },
+    {
+      task_kind: 'COLLECTION',
+      task_id:
+        'gsc-query-page-current-30-days',
+      source_id:
+        'google-search-console-query-page',
+      task_name:
+        'GSC — Query × Page Current 30 Days',
+      description:
+        'Current Query × Page Search Console performance dataset for the latest 30 complete days.',
+      group:
+        'GOOGLE',
+      default_summary:
+        'Today − 30 days → yesterday',
+      date_policy:
+        'TODAY_MINUS_30_TO_YESTERDAY',
+    },
+    {
+      task_kind: 'COLLECTION',
+      task_id:
         'gsc-query-page-current-28-days',
       source_id:
         'google-search-console-query-page',
@@ -126,6 +177,57 @@ export const DESKTOP_TASK_CATALOG:
         'Today − 16 calendar months → yesterday',
       date_policy:
         'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+    },
+    {
+      task_kind: 'COLLECTION',
+      task_id:
+        'google-ads-search-terms-7-days',
+      source_id:
+        'google-ads-search-terms',
+      task_name:
+        'Google Ads — Search Terms 7 Days',
+      description:
+        'First-party Search Terms performance data from Google Ads for the latest 7 complete days.',
+      group:
+        'GOOGLE',
+      default_summary:
+        'Today − 7 days → yesterday',
+      date_policy:
+        'TODAY_MINUS_7_TO_YESTERDAY',
+    },
+    {
+      task_kind: 'COLLECTION',
+      task_id:
+        'google-ads-search-terms-14-days',
+      source_id:
+        'google-ads-search-terms',
+      task_name:
+        'Google Ads — Search Terms 14 Days',
+      description:
+        'First-party Search Terms performance data from Google Ads for the latest 14 complete days.',
+      group:
+        'GOOGLE',
+      default_summary:
+        'Today − 14 days → yesterday',
+      date_policy:
+        'TODAY_MINUS_14_TO_YESTERDAY',
+    },
+    {
+      task_kind: 'COLLECTION',
+      task_id:
+        'google-ads-search-terms-30-days',
+      source_id:
+        'google-ads-search-terms',
+      task_name:
+        'Google Ads — Search Terms 30 Days',
+      description:
+        'First-party Search Terms performance data from Google Ads for the latest 30 complete days.',
+      group:
+        'GOOGLE',
+      default_summary:
+        'Today − 30 days → yesterday',
+      date_policy:
+        'TODAY_MINUS_30_TO_YESTERDAY',
     },
     {
       task_kind: 'COLLECTION',

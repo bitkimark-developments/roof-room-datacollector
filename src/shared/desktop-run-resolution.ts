@@ -1,6 +1,9 @@
 export type DesktopDatePolicy =
+  | 'TODAY_MINUS_7_TO_YESTERDAY'
+  | 'TODAY_MINUS_14_TO_YESTERDAY'
   | 'TODAY_MINUS_17_TO_YESTERDAY'
   | 'TODAY_MINUS_28_TO_YESTERDAY'
+  | 'TODAY_MINUS_30_TO_YESTERDAY'
   | 'TODAY_MINUS_56_TO_TODAY_MINUS_29'
   | 'TODAY_MINUS_90_TO_YESTERDAY'
   | 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY'
@@ -185,12 +188,22 @@ export const resolveDesktopDatePolicy = (
     };
   }
 
-  if (
-    policy
-    === 'TODAY_MINUS_90_TO_YESTERDAY'
-    || policy === 'TODAY_MINUS_28_TO_YESTERDAY'
-    || policy === 'TODAY_MINUS_17_TO_YESTERDAY'
-  ) {
+  const rollingDayWindow =
+    policy === 'TODAY_MINUS_7_TO_YESTERDAY'
+      ? 7
+      : policy === 'TODAY_MINUS_14_TO_YESTERDAY'
+        ? 14
+        : policy === 'TODAY_MINUS_17_TO_YESTERDAY'
+          ? 17
+          : policy === 'TODAY_MINUS_28_TO_YESTERDAY'
+            ? 28
+            : policy === 'TODAY_MINUS_30_TO_YESTERDAY'
+              ? 30
+              : policy === 'TODAY_MINUS_90_TO_YESTERDAY'
+                ? 90
+                : null;
+
+  if (rollingDayWindow !== null) {
     return {
       reference_date:
         referenceDate,
@@ -200,11 +213,7 @@ export const resolveDesktopDatePolicy = (
         formatDateOnly(
           addCalendarDays(
             reference,
-            policy === 'TODAY_MINUS_17_TO_YESTERDAY'
-              ? -17
-              : policy === 'TODAY_MINUS_28_TO_YESTERDAY'
-                ? -28
-                : -90,
+            -rollingDayWindow,
           ),
         ),
       requested_date_end:

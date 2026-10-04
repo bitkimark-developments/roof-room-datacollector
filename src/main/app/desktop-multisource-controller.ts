@@ -845,7 +845,10 @@ export class DesktopMultiSourceController {
     const executionConfiguration =
       reviewedDraft
         ?.resolved_configuration
-      ?? draft.reusable_configuration;
+      ?? this
+        .resolveMultiSourceExecutionConfiguration(
+          draft,
+        );
 
     const plans =
       this.buildPlans(
@@ -889,8 +892,27 @@ export class DesktopMultiSourceController {
 
     const review = await this.reviewDraft(draft);
     if (!review.can_start) throw new Error(`Run cannot start; included sources are not ready: ${review.blocking_sources.join(', ') || 'no source selected'}.`);
-    const plans = this.buildPlans(draft.reusable_configuration, review.included_sources);
-    const configurationSnapshot = { ...cloneConfiguration(draft.reusable_configuration), resolved_at: this.now().toISOString(), workspace_id: draft.workspace_id };
+
+    const executionConfiguration =
+      this.resolveMultiSourceExecutionConfiguration(
+        draft,
+      );
+
+    const plans =
+      this.buildPlans(
+        executionConfiguration,
+        review.included_sources,
+      );
+
+    const configurationSnapshot = {
+      ...cloneConfiguration(
+        executionConfiguration,
+      ),
+      resolved_at:
+        this.now().toISOString(),
+      workspace_id:
+        draft.workspace_id,
+    };
     const reserved = this.dependencies.repository.reserveRunFromJobPlans({
       workspace_id: draft.workspace_id,
       application_version: this.dependencies.application_version,
@@ -1742,6 +1764,95 @@ export class DesktopMultiSourceController {
     return { export_directory: directory, dataset_count: dataPackage.datasets.length, failed_count: dataPackage.failures.length };
   }
 
+  private resolveMultiSourceExecutionConfiguration(
+    draft: DesktopRunDraft,
+  ): ReusableCollectionConfiguration {
+    const reusableConfiguration =
+      cloneConfiguration(
+        draft.reusable_configuration,
+      );
+
+    const includedSourceIds =
+      this.sourceOrder.filter(
+        (sourceId) =>
+          included(
+            reusableConfiguration,
+            sourceId,
+          ),
+      );
+
+    if (includedSourceIds.length <= 1) {
+      return reusableConfiguration;
+    }
+
+    const resolvedConfiguration =
+      cloneConfiguration(
+        reusableConfiguration,
+      );
+
+    const resolvedSources =
+      asJsonObjectValue(
+        resolvedConfiguration.sources,
+      );
+
+    for (
+      const sourceId
+      of includedSourceIds
+    ) {
+      if (
+        sourceId
+          !== 'google-search-console-query-page'
+        && sourceId
+          !== 'google-ads-search-terms'
+      ) {
+        continue;
+      }
+
+      const reusableSources =
+        asJsonObjectValue(
+          reusableConfiguration.sources,
+        );
+
+      const singleSourceConfiguration:
+        ReusableCollectionConfiguration = {
+          sources: {
+            [sourceId]:
+              asJsonObjectValue(
+                reusableSources[sourceId],
+              ),
+          },
+        };
+
+      const reviewedSource =
+        this.resolveReviewedDraft({
+          ...draft,
+          reusable_configuration:
+            singleSourceConfiguration,
+        });
+
+      if (reviewedSource === null) {
+        continue;
+      }
+
+      const reviewedSources =
+        asJsonObjectValue(
+          reviewedSource
+            .resolved_configuration
+            .sources,
+        );
+
+      resolvedSources[sourceId] =
+        asJsonObjectValue(
+          reviewedSources[sourceId],
+        );
+    }
+
+    resolvedConfiguration.sources =
+      resolvedSources;
+
+    return resolvedConfiguration;
+  }
+
   private resolveReviewedDraft(
     draft: DesktopRunDraft,
   ): DesktopReviewedRunDraft | null {
@@ -1819,10 +1930,35 @@ export class DesktopMultiSourceController {
     }
 
     if (sourceId === 'google-ads-search-terms') {
-      if (config.task_id !== 'google-ads-search-terms'
-        || config.date_policy !== 'TODAY_MINUS_17_TO_YESTERDAY') return null;
+      const taskId =
+        typeof config.task_id === 'string'
+          ? config.task_id
+          : null;
+
+      const expectedDatePolicy =
+        taskId === 'google-ads-search-terms'
+          ? 'TODAY_MINUS_17_TO_YESTERDAY'
+          : taskId === 'google-ads-search-terms-7-days'
+            ? 'TODAY_MINUS_7_TO_YESTERDAY'
+            : taskId === 'google-ads-search-terms-14-days'
+              ? 'TODAY_MINUS_14_TO_YESTERDAY'
+              : taskId === 'google-ads-search-terms-30-days'
+                ? 'TODAY_MINUS_30_TO_YESTERDAY'
+                : null;
+
+      if (
+        taskId === null
+        || expectedDatePolicy === null
+        || config.date_policy !== expectedDatePolicy
+      ) {
+        return null;
+      }
+
       const resolvedAt = this.now();
-      const range = resolveDesktopDatePolicy(config.date_policy, formatLocalReferenceDate(resolvedAt));
+      const range = resolveDesktopDatePolicy(
+        expectedDatePolicy,
+        formatLocalReferenceDate(resolvedAt),
+      );
       const reusableConfiguration = cloneConfiguration(draft.reusable_configuration);
       const resolvedConfiguration = cloneConfiguration(draft.reusable_configuration);
       const sources = asJsonObjectValue(resolvedConfiguration.sources);
@@ -1831,7 +1967,7 @@ export class DesktopMultiSourceController {
       resolvedConfiguration.sources = sources;
       return {
         workspace_id: draft.workspace_id,
-        task_id: config.task_id,
+        task_id: taskId,
         source_id: sourceId,
         reference_date: range.reference_date,
         resolved_at: resolvedAt.toISOString(),
@@ -2652,7 +2788,13 @@ export class DesktopMultiSourceController {
         || config.task_id
           === 'gsc-long-16-months'
         || config.task_id
+          === 'gsc-query-page-current-7-days'
+        || config.task_id
+          === 'gsc-query-page-current-14-days'
+        || config.task_id
           === 'gsc-query-page-current-28-days'
+        || config.task_id
+          === 'gsc-query-page-current-30-days'
       )
         ? config.task_id
         : null;
@@ -2664,7 +2806,13 @@ export class DesktopMultiSourceController {
         || config.date_policy
           === 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY'
         || config.date_policy
+          === 'TODAY_MINUS_7_TO_YESTERDAY'
+        || config.date_policy
+          === 'TODAY_MINUS_14_TO_YESTERDAY'
+        || config.date_policy
           === 'TODAY_MINUS_28_TO_YESTERDAY'
+        || config.date_policy
+          === 'TODAY_MINUS_30_TO_YESTERDAY'
       )
         ? config.date_policy
         : null;
@@ -2691,9 +2839,27 @@ export class DesktopMultiSourceController {
       )
       || (
         taskId
+          === 'gsc-query-page-current-7-days'
+        && datePolicy
+          === 'TODAY_MINUS_7_TO_YESTERDAY'
+      )
+      || (
+        taskId
+          === 'gsc-query-page-current-14-days'
+        && datePolicy
+          === 'TODAY_MINUS_14_TO_YESTERDAY'
+      )
+      || (
+        taskId
           === 'gsc-query-page-current-28-days'
         && datePolicy
           === 'TODAY_MINUS_28_TO_YESTERDAY'
+      )
+      || (
+        taskId
+          === 'gsc-query-page-current-30-days'
+        && datePolicy
+          === 'TODAY_MINUS_30_TO_YESTERDAY'
       );
 
     if (!taskMatchesPolicy) {
