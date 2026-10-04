@@ -16,9 +16,18 @@ export const createBlogAgenticContentPreset =
       included: true,
       date_ranges: [],
     },
+    'google-ads-search-terms': {
+      included: true,
+      task_id: 'google-ads-search-terms',
+      date_policy: 'TODAY_MINUS_17_TO_YESTERDAY',
+    },
     'google-keyword-planner': {
       included: true,
       groups: [],
+    },
+    'ikas-products': {
+      included: true,
+      file_path: null,
     },
     serpapi: {
       included: true,
