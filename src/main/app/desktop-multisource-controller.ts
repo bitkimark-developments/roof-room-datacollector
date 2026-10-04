@@ -604,9 +604,25 @@ export class DesktopMultiSourceController {
   }
 
   getWorkspaceView(selected_workspace_id: string | null = null): DesktopWorkspaceView {
-    const selected = selected_workspace_id ?? this.listWorkspaces()[0]?.workspace_id ?? null;
+    const workspaces =
+      this.listWorkspaces();
+
+    const defaultWorkspace =
+      workspaces.find(
+        (workspace) =>
+          workspace.workspace_id !==
+          'ws_development_migration',
+      )
+      ?? workspaces[0]
+      ?? null;
+
+    const selected =
+      selected_workspace_id
+      ?? defaultWorkspace?.workspace_id
+      ?? null;
+
     return {
-      workspaces: this.listWorkspaces(),
+      workspaces,
       selected_workspace_id: selected,
       connections: selected
         ? this.dependencies.repository.listSourceConnections(selected).map((connection) => ({ source_id: connection.source_id, configured: connection.credential_ref !== null }))

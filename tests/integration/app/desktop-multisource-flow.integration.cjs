@@ -133,6 +133,53 @@ const createFixture = (
 };
 
 async function main() {
+  const defaultWorkspaceController =
+    new DesktopMultiSourceController({
+      repository: {
+        listWorkspaces: () => [
+          {
+            workspace_id:
+              'ws_development_migration',
+            workspace_name:
+              'Development migration workspace',
+            created_at:
+              '1970-01-01T00:00:00.000Z',
+          },
+          {
+            workspace_id:
+              'ws_production',
+            workspace_name:
+              'Bitkimark Production',
+            created_at:
+              '2026-09-11T15:55:31.153Z',
+          },
+        ],
+        listSourceConnections:
+          () => [],
+      },
+      readiness: {
+        getReadiness:
+          async (
+            workspace_id,
+            source_id,
+          ) =>
+            READY(
+              workspace_id,
+              source_id,
+            ),
+      },
+      application_version:
+        'test',
+    });
+
+  assert.equal(
+    defaultWorkspaceController
+      .getWorkspaceView()
+      .selected_workspace_id,
+    'ws_production',
+    'Default desktop Workspace must prefer a real Workspace over the migration-compatibility Workspace.',
+  );
+
   let releaseCancellationExecution;
   let physicalCancelCalls = 0;
   let cancelFinished = false;
