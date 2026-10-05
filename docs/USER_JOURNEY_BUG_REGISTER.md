@@ -108,13 +108,36 @@ P0-03, P0-04, P0-05
 
 ### P0-03 — Blog preset advertises seven sources but does not plan all seven
 
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
 Observed:
 Blog preset contains seven evidence families, but runtime Review was observed producing only two Jobs.
 
 Expected:
 Blog Run may start only when every included evidence family has valid source-local execution context and at least one JobPlan.
+
+Resolution:
+Multi-source Review now composes every included source through its existing source-local reviewed-resolution path instead of limiting composition to Google Search Console and Google Ads Search Terms.
+
+Provider-specific resolution remains owned by the existing source-local paths. Multi-source composition does not invent missing provider inputs or generic replacement semantics.
+
+With valid source-local inputs, Blog Review now plans Google Trends, Google Search Console, Google Ads Search Terms, Google Keyword Planner, SerpApi, and Bitkimark Sitemap. İkas remains fail-closed until its run-scoped XLSX input is bound, which is tracked separately by P0-04.
+
+Verification:
+- RED reproduced Google Trends remaining in planning_blocking_sources during a Google Trends + GSC multi-source Review even though its existing source-local resolver had configured query groups available.
+- GREEN removed the hardcoded GSC/Ads-only multi-source composition whitelist and reused the existing source-local reviewed-resolution path for every included source.
+- Seven-family Blog 7 acceptance produced six JobPlans when all non-file source inputs were valid.
+- İkas was the only remaining planning blocker with file_path unset.
+- Planning-incomplete Blog Review remained can_start=false and reviewed_draft=null.
+- Asset preset multi-source regression passed.
+- Blog 7/14/30 preset regressions passed.
+- Desktop multi-source integration passed.
+- Desktop UI smoke passed.
+- TypeScript compilation passed.
+- git diff --check passed.
+
+Commit:
+7483594 fix: compose all reviewed preset sources
 
 Dependencies:
 P0-02
