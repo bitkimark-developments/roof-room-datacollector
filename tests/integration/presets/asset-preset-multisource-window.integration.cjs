@@ -49,6 +49,9 @@ const preset = {
 const reservations = [];
 const plannerInputs = [];
 
+let suppressSearchTermsPlan =
+  false;
+
 const repository = {
   listWorkspaces:
     () => [workspace],
@@ -153,6 +156,14 @@ const controller =
               sourceConfig,
             ),
         });
+
+        if (
+          suppressSearchTermsPlan
+          && sourceId
+            === 'google-ads-search-terms'
+        ) {
+          return [];
+        }
 
         return [{
           source_id:
@@ -336,8 +347,63 @@ assert.equal(
 
 plannerInputs.length = 0;
 
+reviewClock =
+  new Date(
+    2026,
+    9,
+    5,
+    12,
+    0,
+    0,
+  );
+
 await controller.startDraft(
-  draft,
+  review.reviewed_draft,
+);
+
+const startedGsc =
+  plannerInputs.find(
+    (entry) =>
+      entry.source_id
+        === 'google-search-console-query-page',
+  )?.source_config;
+
+assert.deepEqual(
+  startedGsc.date_ranges,
+  [{
+    job_key:
+      'gsc-query-page-current-7-days',
+    task_id:
+      'gsc-query-page-current-7-days',
+    requested_date_start:
+      '2026-09-27',
+    requested_date_end:
+      '2026-10-03',
+  }],
+  'Start must plan GSC from the frozen reviewed configuration after clock drift.',
+);
+
+const startedSearchTerms =
+  plannerInputs.find(
+    (entry) =>
+      entry.source_id
+        === 'google-ads-search-terms',
+  )?.source_config;
+
+assert.equal(
+  startedSearchTerms
+    .jobs[0]
+    .requested_date_start,
+  '2026-09-27',
+  'Start must not drift the reviewed Search Terms start date.',
+);
+
+assert.equal(
+  startedSearchTerms
+    .jobs[0]
+    .requested_date_end,
+  '2026-10-03',
+  'Start must not drift the reviewed Search Terms end date.',
 );
 
 assert.equal(
@@ -347,6 +413,48 @@ assert.equal(
 
 const reservation =
   reservations[0];
+
+assert.equal(
+  reservation
+    .configuration_snapshot
+    .reference_date,
+  '2026-10-04',
+  'Run snapshot must preserve the Review reference date after clock drift.',
+);
+
+assert.equal(
+  reservation
+    .configuration_snapshot
+    .resolved_at,
+  review.reviewed_draft.resolved_at,
+  'Run snapshot must preserve the exact Review instant.',
+);
+
+assert.equal(
+  reservation
+    .configuration_snapshot
+    .source_id,
+  null,
+  'Multi-source Run snapshot must not invent a root source identity.',
+);
+
+assert.equal(
+  reservation
+    .configuration_snapshot
+    .task_id,
+  null,
+  'Multi-source Run snapshot must not invent a root task identity.',
+);
+
+assert.deepEqual(
+  reservation
+    .configuration_snapshot
+    .sources,
+  review.reviewed_draft
+    .resolved_configuration
+    .sources,
+  'Run snapshot source configuration must equal the reviewed resolved configuration.',
+);
 
 const snapshotSources =
   reservation
@@ -406,6 +514,27 @@ assert.deepEqual(
     .date_ranges,
   [],
   'Reusable preset must not be mutated with one run’s absolute dates.',
+);
+
+suppressSearchTermsPlan =
+  true;
+
+const reservationsBeforeBlockedStart =
+  reservations.length;
+
+await assert.rejects(
+  () =>
+    controller.startDraft(
+      review.reviewed_draft,
+    ),
+  /google-ads-search-terms/,
+  'Reviewed Start must fail closed if any included source loses JobPlan coverage.',
+);
+
+assert.equal(
+  reservations.length,
+  reservationsBeforeBlockedStart,
+  'Planning-incomplete reviewed Start must not reserve another Run.',
 );
 
 console.log(

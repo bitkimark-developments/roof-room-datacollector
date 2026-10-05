@@ -1070,7 +1070,7 @@ export class DesktopMultiSourceController {
         statuses,
       );
 
-    const includedSources =
+    const resolvedIncludedSources =
       cards
         .filter(
           (card) =>
@@ -1081,11 +1081,49 @@ export class DesktopMultiSourceController {
             card.source_id,
         );
 
+    const includedSources = [
+      ...reviewedDraft
+        .included_sources,
+    ];
+
+    const includedSourceSet =
+      new Set(
+        includedSources,
+      );
+
+    const missingResolvedSources =
+      includedSources.filter(
+        (sourceId) =>
+          !resolvedIncludedSources
+            .includes(
+              sourceId,
+            ),
+      );
+
+    const unexpectedResolvedSources =
+      resolvedIncludedSources.filter(
+        (sourceId) =>
+          !includedSourceSet.has(
+            sourceId,
+          ),
+      );
+
+    if (
+      missingResolvedSources.length > 0
+      || unexpectedResolvedSources.length > 0
+    ) {
+      throw new Error(
+        'Reviewed Run source set does not match resolved configuration.',
+      );
+    }
+
     const blockingSources =
       cards
         .filter(
           (card) =>
-            card.included
+            includedSourceSet.has(
+              card.source_id,
+            )
             && card.readiness_status
               !== 'READY',
         )
@@ -1101,74 +1139,126 @@ export class DesktopMultiSourceController {
         includedSources,
       );
 
+    const plannedSourceIds =
+      new Set(
+        plans.map(
+          (plan) =>
+            plan.source_id,
+        ),
+      );
+
+    const planningBlockingSources =
+      includedSources.filter(
+        (sourceId) =>
+          !plannedSourceIds.has(
+            sourceId,
+          ),
+      );
+
+    const startBlockingSources = [
+      ...new Set([
+        ...blockingSources,
+        ...planningBlockingSources,
+      ]),
+    ];
+
     if (
-      blockingSources.length > 0
+      startBlockingSources.length > 0
       || plans.length === 0
     ) {
       throw new Error(
-        `Run cannot start; included sources are not ready: ${blockingSources.join(', ') || 'no source selected'}.`,
+        `Run cannot start; included sources are not ready: ${startBlockingSources.join(', ') || 'no source selected'}.`,
       );
     }
+
+    let configurationSnapshot:
+      JsonObject;
 
     if (
       reviewedDraft.source_id === null
       || reviewedDraft.task_id === null
     ) {
-      throw new Error(
-        'Multi-source reviewed Run Start is not supported by this execution path yet.',
-      );
-    }
+      if (
+        reviewedDraft.source_id !== null
+        || reviewedDraft.task_id !== null
+      ) {
+        throw new Error(
+          'Reviewed Run root task/source identity is inconsistent.',
+        );
+      }
 
-    const reusableSource =
-      sourceConfig(
-        reviewedDraft
-          .reusable_configuration,
-        reviewedDraft.source_id,
-      );
+      if (includedSources.length <= 1) {
+        throw new Error(
+          'Multi-source reviewed Run must contain more than one included source.',
+        );
+      }
 
-    const resolvedSource =
-      sourceConfig(
-        reviewedDraft
-          .resolved_configuration,
-        reviewedDraft.source_id,
-      );
+      configurationSnapshot = {
+        ...cloneConfiguration(
+          reviewedDraft
+            .resolved_configuration,
+        ),
+        workspace_id:
+          reviewedDraft.workspace_id,
+        task_id:
+          null,
+        source_id:
+          null,
+        reference_date:
+          reviewedDraft.reference_date,
+        resolved_at:
+          reviewedDraft.resolved_at,
+      };
+    } else {
+      const reusableSource =
+        sourceConfig(
+          reviewedDraft
+            .reusable_configuration,
+          reviewedDraft.source_id,
+        );
 
-    const dateRanges =
-      Array.isArray(
-        resolvedSource.date_ranges,
-      )
-        ? resolvedSource.date_ranges
-        : [];
+      const resolvedSource =
+        sourceConfig(
+          reviewedDraft
+            .resolved_configuration,
+          reviewedDraft.source_id,
+        );
 
-    const firstDateRange =
-      asObject(
-        dateRanges[0],
-      );
+      const dateRanges =
+        Array.isArray(
+          resolvedSource.date_ranges,
+        )
+          ? resolvedSource.date_ranges
+          : [];
 
-    const requestedDateStart =
-      typeof resolvedSource
-        .requested_date_start === 'string'
-        ? resolvedSource
-            .requested_date_start
-        : typeof firstDateRange
-            .requested_date_start === 'string'
-          ? firstDateRange
+      const firstDateRange =
+        asObject(
+          dateRanges[0],
+        );
+
+      const requestedDateStart =
+        typeof resolvedSource
+          .requested_date_start === 'string'
+          ? resolvedSource
               .requested_date_start
-          : null;
+          : typeof firstDateRange
+              .requested_date_start === 'string'
+            ? firstDateRange
+                .requested_date_start
+            : null;
 
-    const requestedDateEnd =
-      typeof resolvedSource
-        .requested_date_end === 'string'
-        ? resolvedSource
-            .requested_date_end
-        : typeof firstDateRange
-            .requested_date_end === 'string'
-          ? firstDateRange
+      const requestedDateEnd =
+        typeof resolvedSource
+          .requested_date_end === 'string'
+          ? resolvedSource
               .requested_date_end
-          : null;
+          : typeof firstDateRange
+              .requested_date_end === 'string'
+            ? firstDateRange
+                .requested_date_end
+            : null;
 
-    const configurationSnapshot:
-      JsonObject = {
+      configurationSnapshot = {
         ...cloneConfiguration(
           reviewedDraft
             .resolved_configuration,
@@ -1193,6 +1283,7 @@ export class DesktopMultiSourceController {
         requested_date_end:
           requestedDateEnd,
       };
+    }
 
     if (
       reviewedDraft.source_id
