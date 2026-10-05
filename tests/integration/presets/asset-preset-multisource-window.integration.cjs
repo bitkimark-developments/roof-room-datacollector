@@ -6,6 +6,12 @@ const {
   `${process.argv[2]}/main/app/desktop-multisource-controller.js`,
 );
 
+const {
+  createBlogAgenticContentPreset,
+} = require(
+  `${process.argv[2]}/main/presets/blog-agentic-content-preset.js`,
+);
+
 async function main() {
 
 const workspace = {
@@ -535,6 +541,390 @@ assert.equal(
   reservations.length,
   reservationsBeforeBlockedStart,
   'Planning-incomplete reviewed Start must not reserve another Run.',
+);
+
+
+const sourceNeutralCompositionPreset = {
+  preset_id:
+    'sp_blog_trends_gsc',
+  workspace_id:
+    workspace.workspace_id,
+  preset_name:
+    'Blog - Trends + GSC composition',
+  reusable_configuration: {
+    sources: {
+      'google-trends': {
+        included: true,
+        task_id:
+          'google-trends-interest-over-time',
+        date_policy:
+          'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+        dataset_type:
+          'INTEREST_OVER_TIME',
+        date_ranges: [],
+        query_groups: [],
+      },
+      'google-search-console-query-page': {
+        included: true,
+        task_id:
+          'gsc-query-page-current-7-days',
+        date_policy:
+          'TODAY_MINUS_7_TO_YESTERDAY',
+        date_ranges: [],
+      },
+    },
+  },
+  created_at:
+    '2026-10-04T00:00:00.000Z',
+  updated_at:
+    '2026-10-04T00:00:00.000Z',
+};
+
+const sourceNeutralCompositionController =
+  new DesktopMultiSourceController({
+    repository: {
+      ...repository,
+
+      listSavedCollectionPresets:
+        () => [
+          sourceNeutralCompositionPreset,
+        ],
+
+      getSavedCollectionPreset:
+        (
+          workspaceId,
+          presetId,
+        ) =>
+          workspaceId
+            === workspace.workspace_id
+          && presetId
+            === sourceNeutralCompositionPreset
+              .preset_id
+            ? sourceNeutralCompositionPreset
+            : null,
+    },
+
+    readiness: {
+      getReadiness:
+        async (
+          workspaceId,
+          sourceId,
+        ) => ({
+          workspace_id:
+            workspaceId,
+          source_id:
+            sourceId,
+          readiness_status:
+            'READY',
+          checked_at:
+            '2026-10-04T00:00:00.000Z',
+          message:
+            null,
+        }),
+    },
+
+    application_version:
+      'test',
+
+    source_order: [
+      'google-trends',
+      'google-search-console-query-page',
+    ],
+
+    google_trends_query_groups: [
+      {
+        query_group_id:
+          'GT-BLOG-01',
+        query_group_name:
+          'Blog Topics',
+        queries: [
+          'ficus',
+          'monstera',
+        ],
+      },
+    ],
+
+    now:
+      () =>
+        new Date(
+          2026,
+          9,
+          4,
+          12,
+          0,
+          0,
+        ),
+  });
+
+const sourceNeutralCompositionDraft =
+  await sourceNeutralCompositionController
+    .createDraft({
+      workspace_id:
+        workspace.workspace_id,
+      origin: {
+        kind:
+          'SAVED_PRESET',
+        preset_id:
+          sourceNeutralCompositionPreset
+            .preset_id,
+      },
+    });
+
+const sourceNeutralCompositionReview =
+  await sourceNeutralCompositionController
+    .reviewDraft(
+      sourceNeutralCompositionDraft,
+    );
+
+assert.deepEqual(
+  sourceNeutralCompositionReview
+    .included_sources,
+  [
+    'google-trends',
+    'google-search-console-query-page',
+  ],
+);
+
+assert.deepEqual(
+  sourceNeutralCompositionReview
+    .planning_blocking_sources,
+  [],
+  'Multi-source Review must compose every included source through its existing source-local resolver before planning.',
+);
+
+assert.equal(
+  sourceNeutralCompositionReview
+    .can_start,
+  true,
+  'A planning-complete Trends + GSC reviewed preset must be startable.',
+);
+
+assert.ok(
+  sourceNeutralCompositionReview
+    .reviewed_draft,
+  'Planning-complete Trends + GSC Review must produce one immutable reviewed artifact.',
+);
+
+assert.deepEqual(
+  sourceNeutralCompositionReview
+    .reviewed_draft
+    .reusable_configuration
+    .sources['google-trends']
+    .query_groups,
+  [],
+  'Reusable Blog configuration must remain free of run-resolved Google Trends query groups.',
+);
+
+assert.deepEqual(
+  sourceNeutralCompositionReview
+    .reviewed_draft
+    .resolved_configuration
+    .sources['google-trends']
+    .query_groups
+    .map(
+      (group) =>
+        group.query_group_id,
+    ),
+  [
+    'GT-BLOG-01',
+  ],
+  'Multi-source Review must freeze configured Google Trends query groups into the resolved execution artifact.',
+);
+
+
+const sevenSourceConfiguration =
+  createBlogAgenticContentPreset(7);
+
+sevenSourceConfiguration
+  .sources['google-keyword-planner']
+  .groups = [
+    {
+      group_id:
+        'blog-core',
+      group_name:
+        'Blog Core',
+      keywords: [
+        'ficus',
+        'monstera',
+      ],
+    },
+  ];
+
+sevenSourceConfiguration
+  .sources.serpapi
+  .queries = [
+    {
+      job_key:
+        'blog-ficus',
+      query:
+        'ficus',
+    },
+  ];
+
+sevenSourceConfiguration
+  .sources['bitkimark-sitemap']
+  .sitemaps = [
+    {
+      requested_url:
+        'https://bitkimark.com/sitemap.xml',
+      parent_sitemap_url:
+        null,
+    },
+  ];
+
+const sevenSourcePreset = {
+  preset_id:
+    'sp_blog_7_full',
+  workspace_id:
+    workspace.workspace_id,
+  preset_name:
+    'Blog - 7 Day',
+  reusable_configuration:
+    sevenSourceConfiguration,
+  created_at:
+    '2026-10-04T00:00:00.000Z',
+  updated_at:
+    '2026-10-04T00:00:00.000Z',
+};
+
+const sevenSourceController =
+  new DesktopMultiSourceController({
+    repository: {
+      ...repository,
+
+      listSavedCollectionPresets:
+        () => [
+          sevenSourcePreset,
+        ],
+
+      getSavedCollectionPreset:
+        (
+          workspaceId,
+          presetId,
+        ) =>
+          workspaceId
+            === workspace.workspace_id
+          && presetId
+            === sevenSourcePreset.preset_id
+            ? sevenSourcePreset
+            : null,
+    },
+
+    readiness: {
+      getReadiness:
+        async (
+          workspaceId,
+          sourceId,
+        ) => ({
+          workspace_id:
+            workspaceId,
+          source_id:
+            sourceId,
+          readiness_status:
+            'READY',
+          checked_at:
+            '2026-10-04T00:00:00.000Z',
+          message:
+            null,
+        }),
+    },
+
+    application_version:
+      'test',
+
+    source_order: [
+      'google-trends',
+      'google-search-console-query-page',
+      'google-ads-search-terms',
+      'google-keyword-planner',
+      'ikas-products',
+      'serpapi',
+      'bitkimark-sitemap',
+    ],
+
+    google_trends_query_groups: [
+      {
+        query_group_id:
+          'GT-BLOG-01',
+        query_group_name:
+          'Blog Topics',
+        queries: [
+          'ficus',
+          'monstera',
+        ],
+      },
+    ],
+
+    now:
+      () =>
+        new Date(
+          2026,
+          9,
+          4,
+          12,
+          0,
+          0,
+        ),
+  });
+
+const sevenSourceDraft =
+  await sevenSourceController
+    .createDraft({
+      workspace_id:
+        workspace.workspace_id,
+      origin: {
+        kind:
+          'SAVED_PRESET',
+        preset_id:
+          sevenSourcePreset.preset_id,
+      },
+    });
+
+const sevenSourceReview =
+  await sevenSourceController
+    .reviewDraft(
+      sevenSourceDraft,
+    );
+
+assert.deepEqual(
+  sevenSourceReview.included_sources,
+  [
+    'google-trends',
+    'google-search-console-query-page',
+    'google-ads-search-terms',
+    'google-keyword-planner',
+    'ikas-products',
+    'serpapi',
+    'bitkimark-sitemap',
+  ],
+  'Blog 7 Review must preserve all seven included evidence families.',
+);
+
+assert.equal(
+  sevenSourceReview.job_count,
+  6,
+  'All configured Blog families except the unresolved İkas FILE_IMPORT input must produce JobPlans.',
+);
+
+assert.deepEqual(
+  sevenSourceReview
+    .planning_blocking_sources,
+  [
+    'ikas-products',
+  ],
+  'İkas must be the only remaining Blog planning blocker before run-scoped XLSX binding.',
+);
+
+assert.equal(
+  sevenSourceReview.can_start,
+  false,
+  'Blog Review must fail closed while the included İkas family has no reviewed file input.',
+);
+
+assert.equal(
+  sevenSourceReview.reviewed_draft,
+  null,
+  'Planning-incomplete seven-family Blog Review must not freeze a startable reviewed artifact.',
 );
 
 console.log(

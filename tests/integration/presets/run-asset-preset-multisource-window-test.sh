@@ -11,6 +11,7 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 
 npx tsc \
   src/main/app/desktop-multisource-controller.ts \
+  src/main/presets/blog-agentic-content-preset.ts \
   src/shared/desktop-multisource.ts \
   src/shared/desktop-run-resolution.ts \
   src/shared/collection-configuration.ts \

@@ -2001,15 +2001,6 @@ export class DesktopMultiSourceController {
       const sourceId
       of includedSourceIds
     ) {
-      if (
-        sourceId
-          !== 'google-search-console-query-page'
-        && sourceId
-          !== 'google-ads-search-terms'
-      ) {
-        continue;
-      }
-
       const reusableSources =
         asJsonObjectValue(
           reusableConfiguration.sources,
