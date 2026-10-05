@@ -208,7 +208,7 @@ test('BITKIMARK-REVIEW-CORE-001: reviewed root and child contexts persist throug
     now: () => new Date('2026-09-18T10:00:00.000Z'),
     readiness: { getReadiness: async () => ({ readiness_status: 'READY' }) },
   });
-  const draft = controller.createDraft({ workspace_id: workspace.workspace_id, origin: { kind: 'BLANK' } });
+  const draft = await controller.createDraft({ workspace_id: workspace.workspace_id, origin: { kind: 'BLANK' } });
   draft.reusable_configuration = {
     sources: {
       [SOURCE]: {

@@ -795,7 +795,7 @@ export class DesktopMultiSourceController {
     return this.dependencies.repository.listRuns?.(workspace_id) ?? [];
   }
 
-  createDraft(input: { workspace_id: string; origin: RunDraftOrigin }): DesktopRunDraft {
+  async createDraft(input: { workspace_id: string; origin: RunDraftOrigin }): Promise<DesktopRunDraft> {
     const workspace = this.dependencies.repository.getWorkspace(input.workspace_id);
     if (!workspace) throw new Error(`Unknown Workspace: ${input.workspace_id}`);
     let configuration: ReusableCollectionConfiguration = {};
@@ -820,6 +820,27 @@ export class DesktopMultiSourceController {
           lastRunSettings.reusable_configuration,
         );
     }
+    const statuses =
+      await Promise.all(
+        this.sourceOrder.map(
+          async (source_id) => ({
+            source_id,
+            readiness_status:
+              (
+                await this.readinessEvaluator
+                  .getReadiness(
+                    input.workspace_id,
+                    source_id,
+                    sourceConfig(
+                      configuration,
+                      source_id,
+                    ),
+                  )
+              ).readiness_status,
+          }),
+        ),
+      );
+
     return {
       workspace_id: input.workspace_id,
       origin: input.origin,
@@ -827,7 +848,7 @@ export class DesktopMultiSourceController {
       source_cards: this.buildCards(
         input.workspace_id,
         configuration,
-        this.sourceOrder.map((source_id) => ({ source_id, readiness_status: 'CONFIGURATION_REQUIRED' })) as never,
+        statuses,
       ),
     };
   }

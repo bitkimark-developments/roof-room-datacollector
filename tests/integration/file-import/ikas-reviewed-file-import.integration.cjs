@@ -101,7 +101,7 @@ test('IKAS-REVIEW-CORE-001: reviewed file path persists through Start and Core p
     now: () => clock,
     readiness: { getReadiness: async () => ({ readiness_status: 'READY' }) },
   });
-  const draft = controller.createDraft({ workspace_id: workspace.workspace_id, origin: { kind: 'BLANK' } });
+  const draft = await controller.createDraft({ workspace_id: workspace.workspace_id, origin: { kind: 'BLANK' } });
   draft.reusable_configuration = {
     sources: {
       [SOURCE]: {

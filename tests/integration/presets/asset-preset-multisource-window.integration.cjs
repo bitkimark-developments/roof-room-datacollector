@@ -187,7 +187,7 @@ const controller =
   });
 
 const draft =
-  controller.createDraft({
+  await controller.createDraft({
     workspace_id:
       workspace.workspace_id,
     origin: {

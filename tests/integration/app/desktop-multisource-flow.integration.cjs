@@ -287,6 +287,36 @@ async function main() {
     'Default desktop Workspace must prefer a real Workspace over the migration-compatibility Workspace.',
   );
 
+
+  const {
+    controller:
+      initialReadinessController,
+  } = createFixture();
+
+  const initialReadinessDraft =
+    await initialReadinessController
+      .createDraft({
+        workspace_id:
+          'ws_a',
+        origin: {
+          kind:
+            'BLANK',
+        },
+      });
+
+  assert.equal(
+    initialReadinessDraft
+      .source_cards
+      .find(
+        (card) =>
+          card.source_id ===
+          'google-trends',
+      )
+      ?.readiness_status,
+    'READY',
+    'Blank draft source cards must use current source readiness instead of placeholder CONFIGURATION_REQUIRED.',
+  );
+
   const planningCoverageWorkspace = {
     workspace_id:
       'ws_planning_coverage',
@@ -718,7 +748,7 @@ async function main() {
     createFixture().controller;
 
   const gscCurrentDraft =
-    gscReviewController.createDraft({
+    await gscReviewController.createDraft({
       workspace_id:
         'ws_a',
       origin: {
@@ -813,7 +843,7 @@ async function main() {
     );
 
   const driftDraft =
-    driftFixture.controller.createDraft({
+    await driftFixture.controller.createDraft({
       workspace_id:
         'ws_a',
       origin: {
@@ -918,7 +948,7 @@ async function main() {
     );
 
   const gscLongDraft =
-    longFixture.controller
+    await longFixture.controller
       .createDraft({
         workspace_id:
           'ws_a',
@@ -1094,7 +1124,7 @@ async function main() {
     });
 
   const googleTrendsDraft =
-    googleTrendsController
+    await googleTrendsController
       .createDraft({
         workspace_id:
           'ws_a',
@@ -1401,7 +1431,7 @@ async function main() {
   controller.deletePreset('ws_b', createdPreset.preset_id);
   assert.equal(controller.listPresets('ws_b').length, 0);
 
-  const draft = controller.createDraft({ workspace_id: 'ws_a', origin: { kind: 'SAVED_PRESET', preset_id: 'sp_a' } });
+  const draft = await controller.createDraft({ workspace_id: 'ws_a', origin: { kind: 'SAVED_PRESET', preset_id: 'sp_a' } });
   assert.equal(draft.workspace_id, 'ws_a');
   draft.reusable_configuration.sources.serpapi = { included: false };
   const review = await controller.reviewDraft(draft);
@@ -1414,7 +1444,7 @@ async function main() {
   assert.deepEqual(executions, ['rr_1']);
   assert.deepEqual(reservations[0].job_plans.map((p) => p.source_id), ['google-trends', 'ikas-products']);
 
-  assert.throws(
+  await assert.rejects(
     () => controller.createDraft({
       workspace_id: 'ws_a',
       origin: { kind: 'LAST_RUN_SETTINGS' },
@@ -1646,7 +1676,7 @@ async function main() {
       return READY('ws_a', source_id);
     },
   );
-  const blockedDraft = blockedController.createDraft({ workspace_id: 'ws_a', origin: { kind: 'SAVED_PRESET', preset_id: 'sp_a' } });
+  const blockedDraft = await blockedController.createDraft({ workspace_id: 'ws_a', origin: { kind: 'SAVED_PRESET', preset_id: 'sp_a' } });
   blockedDraft.reusable_configuration.sources['google-search-console-query-page'] = { included: true };
   blockedDraft.reusable_configuration.sources['google-keyword-planner-csv'] = { included: true };
   const blockedReview = await blockedController.reviewDraft(blockedDraft);
@@ -1834,7 +1864,7 @@ async function main() {
   );
 
   const runInputDraft =
-    runInputController.createDraft({
+    await runInputController.createDraft({
       workspace_id: 'ws_a',
       origin: {
         kind: 'BLANK',
