@@ -64,13 +64,41 @@ fix: fail closed on incomplete preset planning
 
 ### P0-02 — Multi-source Review is not an immutable reviewed execution artifact
 
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
 Observed:
 Normal multi-source preset Review leaves reviewed_draft null. Start can resolve execution context separately from what was reviewed.
 
 Expected:
 Review must produce one exact resolved multi-source execution artifact. Start must consume that same artifact. Saved Preset configuration remains reusable and separate.
+
+Resolution:
+DesktopReviewedRunDraft now supports a multi-source reviewed artifact with:
+- null root task_id and source_id
+- ordered included_sources
+- one Review reference date and resolution clock
+- reusable_configuration preserved separately from exact resolved_configuration
+
+Review freezes the exact source-local execution context. Start consumes that reviewed artifact, rechecks readiness and planning coverage, and does not re-resolve dates or replace reviewed Run-scoped inputs.
+
+Quick Run and Preset renderer Start paths now fail closed when reviewed_draft is null and no longer fall back to an unresolved draft.
+
+Verification:
+- Multi-source preset Review/Start integration passed.
+- Asset preset window and approved preset regressions passed.
+- Desktop multi-source integration passed.
+- RED reproduced a startable renderer Review with reviewed_draft null while Start remained enabled.
+- GREEN requires reviewed_draft before Quick Run or Preset Start and removes unresolved Start fallback.
+- Desktop UI smoke passed.
+- TypeScript compilation passed.
+- reviewed_draft unresolved-fallback audit returned no matches.
+- git diff --check passed.
+
+Commits:
+14d6d10 refactor: generalize reviewed run artifact identity
+9ba218f feat: freeze multisource review artifact
+8983e68 fix: start exact reviewed multisource configuration
+cdd9645 fix: require reviewed artifact before desktop start
 
 Dependencies:
 P0-01
