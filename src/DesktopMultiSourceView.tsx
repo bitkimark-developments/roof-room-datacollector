@@ -2057,6 +2057,7 @@ export function DesktopMultiSourceView() {
       if (
         quickRunReview === null
         || quickRunReview.review.can_start === false
+        || quickRunReview.review.reviewed_draft === null
         || busy
       ) {
         return;
@@ -2074,7 +2075,7 @@ export function DesktopMultiSourceView() {
         const startedState =
           await window.roofroom
             .startDesktopDraft(
-              quickRunReview.review.reviewed_draft ?? quickRunReview.draft,
+              quickRunReview.review.reviewed_draft,
             );
 
         setActiveRunState(
@@ -2707,13 +2708,18 @@ export function DesktopMultiSourceView() {
   };
 
   const startReviewedPreset = async () => {
-    if (presetReview === null || !presetReview.review.can_start || busy) return;
+    if (
+      presetReview === null
+      || !presetReview.review.can_start
+      || presetReview.review.reviewed_draft === null
+      || busy
+    ) return;
 
     setBusy(true);
     setMessage(null);
     try {
       const state = await window.roofroom.startDesktopDraft(
-        presetReview.review.reviewed_draft ?? presetReview.draft,
+        presetReview.review.reviewed_draft,
       );
       setActiveRunState(state);
       setPresetReview(null);
@@ -4624,6 +4630,7 @@ export function DesktopMultiSourceView() {
                     className="rr-primary-action"
                     disabled={
                       quickRunReview.review.can_start === false
+                      || quickRunReview.review.reviewed_draft === null
                       || busy
                     }
                     onClick={
@@ -5432,7 +5439,11 @@ export function DesktopMultiSourceView() {
                               <button
                                 type="button"
                                 className="rr-primary-action"
-                                disabled={busy || !presetReview.review.can_start}
+                                disabled={
+                                  busy
+                                  || !presetReview.review.can_start
+                                  || presetReview.review.reviewed_draft === null
+                                }
                                 onClick={() => void startReviewedPreset()}
                               >
                                 Start Preset Run

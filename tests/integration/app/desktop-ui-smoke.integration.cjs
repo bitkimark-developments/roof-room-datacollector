@@ -1170,7 +1170,9 @@ const main = async () => {
                 blocking_sources:
                   [],
                 reviewed_draft:
-                  reviewedArtifact,
+                  window.__forceMissingReviewedDraft
+                    ? null
+                    : reviewedArtifact,
               };
             }
 
@@ -1361,7 +1363,9 @@ const main = async () => {
                 blocking_sources:
                   [],
                 reviewed_draft:
-                  reviewedArtifact,
+                  window.__forceMissingReviewedDraft
+                    ? null
+                    : reviewedArtifact,
               };
             }
 
@@ -4236,6 +4240,76 @@ const main = async () => {
       'Google Trends Quick Run must be reviewable from the configured external groups.',
     );
 
+    await page.evaluate(
+      () => {
+        window.__forceMissingReviewedDraft =
+          true;
+      },
+    );
+
+    const startCallsBeforeMissingReviewedQuickRun =
+      await page.evaluate(
+        () =>
+          window.__startDesktopDraftCalls
+          ?? 0,
+      );
+
+    await googleTrendsReviewButton.click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name:
+          'Review Quick Run',
+        exact:
+          true,
+      },
+    ).waitFor();
+
+    const missingReviewedQuickRunStartButton =
+      page.getByRole(
+        'button',
+        {
+          name:
+            'Start Run',
+          exact:
+            true,
+        },
+      );
+
+    assert.equal(
+      await missingReviewedQuickRunStartButton.isDisabled(),
+      true,
+      'Quick Run Start must fail closed when Review did not produce a reviewed artifact.',
+    );
+
+    assert.equal(
+      await page.evaluate(
+        () =>
+          window.__startDesktopDraftCalls
+          ?? 0,
+      ),
+      startCallsBeforeMissingReviewedQuickRun,
+      'Missing reviewed artifact must not start a Quick Run.',
+    );
+
+    await page.getByRole(
+      'button',
+      {
+        name:
+          'Back to Task',
+        exact:
+          true,
+      },
+    ).click();
+
+    await page.evaluate(
+      () => {
+        window.__forceMissingReviewedDraft =
+          false;
+      },
+    );
+
     await googleTrendsReviewButton.click();
 
     await page.getByRole(
@@ -4839,8 +4913,60 @@ const main = async () => {
       'Current GSC Daily copy',
       'Duplicate must create a distinct named preset from the editor configuration.',
     );
-    await presetEditor.getByRole('button', { name: 'Review Preset', exact: true }).click();
-    const presetReview = page.getByTestId('preset-review');
+    await page.evaluate(
+      () => {
+        window.__forceMissingReviewedDraft =
+          true;
+      },
+    );
+
+    await presetEditor.getByRole(
+      'button',
+      {
+        name:
+          'Review Preset',
+        exact:
+          true,
+      },
+    ).click();
+
+    const presetReview =
+      page.getByTestId(
+        'preset-review',
+      );
+
+    assert.equal(
+      await presetReview
+        .getByRole(
+          'button',
+          {
+            name:
+              'Start Preset Run',
+            exact:
+              true,
+          },
+        )
+        .isDisabled(),
+      true,
+      'Preset Start must fail closed when Review did not produce a reviewed artifact.',
+    );
+
+    await page.evaluate(
+      () => {
+        window.__forceMissingReviewedDraft =
+          false;
+      },
+    );
+
+    await presetEditor.getByRole(
+      'button',
+      {
+        name:
+          'Review Preset',
+        exact:
+          true,
+      },
+    ).click();
     assert.equal(await presetReview.getByText('1 sources · 1 jobs', { exact: true }).count(), 1);
     assert.equal(await presetReview.getByText('Google Search Console: READY', { exact: true }).count(), 1);
     await presetReview.getByRole('button', { name: 'Start Preset Run', exact: true }).click();
