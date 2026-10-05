@@ -853,9 +853,18 @@ export class DesktopMultiSourceController {
     const cards = this.buildCards(draft.workspace_id, draft.reusable_configuration, statuses);
     const includedSources = cards.filter((card) => card.included).map((card) => card.source_id);
     const blockingSources = cards.filter((card) => card.included && card.readiness_status !== 'READY').map((card) => card.source_id);
+    const resolvedAt =
+      this.now();
+
+    const referenceDate =
+      formatLocalReferenceDate(
+        resolvedAt,
+      );
+
     const reviewedDraft =
       this.resolveReviewedDraft(
         draft,
+        resolvedAt,
       );
 
     const executionConfiguration =
@@ -864,6 +873,7 @@ export class DesktopMultiSourceController {
       ?? this
         .resolveMultiSourceExecutionConfiguration(
           draft,
+          resolvedAt,
         );
 
     const plans =
@@ -888,6 +898,40 @@ export class DesktopMultiSourceController {
           ),
       );
 
+    const canStart =
+      blockingSources.length === 0
+      && planningBlockingSources.length === 0
+      && plans.length > 0;
+
+    const multiSourceReviewedDraft:
+      DesktopReviewedRunDraft | null =
+        includedSources.length > 1
+        && canStart
+          ? {
+              workspace_id:
+                draft.workspace_id,
+              task_id:
+                null,
+              source_id:
+                null,
+              included_sources: [
+                ...includedSources,
+              ],
+              reference_date:
+                referenceDate,
+              resolved_at:
+                resolvedAt.toISOString(),
+              reusable_configuration:
+                cloneConfiguration(
+                  draft.reusable_configuration,
+                ),
+              resolved_configuration:
+                cloneConfiguration(
+                  executionConfiguration,
+                ),
+            }
+          : null;
+
     return {
       workspace,
       origin:
@@ -899,15 +943,15 @@ export class DesktopMultiSourceController {
       job_count:
         plans.length,
       can_start:
-        blockingSources.length === 0
-        && planningBlockingSources.length === 0
-        && plans.length > 0,
+        canStart,
       blocking_sources:
         blockingSources,
       planning_blocking_sources:
         planningBlockingSources,
       reviewed_draft:
-        reviewedDraft,
+        includedSources.length > 1
+          ? multiSourceReviewedDraft
+          : reviewedDraft,
     };
   }
 
@@ -931,6 +975,7 @@ export class DesktopMultiSourceController {
     const executionConfiguration =
       this.resolveMultiSourceExecutionConfiguration(
         draft,
+        this.now(),
       );
 
     const plans =
@@ -1810,6 +1855,7 @@ export class DesktopMultiSourceController {
 
   private resolveMultiSourceExecutionConfiguration(
     draft: DesktopRunDraft,
+    resolvedAt: Date,
   ): ReusableCollectionConfiguration {
     const reusableConfiguration =
       cloneConfiguration(
@@ -1868,11 +1914,14 @@ export class DesktopMultiSourceController {
         };
 
       const reviewedSource =
-        this.resolveReviewedDraft({
-          ...draft,
-          reusable_configuration:
-            singleSourceConfiguration,
-        });
+        this.resolveReviewedDraft(
+          {
+            ...draft,
+            reusable_configuration:
+              singleSourceConfiguration,
+          },
+          resolvedAt,
+        );
 
       if (reviewedSource === null) {
         continue;
@@ -1899,6 +1948,7 @@ export class DesktopMultiSourceController {
 
   private resolveReviewedDraft(
     draft: DesktopRunDraft,
+    resolvedAt: Date,
   ): DesktopReviewedRunDraft | null {
     const includedSourceIds =
       this.sourceOrder.filter(
@@ -1942,7 +1992,6 @@ export class DesktopMultiSourceController {
       if (entries.some((entry) => typeof entry.job_key !== 'string' || typeof entry.query !== 'string')) {
         return null;
       }
-      const resolvedAt = this.now();
       const referenceDate = formatLocalReferenceDate(resolvedAt);
       let contexts: JsonObject[];
       try {
@@ -2001,7 +2050,6 @@ export class DesktopMultiSourceController {
         return null;
       }
 
-      const resolvedAt = this.now();
       const range = resolveDesktopDatePolicy(
         expectedDatePolicy,
         formatLocalReferenceDate(resolvedAt),
@@ -2090,10 +2138,10 @@ export class DesktopMultiSourceController {
           ],
           reference_date:
             formatLocalReferenceDate(
-              this.now(),
+              resolvedAt,
             ),
           resolved_at:
-            this.now().toISOString(),
+            resolvedAt.toISOString(),
           reusable_configuration:
             reusableConfiguration,
           resolved_configuration:
@@ -2166,10 +2214,10 @@ export class DesktopMultiSourceController {
           ],
           reference_date:
             formatLocalReferenceDate(
-              this.now(),
+              resolvedAt,
             ),
           resolved_at:
-            this.now().toISOString(),
+            resolvedAt.toISOString(),
           reusable_configuration:
             reusableConfiguration,
           resolved_configuration:
@@ -2238,10 +2286,10 @@ export class DesktopMultiSourceController {
           ],
           reference_date:
             formatLocalReferenceDate(
-              this.now(),
+              resolvedAt,
             ),
           resolved_at:
-            this.now().toISOString(),
+            resolvedAt.toISOString(),
           reusable_configuration:
             reusableConfiguration,
           resolved_configuration:
@@ -2269,8 +2317,6 @@ export class DesktopMultiSourceController {
           end_date: config.end_date,
         });
 
-        const resolvedAt =
-          this.now();
 
         return {
           workspace_id:
@@ -2316,8 +2362,6 @@ export class DesktopMultiSourceController {
         return null;
       }
 
-      const resolvedAt =
-        this.now();
 
       const keywordPlannerScope =
         resolveKeywordPlannerHistoricalScope(
@@ -2449,8 +2493,6 @@ export class DesktopMultiSourceController {
         return null;
       }
 
-      const resolvedAt =
-        this.now();
 
       const reusableConfiguration =
         cloneConfiguration(
@@ -2531,8 +2573,6 @@ export class DesktopMultiSourceController {
         return null;
       }
 
-      const resolvedAt =
-        this.now();
       const reusableConfiguration =
         cloneConfiguration(
           draft.reusable_configuration,
@@ -2585,7 +2625,6 @@ export class DesktopMultiSourceController {
       } catch {
         return null;
       }
-      const resolvedAt = this.now();
       const reusableConfiguration = cloneConfiguration(draft.reusable_configuration);
       const resolvedConfiguration = cloneConfiguration(draft.reusable_configuration);
       const sources = asJsonObjectValue(resolvedConfiguration.sources);
@@ -2647,8 +2686,6 @@ export class DesktopMultiSourceController {
         return null;
       }
 
-      const resolvedAt =
-        this.now();
 
       const referenceDate =
         formatLocalReferenceDate(
@@ -2760,8 +2797,6 @@ export class DesktopMultiSourceController {
         return null;
       }
 
-      const resolvedAt =
-        this.now();
 
       const referenceDate =
         formatLocalReferenceDate(
@@ -2946,8 +2981,6 @@ export class DesktopMultiSourceController {
       return null;
     }
 
-    const resolvedAt =
-      this.now();
 
     const referenceDate =
       formatLocalReferenceDate(

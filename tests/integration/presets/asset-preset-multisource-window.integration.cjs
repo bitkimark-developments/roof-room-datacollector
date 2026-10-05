@@ -100,6 +100,16 @@ const repository = {
     },
 };
 
+let reviewClock =
+  new Date(
+    2026,
+    9,
+    4,
+    12,
+    0,
+    0,
+  );
+
 const controller =
   new DesktopMultiSourceController({
     repository,
@@ -161,12 +171,7 @@ const controller =
     now:
       () =>
         new Date(
-          2026,
-          9,
-          4,
-          12,
-          0,
-          0,
+          reviewClock.getTime(),
         ),
   });
 
@@ -187,10 +192,93 @@ const review =
     draft,
   );
 
-assert.equal(
+assert.ok(
   review.reviewed_draft,
+  'Planning-complete multi-source Review must produce an exact reviewed artifact.',
+);
+
+assert.equal(
+  review.reviewed_draft.task_id,
   null,
-  'Multi-source preset remains a normal multi-source draft.',
+  'Multi-source reviewed artifact must not invent a root task identity.',
+);
+
+assert.equal(
+  review.reviewed_draft.source_id,
+  null,
+  'Multi-source reviewed artifact must not invent a root source identity.',
+);
+
+assert.deepEqual(
+  review.reviewed_draft.included_sources,
+  [
+    'google-search-console-query-page',
+    'google-ads-search-terms',
+  ],
+  'Reviewed artifact must preserve ordered real source identities.',
+);
+
+assert.equal(
+  review.reviewed_draft.reference_date,
+  '2026-10-04',
+  'Multi-source Review must capture one local reference date.',
+);
+
+assert.equal(
+  review.reviewed_draft.resolved_at,
+  reviewClock.toISOString(),
+  'Multi-source Review must capture one Review instant.',
+);
+
+assert.deepEqual(
+  review.reviewed_draft
+    .resolved_configuration
+    .sources[
+      'google-search-console-query-page'
+    ]
+    .date_ranges,
+  [{
+    job_key:
+      'gsc-query-page-current-7-days',
+    task_id:
+      'gsc-query-page-current-7-days',
+    requested_date_start:
+      '2026-09-27',
+    requested_date_end:
+      '2026-10-03',
+  }],
+  'Reviewed artifact must freeze the exact GSC request window.',
+);
+
+assert.equal(
+  review.reviewed_draft
+    .resolved_configuration
+    .sources[
+      'google-ads-search-terms'
+    ]
+    .jobs[0]
+    .requested_date_start,
+  '2026-09-27',
+  'Reviewed artifact must freeze Search Terms start date.',
+);
+
+assert.equal(
+  review.reviewed_draft
+    .resolved_configuration
+    .sources[
+      'google-ads-search-terms'
+    ]
+    .jobs[0]
+    .requested_date_end,
+  '2026-10-03',
+  'Reviewed artifact must freeze Search Terms end date.',
+);
+
+assert.deepEqual(
+  review.reviewed_draft
+    .reusable_configuration,
+  preset.reusable_configuration,
+  'Review must preserve the reusable relative configuration unchanged.',
 );
 
 assert.equal(
