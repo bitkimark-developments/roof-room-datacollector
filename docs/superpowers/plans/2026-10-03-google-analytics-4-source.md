@@ -64,13 +64,13 @@
 
 Use repository-native conventions discovered at execution time. The intended ownership is:
 
-- `tests/integration/google-analytics-4/run-google-analytics-4-contract-test.sh`
+- `tests/integration/google-analytics-4/run-google-analytics-4-gate.sh contract`
 - `tests/integration/google-analytics-4/google-analytics-4-contract.test.ts`
-- `tests/integration/google-analytics-4/run-google-analytics-4-request-test.sh`
+- `tests/integration/google-analytics-4/run-google-analytics-4-gate.sh request`
 - `tests/integration/google-analytics-4/google-analytics-4-request.test.ts`
-- `tests/integration/google-analytics-4/run-google-analytics-4-validation-test.sh`
+- `tests/integration/google-analytics-4/run-google-analytics-4-gate.sh validation`
 - `tests/integration/google-analytics-4/google-analytics-4-validation.test.ts`
-- `tests/integration/google-analytics-4/run-google-analytics-4-desktop-test.sh`
+- `tests/integration/google-analytics-4/run-google-analytics-4-gate.sh desktop`
 - `tests/integration/google-analytics-4/google-analytics-4-desktop.test.ts`
 
 If the live repository has a materially different adjacent test naming/runner convention, preserve that convention while keeping the task/test boundaries below unchanged.
@@ -92,7 +92,7 @@ If the live repository has a materially different adjacent test naming/runner co
 - Modify: `src/shared/workspace-connection-management.ts`
 - Modify: `src/shared/desktop-multisource.ts`
 - Test: `tests/integration/google-analytics-4/google-analytics-4-contract.test.ts`
-- Test runner: `tests/integration/google-analytics-4/run-google-analytics-4-contract-test.sh`
+- Test runner: `tests/integration/google-analytics-4/run-google-analytics-4-gate.sh contract`
 
 **Interfaces:**
 - Consumes: existing source ID/dataset/request-context patterns from adjacent Google source shared contracts.
@@ -128,7 +128,7 @@ Keep dataset/source naming exact. Do not add package recipe types or generic ana
 
 Run:
 ```bash
-bash tests/integration/google-analytics-4/run-google-analytics-4-contract-test.sh
+bash tests/integration/google-analytics-4/run-google-analytics-4-gate.sh contract
 npx tsc --noEmit
 ```
 
@@ -186,7 +186,7 @@ Cases:
 Run:
 ```bash
 bash tests/integration/google-api/run-google-oauth-credential-acquirer-test.sh
-bash tests/integration/google-analytics-4/run-google-analytics-4-contract-test.sh
+bash tests/integration/google-analytics-4/run-google-analytics-4-gate.sh contract
 ```
 
 Expected: new GA4 assertions FAIL.
@@ -213,7 +213,7 @@ git commit -m "feat: connect Google Analytics 4 workspaces"
 **Files:**
 - Create: `src/main/sources/google-analytics-4/google-analytics-4-request.ts`
 - Test: `tests/integration/google-analytics-4/google-analytics-4-request.test.ts`
-- Test runner: `tests/integration/google-analytics-4/run-google-analytics-4-request-test.sh`
+- Test runner: `tests/integration/google-analytics-4/run-google-analytics-4-gate.sh request`
 - Modify: `src/main/sources/google-api/api-helpers.ts`
 
 **Interfaces:**
@@ -340,7 +340,7 @@ git commit -m "feat: normalize Google Analytics 4 evidence"
 **Files:**
 - Create: `src/main/sources/google-analytics-4/google-analytics-4-validator.ts`
 - Test: `tests/integration/google-analytics-4/google-analytics-4-validation.test.ts`
-- Test runner: `tests/integration/google-analytics-4/run-google-analytics-4-validation-test.sh`
+- Test runner: `tests/integration/google-analytics-4/run-google-analytics-4-gate.sh validation`
 
 **Interfaces:**
 - Consumes: Job/Attempt/artifact context, GA4 raw bundle, dataset type.
@@ -451,7 +451,7 @@ git commit -m "feat: register Google Analytics 4 source"
 - Modify: current renderer/preload source-card/config files discovered from the existing GSC/Ads implementation.
 - Modify: connection IPC/types only where the existing GA4 `GoogleConnectionMetadataIntent` requires propagation.
 - Test: `tests/integration/google-analytics-4/google-analytics-4-desktop.test.ts`
-- Test runner: `tests/integration/google-analytics-4/run-google-analytics-4-desktop-test.sh`
+- Test runner: `tests/integration/google-analytics-4/run-google-analytics-4-gate.sh desktop`
 
 **Interfaces:**
 - Consumes: GA4 connection metadata and dataset request-context types.
@@ -541,10 +541,10 @@ Record:
 Minimum:
 ```bash
 bash tests/integration/google-api/run-google-oauth-credential-acquirer-test.sh
-bash tests/integration/google-analytics-4/run-google-analytics-4-contract-test.sh
-bash tests/integration/google-analytics-4/run-google-analytics-4-request-test.sh
-bash tests/integration/google-analytics-4/run-google-analytics-4-validation-test.sh
-bash tests/integration/google-analytics-4/run-google-analytics-4-desktop-test.sh
+bash tests/integration/google-analytics-4/run-google-analytics-4-gate.sh contract
+bash tests/integration/google-analytics-4/run-google-analytics-4-gate.sh request
+bash tests/integration/google-analytics-4/run-google-analytics-4-gate.sh validation
+bash tests/integration/google-analytics-4/run-google-analytics-4-gate.sh desktop
 npx tsc --noEmit
 git diff --check
 ```
