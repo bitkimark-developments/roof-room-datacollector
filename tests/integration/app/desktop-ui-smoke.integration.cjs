@@ -321,6 +321,21 @@ const main = async () => {
             created_at: '2026-09-14T00:00:00.000Z',
             updated_at: '2026-09-14T00:00:00.000Z',
           },
+          {
+            preset_id: 'sp_ikas_fixture',
+            workspace_id: 'ws_fixture',
+            preset_name: 'İkas Products Preset',
+            reusable_configuration: {
+              sources: {
+                'ikas-products': {
+                  included: true,
+                  task_id: 'ikas-products-import',
+                },
+              },
+            },
+            created_at: '2026-09-14T00:00:01.000Z',
+            updated_at: '2026-09-14T00:00:01.000Z',
+          },
         ];
         window.__workspaceConnectionState = [
           {
@@ -1375,6 +1390,21 @@ const main = async () => {
                 ?.sources
                 ?.['ikas-products'];
 
+            const ikasRunScopedConfig =
+              reviewDraft
+                ?.run_scoped_inputs
+                ?.sources
+                ?.['ikas-products'];
+
+            const ikasFilePath =
+              typeof ikasRunScopedConfig?.file_path === 'string'
+                ? ikasRunScopedConfig.file_path
+                : ikasConfig?.file_path;
+
+            const ikasReady =
+              typeof ikasFilePath === 'string'
+              && ikasFilePath.length > 0;
+
             const reviewedArtifact = {
               workspace_id:
                 'ws_fixture',
@@ -1382,6 +1412,9 @@ const main = async () => {
                 'ikas-products-import',
               source_id:
                 'ikas-products',
+              included_sources: [
+                'ikas-products',
+              ],
               reference_date:
                 '2026-09-14',
               resolved_at:
@@ -1396,6 +1429,8 @@ const main = async () => {
                       'ikas-products',
                     source_mode:
                       'FILE_IMPORT',
+                    file_path:
+                      ikasFilePath,
                   },
                 },
               },
@@ -1427,19 +1462,29 @@ const main = async () => {
                   included:
                     true,
                   readiness_status:
-                    'READY',
+                    ikasReady
+                      ? 'READY'
+                      : 'FILE_REQUIRED',
                   configuration_summary:
                     'Products XLSX',
                 },
               ],
               job_count:
-                1,
+                ikasReady
+                  ? 1
+                  : 0,
               can_start:
-                true,
+                ikasReady,
               blocking_sources:
-                [],
+                ikasReady
+                  ? []
+                  : [
+                      'ikas-products',
+                    ],
               reviewed_draft:
-                reviewedArtifact,
+                ikasReady
+                  ? reviewedArtifact
+                  : null,
             };
           },
 
@@ -4971,6 +5016,97 @@ const main = async () => {
     assert.equal(await presetReview.getByText('Google Search Console: READY', { exact: true }).count(), 1);
     await presetReview.getByRole('button', { name: 'Start Preset Run', exact: true }).click();
     await page.getByRole('heading', { name: 'Run Detail', exact: true }).waitFor();
+
+    await page.getByRole('button', { name: 'PRESETS', exact: true }).click();
+    const ikasPresetName = page.getByText('İkas Products Preset', { exact: true });
+    await ikasPresetName.locator('..').getByRole('button', { name: 'Open', exact: true }).click();
+
+    const ikasPresetEditor = page.getByTestId('preset-editor');
+    await page.waitForFunction(
+      () => document.querySelector('input[aria-label="Edit preset name"]')?.value
+        === 'İkas Products Preset',
+    );
+    const ikasPresetTask = ikasPresetEditor.locator('label').filter({ hasText: 'İkas — Products Import' });
+    assert.equal(
+      await ikasPresetTask.getByRole('checkbox').isChecked(),
+      true,
+      'Opening the İkas preset must finish loading its reusable task configuration before run-scoped file selection.',
+    );
+    assert.equal(
+      await page.evaluate(
+        () => window.__presetState
+          .find((preset) => preset.preset_id === 'sp_ikas_fixture')
+          .reusable_configuration.sources['ikas-products'].file_path,
+      ),
+      undefined,
+      'Saved İkas preset intent must not persist a current run file.',
+    );
+
+    await ikasPresetEditor
+      .getByRole('button', { name: 'Select Products XLSX for Preset', exact: true })
+      .click();
+
+    assert.deepEqual(
+      await page.evaluate(() => window.__selectedDesktopInputRequest),
+      { input_kind: 'IKAS_PRODUCTS_XLSX' },
+      'Preset file selection must use the native İkas XLSX picker.',
+    );
+
+    await ikasPresetEditor.getByRole('button', { name: 'Review Preset', exact: true }).click();
+
+    assert.equal(
+      await page.evaluate(
+        () => window.__reviewedDesktopDraft
+          .run_scoped_inputs
+          .sources['ikas-products']
+          .file_path,
+      ),
+      '/fixture/imports/ikas-products.xlsx',
+      'Preset Review must bind the selected İkas file as run-scoped input.',
+    );
+    assert.equal(
+      await page.evaluate(
+        () => window.__reviewedDesktopDraft
+          .reusable_configuration
+          .sources['ikas-products']
+          .file_path,
+      ),
+      undefined,
+      'Preset Review must keep the selected İkas file out of reusable configuration.',
+    );
+
+    const ikasPresetReview = page.getByTestId('preset-review');
+    assert.equal(
+      await ikasPresetReview.getByText('İkas Products: READY', { exact: true }).count(),
+      1,
+      'Preset Review must reflect readiness after binding the run-scoped İkas file.',
+    );
+
+    await ikasPresetReview
+      .getByRole('button', { name: 'Start Preset Run', exact: true })
+      .click();
+    await page.getByRole('heading', { name: 'Run Detail', exact: true }).waitFor();
+
+    assert.equal(
+      await page.evaluate(
+        () => window.__startedDesktopDraft
+          .resolved_configuration
+          .sources['ikas-products']
+          .file_path,
+      ),
+      '/fixture/imports/ikas-products.xlsx',
+      'Preset Start must consume the frozen reviewed İkas file path.',
+    );
+    assert.equal(
+      await page.evaluate(
+        () => window.__startedDesktopDraft
+          .reusable_configuration
+          .sources['ikas-products']
+          .file_path,
+      ),
+      undefined,
+      'Preset Start must not persist the run-scoped İkas file into reusable intent.',
+    );
 
     await page.getByRole('button', { name: 'PRESETS', exact: true }).click();
     const newPreset = page.getByTestId('new-preset');

@@ -877,6 +877,19 @@ export function DesktopMultiSourceView() {
     );
 
   const [
+    presetSelectedIkasFile,
+    setPresetSelectedIkasFile,
+  ] =
+    useState<{
+      file_path: string;
+      file_name: string;
+      file_size_bytes: number;
+      file_type: 'XLSX' | 'CSV';
+    } | null>(
+      null,
+    );
+
+  const [
     selectedKeywordPlannerCsvFile,
     setSelectedKeywordPlannerCsvFile,
   ] =
@@ -1369,6 +1382,7 @@ export function DesktopMultiSourceView() {
       setPresetEditorName('');
       setPresetEditorConfiguration({ sources: {} });
       setPresetEditorDirty(false);
+      setPresetSelectedIkasFile(null);
       setPresetReview(null);
       return;
     }
@@ -1378,6 +1392,7 @@ export function DesktopMultiSourceView() {
       structuredClone(selectedPreset.reusable_configuration),
     );
     setPresetEditorDirty(false);
+    setPresetSelectedIkasFile(null);
     setPresetReview(null);
   }, [
     presetId,
@@ -1673,6 +1688,42 @@ export function DesktopMultiSourceView() {
             instanceof Error
             ? error.message
             : 'Products XLSX seçilemedi.',
+        );
+      }
+    };
+
+  const selectPresetIkasProductsFile =
+    async () => {
+      setMessage(null);
+
+      try {
+        const result =
+          await window.roofroom.selectDesktopInputFile({
+            input_kind: 'IKAS_PRODUCTS_XLSX',
+          });
+
+        if (
+          result.canceled
+          || result.file_path === null
+          || result.file_name === null
+          || result.file_size_bytes === null
+          || result.file_type === null
+        ) {
+          return;
+        }
+
+        setPresetSelectedIkasFile({
+          file_path: result.file_path,
+          file_name: result.file_name,
+          file_size_bytes: result.file_size_bytes,
+          file_type: result.file_type,
+        });
+        setPresetReview(null);
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Preset Products XLSX seçilemedi.',
         );
       }
     };
@@ -2698,6 +2749,34 @@ export function DesktopMultiSourceView() {
         workspace_id: workspaceId,
         origin: { kind: 'SAVED_PRESET', preset_id: presetId },
       });
+
+      const ikasConfiguration =
+        getReusableSources(
+          nextDraft.reusable_configuration,
+        )['ikas-products'];
+
+      const includesIkasProducts =
+        typeof ikasConfiguration === 'object'
+        && ikasConfiguration !== null
+        && !Array.isArray(ikasConfiguration)
+        && (ikasConfiguration as JsonObject).included === true
+        && (ikasConfiguration as JsonObject).task_id
+          === 'ikas-products-import';
+
+      if (
+        includesIkasProducts
+        && presetSelectedIkasFile !== null
+      ) {
+        nextDraft.run_scoped_inputs = {
+          sources: {
+            'ikas-products': {
+              file_path:
+                presetSelectedIkasFile.file_path,
+            },
+          },
+        };
+      }
+
       const review = await window.roofroom.reviewDesktopDraft(nextDraft);
       setPresetReview({ draft: nextDraft, review });
     } catch (error) {
@@ -2723,6 +2802,7 @@ export function DesktopMultiSourceView() {
       );
       setActiveRunState(state);
       setPresetReview(null);
+      setPresetSelectedIkasFile(null);
       setView('RUNS');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Preset run could not be started.');
@@ -2739,11 +2819,22 @@ export function DesktopMultiSourceView() {
     const nextSources = { ...currentSources };
 
     if (included) {
-      const configuration = buildCurrentTaskSourceConfiguration(task);
+      const configuration =
+        task.source_id === 'ikas-products'
+          ? {
+              included: true,
+              task_id: task.task_id,
+            }
+          : buildCurrentTaskSourceConfiguration(task);
+
       if (configuration === null) return;
       nextSources[task.source_id] = configuration;
     } else {
       delete nextSources[task.source_id];
+
+      if (task.source_id === 'ikas-products') {
+        setPresetSelectedIkasFile(null);
+      }
     }
 
     setPresetEditorConfiguration({
@@ -3061,6 +3152,16 @@ export function DesktopMultiSourceView() {
   const presetEditorSources = getReusableSources(
     presetEditorConfiguration,
   );
+  const presetIkasConfiguration =
+    presetEditorSources['ikas-products'];
+  const presetIncludesIkasProducts =
+    typeof presetIkasConfiguration === 'object'
+    && presetIkasConfiguration !== null
+    && !Array.isArray(presetIkasConfiguration)
+    && (presetIkasConfiguration as JsonObject).included === true
+    && (presetIkasConfiguration as JsonObject).task_id
+      === 'ikas-products-import';
+
   const selectedPreset = presets.find((preset) => (
     preset.preset_id === presetId
   )) ?? null;
@@ -3099,11 +3200,13 @@ export function DesktopMultiSourceView() {
     ));
   const hasUnsavedPresetInputs =
     presetEditorDirty
+    || presetSelectedIkasFile !== null
     || newPresetName.trim().length > 0
     || newPresetTaskIds.length > 0;
 
   const resetTransientEditors = () => {
     setSelectedIkasFile(null);
+    setPresetSelectedIkasFile(null);
     setSelectedKeywordPlannerCsvFile(null);
     setKeywordPlannerGroupDrafts([{
       row_id: 1,
@@ -5376,14 +5479,72 @@ export function DesktopMultiSourceView() {
                                   <span>{task.task_name}</span>
                                   <small>
                                     Readiness: {formatStatus(
-                                      readinessBySource.get(task.source_id)
-                                      ?? 'NOT_YET_AVAILABLE',
+                                      task.source_id === 'ikas-products'
+                                      && checked
+                                      && presetSelectedIkasFile !== null
+                                        ? 'READY'
+                                        : readinessBySource.get(task.source_id)
+                                          ?? 'NOT_YET_AVAILABLE',
                                     )}
                                   </small>
                                 </label>
                               );
                             })}
                           </div>
+
+                          {presetIncludesIkasProducts && (
+                            <div
+                              className="rr-file-input"
+                              data-testid="preset-ikas-file-input"
+                            >
+                              <p>
+                                Select the current Products XLSX for this Run. The file is not saved in the preset.
+                              </p>
+
+                              <div className="rr-input-actions">
+                                <button
+                                  type="button"
+                                  className="rr-secondary-action"
+                                  onClick={() => void selectPresetIkasProductsFile()}
+                                >
+                                  {presetSelectedIkasFile === null
+                                    ? 'Select Products XLSX for Preset'
+                                    : 'Replace Products XLSX for Preset'}
+                                </button>
+
+                                {presetSelectedIkasFile && (
+                                  <button
+                                    type="button"
+                                    className="rr-secondary-action"
+                                    onClick={() => {
+                                      setPresetSelectedIkasFile(null);
+                                      setPresetReview(null);
+                                    }}
+                                  >
+                                    Remove Products XLSX for Preset
+                                  </button>
+                                )}
+                              </div>
+
+                              {presetSelectedIkasFile && (
+                                <div className="rr-selected-file">
+                                  <strong>
+                                    {presetSelectedIkasFile.file_name}
+                                  </strong>
+                                  <span>
+                                    {presetSelectedIkasFile.file_type}
+                                    {' · '}
+                                    {formatFileSize(
+                                      presetSelectedIkasFile.file_size_bytes,
+                                    )}
+                                  </span>
+                                  <code>
+                                    {presetSelectedIkasFile.file_path}
+                                  </code>
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {presetEditorDirty && (
                             <p className="rr-field-error">Unsaved preset changes.</p>
