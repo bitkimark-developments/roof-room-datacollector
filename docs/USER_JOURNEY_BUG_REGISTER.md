@@ -144,13 +144,34 @@ P0-02
 
 ### P0-04 — Ikas XLSX is not bound into Preset Run
 
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
 Observed:
-Selecting an Ikas Products XLSX can complete a Quick Run, but Blog Preset Review still reports ikas-products: FILE REQUIRED.
+Selecting an Ikas Products XLSX could complete a Quick Run, but Preset Review still reported ikas-products: FILE REQUIRED because the selected file was not carried as one-Run input.
 
 Expected:
 Preset Review must accept the XLSX as a run-scoped input and bind that exact reviewed file path into the resolved Run configuration. The reusable Saved Preset must not persist the current file as source evidence.
+
+Resolution:
+DesktopRunDraft now has a source-neutral optional run_scoped_inputs envelope. P0-04 interprets only ikas-products.file_path at the existing İkas source-local Review boundary.
+
+Preset Review overlays the selected XLSX only for readiness and reviewed resolution. The Saved Preset reusable configuration remains unchanged and does not persist the selected file path. The reviewed resolved configuration freezes the exact selected path, and Start consumes that reviewed artifact unchanged.
+
+The desktop Preset editor now exposes native Products XLSX selection for an included İkas task and clears the consumed transient file after a successful reviewed Preset Run.
+
+Verification:
+- RED reproduced Preset Review can_start=false when the reusable preset had no file_path even though the current Run supplied an İkas file.
+- GREEN made the run-scoped path participate in readiness and source-local İkas reviewed resolution while keeping reusable_configuration.file_path absent.
+- Reviewed Start planned the exact frozen XLSX path.
+- Desktop multi-source integration passed.
+- Desktop UI smoke passed, including the İkas Preset file selection, Review, exact Start, and existing preset lifecycle regression.
+- TypeScript compilation passed.
+- git diff --check passed.
+- No live-provider or packaged-runtime verification was performed.
+
+Commits:
+577679e fix: bind Ikas preset run-scoped input
+7d711f7 fix: bind Ikas preset file in desktop review
 
 Dependencies:
 P0-02
