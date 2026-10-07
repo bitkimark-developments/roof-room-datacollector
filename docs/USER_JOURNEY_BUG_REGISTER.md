@@ -261,9 +261,21 @@ Verification:
 This checkpoint verifies approved reusable scope composition only. P1-06, P1-07 and P1-09 remain separate execution-completeness work and are not claimed complete here. Unsupported Orders and Economics sources remain outside this slice.
 
 ### P1-06 — Growth sources do not share one exact 30D execution window
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
 Ads Search Reporting, Search Terms 30D and GA4 Paid Funnel must use the same exact 30 complete local calendar days.
+
+Resolution:
+The existing reviewed multi-source execution path already satisfies this contract after P0-05 and P1-05. Review captures one clock, resolves the shared `TODAY_MINUS_30_TO_YESTERDAY` policy from that boundary, and freezes the same absolute range into the reviewed configuration for Google Ads Search Reporting, Google Ads Search Terms 30D, and GA4 Paid Funnel. Start consumes that frozen reviewed artifact without resolving a new window.
+
+Verification:
+- A focused multi-source regression uses a clock that deliberately returns a different date after its first call and proves Review captures the execution boundary exactly once.
+- All three sources resolve to `2026-09-04` through `2026-10-03`.
+- Review is planning-complete and produces three Jobs with no planning blockers.
+- Start preserves the same exact range in all three JobPlans from the frozen reviewed artifact.
+- `run-presets-gate.sh multisource` and `git diff --check` pass.
+
+No new production behavior was required for this checkpoint. No packaged-runtime or live-provider verification is claimed.
 
 ### P1-07 — Multiple GSC Query x Page windows need one-source multi-job planning
 Status: OPEN

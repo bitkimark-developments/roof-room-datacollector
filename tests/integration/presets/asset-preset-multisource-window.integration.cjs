@@ -1218,6 +1218,307 @@ assert.equal(
 );
 
 
+const sharedWindowPreset = {
+  preset_id:
+    'sp_growth_shared_30d',
+  workspace_id:
+    workspace.workspace_id,
+  preset_name:
+    'Growth Shared 30D Regression',
+  reusable_configuration: {
+    sources: {
+      'google-ads-search-reporting': {
+        included: true,
+        customer_id: null,
+        date_policy:
+          'TODAY_MINUS_30_TO_YESTERDAY',
+        requested_date_start: null,
+        requested_date_end: null,
+        datasets: [
+          'CAMPAIGN_PERFORMANCE',
+        ],
+      },
+      'google-ads-search-terms': {
+        included: true,
+        task_id:
+          'google-ads-search-terms-30-days',
+        date_policy:
+          'TODAY_MINUS_30_TO_YESTERDAY',
+      },
+      'google-analytics-4': {
+        included: true,
+        date_policy:
+          'TODAY_MINUS_30_TO_YESTERDAY',
+        requested_date_start: null,
+        requested_date_end: null,
+        datasets: [
+          'GA4_PAID_FUNNEL',
+        ],
+      },
+    },
+  },
+  created_at:
+    '2026-10-04T00:00:00.000Z',
+  updated_at:
+    '2026-10-04T00:00:00.000Z',
+};
+
+let sharedWindowNowCalls = 0;
+
+const sharedWindowController =
+  new DesktopMultiSourceController({
+    repository: {
+      ...repository,
+      listSavedCollectionPresets:
+        () => [
+          sharedWindowPreset,
+        ],
+      getSavedCollectionPreset:
+        (
+          workspaceId,
+          presetId,
+        ) =>
+          workspaceId
+            === workspace.workspace_id
+          && presetId
+            === sharedWindowPreset.preset_id
+            ? sharedWindowPreset
+            : null,
+      listSourceConnections:
+        () => [
+          {
+            connection_id:
+              'conn_growth_shared_ads',
+            workspace_id:
+              workspace.workspace_id,
+            source_id:
+              'google-ads-search-terms',
+            credential_ref:
+              'cred:google-ads',
+            safe_metadata: {
+              customer_id:
+                '1234567890',
+            },
+            created_at:
+              '2026-10-04T00:00:00.000Z',
+            updated_at:
+              '2026-10-04T00:00:00.000Z',
+          },
+        ],
+    },
+    readiness: {
+      getReadiness:
+        async (
+          workspaceId,
+          sourceId,
+        ) => ({
+          workspace_id:
+            workspaceId,
+          source_id:
+            sourceId,
+          readiness_status:
+            'READY',
+          checked_at:
+            '2026-10-04T00:00:00.000Z',
+          message:
+            null,
+        }),
+    },
+    application_version:
+      'test',
+    source_order: [
+      'google-ads-search-reporting',
+      'google-ads-search-terms',
+      'google-analytics-4',
+    ],
+    now: () => {
+      sharedWindowNowCalls += 1;
+      return sharedWindowNowCalls === 1
+        ? new Date(
+            2026,
+            9,
+            4,
+            12,
+            0,
+            0,
+          )
+        : new Date(
+            2026,
+            10,
+            1,
+            12,
+            0,
+            0,
+          );
+    },
+  });
+
+const sharedWindowDraft =
+  await sharedWindowController
+    .createDraft({
+      workspace_id:
+        workspace.workspace_id,
+      origin: {
+        kind:
+          'SAVED_PRESET',
+        preset_id:
+          sharedWindowPreset.preset_id,
+      },
+    });
+
+const sharedWindowReview =
+  await sharedWindowController
+    .reviewDraft(
+      sharedWindowDraft,
+    );
+
+assert.equal(
+  sharedWindowNowCalls,
+  1,
+  'Growth Review must capture one clock for the shared 30D execution boundary.',
+);
+
+assert.equal(
+  sharedWindowReview.can_start,
+  true,
+  'The three shared-windowing Growth sources must be planning-complete when required metadata is available.',
+);
+
+assert.deepEqual(
+  sharedWindowReview
+    .planning_blocking_sources,
+  [],
+);
+
+assert.equal(
+  sharedWindowReview.job_count,
+  3,
+);
+
+assert.ok(
+  sharedWindowReview.reviewed_draft,
+);
+
+const sharedWindowResolvedSources =
+  sharedWindowReview
+    .reviewed_draft
+    .resolved_configuration
+    .sources;
+
+assert.deepEqual(
+  {
+    start:
+      sharedWindowResolvedSources[
+        'google-ads-search-reporting'
+      ].requested_date_start,
+    end:
+      sharedWindowResolvedSources[
+        'google-ads-search-reporting'
+      ].requested_date_end,
+  },
+  {
+    start: '2026-09-04',
+    end: '2026-10-03',
+  },
+);
+
+assert.deepEqual(
+  {
+    start:
+      sharedWindowResolvedSources[
+        'google-ads-search-terms'
+      ].requested_date_start,
+    end:
+      sharedWindowResolvedSources[
+        'google-ads-search-terms'
+      ].requested_date_end,
+  },
+  {
+    start: '2026-09-04',
+    end: '2026-10-03',
+  },
+);
+
+assert.deepEqual(
+  {
+    start:
+      sharedWindowResolvedSources[
+        'google-analytics-4'
+      ].start_date,
+    end:
+      sharedWindowResolvedSources[
+        'google-analytics-4'
+      ].end_date,
+  },
+  {
+    start: '2026-09-04',
+    end: '2026-10-03',
+  },
+);
+
+const sharedWindowReservationsBeforeStart =
+  reservations.length;
+
+await sharedWindowController.startDraft(
+  sharedWindowReview.reviewed_draft,
+);
+
+assert.equal(
+  reservations.length,
+  sharedWindowReservationsBeforeStart + 1,
+);
+
+const sharedWindowReservation =
+  reservations.at(-1);
+
+assert.deepEqual(
+  sharedWindowReservation.job_plans
+    .map(
+      (plan) => ({
+        source_id:
+          plan.source_id,
+        start:
+          plan.source_context
+            .requested_date_start
+          ?? plan.source_context
+            .start_date,
+        end:
+          plan.source_context
+            .requested_date_end
+          ?? plan.source_context
+            .end_date,
+      }),
+    ),
+  [
+    {
+      source_id:
+        'google-ads-search-reporting',
+      start:
+        '2026-09-04',
+      end:
+        '2026-10-03',
+    },
+    {
+      source_id:
+        'google-ads-search-terms',
+      start:
+        '2026-09-04',
+      end:
+        '2026-10-03',
+    },
+    {
+      source_id:
+        'google-analytics-4',
+      start:
+        '2026-09-04',
+      end:
+        '2026-10-03',
+    },
+  ],
+  'Search Reporting, Search Terms 30D, and GA4 Paid Funnel must execute against one exact reviewed 30D window.',
+);
+
+
 console.log(
   'PASS ASSET-PRESET-MULTISOURCE-001: multi-source preset review/start resolves relative Blog windows only into execution and snapshot context',
 );
