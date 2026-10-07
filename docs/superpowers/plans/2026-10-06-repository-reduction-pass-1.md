@@ -75,3 +75,43 @@ Record separately:
 - focused deterministic verification results.
 
 Do not claim packaged-runtime or live-provider verification.
+
+## Completion Evidence — 2026-10-07
+
+Repository Reduction Pass 1 is complete at the deterministic repository-verification level.
+
+Verified base: `f0808eacbe1a31e654a96cfc583419586ac69a0d`
+
+Measured repository reduction before this closeout commit:
+
+- Files added: 7
+- Files deleted: 70
+- Net tracked file reduction: 63
+- Integration shell runners: 156 → 122 (`-34`)
+- `docs/superpowers/plans/*.md`: 32 → 3 (`-29` net; historical plans were removed while this active cleanup plan was added)
+- Implementation commits in the pass before closeout: 9
+- Tracked working tree: clean
+- `git diff --check` across the full pass: clean
+
+Completed low-risk consolidation slices:
+
+- Google Analytics 4 runners
+- Google Ads change-history runners
+- Blog Writing Pack runners
+- Task Package runners
+- Filesystem runners
+- Preset runners
+- Browser runners
+- Core orchestration runners
+
+For each consolidation slice, deterministic assertion files were preserved, replacement family gates were exercised before legacy wrapper removal where applicable, legacy runner references were cleared, and post-removal execution was reverified. The orchestration consolidation was additionally verified through the integrated M2 gate.
+
+The pass intentionally stops before broader release-path consolidation. Remaining large or release-linked runner families such as `google-api`, `google-trends`, `app`, `sqlite`, `export`, `bitkimark`, `file-import`, and `serpapi` are deferred rather than changed solely to reduce file count. `file-import` is also adjacent to the separate P0-04 product slice and was not modified here.
+
+Scope/evidence boundary:
+
+- No live-provider verification was performed.
+- No release packaging verification was claimed.
+- No production collection semantics were intentionally changed.
+- P0-04 and P0-05 product work remained out of scope.
+- The local `node_modules` worktree symlink is untracked and must not be committed.
