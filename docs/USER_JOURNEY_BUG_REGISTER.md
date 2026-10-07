@@ -178,13 +178,34 @@ P0-02
 
 ### P0-05 — Google Ads Growth can show READY sources with zero Jobs
 
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
 Observed:
 Google Ads Growth was observed as 4 sources · 0 jobs while included sources showed READY.
 
 Expected:
 Required Workspace metadata and exact execution dates must be resolved during Review. Provider readiness and planning readiness remain distinct.
+
+Resolution:
+- Google Ads Growth reusable intent now carries a relative 30-complete-day policy while preserving null run-specific absolute dates and account identity.
+- Review hydrates the canonical Google Ads customer ID from the Workspace `google-ads-search-terms` connection safe metadata.
+- Review resolves one exact 30-complete-local-day window from the single Review clock and freezes provider-facing dates only into the reviewed resolved configuration.
+- Google Ads Configuration Review resolves all configured datasets instead of assuming a single dataset.
+- Google Ads Change History Review supplies its required source identity and schema version.
+- GA4 planning honors the preset's explicit dataset selection so Growth produces only `GA4_PAID_FUNNEL`.
+- Missing canonical Ads customer metadata remains a planning blocker while provider readiness remains independently READY.
+
+Verification:
+- RED reproduced the real failure as `0 !== 22` Jobs with all four included Growth sources READY.
+- Focused multi-source preset regression passes with 22 Jobs, no planning blockers, and a startable reviewed artifact.
+- Start consumes the frozen reviewed artifact and preserves the same 22 JobPlans.
+- Missing canonical Ads customer metadata deterministically fails closed through `planning_blocking_sources` without being misreported as a provider-readiness blocker.
+- Saved Preset seed reconciliation passes and updates an existing Growth preset to the canonical reusable configuration without changing its identity.
+- Growth preset/catalog regressions pass.
+- Google Analytics 4 deterministic gate passes.
+- TypeScript compilation and `git diff --check` pass.
+
+No packaged-runtime or live-provider verification is claimed.
 
 Dependencies:
 P0-02

@@ -41,6 +41,7 @@ assert.deepEqual(
       'google-ads-search-reporting': {
         included: true,
         customer_id: null,
+        date_policy: 'TODAY_MINUS_30_TO_YESTERDAY',
         requested_date_start: null,
         requested_date_end: null,
         datasets: [
@@ -55,6 +56,7 @@ assert.deepEqual(
       'google-ads-change-history': {
         included: true,
         customer_id: null,
+        date_policy: 'TODAY_MINUS_30_TO_YESTERDAY',
         requested_date_start: null,
         requested_date_end: null,
         dataset_type: 'CHANGE_HISTORY',
@@ -81,6 +83,7 @@ assert.deepEqual(
       },
       'google-analytics-4': {
         included: true,
+        date_policy: 'TODAY_MINUS_30_TO_YESTERDAY',
         requested_date_start: null,
         requested_date_end: null,
         datasets: [

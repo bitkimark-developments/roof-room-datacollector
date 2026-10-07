@@ -283,6 +283,10 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
       return createGoogleAnalytics4JobPlans({
         start_date: config.start_date,
         end_date: config.end_date,
+        datasets:
+          Array.isArray(config.datasets)
+            ? config.datasets as never
+            : undefined,
       });
     } catch {
       return [];
@@ -2052,13 +2056,77 @@ export class DesktopMultiSourceController {
           reusableConfiguration.sources,
         );
 
+      const sourceConfiguration = {
+        ...asJsonObjectValue(
+          reusableSources[sourceId],
+        ),
+      };
+
+      if (
+        sourceId === 'google-ads-search-reporting'
+        || sourceId === 'google-ads-change-history'
+        || sourceId === 'google-ads-configuration'
+      ) {
+        const adsConnection =
+          this.dependencies.repository
+            .listSourceConnections(
+              draft.workspace_id,
+            )
+            .find(
+              (connection) =>
+                connection.source_id
+                  === 'google-ads-search-terms',
+            );
+
+        const customerId =
+          asObject(
+            adsConnection?.safe_metadata,
+          ).customer_id;
+
+        if (
+          typeof customerId === 'string'
+          && customerId.trim().length > 0
+        ) {
+          sourceConfiguration.customer_id =
+            customerId.trim();
+        }
+      }
+
+      if (
+        (
+          sourceId === 'google-ads-search-reporting'
+          || sourceId === 'google-ads-change-history'
+          || sourceId === 'google-analytics-4'
+        )
+        && sourceConfiguration.date_policy
+          === 'TODAY_MINUS_30_TO_YESTERDAY'
+      ) {
+        const range =
+          resolveDesktopDatePolicy(
+            'TODAY_MINUS_30_TO_YESTERDAY',
+            formatLocalReferenceDate(
+              resolvedAt,
+            ),
+          );
+
+        if (sourceId === 'google-analytics-4') {
+          sourceConfiguration.start_date =
+            range.requested_date_start;
+          sourceConfiguration.end_date =
+            range.requested_date_end;
+        } else {
+          sourceConfiguration.requested_date_start =
+            range.requested_date_start;
+          sourceConfiguration.requested_date_end =
+            range.requested_date_end;
+        }
+      }
+
       const singleSourceConfiguration:
         ReusableCollectionConfiguration = {
           sources: {
             [sourceId]:
-              asJsonObjectValue(
-                reusableSources[sourceId],
-              ),
+              sourceConfiguration,
           },
         };
 
@@ -2314,6 +2382,8 @@ export class DesktopMultiSourceController {
       try {
         const jobContext =
           createGoogleAdsChangeHistoryJobContext({
+            source_id:
+              sourceId,
             dataset_type:
               config.dataset_type as never,
             customer_id:
@@ -2322,6 +2392,8 @@ export class DesktopMultiSourceController {
               config.requested_date_start as string,
             requested_date_end:
               config.requested_date_end as string,
+            dataset_schema_version:
+              1,
           });
 
         const reusableConfiguration =
@@ -2379,21 +2451,25 @@ export class DesktopMultiSourceController {
 
     if (sourceId === 'google-ads-configuration') {
       if (
-        typeof config.dataset_type !== 'string'
+        !Array.isArray(config.datasets)
+        || config.datasets.length === 0
         || typeof config.customer_id !== 'string'
       ) {
         return null;
       }
 
       try {
-        const jobContext =
-          googleAdsConfigurationContextAsJson(
-            createGoogleAdsConfigurationJobContext({
-              dataset_type:
-                config.dataset_type as never,
-              customer_id:
-                config.customer_id as string,
-            }),
+        const jobs =
+          config.datasets.map(
+            (dataset) =>
+              googleAdsConfigurationContextAsJson(
+                createGoogleAdsConfigurationJobContext({
+                  dataset_type:
+                    dataset as never,
+                  customer_id:
+                    config.customer_id as string,
+                }),
+              ),
           );
 
         const reusableConfiguration =
@@ -2415,9 +2491,7 @@ export class DesktopMultiSourceController {
           ...asJsonObjectValue(
             sources[sourceId],
           ),
-          jobs: [
-            jobContext,
-          ],
+          jobs,
         };
 
         resolvedConfiguration.sources =
@@ -2464,6 +2538,10 @@ export class DesktopMultiSourceController {
         createGoogleAnalytics4JobPlans({
           start_date: config.start_date,
           end_date: config.end_date,
+          datasets:
+            Array.isArray(config.datasets)
+              ? config.datasets as never
+              : undefined,
         });
 
 

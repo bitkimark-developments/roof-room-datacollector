@@ -12,6 +12,12 @@ const {
   `${process.argv[2]}/main/presets/blog-agentic-content-preset.js`,
 );
 
+const {
+  createGoogleAdsGrowthRebuildPreset,
+} = require(
+  `${process.argv[2]}/main/presets/google-ads-growth-rebuild-preset.js`,
+);
+
 async function main() {
 
 const workspace = {
@@ -926,6 +932,291 @@ assert.equal(
   null,
   'Planning-incomplete seven-family Blog Review must not freeze a startable reviewed artifact.',
 );
+
+
+const growthPreset = {
+  preset_id: 'sp_google_ads_growth',
+  workspace_id: workspace.workspace_id,
+  preset_name: 'Google Ads Growth',
+  reusable_configuration: createGoogleAdsGrowthRebuildPreset(),
+  created_at: '2026-10-04T00:00:00.000Z',
+  updated_at: '2026-10-04T00:00:00.000Z',
+};
+
+const growthConnections = [
+  {
+    connection_id: 'conn_growth_ads',
+    workspace_id: workspace.workspace_id,
+    source_id: 'google-ads-search-terms',
+    credential_ref: 'cred:google-ads',
+    safe_metadata: {
+      customer_id: '1234567890',
+    },
+    created_at: '2026-10-04T00:00:00.000Z',
+    updated_at: '2026-10-04T00:00:00.000Z',
+  },
+  {
+    connection_id: 'conn_growth_ga4',
+    workspace_id: workspace.workspace_id,
+    source_id: 'google-analytics-4',
+    credential_ref: 'cred:ga4',
+    safe_metadata: {
+      property_id: '987654321',
+    },
+    created_at: '2026-10-04T00:00:00.000Z',
+    updated_at: '2026-10-04T00:00:00.000Z',
+  },
+];
+
+const growthController = new DesktopMultiSourceController({
+  repository: {
+    ...repository,
+    listSavedCollectionPresets: () => [growthPreset],
+    getSavedCollectionPreset: (workspaceId, presetId) => (
+      workspaceId === workspace.workspace_id
+      && presetId === growthPreset.preset_id
+        ? growthPreset
+        : null
+    ),
+    listSourceConnections: () => growthConnections,
+  },
+  readiness: {
+    getReadiness: async (workspaceId, sourceId) => ({
+      workspace_id: workspaceId,
+      source_id: sourceId,
+      readiness_status: 'READY',
+      checked_at: '2026-10-04T00:00:00.000Z',
+      message: null,
+    }),
+  },
+  application_version: 'test',
+  source_order: [
+    'google-ads-search-reporting',
+    'google-ads-change-history',
+    'google-ads-configuration',
+    'google-analytics-4',
+  ],
+  now: () => new Date(2026, 9, 4, 12, 0, 0),
+});
+
+const growthDraft = await growthController.createDraft({
+  workspace_id: workspace.workspace_id,
+  origin: {
+    kind: 'SAVED_PRESET',
+    preset_id: growthPreset.preset_id,
+  },
+});
+
+const growthReview = await growthController.reviewDraft(growthDraft);
+
+assert.deepEqual(growthReview.included_sources, [
+  'google-ads-search-reporting',
+  'google-ads-change-history',
+  'google-ads-configuration',
+  'google-analytics-4',
+]);
+
+assert.equal(
+  growthReview.job_count,
+  22,
+  'Google Ads Growth Review must plan the complete preset evidence set.',
+);
+
+assert.deepEqual(
+  growthReview.planning_blocking_sources,
+  [],
+  'READY Growth sources must receive reviewed execution context before planning.',
+);
+
+assert.equal(growthReview.can_start, true);
+assert.ok(growthReview.reviewed_draft);
+
+assert.deepEqual(
+  growthReview.reviewed_draft.reusable_configuration,
+  growthPreset.reusable_configuration,
+  'Review must preserve the reusable Growth intent unchanged.',
+);
+
+const growthReusableSources =
+  growthReview.reviewed_draft.reusable_configuration.sources;
+
+assert.equal(
+  growthReusableSources['google-ads-search-reporting'].customer_id,
+  null,
+  'Workspace customer identity must not be persisted into reusable Growth intent.',
+);
+
+assert.equal(
+  growthReusableSources['google-ads-search-reporting'].requested_date_start,
+  null,
+  'Reusable Growth intent must not persist one Run absolute dates.',
+);
+
+assert.equal(
+  growthReusableSources['google-ads-search-reporting'].requested_date_end,
+  null,
+  'Reusable Growth intent must not persist one Run absolute dates.',
+);
+
+const growthResolvedSources =
+  growthReview.reviewed_draft.resolved_configuration.sources;
+
+assert.equal(
+  growthResolvedSources['google-ads-search-reporting'].customer_id,
+  '1234567890',
+);
+
+assert.equal(
+  growthResolvedSources['google-ads-search-reporting'].requested_date_start,
+  '2026-09-04',
+);
+
+assert.equal(
+  growthResolvedSources['google-ads-search-reporting'].requested_date_end,
+  '2026-10-03',
+);
+
+assert.equal(
+  growthResolvedSources['google-ads-change-history'].customer_id,
+  '1234567890',
+);
+
+assert.equal(
+  growthResolvedSources['google-ads-change-history'].requested_date_start,
+  '2026-09-04',
+);
+
+assert.equal(
+  growthResolvedSources['google-ads-change-history'].requested_date_end,
+  '2026-10-03',
+);
+
+assert.equal(
+  growthResolvedSources['google-ads-configuration'].customer_id,
+  '1234567890',
+);
+
+assert.equal(
+  growthResolvedSources['google-analytics-4'].start_date,
+  '2026-09-04',
+);
+
+assert.equal(
+  growthResolvedSources['google-analytics-4'].end_date,
+  '2026-10-03',
+);
+
+const growthReservationsBeforeStart = reservations.length;
+
+await growthController.startDraft(
+  growthReview.reviewed_draft,
+);
+
+assert.equal(
+  reservations.length,
+  growthReservationsBeforeStart + 1,
+);
+
+const growthReservation = reservations.at(-1);
+
+assert.equal(
+  growthReservation.job_plans.length,
+  22,
+);
+
+assert.deepEqual(
+  growthReservation.job_plans
+    .filter(
+      (plan) =>
+        plan.source_id === 'google-analytics-4',
+    )
+    .map(
+      (plan) =>
+        plan.job_key,
+    ),
+  [
+    'GA4_PAID_FUNNEL',
+  ],
+  'Growth must collect only the GA4 dataset explicitly selected by the preset.',
+);
+
+const growthMissingMetadataController = new DesktopMultiSourceController({
+  repository: {
+    ...repository,
+    listSavedCollectionPresets: () => [growthPreset],
+    getSavedCollectionPreset: (workspaceId, presetId) => (
+      workspaceId === workspace.workspace_id
+      && presetId === growthPreset.preset_id
+        ? growthPreset
+        : null
+    ),
+    listSourceConnections: () => (
+      growthConnections.filter(
+        (connection) =>
+          connection.source_id !== 'google-ads-search-terms',
+      )
+    ),
+  },
+  readiness: {
+    getReadiness: async (workspaceId, sourceId) => ({
+      workspace_id: workspaceId,
+      source_id: sourceId,
+      readiness_status: 'READY',
+      checked_at: '2026-10-04T00:00:00.000Z',
+      message: null,
+    }),
+  },
+  application_version: 'test',
+  source_order: [
+    'google-ads-search-reporting',
+    'google-ads-change-history',
+    'google-ads-configuration',
+    'google-analytics-4',
+  ],
+  now: () => new Date(2026, 9, 4, 12, 0, 0),
+});
+
+const growthMissingMetadataDraft =
+  await growthMissingMetadataController.createDraft({
+    workspace_id: workspace.workspace_id,
+    origin: {
+      kind: 'SAVED_PRESET',
+      preset_id: growthPreset.preset_id,
+    },
+  });
+
+const growthMissingMetadataReview =
+  await growthMissingMetadataController.reviewDraft(
+    growthMissingMetadataDraft,
+  );
+
+assert.deepEqual(
+  growthMissingMetadataReview.blocking_sources,
+  [],
+  'Provider readiness must remain separate from missing planning metadata.',
+);
+
+assert.deepEqual(
+  growthMissingMetadataReview.planning_blocking_sources,
+  [
+    'google-ads-search-reporting',
+    'google-ads-change-history',
+    'google-ads-configuration',
+  ],
+  'Missing canonical Ads Workspace customer metadata must fail Growth planning closed.',
+);
+
+assert.equal(
+  growthMissingMetadataReview.can_start,
+  false,
+);
+
+assert.equal(
+  growthMissingMetadataReview.reviewed_draft,
+  null,
+  'Planning-incomplete Growth Review must not freeze a startable reviewed artifact.',
+);
+
 
 console.log(
   'PASS ASSET-PRESET-MULTISOURCE-001: multi-source preset review/start resolves relative Blog windows only into execution and snapshot context',

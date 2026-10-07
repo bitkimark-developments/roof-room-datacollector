@@ -16,6 +16,7 @@ run_case() {
       NODE_PATH="$PROJECT_DIR/node_modules" npx tsc \
         src/main/app/desktop-multisource-controller.ts \
         src/main/presets/blog-agentic-content-preset.ts \
+        src/main/presets/google-ads-growth-rebuild-preset.ts \
         src/shared/desktop-multisource.ts \
         src/shared/desktop-run-resolution.ts \
         src/shared/collection-configuration.ts \

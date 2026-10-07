@@ -9,6 +9,7 @@ export const createGoogleAdsGrowthRebuildPreset =
     'google-ads-search-reporting': {
       included: true,
       customer_id: null,
+      date_policy: 'TODAY_MINUS_30_TO_YESTERDAY',
       requested_date_start: null,
       requested_date_end: null,
       datasets: [
@@ -23,6 +24,7 @@ export const createGoogleAdsGrowthRebuildPreset =
     'google-ads-change-history': {
       included: true,
       customer_id: null,
+      date_policy: 'TODAY_MINUS_30_TO_YESTERDAY',
       requested_date_start: null,
       requested_date_end: null,
       dataset_type: 'CHANGE_HISTORY',
@@ -49,6 +51,7 @@ export const createGoogleAdsGrowthRebuildPreset =
     },
     'google-analytics-4': {
       included: true,
+      date_policy: 'TODAY_MINUS_30_TO_YESTERDAY',
       requested_date_start: null,
       requested_date_end: null,
       datasets: [
