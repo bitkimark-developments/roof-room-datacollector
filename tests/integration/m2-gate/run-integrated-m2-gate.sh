@@ -81,10 +81,10 @@ bash \
   tests/integration/sqlite/run-source-neutral-job-persistence-test.sh
 
 bash \
-  tests/integration/orchestration/run-source-neutral-fake-json-test.sh
+  tests/integration/orchestration/run-orchestration-gate.sh source-neutral
 
 bash \
-  tests/integration/orchestration/run-collection-validator-registry-test.sh
+  tests/integration/orchestration/run-orchestration-gate.sh registry
 
 bash \
-  tests/integration/orchestration/run-multi-source-run-test.sh
+  tests/integration/orchestration/run-orchestration-gate.sh multi-source
