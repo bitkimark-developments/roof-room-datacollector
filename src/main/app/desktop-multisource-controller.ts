@@ -183,6 +183,52 @@ const sourceConfig = (configuration: ReusableCollectionConfiguration, sourceId: 
 const included = (configuration: ReusableCollectionConfiguration, sourceId: string): boolean =>
   sourceConfig(configuration, sourceId).included === true;
 
+const runScopedSourceConfig = (
+  draft: DesktopRunDraft,
+  sourceId: string,
+): Record<string, unknown> => {
+  const sources =
+    asObject(
+      draft.run_scoped_inputs?.sources,
+    );
+
+  return asObject(
+    sources[sourceId],
+  );
+};
+
+const sourceConfigForReview = (
+  draft: DesktopRunDraft,
+  sourceId: string,
+): Record<string, unknown> => {
+  const reusable =
+    sourceConfig(
+      draft.reusable_configuration,
+      sourceId,
+    );
+
+  if (sourceId !== 'ikas-products') {
+    return reusable;
+  }
+
+  const runScoped =
+    runScopedSourceConfig(
+      draft,
+      sourceId,
+    );
+
+  return (
+    typeof runScoped.file_path === 'string'
+    && runScoped.file_path.trim().length > 0
+  )
+    ? {
+        ...reusable,
+        file_path:
+          runScoped.file_path,
+      }
+    : reusable;
+};
+
 const resolveBitkimarkSitemapContexts = (
   config: Record<string, unknown>,
 ): JsonObject[] => {
@@ -863,8 +909,8 @@ export class DesktopMultiSourceController {
           await this.readinessEvaluator.getReadiness(
             draft.workspace_id,
             source_id,
-            sourceConfig(
-              draft.reusable_configuration,
+            sourceConfigForReview(
+              draft,
               source_id,
             ),
           )
@@ -2576,6 +2622,18 @@ export class DesktopMultiSourceController {
         return null;
       }
 
+      const runScopedConfig =
+        runScopedSourceConfig(
+          draft,
+          sourceId,
+        );
+
+      const filePath =
+        typeof runScopedConfig.file_path === 'string'
+        && runScopedConfig.file_path.trim().length > 0
+          ? runScopedConfig.file_path
+          : config.file_path;
+
       let jobContext;
 
       try {
@@ -2589,7 +2647,7 @@ export class DesktopMultiSourceController {
               source_mode:
                 IKAS_PRODUCTS_SOURCE_MODE,
               file_path:
-                config.file_path,
+                filePath,
             }),
           );
       } catch {

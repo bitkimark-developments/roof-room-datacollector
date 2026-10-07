@@ -1833,7 +1833,11 @@ async function main() {
   );
   await assert.rejects(() => blockedController.startDraft(blockedDraft), /not ready/i);
 
-  const runInputController = createFixture().controller;
+  const runInputFixture =
+    createFixture();
+
+  const runInputController =
+    runInputFixture.controller;
 
   runInputController.setReadinessEvaluator(
     async (
@@ -1863,18 +1867,41 @@ async function main() {
     },
   );
 
+  const runInputPreset =
+    runInputFixture.repository
+      .createSavedCollectionPreset({
+        workspace_id:
+          'ws_a',
+        preset_name:
+          'Ikas without persisted file',
+        reusable_configuration: {
+          sources: {
+            'ikas-products': {
+              included:
+                true,
+            },
+          },
+        },
+      });
+
   const runInputDraft =
     await runInputController.createDraft({
-      workspace_id: 'ws_a',
+      workspace_id:
+        'ws_a',
       origin: {
-        kind: 'BLANK',
+        kind:
+          'SAVED_PRESET',
+        preset_id:
+          runInputPreset.preset_id,
       },
     });
 
-  runInputDraft.reusable_configuration.sources = {
-    'ikas-products': {
-      included: true,
-      file_path: '/tmp/current-products.xlsx',
+  runInputDraft.run_scoped_inputs = {
+    sources: {
+      'ikas-products': {
+        file_path:
+          '/tmp/current-products.xlsx',
+      },
     },
   };
 
@@ -1893,7 +1920,53 @@ async function main() {
   assert.equal(
     runInputReview.can_start,
     true,
-    'Run-specific İkas file_path must participate in readiness evaluation.',
+    'Run-scoped İkas file_path must participate in Preset Review readiness without becoming reusable configuration.',
+  );
+
+  assert.ok(
+    runInputReview.reviewed_draft,
+    'Run-scoped İkas input must produce an exact reviewed artifact.',
+  );
+
+  assert.equal(
+    runInputReview.reviewed_draft
+      .reusable_configuration
+      .sources['ikas-products']
+      .file_path,
+    undefined,
+    'Saved Preset reusable configuration must not persist the selected run-scoped file.',
+  );
+
+  assert.equal(
+    runInputReview.reviewed_draft
+      .resolved_configuration
+      .sources['ikas-products']
+      .file_path,
+    '/tmp/current-products.xlsx',
+    'Reviewed resolved configuration must bind the exact selected İkas file path.',
+  );
+
+  await runInputController.startDraft(
+    runInputReview.reviewed_draft,
+  );
+
+  assert.equal(
+    runInputFixture.reservations.at(-1)
+      .job_plans[0]
+      .source_context
+      .source_config
+      .file_path,
+    '/tmp/current-products.xlsx',
+    'Reviewed Start must plan the exact frozen İkas file path.',
+  );
+
+  assert.equal(
+    runInputPreset
+      .reusable_configuration
+      .sources['ikas-products']
+      .file_path,
+    undefined,
+    'Starting the reviewed Run must not mutate the Saved Preset with run-scoped evidence.',
   );
 
   console.log('PASS DESKTOP-MULTISOURCE-001: Workspace-scoped draft/review/start plans heterogeneous sources and blocks non-ready included sources');

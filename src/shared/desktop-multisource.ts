@@ -8,6 +8,7 @@ import type {
 import type {
   JobPlan,
   JobRecord,
+  JsonObject,
   RunRecord,
 } from './run-job';
 import type {
@@ -101,8 +102,13 @@ export interface DesktopSourceCard {
   configuration_summary: string;
 }
 
+export interface DesktopRunScopedInputs {
+  sources: JsonObject;
+}
+
 export interface DesktopRunDraft extends RunDraft {
   source_cards: DesktopSourceCard[];
+  run_scoped_inputs?: DesktopRunScopedInputs;
 }
 
 export interface DesktopReviewedRunDraft {
