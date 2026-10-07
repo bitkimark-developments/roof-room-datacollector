@@ -121,7 +121,7 @@ Use an injected clock whose call result can later be advanced for Task 3.
 
 Run:
 
-`bash tests/integration/presets/run-asset-preset-multisource-window-test.sh`
+`bash tests/integration/presets/run-presets-gate.sh multisource`
 
 Expected: FAIL at the current `reviewed_draft === null` behavior.
 
@@ -159,7 +159,7 @@ If any included source has zero planned Jobs, P0-01 remains fail-closed and Revi
 
 Run:
 
-`bash tests/integration/presets/run-asset-preset-multisource-window-test.sh`
+`bash tests/integration/presets/run-presets-gate.sh multisource`
 `bash tests/integration/app/run-desktop-multisource-flow-test.sh`
 `npx tsc --noEmit`
 
@@ -207,7 +207,7 @@ Assert:
 
 Run:
 
-`bash tests/integration/presets/run-asset-preset-multisource-window-test.sh`
+`bash tests/integration/presets/run-presets-gate.sh multisource`
 
 Expected: FAIL until multi-source `startReviewedDraft` can consume nullable root identity without re-resolution.
 
@@ -241,7 +241,7 @@ Real source identity remains in Jobs and source-local configuration.
 
 Run:
 
-`bash tests/integration/presets/run-asset-preset-multisource-window-test.sh`
+`bash tests/integration/presets/run-presets-gate.sh multisource`
 `bash tests/integration/app/run-desktop-multisource-flow-test.sh`
 `npx tsc --noEmit`
 `git diff --check`
@@ -270,9 +270,9 @@ Commit message:
 
 Run:
 
-`bash tests/integration/presets/run-asset-preset-multisource-window-test.sh`
+`bash tests/integration/presets/run-presets-gate.sh multisource`
 
-`bash tests/integration/presets/run-asset-presets-test.sh`
+`bash tests/integration/presets/run-presets-gate.sh catalog`
 
 `bash tests/integration/app/run-desktop-multisource-flow-test.sh`
 
