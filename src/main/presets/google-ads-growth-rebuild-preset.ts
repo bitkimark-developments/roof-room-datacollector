@@ -58,5 +58,46 @@ export const createGoogleAdsGrowthRebuildPreset =
         'GA4_PAID_FUNNEL',
       ],
     },
+    'google-ads-search-terms': {
+      included: true,
+      task_id: 'google-ads-search-terms-30-days',
+      date_policy: 'TODAY_MINUS_30_TO_YESTERDAY',
+    },
+    'google-search-console-query': {
+      included: true,
+      task_id: 'gsc-query-current-previous-28-days',
+      date_ranges: [],
+    },
+    'google-search-console-query-page': {
+      included: true,
+      tasks: [
+        {
+          task_id: 'gsc-query-page-current-28-days',
+          date_policy: 'TODAY_MINUS_28_TO_YESTERDAY',
+        },
+        {
+          task_id: 'gsc-current-90-days',
+          date_policy: 'TODAY_MINUS_90_TO_YESTERDAY',
+        },
+        {
+          task_id: 'gsc-long-16-months',
+          date_policy: 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+        },
+      ],
+      date_ranges: [],
+    },
+    'google-trends': {
+      included: true,
+      task_id: 'google-trends-interest-over-time',
+      date_policy: 'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+      dataset_type: 'INTEREST_OVER_TIME',
+      date_ranges: [],
+      query_groups: [],
+    },
+    'google-keyword-planner': {
+      included: true,
+      task_id: 'keyword-planner-historical-metrics',
+      groups: [],
+    },
   },
 });

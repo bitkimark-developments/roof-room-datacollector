@@ -90,6 +90,47 @@ assert.deepEqual(
           'GA4_PAID_FUNNEL',
         ],
       },
+      'google-ads-search-terms': {
+        included: true,
+        task_id: 'google-ads-search-terms-30-days',
+        date_policy: 'TODAY_MINUS_30_TO_YESTERDAY',
+      },
+      'google-search-console-query': {
+        included: true,
+        task_id: 'gsc-query-current-previous-28-days',
+        date_ranges: [],
+      },
+      'google-search-console-query-page': {
+        included: true,
+        tasks: [
+          {
+            task_id: 'gsc-query-page-current-28-days',
+            date_policy: 'TODAY_MINUS_28_TO_YESTERDAY',
+          },
+          {
+            task_id: 'gsc-current-90-days',
+            date_policy: 'TODAY_MINUS_90_TO_YESTERDAY',
+          },
+          {
+            task_id: 'gsc-long-16-months',
+            date_policy: 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+          },
+        ],
+        date_ranges: [],
+      },
+      'google-trends': {
+        included: true,
+        task_id: 'google-trends-interest-over-time',
+        date_policy: 'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+        dataset_type: 'INTEREST_OVER_TIME',
+        date_ranges: [],
+        query_groups: [],
+      },
+      'google-keyword-planner': {
+        included: true,
+        task_id: 'keyword-planner-historical-metrics',
+        groups: [],
+      },
     },
   },
 );
@@ -97,6 +138,87 @@ assert.deepEqual(
 console.log(
   'PASS ASSET-PRESET-001: Google Ads Growth pins the complete approved Growth evidence set',
 );
+
+const growthScope =
+  createGoogleAdsGrowthRebuildPreset().sources;
+
+assert.deepEqual(
+  Object.keys(growthScope).sort(),
+  [
+    'google-ads-change-history',
+    'google-ads-configuration',
+    'google-ads-search-reporting',
+    'google-ads-search-terms',
+    'google-analytics-4',
+    'google-keyword-planner',
+    'google-search-console-query',
+    'google-search-console-query-page',
+    'google-trends',
+  ].sort(),
+  'Growth preset must declare the complete approved A-scope source set.',
+);
+
+assert.deepEqual(
+  growthScope['google-ads-search-terms'],
+  {
+    included: true,
+    task_id: 'google-ads-search-terms-30-days',
+    date_policy: 'TODAY_MINUS_30_TO_YESTERDAY',
+  },
+);
+
+assert.deepEqual(
+  growthScope['google-search-console-query'],
+  {
+    included: true,
+    task_id: 'gsc-query-current-previous-28-days',
+    date_ranges: [],
+  },
+);
+
+assert.deepEqual(
+  growthScope['google-search-console-query-page'],
+  {
+    included: true,
+    tasks: [
+      {
+        task_id: 'gsc-query-page-current-28-days',
+        date_policy: 'TODAY_MINUS_28_TO_YESTERDAY',
+      },
+      {
+        task_id: 'gsc-current-90-days',
+        date_policy: 'TODAY_MINUS_90_TO_YESTERDAY',
+      },
+      {
+        task_id: 'gsc-long-16-months',
+        date_policy: 'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+      },
+    ],
+    date_ranges: [],
+  },
+);
+
+assert.deepEqual(
+  growthScope['google-trends'],
+  {
+    included: true,
+    task_id: 'google-trends-interest-over-time',
+    date_policy: 'TODAY_MINUS_24_CALENDAR_MONTHS_TO_YESTERDAY',
+    dataset_type: 'INTEREST_OVER_TIME',
+    date_ranges: [],
+    query_groups: [],
+  },
+);
+
+assert.deepEqual(
+  growthScope['google-keyword-planner'],
+  {
+    included: true,
+    task_id: 'keyword-planner-historical-metrics',
+    groups: [],
+  },
+);
+
 
 assert.equal(
   BLOG_AGENTIC_CONTENT_PRESET_NAME,

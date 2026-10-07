@@ -236,7 +236,7 @@ Desired path:
 HOME -> select preset -> Review Preset -> Start Preset Run
 
 ### P1-05 — Approved Google Ads Growth A-scope is not implemented
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
 Immediate supported scope:
 - Google Ads Search Reporting
@@ -249,7 +249,16 @@ Immediate supported scope:
 - Google Trends Interest Over Time 24M
 - Keyword Planner Historical Metrics
 
-Unsupported Orders and Economics sources remain outside this slice.
+Resolution:
+The canonical `Google Ads Growth` reusable preset now declares the complete approved nine-source A-scope while preserving source-local task identities and relative request policies. The three approved GSC Query x Page windows are represented as reusable task intent under one real source identity; exact one-source multi-job Review resolution remains P1-07.
+
+Verification:
+- RED proved the existing Growth preset declared only four of the nine approved source families.
+- The canonical preset regression now locks the complete nine-source A-scope and exact reusable task/policy configuration.
+- Saved Preset seed reconciliation passes, so existing Growth preset identity is updated in place to the canonical reusable configuration.
+- TypeScript compilation and `git diff --check` pass.
+
+This checkpoint verifies approved reusable scope composition only. P1-06, P1-07 and P1-09 remain separate execution-completeness work and are not claimed complete here. Unsupported Orders and Economics sources remain outside this slice.
 
 ### P1-06 — Growth sources do not share one exact 30D execution window
 Status: OPEN
