@@ -466,7 +466,13 @@ Verification:
 ## P2 — Provider and source capability gaps
 
 ### P2-01 — GSC country=TUR request filter gap
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
+
+Implemented: New GSC Query and Query × Page Reviews preserve `country_filter: "TUR"` through resolved configuration, planned Job context, and provider request construction. Paginated requests retain the same filter. Historical Jobs without a stored country filter preserve their unfiltered scope; unsupported explicit values are rejected.
+
+Verification: GSC integration 13/13 PASS; SQLite reopen and mocked production HTTP assertions PASS; multi-source/multi-task production Job planning PASS; desktop multi-source integration PASS; TypeScript and diff integrity PASS.
+
+Boundary: Deterministic verification only. No live-provider or packaged-runtime verification.
 
 ### P2-02 — Ads conversion-date metric variants are not supported
 Status: OPEN

@@ -136,6 +136,115 @@ const createFixture = (
 };
 
 async function main() {
+  // P2-01: Real planner preserves GSC country scope in a multi-source Run.
+  {
+    const gscConnection = [{
+      workspace_id: 'ws_a',
+      source_id: 'google-search-console-query-page',
+      credential_ref: 'gsc-fixture',
+      safe_metadata: { site_url: 'sc-domain:bitkimark.com' },
+    }];
+
+    const {
+      controller: gscController,
+      reservations: gscReservations,
+    } = createFixture(
+      undefined,
+      ['google-search-console-query', 'google-search-console-query-page'],
+      gscConnection,
+      new Set(['gsc-fixture']),
+      true,
+    );
+
+    const draft = {
+      workspace_id: 'ws_a',
+      origin: { kind: 'SAVED_PRESET', preset_id: 'sp_a' },
+      reusable_configuration: {
+        sources: {
+          'google-search-console-query': {
+            included: true,
+            task_id: 'gsc-query-current-previous-28-days',
+          },
+          'google-search-console-query-page': {
+            included: true,
+            tasks: [
+              {
+                task_id: 'gsc-query-page-current-28-days',
+                date_policy: 'TODAY_MINUS_28_TO_YESTERDAY',
+              },
+              {
+                task_id: 'gsc-current-90-days',
+                date_policy: 'TODAY_MINUS_90_TO_YESTERDAY',
+              },
+            ],
+          },
+        },
+      },
+      source_cards: [],
+    };
+
+    const review = await gscController.reviewDraft(draft);
+
+    assert.equal(review.can_start, true);
+    assert.equal(review.job_count, 4);
+    assert.deepEqual(review.planning_blocking_sources, []);
+    assert.ok(review.reviewed_draft);
+
+    const sources = review.reviewed_draft
+      .resolved_configuration.sources;
+
+    for (const sourceId of [
+      'google-search-console-query',
+      'google-search-console-query-page',
+    ]) {
+      assert.equal(
+        sources[sourceId].country_filter,
+        'TUR',
+        'Both resolved GSC sources must freeze country=TUR.',
+      );
+    }
+
+    assert.equal(
+      sources['google-search-console-query-page'].date_ranges.length,
+      2,
+      'Query Page multi-task Review must retain two date ranges.',
+    );
+
+    await gscController.startDraft(review.reviewed_draft);
+
+    assert.equal(gscReservations.length, 1);
+    const plans = gscReservations[0].job_plans;
+    assert.equal(plans.length, 4);
+
+    assert.equal(
+      plans.filter((plan) =>
+        plan.source_id === 'google-search-console-query').length,
+      2,
+    );
+    assert.equal(
+      plans.filter((plan) =>
+        plan.source_id === 'google-search-console-query-page').length,
+      2,
+    );
+
+    for (const plan of plans) {
+      assert.equal(
+        plan.source_context.country_filter,
+        'TUR',
+        'Every reserved GSC Job must preserve its reviewed country scope.',
+      );
+      assert.equal(
+        plan.source_context.site_url,
+        'sc-domain:bitkimark.com',
+        'Every reserved GSC Job must retain the reviewed site.',
+      );
+    }
+
+    console.log(
+      'PASS P2-01-GSC-MULTISOURCE: four provider-native Jobs preserve reviewed country scope',
+    );
+  }
+
   // P1-08: Real production planner rejects empty provider inputs.
   {
     const {
@@ -1071,6 +1180,8 @@ async function main() {
               'gsc-current-90-days',
             date_policy:
               'TODAY_MINUS_90_TO_YESTERDAY',
+            country_filter:
+              'TUR',
             date_ranges: [
               {
                 job_key:

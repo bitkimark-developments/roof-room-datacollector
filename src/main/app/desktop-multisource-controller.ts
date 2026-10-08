@@ -366,11 +366,21 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
         ? config.site_url
         : null;
 
+    if (
+      config.country_filter !== undefined
+      && config.country_filter !== 'TUR'
+    ) {
+      return [];
+    }
+
     return jobPlans.map(
       (plan) => ({
         ...plan,
         source_context: {
           ...plan.source_context,
+            ...(config.country_filter === 'TUR'
+              ? { country_filter: 'TUR' }
+              : {}),
           ...(siteUrl === null
             ? {}
             : {
@@ -2324,6 +2334,7 @@ export class DesktopMultiSourceController {
           sourceConfiguration.site_url =
             siteUrl.trim();
         }
+        sourceConfiguration.country_filter = 'TUR';
       }
 
       if (
@@ -3310,6 +3321,7 @@ export class DesktopMultiSourceController {
 
       resolvedSources[sourceId] = {
         ...resolvedSource,
+        country_filter: 'TUR',
         date_ranges: [
           {
             job_key:
@@ -3474,6 +3486,7 @@ export class DesktopMultiSourceController {
         ...asJsonObjectValue(
           resolvedSources[sourceId],
         ),
+        country_filter: 'TUR',
         date_ranges:
           dateRanges,
       };
@@ -3621,6 +3634,7 @@ export class DesktopMultiSourceController {
 
     resolvedSources[sourceId] = {
       ...resolvedSource,
+      country_filter: 'TUR',
       date_ranges: [
         {
           job_key:

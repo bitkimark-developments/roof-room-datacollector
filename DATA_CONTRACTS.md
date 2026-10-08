@@ -339,6 +339,8 @@ Do not convert it to absolute search counts.
 
 Keep `QUERY` and `QUERY_PAGE` contracts distinct.
 
+GSC country scope provenance: Newly reviewed `google-search-console-query` and `google-search-console-query-page` executions freeze `country_filter: "TUR"` in the resolved source configuration and each planned Job `source_context`. The provider request uses the corresponding native `country` dimension filter without changing dataset dimensions. Historical Jobs without `source_context.country_filter` remain unfiltered; absence must not be interpreted as `"TUR"` or as a measured value. Unsupported explicit country values are invalid. The reviewed request scope and raw provider responses remain separately traceable.
+
 Preserve clicks, impressions, CTR, position, dimensions, property/search-type/date context, raw response pages, and provider limitations.
 
 ### Google Ads SEARCH reporting

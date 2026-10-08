@@ -44,6 +44,15 @@ const requireOptionalSiteUrl = (
   );
 };
 
+const requireOptionalCountryFilter = (
+  value: unknown,
+): 'TUR' | undefined => {
+  if (value === undefined) return undefined;
+  if (value === 'TUR') return 'TUR';
+
+  throw new Error('Search Console reviewed country filter must be TUR.');
+};
+
 export class GoogleSearchConsoleSource implements CollectingDataSourceModule {
   readonly id = GSC_QUERY_PAGE_SOURCE_ID;
   readonly name = 'Google Search Console Query × Page';
@@ -89,6 +98,7 @@ export class GoogleSearchConsoleSource implements CollectingDataSourceModule {
     let siteUrl: string;
     let start: string;
     let end: string;
+    let countryFilter: 'TUR' | undefined;
     try {
       const reviewedSiteUrl =
         requireOptionalSiteUrl(
@@ -111,6 +121,7 @@ export class GoogleSearchConsoleSource implements CollectingDataSourceModule {
         reviewedSiteUrl
         ?? this.siteUrl;
 
+      countryFilter = requireOptionalCountryFilter(sourceContext.country_filter);
       start = requireDate(sourceContext.requested_date_start);
       end = requireDate(sourceContext.requested_date_end);
       if (start > end) {
@@ -124,6 +135,7 @@ export class GoogleSearchConsoleSource implements CollectingDataSourceModule {
       site_url: siteUrl,
       start_date: start,
       end_date: end,
+      country_filter: countryFilter,
     };
     try {
       const result = await fetchGscQueryPage(request, this.requester);
@@ -205,6 +217,7 @@ export class GoogleSearchConsoleQuerySource
     let siteUrl: string;
     let start: string;
     let end: string;
+    let countryFilter: 'TUR' | undefined;
 
     try {
       const reviewedSiteUrl =
@@ -228,6 +241,7 @@ export class GoogleSearchConsoleQuerySource
         reviewedSiteUrl
         ?? this.siteUrl;
 
+      countryFilter = requireOptionalCountryFilter(sourceContext.country_filter);
       start = requireDate(
         sourceContext.requested_date_start,
       );
@@ -255,6 +269,7 @@ export class GoogleSearchConsoleQuerySource
       site_url: siteUrl,
       start_date: start,
       end_date: end,
+      country_filter: countryFilter,
     };
 
     try {

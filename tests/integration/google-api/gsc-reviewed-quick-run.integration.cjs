@@ -12,7 +12,7 @@ const { createProductionCollectionRuntime } = load('main/app/production-collecti
 const { GoogleApiRuntimeFactory } = load('main/sources/google-api/google-api-runtime.js');
 const { initializeDatabase, getDatabasePath } = load('main/storage/database.js');
 const { StateRepository } = load('main/storage/state-repository.js');
-const { fetchGscQuery } = load('main/sources/google-search-console/query-page-adapter.js');
+const { fetchGscQuery, fetchGscQueryPage } = load('main/sources/google-search-console/query-page-adapter.js');
 
 const SOURCE = 'google-search-console-query-page';
 const QUERY_SOURCE = 'google-search-console-query';
@@ -93,6 +93,140 @@ test('GSC-DATE-28-002: previous 28 days immediately precedes the current 28-day 
     requested_date_start: '2026-07-23',
     requested_date_end: '2026-08-19',
   });
+});
+
+test('GSC-COUNTRY-FILTER-002: every paginated request retains country=TUR', async () => {
+  const input = {
+    site_url: 'sc-domain:bitkimark.com',
+    start_date: '2026-08-20',
+    end_date: '2026-09-16',
+    country_filter: 'TUR',
+  };
+
+  const expectedFilter = [{
+    groupType: 'and',
+    filters: [{
+      dimension: 'country',
+      operator: 'equals',
+      expression: 'TUR',
+    }],
+  }];
+
+  for (const [fetch, dimensions, keys] of [
+    [fetchGscQuery, ['query'], ['ficus']],
+    [fetchGscQueryPage, ['query', 'page'], ['ficus', 'https://bitkimark.com/ficus']],
+  ]) {
+    const requests = [];
+
+    await fetch(input, async (request) => {
+      requests.push(request);
+
+      return {
+        status: 200,
+        body: {
+          rows: request.body.startRow === 0
+            ? Array.from({ length: 25000 }, () => ({
+                keys,
+                clicks: 1,
+                impressions: 2,
+                ctr: 0.5,
+                position: 3,
+              }))
+            : [],
+        },
+      };
+    }, 2);
+
+    assert.deepEqual(
+      requests.map((request) => request.body.startRow),
+      [0, 25000],
+      'A full first page must trigger a second page.',
+    );
+
+    for (const request of requests) {
+      assert.deepEqual(request.body.dimensions, dimensions);
+      assert.equal(request.body.startDate, input.start_date);
+      assert.equal(request.body.endDate, input.end_date);
+      assert.deepEqual(
+        request.body.dimensionFilterGroups,
+        expectedFilter,
+        'Each page must retain the exact TUR country filter.',
+      );
+    }
+  }
+});
+
+test('GSC-COUNTRY-LEGACY-001: missing country scope preserves historical unfiltered requests', async () => {
+  const requests = [];
+  const input = {
+    site_url: 'sc-domain:bitkimark.com',
+    start_date: '2026-08-20',
+    end_date: '2026-09-16',
+  };
+
+  for (const fetch of [fetchGscQuery, fetchGscQueryPage]) {
+    await fetch(input, async (request) => {
+      requests.push(request);
+      return { status: 200, body: { rows: [] } };
+    });
+  }
+
+  assert.equal(requests.length, 2);
+  assert.deepEqual(
+    requests.map((request) => request.body.dimensions),
+    [['query'], ['query', 'page']],
+  );
+  assert.deepEqual(
+    requests.map((request) => request.body.dimensionFilterGroups),
+    [undefined, undefined],
+    'Legacy requests without a persisted country filter must not acquire a new filter.',
+  );
+});
+
+test('GSC-COUNTRY-FILTER-001: both GSC grains request country=TUR without changing dimensions', async () => {
+  const requests = [];
+  const requester = async (request) => {
+    requests.push(request);
+    return { status: 200, body: { rows: [] } };
+  };
+
+  const input = {
+    site_url: 'sc-domain:bitkimark.com',
+    start_date: '2026-08-20',
+    end_date: '2026-09-16',
+    country_filter: 'TUR',
+  };
+
+  await fetchGscQuery(input, requester);
+  await fetchGscQueryPage(input, requester);
+
+  assert.equal(requests.length, 2);
+
+  assert.deepEqual(
+    requests.map((request) => request.body.dimensions),
+    [['query'], ['query', 'page']],
+    'GSC request dimensions must remain provider-native.',
+  );
+
+  const expectedCountryFilter = [{
+    groupType: 'and',
+    filters: [{
+      dimension: 'country',
+      operator: 'equals',
+      expression: 'TUR',
+    }],
+  }];
+
+  for (const request of requests) {
+    assert.equal(request.body.startDate, input.start_date);
+    assert.equal(request.body.endDate, input.end_date);
+    assert.equal(request.body.startRow, 0);
+    assert.deepEqual(
+      request.body.dimensionFilterGroups,
+      expectedCountryFilter,
+      'Every GSC request must explicitly restrict results to TUR.',
+    );
+  }
 });
 
 test('GSC-QUERY-001: query-only adapter requests only the query dimension', async () => {
@@ -277,6 +411,12 @@ test('GSC-QUERY-REVIEW-001: Query Review resolves current and previous 28-day wi
   const reviewedSource =
     review.reviewed_draft.resolved_configuration.sources[QUERY_SOURCE];
 
+  assert.equal(
+    reviewedSource.country_filter,
+    'TUR',
+    'New GSC Review must freeze the requested country in resolved configuration.',
+  );
+
   assert.deepEqual(reviewedSource.date_ranges, [
     {
       job_key: 'gsc-query-current-28',
@@ -300,6 +440,10 @@ test('GSC-QUERY-REVIEW-001: Query Review resolves current and previous 28-day wi
   const started = await controller.startDraft(review.reviewed_draft);
 
   assert.equal(started.jobs.length, 2);
+  assert.ok(
+    started.jobs.every((job) => job.source_context.country_filter === 'TUR'),
+    'Both persisted GSC Jobs must retain their reviewed country scope.',
+  );
   assert.deepEqual(
     started.jobs.map((job) => job.job_key).sort(),
     ['gsc-query-current-28', 'gsc-query-previous-28'],
@@ -363,6 +507,12 @@ test('GSC-QUERY-PAGE-28-001: Query × Page Review resolves current 28 complete d
   const reviewedSource =
     review.reviewed_draft.resolved_configuration.sources[SOURCE];
 
+  assert.equal(
+    reviewedSource.country_filter,
+    'TUR',
+    'Query Page Review must freeze the requested country.',
+  );
+
   assert.deepEqual(reviewedSource.date_ranges, [
     {
       job_key: 'gsc-query-page-current-28-days',
@@ -409,6 +559,11 @@ test('GSC-REVIEW-BOUND-001: Review → atomic persisted Job → production reque
   repository = new StateRepository(getDatabasePath(directories));
   const jobs = repository.listJobs(started.run.run_id);
   assert.equal(jobs[0].source_context.requested_date_start, '2026-06-19');
+  assert.equal(
+    jobs[0].source_context.country_filter,
+    'TUR',
+    'Reopened persisted Job must retain the country scope.',
+  );
 
   const requests = [];
   const originalFetch = globalThis.fetch;
@@ -428,6 +583,14 @@ test('GSC-REVIEW-BOUND-001: Review → atomic persisted Job → production reque
   assert.equal(body.startDate, '2026-06-19', 'Actual GSC request must contain the exactly reviewed start date');
   assert.equal(body.endDate, '2026-09-16', 'Actual GSC request must contain the exactly reviewed end date');
   assert.deepEqual(body.dimensions, ['query', 'page'], 'Dimensions must remain unchanged');
+  assert.deepEqual(body.dimensionFilterGroups, [{
+    groupType: 'and',
+    filters: [{
+      dimension: 'country',
+      operator: 'equals',
+      expression: 'TUR',
+    }],
+  }], 'Production request must use the persisted Job country scope.');
 });
 
 test('GSC-SOURCE-CONTEXT-001: source uses explicit context and rejects unsupported scope', async () => {
@@ -449,6 +612,25 @@ test('GSC-SOURCE-CONTEXT-001: source uses explicit context and rejects unsupport
   await source.collect({ ...context, source_context: second });
   assert.equal(requests[1].body.startDate, '2026-09-01');
   assert.equal(requests[1].body.endDate, '2026-09-17');
+
+  const requestsBeforeInvalidCountry = requests.length;
+  const invalidCountry = await source.collect({
+    ...context,
+    source_context: {
+      ...expectedContextCurrent,
+      country_filter: 'USA',
+    },
+  });
+  assert.equal(invalidCountry.result_type, 'FAILED');
+  assert.equal(
+    invalidCountry.error_code,
+    'SOURCE_CONFIGURATION_INVALID',
+  );
+  assert.equal(
+    requests.length,
+    requestsBeforeInvalidCountry,
+    'Invalid country scope must fail before contacting GSC.',
+  );
 
   for (const invalid of [
     { ...expectedContextCurrent, requested_date_start: '2026-02-30' },
