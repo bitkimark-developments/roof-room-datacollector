@@ -1372,13 +1372,18 @@ const main = async () => {
                   },
                 ],
                 job_count:
-                  1,
+                  window.__forcePlanningBlocked ? 0 : 1,
                 can_start:
-                  true,
+                  window.__forcePlanningBlocked ? false : true,
                 blocking_sources:
                   [],
+                planning_blocking_sources:
+                  window.__forcePlanningBlocked
+                    ? ['google-search-console-query-page']
+                    : [],
                 reviewed_draft:
-                  window.__forceMissingReviewedDraft
+                  window.__forcePlanningBlocked
+                    || window.__forceMissingReviewedDraft
                     ? null
                     : reviewedArtifact,
               };
@@ -4005,6 +4010,44 @@ const main = async () => {
       'GSC Current Quick Run must be reviewable without a file input.',
     );
 
+    await page.evaluate(() => {
+      window.__forcePlanningBlocked = true;
+    });
+
+    await gscReviewButton.click();
+
+    await page.getByRole(
+      'heading',
+      { name: 'Review Quick Run', exact: true },
+    ).waitFor();
+
+    assert.equal(
+      await page.getByText(
+        'Planning blocked: google-search-console-query-page',
+        { exact: true },
+      ).count(),
+      1,
+      'Quick Run must explain planning failure separately from readiness.',
+    );
+
+    assert.equal(
+      await page.getByRole(
+        'button',
+        { name: 'Start Run', exact: true },
+      ).isDisabled(),
+      true,
+      'A planning-blocked Quick Run must not start.',
+    );
+
+    await page.getByRole(
+      'button',
+      { name: 'Back to Task', exact: true },
+    ).click();
+
+    await page.evaluate(() => {
+      window.__forcePlanningBlocked = false;
+    });
+
     await gscReviewButton.click();
 
     await page.getByRole(
@@ -5002,6 +5045,44 @@ const main = async () => {
           false;
       },
     );
+
+    await page.evaluate(() => {
+      window.__forcePlanningBlocked = true;
+    });
+
+    await presetEditor.getByRole(
+      'button',
+      { name: 'Review Preset', exact: true },
+    ).click();
+
+    assert.equal(
+      await presetReview.getByText('1 sources · 0 jobs', { exact: true }).count(),
+      1,
+    );
+    assert.equal(
+      await presetReview.getByText('Google Search Console: READY', { exact: true }).count(),
+      1,
+    );
+    assert.equal(
+      await presetReview.getByText(
+        'Planning blocked: google-search-console-query-page',
+        { exact: true },
+      ).count(),
+      1,
+      'READY plus zero Jobs must explain the separate planning blocker.',
+    );
+    assert.equal(
+      await presetReview.getByRole(
+        'button',
+        { name: 'Start Preset Run', exact: true },
+      ).isDisabled(),
+      true,
+    );
+
+    await page.evaluate(() => {
+      window.__forcePlanningBlocked = false;
+    });
+
 
     await presetEditor.getByRole(
       'button',

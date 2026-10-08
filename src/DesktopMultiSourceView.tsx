@@ -4721,6 +4721,12 @@ export function DesktopMultiSourceView() {
                   )
                 }
 
+                {Boolean(quickRunReview.review.planning_blocking_sources?.length) && (
+                  <p className="rr-alert">
+                    Planning blocked: {quickRunReview.review.planning_blocking_sources.join(', ')}
+                  </p>
+                )}
+
                 <div
                   className="rr-task-detail-actions"
                 >
@@ -5595,6 +5601,12 @@ export function DesktopMultiSourceView() {
                               {presetReview.review.blocking_sources.length > 0 && (
                                 <p className="rr-field-error">
                                   Blocked: {presetReview.review.blocking_sources.join(', ')}
+                                </p>
+                              )}
+
+                              {Boolean(presetReview.review.planning_blocking_sources?.length) && (
+                                <p className="rr-field-error">
+                                  Planning blocked: {presetReview.review.planning_blocking_sources.join(', ')}
                                 </p>
                               )}
                               <button

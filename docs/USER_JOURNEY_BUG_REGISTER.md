@@ -215,9 +215,31 @@ P0-02
 ## P1 — Execution completeness and UX
 
 ### P1-01 — READY plus zero Jobs is misleading
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
-Review should separately expose planning blockers rather than showing READY without explaining why Start is disabled.
+Observed:
+
+An included source could report READY but produce zero planned Jobs. Start was disabled without a visible explanation of the separate planning blocker.
+
+Resolution:
+
+The existing DesktopReview contract already separates provider-readiness blockers (blocking_sources) from execution-planning blockers (planning_blocking_sources).
+
+Both Quick Run Review and Saved Preset Review now display planning-blocked source identities separately from readiness. The source remains truthfully READY when provider readiness succeeds but execution planning is incomplete.
+
+Start remains disabled when Review cannot start or does not contain an accepted reviewed execution artifact. No missing Jobs or provider evidence are fabricated.
+
+Verification:
+
+- RED desktop UI regression reproduced READY plus zero Jobs without a visible planning explanation.
+- GREEN Saved Preset Review regression displays the planning blocker and keeps Start Preset Run disabled.
+- GREEN Quick Run Review regression displays the planning blocker and keeps Start Run disabled.
+- Removing the simulated planning blocker preserves the existing reviewed Start workflow.
+- Desktop UI smoke suite passed.
+- TypeScript compilation passed.
+- git diff --check passed.
+
+This establishes deterministic UI verification only. Packaged desktop runtime and live-provider verification were not performed.
 
 ### P1-02 — Unsaved changes warning conflates Run input and preset edits
 Status: OPEN
