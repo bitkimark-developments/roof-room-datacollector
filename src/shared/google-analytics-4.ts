@@ -21,11 +21,13 @@ export const GA4_PAID_FUNNEL_SESSION_FILTER = {
 export type GoogleAnalytics4RequestContext =
   | {
       dataset_type: 'GA4_CONTENT_PERFORMANCE';
+      property_id?: string;
       start_date: string;
       end_date: string;
     }
   | {
       dataset_type: 'GA4_PAID_FUNNEL';
+      property_id?: string;
       start_date: string;
       end_date: string;
       session_filter: typeof GA4_PAID_FUNNEL_SESSION_FILTER;

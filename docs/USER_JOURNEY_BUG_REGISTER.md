@@ -306,9 +306,48 @@ Status: OPEN
 Empty reusable groups or requests must become explicit reviewed Run inputs before Start.
 
 ### P1-09 — Workspace account metadata is not hydrated into Growth execution
-Status: OPEN
 
-Connection readiness alone is insufficient. Required account identity must be resolved safely into execution context.
+Status: DETERMINISTICALLY VERIFIED
+
+Observed:
+
+Connection readiness alone was insufficient. Growth Review could be READY while required provider-target identity was absent from resolved execution context, and several sources still depended on current Workspace connection metadata at execution time.
+
+Expected:
+
+Required provider target identity must be frozen during Review, persisted into every relevant immutable Job source_context, and validated against the active Workspace connection before provider interaction. Missing target metadata must fail Growth Review closed.
+
+Resolution:
+
+Growth Review now hydrates provider-target identity from canonical Workspace connection metadata into resolved execution configuration:
+
+- Google Ads Search Reporting, Search Terms, Change History, Configuration, and Keyword Planner use customer_id.
+- Google Analytics 4 uses property_id.
+- Google Search Console Query and Query x Page use site_url.
+
+Growth planning fails closed when an included API source is missing its required provider target.
+
+Start persists the frozen provider target into each relevant Job source_context.
+
+Search Terms, Keyword Planner, GA4, GSC Query, GSC Query x Page, and Change History now reject reviewed-target versus active-connection mismatches before provider interaction and use the reviewed target for the provider request when present.
+
+Verification:
+
+- RED reproduced missing provider targets in Growth resolved execution configuration.
+- RED reproduced missing provider targets in persisted Growth Job source_context.
+- RED reproduced silent provider retargeting when Workspace metadata changed after Review.
+- Compact reviewed-provider-target integrity regression passed for Search Terms, Keyword Planner, GA4, both GSC sources, and Change History.
+- Google Ads reviewed quick-run integration passed.
+- Keyword Planner reviewed API integration passed.
+- GSC reviewed quick-run integration passed.
+- GA4 source-runtime integration passed.
+- Google Ads Change History source-collect integration passed.
+- Multi-source preset integration passed.
+- Asset preset catalog regression passed.
+- TypeScript compilation passed.
+- git diff --check passed.
+
+This establishes deterministic verification only. Packaged/runtime and live-provider verification were not performed.
 
 ### P1-10 — PROJECT_HANDOFF overstates current Growth completeness
 Status: OPEN

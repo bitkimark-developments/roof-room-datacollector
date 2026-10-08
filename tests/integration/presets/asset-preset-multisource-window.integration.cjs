@@ -1771,6 +1771,260 @@ assert.deepEqual(
 );
 
 
+const {
+  createGoogleAdsGrowthRebuildPreset:
+    createGrowthPresetForP109,
+} = require(
+  `${process.argv[2]}/main/presets/google-ads-growth-rebuild-preset.js`,
+);
+
+const p109Configuration =
+  createGrowthPresetForP109();
+
+p109Configuration
+  .sources['google-keyword-planner']
+  .groups = [{
+    group_id: 'growth-core',
+    group_name: 'Growth Core',
+    keywords: ['growth keyword'],
+  }];
+
+const p109Preset = {
+  preset_id: 'sp_growth_account_metadata',
+  workspace_id: workspace.workspace_id,
+  preset_name: 'Growth Account Metadata',
+  reusable_configuration:
+    p109Configuration,
+  created_at: '2026-10-04T00:00:00.000Z',
+  updated_at: '2026-10-04T00:00:00.000Z',
+};
+
+const p109ApiSources = [
+  'google-ads-search-reporting',
+  'google-ads-search-terms',
+  'google-ads-change-history',
+  'google-ads-configuration',
+  'google-analytics-4',
+  'google-keyword-planner',
+  'google-search-console-query',
+  'google-search-console-query-page',
+];
+
+const p109Targets = {
+  'google-ads-search-reporting':
+    ['customer_id', '1234567890'],
+  'google-ads-search-terms':
+    ['customer_id', '1234567890'],
+  'google-ads-change-history':
+    ['customer_id', '1234567890'],
+  'google-ads-configuration':
+    ['customer_id', '1234567890'],
+  'google-keyword-planner':
+    ['customer_id', '1234567890'],
+  'google-analytics-4':
+    ['property_id', '987654321'],
+  'google-search-console-query':
+    ['site_url', 'sc-domain:example.com'],
+  'google-search-console-query-page':
+    ['site_url', 'sc-domain:example.com'],
+};
+
+const p109Connections = [
+  [
+    'google-ads-search-terms',
+    { customer_id: '1234567890' },
+  ],
+  [
+    'google-analytics-4',
+    { property_id: '987654321' },
+  ],
+  [
+    'google-search-console-query-page',
+    { site_url: 'sc-domain:example.com' },
+  ],
+].map(
+  ([sourceId, safeMetadata]) => ({
+    connection_id:
+      `conn_${sourceId}`,
+    workspace_id:
+      workspace.workspace_id,
+    source_id:
+      sourceId,
+    credential_ref:
+      `cred:${sourceId}`,
+    safe_metadata:
+      safeMetadata,
+    created_at:
+      '2026-10-04T00:00:00.000Z',
+    updated_at:
+      '2026-10-04T00:00:00.000Z',
+  }),
+);
+
+const createP109Controller =
+  (connections) =>
+    new DesktopMultiSourceController({
+      repository: {
+        ...repository,
+        listSavedCollectionPresets:
+          () => [p109Preset],
+        getSavedCollectionPreset:
+          (workspaceId, presetId) =>
+            workspaceId === workspace.workspace_id
+            && presetId === p109Preset.preset_id
+              ? p109Preset
+              : null,
+        listSourceConnections:
+          () => connections,
+      },
+      readiness: {
+        getReadiness:
+          async (workspaceId, sourceId) => ({
+            workspace_id: workspaceId,
+            source_id: sourceId,
+            readiness_status: 'READY',
+            checked_at:
+              '2026-10-04T00:00:00.000Z',
+            message: null,
+          }),
+      },
+      application_version: 'test',
+      source_order: p109ApiSources,
+      now:
+        () =>
+          new Date(
+            2026,
+            9,
+            4,
+            12,
+            0,
+            0,
+          ),
+    });
+
+const reviewP109 =
+  async (connections) => {
+    const controller =
+      createP109Controller(
+        connections,
+      );
+
+    const draft =
+      await controller.createDraft({
+        workspace_id:
+          workspace.workspace_id,
+        origin: {
+          kind: 'SAVED_PRESET',
+          preset_id:
+            p109Preset.preset_id,
+        },
+      });
+
+    return {
+      controller,
+      review:
+        await controller.reviewDraft(
+          draft,
+        ),
+    };
+  };
+
+const {
+  controller: p109Controller,
+  review: p109Review,
+} = await reviewP109(
+  p109Connections,
+);
+
+assert.equal(
+  p109Review.can_start,
+  true,
+  'Configured Growth provider targets must be planning-complete.',
+);
+
+assert.ok(
+  p109Review.reviewed_draft,
+);
+
+const p109Resolved =
+  p109Review.reviewed_draft
+    .resolved_configuration
+    .sources;
+
+for (
+  const [
+    sourceId,
+    [field, expected],
+  ] of Object.entries(p109Targets)
+) {
+  assert.equal(
+    p109Resolved[sourceId][field],
+    expected,
+    `Growth Review must freeze ${field} for ${sourceId}.`,
+  );
+}
+
+const p109Started =
+  await p109Controller.startDraft(
+    p109Review.reviewed_draft,
+  );
+
+for (
+  const [
+    sourceId,
+    [field, expected],
+  ] of Object.entries(p109Targets)
+) {
+  const jobs =
+    p109Started.jobs.filter(
+      (job) =>
+        job.source_id === sourceId,
+    );
+
+  assert.ok(
+    jobs.length > 0,
+    `Growth must plan at least one Job for ${sourceId}.`,
+  );
+
+  assert.equal(
+    jobs.every(
+      (job) =>
+        job.source_context[field]
+          === expected,
+    ),
+    true,
+    `Growth Jobs must freeze ${field} for ${sourceId}.`,
+  );
+}
+
+const {
+  review: p109MissingMetadataReview,
+} = await reviewP109(
+  p109Connections.map(
+    (connection) => ({
+      ...structuredClone(connection),
+      safe_metadata: {},
+    }),
+  ),
+);
+
+assert.equal(
+  p109MissingMetadataReview.can_start,
+  false,
+);
+
+assert.equal(
+  p109MissingMetadataReview.reviewed_draft,
+  null,
+);
+
+assert.deepEqual(
+  p109MissingMetadataReview
+    .planning_blocking_sources,
+  p109ApiSources,
+  'Growth Review must fail closed for every included API source whose required provider target is absent.',
+);
+
 console.log(
   'PASS ASSET-PRESET-MULTISOURCE-001: multi-source preset review/start resolves relative Blog windows only into execution and snapshot context',
 );

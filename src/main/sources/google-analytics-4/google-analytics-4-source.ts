@@ -110,12 +110,14 @@ const requireJobContext = (
     datasetType === 'GA4_PAID_FUNNEL'
       ? [
           'dataset_type',
+          'property_id',
           'start_date',
           'end_date',
           'session_filter',
         ]
       : [
           'dataset_type',
+          'property_id',
           'start_date',
           'end_date',
         ],
@@ -138,6 +140,25 @@ const requireJobContext = (
   const endDate = requireDate(
     context.source_context.end_date,
   );
+
+  const propertyIdValue =
+    context.source_context.property_id;
+
+  let propertyId:
+    string | undefined;
+
+  if (propertyIdValue === undefined) {
+    propertyId = undefined;
+  } else if (
+    typeof propertyIdValue === 'string'
+    && /^\d+$/u.test(propertyIdValue)
+  ) {
+    propertyId = propertyIdValue;
+  } else {
+    throw new Error(
+      'GA4 Job context property ID is invalid.',
+    );
+  }
 
   if (startDate > endDate) {
     throw new Error(
@@ -170,6 +191,9 @@ const requireJobContext = (
 
     return {
       dataset_type: datasetType,
+      ...(propertyId === undefined
+        ? {}
+        : { property_id: propertyId }),
       start_date: startDate,
       end_date: endDate,
       session_filter:
@@ -179,6 +203,9 @@ const requireJobContext = (
 
   return {
     dataset_type: datasetType,
+    ...(propertyId === undefined
+      ? {}
+      : { property_id: propertyId }),
     start_date: startDate,
     end_date: endDate,
   };
@@ -242,11 +269,31 @@ implements CollectingDataSourceModule {
       };
     }
 
+    const reviewedPropertyId =
+      jobContext.property_id;
+
+    if (
+      reviewedPropertyId === undefined
+        ? false
+        : reviewedPropertyId === this.propertyId
+          ? false
+          : true
+    ) {
+      return {
+        result_type: 'FAILED',
+        error_code: 'SOURCE_CONFIGURATION_INVALID',
+        message:
+          'GA4 reviewed Property ID does not match the active Workspace connection.',
+      };
+    }
+
     try {
       const rawBundle =
         await collectGoogleAnalytics4Raw(
           {
-            property_id: this.propertyId,
+            property_id:
+              reviewedPropertyId
+              ?? this.propertyId,
             dataset_type: jobContext.dataset_type,
             start_date: jobContext.start_date,
             end_date: jobContext.end_date,

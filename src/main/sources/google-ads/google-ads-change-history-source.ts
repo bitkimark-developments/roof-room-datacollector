@@ -65,16 +65,41 @@ export class GoogleAdsChangeHistorySource implements CollectingDataSourceModule 
       };
     }
 
+    let jobContext:
+      ReturnType<
+        typeof createGoogleAdsChangeHistoryJobContext
+      >;
+
     try {
-      const jobContext =
+      jobContext =
         createGoogleAdsChangeHistoryJobContext(
           context.source_context,
         );
 
+      if (
+        jobContext.customer_id === this.customerId
+          ? false
+          : true
+      ) {
+        throw new Error(
+          'Google Ads Change History reviewed customer does not match the active Workspace connection.',
+        );
+      }
+    } catch {
+      return {
+        result_type: 'FAILED',
+        error_code: 'SOURCE_CONFIGURATION_INVALID',
+        message:
+          'Google Ads Change History requires valid immutable reviewed context.',
+      };
+    }
+
+    try {
       const raw =
         await requestGoogleAdsChangeHistoryRaw(
           {
-            customer_id: this.customerId,
+            customer_id:
+              jobContext.customer_id,
             query:
               buildGoogleAdsChangeHistoryQuery({
                 requested_date_start:

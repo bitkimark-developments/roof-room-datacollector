@@ -178,7 +178,7 @@ test('KEYWORD-PLANNER-REVIEW-BOUND-001: Review persists exact groups and product
   });
   const task = DESKTOP_TASK_CATALOG.find((item) => item.task_id === TASK);
   assert.ok(task);
-  const draft = controller.createDraft({
+  const draft = await controller.createDraft({
     workspace_id: workspace.workspace_id,
     origin: { kind: 'BLANK' },
   });

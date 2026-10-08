@@ -18,6 +18,7 @@ export interface KeywordPlannerJobContext {
   task_id: typeof KEYWORD_PLANNER_TASK_ID;
   source_id: typeof GOOGLE_KEYWORD_PLANNER_SOURCE_ID;
   source_mode: typeof KEYWORD_PLANNER_SOURCE_MODE;
+  customer_id?: string;
   group_id: string;
   group_name: string;
   keywords: string[];
@@ -172,6 +173,24 @@ export const createKeywordPlannerJobContext = (
     );
   }
 
+  const customerId =
+    context.customer_id === undefined
+      ? undefined
+      : requireTrimmedString(
+          context.customer_id,
+          'customer_id',
+        );
+
+  if (
+    customerId === undefined
+      ? false
+      : /^\d+$/u.test(customerId) === false
+  ) {
+    throw new Error(
+      'Keyword Planner customer_id must contain digits only.',
+    );
+  }
+
   const groupId =
     requireTrimmedString(
       context.group_id,
@@ -271,6 +290,9 @@ export const createKeywordPlannerJobContext = (
       GOOGLE_KEYWORD_PLANNER_SOURCE_ID,
     source_mode:
       KEYWORD_PLANNER_SOURCE_MODE,
+    ...(customerId === undefined
+      ? {}
+      : { customer_id: customerId }),
     group_id:
       groupId,
     group_name:
@@ -314,6 +336,12 @@ export const keywordPlannerContextAsJson = (
     context.source_id,
   source_mode:
     context.source_mode,
+  ...(context.customer_id === undefined
+    ? {}
+    : {
+        customer_id:
+          context.customer_id,
+      }),
   group_id:
     context.group_id,
   group_name:

@@ -280,14 +280,35 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
     }
 
     try {
-      return createGoogleAnalytics4JobPlans({
-        start_date: config.start_date,
-        end_date: config.end_date,
-        datasets:
-          Array.isArray(config.datasets)
-            ? config.datasets as never
-            : undefined,
-      });
+      const jobPlans =
+        createGoogleAnalytics4JobPlans({
+          start_date: config.start_date,
+          end_date: config.end_date,
+          datasets:
+            Array.isArray(config.datasets)
+              ? config.datasets as never
+              : undefined,
+        });
+
+      const propertyId =
+        typeof config.property_id === 'string'
+          ? config.property_id
+          : null;
+
+      return jobPlans.map(
+        (plan) => ({
+          ...plan,
+          source_context: {
+            ...plan.source_context,
+            ...(propertyId === null
+              ? {}
+              : {
+                  property_id:
+                    propertyId,
+                }),
+          },
+        }),
+      );
     } catch {
       return [];
     }
@@ -329,14 +350,35 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
     sourceId === 'google-search-console-query-page'
     || sourceId === 'google-search-console-query'
   ) {
-    return plans(
-      Array.isArray(config.date_ranges)
-        ? config.date_ranges
-        : [],
-      (item, index) =>
-        typeof item.job_key === 'string'
-          ? item.job_key
-          : `gsc-${index + 1}`,
+    const jobPlans =
+      plans(
+        Array.isArray(config.date_ranges)
+          ? config.date_ranges
+          : [],
+        (item, index) =>
+          typeof item.job_key === 'string'
+            ? item.job_key
+            : `gsc-${index + 1}`,
+      );
+
+    const siteUrl =
+      typeof config.site_url === 'string'
+        ? config.site_url
+        : null;
+
+    return jobPlans.map(
+      (plan) => ({
+        ...plan,
+        source_context: {
+          ...plan.source_context,
+          ...(siteUrl === null
+            ? {}
+            : {
+                site_url:
+                  siteUrl,
+              }),
+        },
+      }),
     );
   }
   if (sourceId === 'serpapi') {
@@ -368,12 +410,22 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
     try {
       const contexts =
         config.groups.map(
-          (group) =>
-            keywordPlannerContextAsJson(
-              createKeywordPlannerJobContext(
-                group,
-              ),
-            ),
+          (group) => {
+            const context =
+              keywordPlannerContextAsJson(
+                createKeywordPlannerJobContext(
+                  group,
+                ),
+              );
+
+            return typeof config.customer_id === 'string'
+              ? {
+                  ...context,
+                  customer_id:
+                    config.customer_id,
+                }
+              : context;
+          },
         );
 
       const groupIds =
@@ -535,7 +587,34 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
     }
   }
 
-  if (sourceId === 'google-ads-search-terms') return plans(Array.isArray(config.jobs) ? config.jobs : [{}], (_item, index) => `search-terms-${index + 1}`);
+  if (sourceId === 'google-ads-search-terms') {
+    const jobPlans =
+      plans(
+        Array.isArray(config.jobs)
+          ? config.jobs
+          : [{}],
+        (_item, index) =>
+          `search-terms-${index + 1}`,
+      );
+
+    const customerId =
+      typeof config.customer_id === 'string'
+        ? config.customer_id
+        : null;
+
+    return customerId === null
+      ? jobPlans
+      : jobPlans.map(
+          (plan) => ({
+            ...plan,
+            source_context: {
+              ...plan.source_context,
+              customer_id:
+                customerId,
+            },
+          }),
+        );
+  }
   if (sourceId === 'ikas-products') {
     try {
       const context =
@@ -961,12 +1040,80 @@ export class DesktopMultiSourceController {
         ),
       );
 
+    const growthSourceIds = [
+      'google-ads-search-reporting',
+      'google-ads-search-terms',
+      'google-ads-change-history',
+      'google-ads-configuration',
+      'google-analytics-4',
+      'google-keyword-planner',
+      'google-search-console-query',
+      'google-search-console-query-page',
+      'google-trends',
+    ];
+
+    const isGoogleAdsGrowthConfiguration =
+      growthSourceIds.every(
+        (sourceId) =>
+          included(
+            draft.reusable_configuration,
+            sourceId,
+          ),
+      );
+
+    const executionSources =
+      asJsonObjectValue(
+        executionConfiguration.sources,
+      );
+
+    const growthProviderTargetFieldBySource =
+      new Map<string, string>([
+        ['google-ads-search-reporting', 'customer_id'],
+        ['google-ads-search-terms', 'customer_id'],
+        ['google-ads-change-history', 'customer_id'],
+        ['google-ads-configuration', 'customer_id'],
+        ['google-keyword-planner', 'customer_id'],
+        ['google-analytics-4', 'property_id'],
+        ['google-search-console-query', 'site_url'],
+        ['google-search-console-query-page', 'site_url'],
+      ]);
+
+    const missingGrowthProviderTargetSources =
+      isGoogleAdsGrowthConfiguration
+        ? includedSources.filter(
+            (sourceId) => {
+              const targetField =
+                growthProviderTargetFieldBySource
+                  .get(
+                    sourceId,
+                  );
+
+              if (targetField === undefined) {
+                return false;
+              }
+
+              const value =
+                asJsonObjectValue(
+                  executionSources[sourceId],
+                )[targetField];
+
+              return typeof value === 'string'
+                ? value.trim().length === 0
+                : true;
+            },
+          )
+        : [];
+
     const planningBlockingSources =
       includedSources.filter(
         (sourceId) =>
-          !plannedSourceIds.has(
+          plannedSourceIds.has(
             sourceId,
-          ),
+          ) === false
+          || missingGrowthProviderTargetSources
+            .includes(
+              sourceId,
+            ),
       );
 
     const canStart =
@@ -2091,8 +2238,10 @@ export class DesktopMultiSourceController {
 
       if (
         sourceId === 'google-ads-search-reporting'
+        || sourceId === 'google-ads-search-terms'
         || sourceId === 'google-ads-change-history'
         || sourceId === 'google-ads-configuration'
+        || sourceId === 'google-keyword-planner'
       ) {
         const adsConnection =
           this.dependencies.repository
@@ -2116,6 +2265,64 @@ export class DesktopMultiSourceController {
         ) {
           sourceConfiguration.customer_id =
             customerId.trim();
+        }
+      }
+
+      if (
+        sourceId === 'google-analytics-4'
+      ) {
+        const ga4Connection =
+          this.dependencies.repository
+            .listSourceConnections(
+              draft.workspace_id,
+            )
+            .find(
+              (connection) =>
+                connection.source_id
+                  === 'google-analytics-4',
+            );
+
+        const propertyId =
+          asObject(
+            ga4Connection?.safe_metadata,
+          ).property_id;
+
+        if (
+          typeof propertyId === 'string'
+          && propertyId.trim().length > 0
+        ) {
+          sourceConfiguration.property_id =
+            propertyId.trim();
+        }
+      }
+
+      if (
+        sourceId === 'google-search-console-query'
+        || sourceId
+          === 'google-search-console-query-page'
+      ) {
+        const gscConnection =
+          this.dependencies.repository
+            .listSourceConnections(
+              draft.workspace_id,
+            )
+            .find(
+              (connection) =>
+                connection.source_id
+                  === 'google-search-console-query-page',
+            );
+
+        const siteUrl =
+          asObject(
+            gscConnection?.safe_metadata,
+          ).site_url;
+
+        if (
+          typeof siteUrl === 'string'
+          && siteUrl.trim().length > 0
+        ) {
+          sourceConfiguration.site_url =
+            siteUrl.trim();
         }
       }
 

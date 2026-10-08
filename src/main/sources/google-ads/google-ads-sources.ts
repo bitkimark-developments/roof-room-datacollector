@@ -27,6 +27,31 @@ export class GoogleAdsSearchTermsSource implements CollectingDataSourceModule {
 
   async collect(context: SourceCollectionContext): Promise<SourceCollectionResult> {
     if (!this.customerId) return { result_type: 'FAILED', error_code: 'CONFIGURATION_REQUIRED', message: 'Google Ads customer is required.' };
+    const reviewedCustomerId =
+      context.source_context?.customer_id;
+
+    if (
+      reviewedCustomerId === undefined
+        ? false
+        : (
+            typeof reviewedCustomerId === 'string'
+            && /^\d+$/u.test(reviewedCustomerId)
+            && reviewedCustomerId === this.customerId
+          ) === false
+    ) {
+      return {
+        result_type: 'FAILED',
+        error_code: 'SOURCE_CONFIGURATION_INVALID',
+        message:
+          'Ads Search Terms reviewed customer does not match the active Workspace connection.',
+      };
+    }
+
+    const requestCustomerId =
+      typeof reviewedCustomerId === 'string'
+        ? reviewedCustomerId
+        : this.customerId;
+
     let query: string;
     try {
       query = buildSearchTermsQuery(context);
@@ -34,7 +59,7 @@ export class GoogleAdsSearchTermsSource implements CollectingDataSourceModule {
       return { result_type: 'FAILED', error_code: 'SOURCE_CONFIGURATION_INVALID', message: 'Ads Search Terms requires valid absolute dates and the reviewed SEARCH source contract.' };
     }
     try {
-      const result = await fetchSearchTerms({ customer_id: this.customerId, query }, this.requester);
+      const result = await fetchSearchTerms({ customer_id: requestCustomerId, query }, this.requester);
       return { result_type: 'ARTIFACT_PRODUCED', preferred_filename: 'google-ads-search-terms.json', media_type: 'application/json', bytes: new TextEncoder().encode(JSON.stringify(result.raw)) };
     } catch (error) {
       return mapGoogleApiCollectionError(error, 'GOOGLE_ADS_API_FAILED', 'Google Ads request failed.');
@@ -89,12 +114,31 @@ export class GoogleKeywordPlannerSource implements CollectingDataSourceModule {
       };
     }
 
+    if (
+      jobContext.customer_id === undefined
+        ? false
+        : jobContext.customer_id === this.customerId
+          ? false
+          : true
+    ) {
+      return {
+        result_type: 'FAILED',
+        error_code: 'SOURCE_CONFIGURATION_INVALID',
+        message:
+          'Keyword Planner reviewed customer does not match the active Workspace connection.',
+      };
+    }
+
+    const requestCustomerId =
+      jobContext.customer_id
+      ?? this.customerId;
+
     try {
       const result =
         await requestKeywordPlannerRaw(
           {
             customer_id:
-              this.customerId,
+              requestCustomerId,
             group_id:
               jobContext.group_id,
             keywords:

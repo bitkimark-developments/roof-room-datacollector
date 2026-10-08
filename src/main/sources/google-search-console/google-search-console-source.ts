@@ -24,6 +24,26 @@ const requireDate = (value: unknown): string => {
   return value;
 };
 
+const requireOptionalSiteUrl = (
+  value: unknown,
+): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    typeof value === 'string'
+    && value.trim().length > 0
+    && value === value.trim()
+  ) {
+    return value;
+  }
+
+  throw new Error(
+    'Search Console reviewed site URL is invalid.',
+  );
+};
+
 export class GoogleSearchConsoleSource implements CollectingDataSourceModule {
   readonly id = GSC_QUERY_PAGE_SOURCE_ID;
   readonly name = 'Google Search Console Query × Page';
@@ -66,9 +86,31 @@ export class GoogleSearchConsoleSource implements CollectingDataSourceModule {
       return { result_type: 'FAILED', error_code: 'SOURCE_CONFIGURATION_INVALID', message: 'Source context is missing.' };
     }
 
+    let siteUrl: string;
     let start: string;
     let end: string;
     try {
+      const reviewedSiteUrl =
+        requireOptionalSiteUrl(
+          sourceContext.site_url,
+        );
+
+      if (
+        reviewedSiteUrl === undefined
+          ? false
+          : reviewedSiteUrl === this.siteUrl
+            ? false
+            : true
+      ) {
+        throw new Error(
+          'Search Console reviewed site does not match the active Workspace connection.',
+        );
+      }
+
+      siteUrl =
+        reviewedSiteUrl
+        ?? this.siteUrl;
+
       start = requireDate(sourceContext.requested_date_start);
       end = requireDate(sourceContext.requested_date_end);
       if (start > end) {
@@ -79,7 +121,7 @@ export class GoogleSearchConsoleSource implements CollectingDataSourceModule {
     }
 
     const request: GscQueryPageRequest = {
-      site_url: this.siteUrl,
+      site_url: siteUrl,
       start_date: start,
       end_date: end,
     };
@@ -160,10 +202,32 @@ export class GoogleSearchConsoleQuerySource
       };
     }
 
+    let siteUrl: string;
     let start: string;
     let end: string;
 
     try {
+      const reviewedSiteUrl =
+        requireOptionalSiteUrl(
+          sourceContext.site_url,
+        );
+
+      if (
+        reviewedSiteUrl === undefined
+          ? false
+          : reviewedSiteUrl === this.siteUrl
+            ? false
+            : true
+      ) {
+        throw new Error(
+          'Search Console reviewed site does not match the active Workspace connection.',
+        );
+      }
+
+      siteUrl =
+        reviewedSiteUrl
+        ?? this.siteUrl;
+
       start = requireDate(
         sourceContext.requested_date_start,
       );
@@ -188,7 +252,7 @@ export class GoogleSearchConsoleQuerySource
     }
 
     const request: GscQueryRequest = {
-      site_url: this.siteUrl,
+      site_url: siteUrl,
       start_date: start,
       end_date: end,
     };
