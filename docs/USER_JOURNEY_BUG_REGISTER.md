@@ -377,9 +377,30 @@ Verification:
 No packaged-runtime or live-provider verification is claimed.
 
 ### P1-08 — Blog KWP, Sitemap and SerpApi inputs are not execution-ready
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
-Empty reusable groups or requests must become explicit reviewed Run inputs before Start.
+Observed:
+Saved Presets included Keyword Planner, Bitkimark Sitemap and SerpApi tasks
+without providing editors for their explicit provider request inputs.
+
+Resolution:
+- Saved Preset editor supports Keyword Planner groups, verified Sitemap URLs
+  and SerpApi queries.
+- Incomplete or duplicate request identities block Save and Duplicate.
+- Save and Duplicate normalize explicit Keyword Planner and SerpApi inputs
+  using existing deterministic parsers.
+- Saved requests survive Save, reopen and Review without inferred inputs.
+- Empty requests remain unplanned; included sources without Jobs block Start.
+- Existing Ikas-only Run-scoped input semantics remain unchanged.
+
+Deterministic verification:
+- Desktop UI smoke covers editing, validation, multiple sitemap selections,
+  normalized persistence through the in-memory Preset fixture, reopen and Review.
+- Desktop multisource integration uses the real production planner to verify
+  empty-input blocking, five provider-native JobPlans from explicit requests,
+  and Start reservation through a reviewed artifact.
+- No packaged-runtime, SQLite-backed Preset persistence or live-provider
+  verification is claimed.
 
 ### P1-09 — Workspace account metadata is not hydrated into Growth execution
 

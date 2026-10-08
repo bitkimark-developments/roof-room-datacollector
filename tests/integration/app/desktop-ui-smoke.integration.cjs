@@ -337,6 +337,33 @@ const main = async () => {
             updated_at: '2026-09-14T00:00:01.000Z',
           },
         ];
+        window.__presetState.push({
+          preset_id: 'sp_blog_inputs_fixture',
+          workspace_id: 'ws_fixture',
+          preset_name: 'Blog Source Inputs Fixture',
+          reusable_configuration: {
+            sources: {
+              'google-keyword-planner': {
+                included: true,
+                task_id: 'keyword-planner-historical-metrics',
+                groups: [],
+              },
+              'bitkimark-sitemap': {
+                included: true,
+                task_id: 'bitkimark-sitemap',
+                sitemaps: [],
+              },
+              serpapi: {
+                included: true,
+                task_id: 'serpapi-serp-snapshot',
+                queries: [],
+              },
+            },
+          },
+          created_at: '2026-09-14T00:00:02.000Z',
+          updated_at: '2026-09-14T00:00:02.000Z',
+        });
+
         window.__workspaceConnectionState = [
           {
             source_id: 'google-search-console-query-page',
@@ -5045,7 +5072,334 @@ const main = async () => {
 
     await page.getByRole('button', { name: 'PRESETS', exact: true }).click();
     await page.getByRole('heading', { name: 'Presets', exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Open', exact: true }).first().click();
+
+    // P1-08: Empty provider requests must be configurable in Saved Presets.
+    const blogInputsPreset = page.getByText(
+      'Blog Source Inputs Fixture',
+      { exact: true },
+    );
+
+    await blogInputsPreset.locator('..').getByRole(
+      'button',
+      { name: 'Open', exact: true },
+    ).click();
+
+    const blogInputsEditor = page.getByTestId('preset-editor');
+
+    await page.waitForFunction(
+      () => document.querySelector('input[aria-label="Edit preset name"]')?.value
+        === 'Blog Source Inputs Fixture',
+    );
+
+    for (const [testId, source] of [
+      ['preset-keyword-planner-input', 'Keyword Planner'],
+      ['preset-bitkimark-sitemap-input', 'Bitkimark Sitemap'],
+      ['preset-serpapi-input', 'SerpApi'],
+    ]) {
+      assert.equal(
+        await blogInputsEditor.getByTestId(testId).count(),
+        1,
+        `Saved Preset must provide explicit ${source} request inputs.`,
+      );
+    }
+
+    // P1-08: Multiple explicitly selected sitemap URLs must survive UI updates.
+    const presetSitemapInput = blogInputsEditor.getByTestId(
+      'preset-bitkimark-sitemap-input',
+    );
+    const sitemapChoices = presetSitemapInput.locator(
+      'input[type="checkbox"]',
+    );
+
+    assert.ok(
+      await sitemapChoices.count() >= 2,
+      'Preset must expose the root and at least one verified child sitemap.',
+    );
+
+    await sitemapChoices.nth(0).click();
+
+    assert.equal(
+      await sitemapChoices.nth(0).isChecked(),
+      true,
+      'Explicit root sitemap selection must be preserved.',
+    );
+
+    await sitemapChoices.nth(1).click();
+
+    assert.equal(
+      await sitemapChoices.nth(1).isChecked(),
+      true,
+      'Explicit child sitemap selection must be preserved alongside the root.',
+    );
+
+    // P1-08: SerpApi queries require complete, unique request identities.
+    const presetSerpInput = blogInputsEditor.getByTestId(
+      'preset-serpapi-input',
+    );
+    const presetSaveButton = blogInputsEditor.getByRole(
+      'button',
+      { name: 'Save Changes', exact: true },
+    );
+    const presetDuplicateButton = blogInputsEditor.getByRole(
+      'button',
+      { name: 'Duplicate', exact: true },
+    );
+
+    await presetSerpInput.getByRole(
+      'button',
+      { name: 'Add SERP query', exact: true },
+    ).click();
+
+    assert.equal(
+      await presetSaveButton.isDisabled(),
+      true,
+      'An empty SerpApi request must block Preset Save.',
+    );
+
+    await presetSerpInput.getByLabel(
+      'Preset SERP query 1 ID',
+    ).fill('serp-query-one');
+
+    await presetSerpInput.getByLabel(
+      'Preset SERP query 1 text',
+    ).fill('  first explicit search  ');
+
+    assert.equal(
+      await presetSaveButton.isEnabled(),
+      true,
+      'A valid SerpApi request must permit Preset Save.',
+    );
+
+    await presetSerpInput.getByRole(
+      'button',
+      { name: 'Add SERP query', exact: true },
+    ).click();
+
+    await presetSerpInput.getByLabel(
+      'Preset SERP query 2 ID',
+    ).fill('serp-query-one');
+
+    await presetSerpInput.getByLabel(
+      'Preset SERP query 2 text',
+    ).fill('second explicit search');
+
+    assert.equal(
+      await presetSaveButton.isDisabled(),
+      true,
+      'Duplicate SerpApi job keys must block Preset Save.',
+    );
+
+    assert.equal(
+      await presetDuplicateButton.isDisabled(),
+      true,
+      'Duplicate SerpApi job keys must block Preset duplication.',
+    );
+
+    await presetSerpInput.getByLabel(
+      'Preset SERP query 2 ID',
+    ).fill('serp-query-two');
+
+    assert.equal(
+      await presetSaveButton.isEnabled(),
+      true,
+      'Correcting SerpApi job keys must restore Preset Save.',
+    );
+
+    assert.equal(
+      await presetDuplicateButton.isEnabled(),
+      true,
+      'Correcting SerpApi job keys must restore duplication.',
+    );
+
+    // P1-08: An incomplete provider request cannot be persisted.
+    const presetKwpInput = blogInputsEditor.getByTestId(
+      'preset-keyword-planner-input',
+    );
+
+    await presetKwpInput.getByRole(
+      'button',
+      { name: 'Add keyword group', exact: true },
+    ).click();
+
+    assert.equal(
+      await blogInputsEditor.getByRole(
+        'button',
+        { name: 'Save Changes', exact: true },
+      ).isDisabled(),
+      true,
+      'An incomplete Keyword Planner group must block Preset Save.',
+    );
+
+    assert.equal(
+      await blogInputsEditor.getByRole(
+        'button',
+        { name: 'Duplicate', exact: true },
+      ).isDisabled(),
+      true,
+      'An incomplete Keyword Planner group must not be duplicated.',
+    );
+
+    // P1-08: Explicit source requests survive Save, reopen, and Review.
+    await presetKwpInput.getByLabel(
+      'Preset keyword group 1 group_id',
+    ).fill('garden-basics');
+
+    await presetKwpInput.getByLabel(
+      'Preset keyword group 1 group_name',
+    ).fill('Garden Basics');
+
+    await presetKwpInput.getByLabel(
+      'Preset keyword group 1 keywords',
+    ).fill('seed packets, organic seeds');
+
+    assert.equal(
+      await presetSaveButton.isEnabled(),
+      true,
+      'Complete requests must permit Preset Save.',
+    );
+
+    const sitemapLabels = await presetSitemapInput
+      .locator('label span')
+      .allTextContents();
+
+    const rootSitemapUrl = sitemapLabels[0].trim();
+    const childSitemapUrl = sitemapLabels[1].trim();
+
+    await presetSaveButton.click();
+
+    await page.getByText(
+      'Preset updated: Blog Source Inputs Fixture',
+      { exact: true },
+    ).waitFor();
+
+    const savedSourceRequests = await page.evaluate(() => {
+      const preset = window.__presetState.find(
+        (item) => item.preset_id === 'sp_blog_inputs_fixture',
+      );
+      return structuredClone(preset.reusable_configuration.sources);
+    });
+
+    assert.deepEqual(
+      savedSourceRequests['google-keyword-planner'].groups,
+      [{
+        group_id: 'garden-basics',
+        group_name: 'Garden Basics',
+        keywords: ['seed packets', 'organic seeds'],
+      }],
+      'Keyword Planner groups must be persisted exactly.',
+    );
+
+    assert.deepEqual(
+      savedSourceRequests['bitkimark-sitemap'].sitemaps,
+      [
+        {
+          requested_url: rootSitemapUrl,
+          expected_host: 'bitkimark.com',
+          parent_sitemap_url: null,
+        },
+        {
+          requested_url: childSitemapUrl,
+          expected_host: 'bitkimark.com',
+          parent_sitemap_url: rootSitemapUrl,
+        },
+      ],
+      'Both explicit sitemap contexts must be persisted.',
+    );
+
+    assert.deepEqual(
+      savedSourceRequests.serpapi.queries,
+      [
+        { job_key: 'serp-query-one', query: 'first explicit search' },
+        { job_key: 'serp-query-two', query: 'second explicit search' },
+      ],
+      'SerpApi query identities and text must be persisted exactly.',
+    );
+
+    // Switch away so reopening tests hydration, not retained editor state.
+    await page.getByText('Blog-Agentic-Beklentisi', { exact: true })
+      .locator('..')
+      .getByRole('button', { name: 'Open', exact: true })
+      .click();
+
+    await page.waitForFunction(
+      () => document.querySelector(
+        'input[aria-label="Edit preset name"]',
+      )?.value === 'Blog-Agentic-Beklentisi',
+    );
+
+    await page.getByText('Blog Source Inputs Fixture', { exact: true })
+      .locator('..')
+      .getByRole('button', { name: 'Open', exact: true })
+      .click();
+
+    await page.waitForFunction(
+      () => document.querySelector(
+        'input[aria-label="Edit preset name"]',
+      )?.value === 'Blog Source Inputs Fixture',
+    );
+
+    assert.equal(
+      await blogInputsEditor.getByLabel(
+        'Preset keyword group 1 group_id',
+      ).inputValue(),
+      'garden-basics',
+      'Reopened Preset must hydrate the saved Keyword Planner group.',
+    );
+
+    assert.equal(
+      await blogInputsEditor.getByLabel(
+        'Preset SERP query 2 text',
+      ).inputValue(),
+      'second explicit search',
+      'Reopened Preset must hydrate saved SerpApi queries.',
+    );
+
+    assert.equal(
+      await blogInputsEditor
+        .getByTestId('preset-bitkimark-sitemap-input')
+        .locator('input[type="checkbox"]')
+        .nth(1)
+        .isChecked(),
+      true,
+      'Reopened Preset must retain the child sitemap selection.',
+    );
+
+    await blogInputsEditor.getByRole(
+      'button',
+      { name: 'Review Preset', exact: true },
+    ).click();
+
+    await page.waitForFunction(
+      () => window.__reviewedDesktopDraft?.origin?.preset_id
+        === 'sp_blog_inputs_fixture',
+    );
+
+    const reviewedPresetDraft = await page.evaluate(
+      () => structuredClone(window.__reviewedDesktopDraft),
+    );
+
+    assert.deepEqual(
+      reviewedPresetDraft.origin,
+      { kind: 'SAVED_PRESET', preset_id: 'sp_blog_inputs_fixture' },
+      'Review must resolve the saved Preset identity.',
+    );
+
+    assert.deepEqual(
+      reviewedPresetDraft.reusable_configuration.sources,
+      savedSourceRequests,
+      'Review must receive the exact persisted source requests.',
+    );
+
+    await page.getByText('Blog-Agentic-Beklentisi', { exact: true })
+      .locator('..')
+      .getByRole('button', { name: 'Open', exact: true })
+      .click();
+
+    await page.waitForFunction(
+      () => document.querySelector('input[aria-label="Edit preset name"]')?.value
+        === 'Blog-Agentic-Beklentisi',
+    );
+
     const presetEditor = page.getByTestId('preset-editor');
     const gscPresetTask = presetEditor.locator('label').filter({ hasText: 'GSC — Current 90 Days' });
     assert.equal(await gscPresetTask.getByRole('checkbox').isChecked(), true);

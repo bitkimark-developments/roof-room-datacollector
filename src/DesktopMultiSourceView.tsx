@@ -2693,8 +2693,64 @@ export function DesktopMultiSourceView() {
       }
     };
 
+  const normalizedPresetConfiguration = () => {
+    const sources = getReusableSources(presetEditorConfiguration);
+    const overrides: JsonObject = {};
+
+    if (presetKwpEnabled && presetKwpGroups.length > 0) {
+      const groups = parseKeywordPlannerGroups(
+        presetKwpGroups.map((group, index) => ({
+          row_id: index + 1,
+          group_id: typeof group.group_id === 'string'
+            ? group.group_id
+            : '',
+          group_name: typeof group.group_name === 'string'
+            ? group.group_name
+            : '',
+          keywords: Array.isArray(group.keywords)
+            ? group.keywords.join(', ')
+            : '',
+        })),
+      );
+
+      if (groups === null) {
+        throw new Error('Keyword Planner Preset groups are invalid.');
+      }
+
+      overrides['google-keyword-planner'] = {
+        ...(sources['google-keyword-planner'] as JsonObject),
+        groups,
+      };
+    }
+
+    if (presetSerpApiEnabled && presetSerpApiQueries.length > 0) {
+      const queries = parseSerpApiQueries(presetSerpApiDrafts);
+
+      if (queries === null) {
+        throw new Error('SerpApi Preset queries are invalid.');
+      }
+
+      overrides.serpapi = {
+        ...(sources.serpapi as JsonObject),
+        queries,
+      };
+    }
+
+    if (Object.keys(overrides).length === 0) {
+      return presetEditorConfiguration;
+    }
+
+    return {
+      ...presetEditorConfiguration,
+      sources: {
+        ...sources,
+        ...overrides,
+      },
+    };
+  };
+
   const updatePreset = async () => {
-    if (!workspaceId || !presetId || !presetEditorName.trim() || busy) return;
+    if (!workspaceId || !presetId || !presetEditorName.trim() || busy || !presetKwpValid || !presetSerpApiValid) return;
 
     setBusy(true);
     setMessage(null);
@@ -2703,11 +2759,12 @@ export function DesktopMultiSourceView() {
         workspace_id: workspaceId,
         preset_id: presetId,
         preset_name: presetEditorName.trim(),
-        reusable_configuration: presetEditorConfiguration,
+        reusable_configuration: normalizedPresetConfiguration(),
       });
       const next = await window.roofroom.getDesktopPresets(workspaceId);
       setPresets(next);
       setPresetId(updated.preset_id);
+      setPresetEditorConfiguration(updated.reusable_configuration);
       setPresetEditorDirty(false);
       setMessage(`Preset updated: ${updated.preset_name}`);
     } catch (error) {
@@ -2718,7 +2775,7 @@ export function DesktopMultiSourceView() {
   };
 
   const duplicatePreset = async () => {
-    if (!workspaceId || !presetId || busy) return;
+    if (!workspaceId || !presetId || busy || !presetKwpValid || !presetSerpApiValid) return;
 
     setBusy(true);
     setMessage(null);
@@ -2726,7 +2783,7 @@ export function DesktopMultiSourceView() {
       const created = await window.roofroom.createDesktopPreset({
         workspace_id: workspaceId,
         preset_name: `${presetEditorName.trim()} copy`,
-        reusable_configuration: structuredClone(presetEditorConfiguration),
+        reusable_configuration: structuredClone(normalizedPresetConfiguration()),
       });
       const next = await window.roofroom.getDesktopPresets(workspaceId);
       setPresets(next);
@@ -2809,6 +2866,82 @@ export function DesktopMultiSourceView() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const setPresetKwpGroups = (groups: JsonObject[]) => {
+    setPresetEditorConfiguration((current) => {
+      const sources = getReusableSources(current);
+      const source = sources['google-keyword-planner'];
+
+      if (typeof source !== 'object' || source === null
+        || Array.isArray(source)) return current;
+
+      return {
+        ...current,
+        sources: {
+          ...sources,
+          'google-keyword-planner': {
+            ...(source as JsonObject),
+            groups,
+          },
+        },
+      };
+    });
+    setPresetEditorDirty(true);
+    setPresetReview(null);
+  };
+
+  const updatePresetSitemaps = (urls: string[]) => {
+    const contexts = urls.length === 0
+      ? []
+      : parseBitkimarkSitemapUrls(urls.join('\n'));
+
+    if (contexts === null) return;
+
+    setPresetEditorConfiguration((current) => {
+      const sources = getReusableSources(current);
+      const source = sources['bitkimark-sitemap'];
+      if (typeof source !== 'object' || source === null
+        || Array.isArray(source)) return current;
+
+      return {
+        ...current,
+        sources: {
+          ...sources,
+          'bitkimark-sitemap': {
+            ...(source as JsonObject),
+            sitemaps: contexts,
+          },
+        },
+      };
+    });
+
+    setPresetEditorDirty(true);
+    setPresetReview(null);
+  };
+
+  const updatePresetSerpApiQueries = (queries: JsonObject[]) => {
+    setPresetEditorConfiguration((current) => {
+      const sources = getReusableSources(current);
+      const source = sources.serpapi;
+
+      if (typeof source !== 'object' || source === null
+        || Array.isArray(source)) return current;
+
+      return {
+        ...current,
+        sources: {
+          ...sources,
+          serpapi: {
+            ...(source as JsonObject),
+            queries,
+          },
+        },
+      };
+    });
+
+    setPresetEditorDirty(true);
+    setPresetReview(null);
   };
 
   const setPresetTaskIncluded = (
@@ -3152,6 +3285,78 @@ export function DesktopMultiSourceView() {
   const presetEditorSources = getReusableSources(
     presetEditorConfiguration,
   );
+  const presetKwpSource = presetEditorSources['google-keyword-planner'];
+
+  const presetKwpEnabled =
+    typeof presetKwpSource === 'object'
+    && presetKwpSource !== null
+    && !Array.isArray(presetKwpSource)
+    && (presetKwpSource as JsonObject).included === true
+    && (presetKwpSource as JsonObject).task_id
+      === 'keyword-planner-historical-metrics';
+
+  const presetKwpGroups: JsonObject[] =
+    presetKwpEnabled
+    && Array.isArray((presetKwpSource as JsonObject).groups)
+      ? (presetKwpSource as JsonObject).groups as JsonObject[]
+      : [];
+
+  const presetKwpValid = !presetKwpEnabled
+    || presetKwpGroups.length === 0
+    || parseKeywordPlannerGroups(presetKwpGroups.map((group, index) => ({
+      row_id: index + 1,
+      group_id: typeof group.group_id === 'string' ? group.group_id : '',
+      group_name: typeof group.group_name === 'string' ? group.group_name : '',
+      keywords: Array.isArray(group.keywords)
+        ? group.keywords.join(', ')
+        : '',
+    }))) !== null;
+
+  const presetSitemapSource = presetEditorSources['bitkimark-sitemap'];
+  const presetSitemapEnabled =
+    typeof presetSitemapSource === 'object'
+    && presetSitemapSource !== null
+    && !Array.isArray(presetSitemapSource)
+    && (presetSitemapSource as JsonObject).included === true
+    && (presetSitemapSource as JsonObject).task_id === 'bitkimark-sitemap';
+
+  const presetSitemapContexts =
+    presetSitemapEnabled
+    && Array.isArray((presetSitemapSource as JsonObject).sitemaps)
+      ? (presetSitemapSource as JsonObject).sitemaps as JsonObject[]
+      : [];
+
+  const presetSitemapUrls = presetSitemapContexts.flatMap((item) =>
+    typeof item.requested_url === 'string' ? [item.requested_url] : []);
+
+  const presetSerpApiSource = presetEditorSources.serpapi;
+
+  const presetSerpApiEnabled =
+    typeof presetSerpApiSource === 'object'
+    && presetSerpApiSource !== null
+    && !Array.isArray(presetSerpApiSource)
+    && (presetSerpApiSource as JsonObject).included === true
+    && (presetSerpApiSource as JsonObject).task_id
+      === 'serpapi-serp-snapshot';
+
+  const presetSerpApiQueries: JsonObject[] =
+    presetSerpApiEnabled
+    && Array.isArray((presetSerpApiSource as JsonObject).queries)
+      ? (presetSerpApiSource as JsonObject).queries as JsonObject[]
+      : [];
+
+  const presetSerpApiDrafts: SerpApiQueryDraft[] =
+    presetSerpApiQueries.map((query, index) => ({
+      row_id: index + 1,
+      job_key: typeof query.job_key === 'string' ? query.job_key : '',
+      query: typeof query.query === 'string' ? query.query : '',
+    }));
+
+  const presetSerpApiValid =
+    !presetSerpApiEnabled
+    || presetSerpApiQueries.length === 0
+    || parseSerpApiQueries(presetSerpApiDrafts) !== null;
+
   const presetIkasConfiguration =
     presetEditorSources['ikas-products'];
   const presetIncludesIkasProducts =
@@ -5524,6 +5729,153 @@ export function DesktopMultiSourceView() {
                             })}
                           </div>
 
+                          {presetKwpEnabled && (
+                            <div
+                              className="rr-file-input"
+                              data-testid="preset-keyword-planner-input"
+                            >
+                              <p>Define explicit Keyword Planner groups for this Saved Preset.</p>
+                              {presetKwpGroups.map((group, index) => (
+                                <fieldset key={index}>
+                                  <legend>Keyword group {index + 1}</legend>
+                                  {(['group_id', 'group_name', 'keywords'] as const).map((field) => {
+                                    const value = group[field];
+                                    return (
+                                      <label key={field}>
+                                        <span>{field === 'group_id' ? 'Group ID'
+                                          : field === 'group_name' ? 'Group name' : 'Keywords'}</span>
+                                        <input
+                                          aria-label={`Preset keyword group ${index + 1} ${field}`}
+                                          value={field === 'keywords'
+                                            ? Array.isArray(value) ? value.join(', ') : ''
+                                            : typeof value === 'string' ? value : ''}
+                                          onChange={(event) => setPresetKwpGroups(
+                                            presetKwpGroups.map((row, i) => i === index
+                                              ? {
+                                                  ...row,
+                                                  [field]: field === 'keywords'
+                                                    ? event.target.value.split(',')
+                                                    : event.target.value,
+                                                }
+                                              : row),
+                                          )}
+                                        />
+                                      </label>
+                                    );
+                                  })}
+                                  <button
+                                    type="button"
+                                    onClick={() => setPresetKwpGroups(
+                                      presetKwpGroups.filter((_, i) => i !== index),
+                                    )}
+                                  >
+                                    Remove keyword group {index + 1}
+                                  </button>
+                                </fieldset>
+                              ))}
+                              {!presetKwpValid && (
+                                <p className="rr-field-error">
+                                  Complete each group with a unique valid ID, name and keywords.
+                                </p>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setPresetKwpGroups([
+                                  ...presetKwpGroups,
+                                  { group_id: '', group_name: '', keywords: [] },
+                                ])}
+                              >
+                                Add keyword group
+                              </button>
+                            </div>
+                          )}
+                          {presetSitemapEnabled && (
+                            <div className="rr-file-input" data-testid="preset-bitkimark-sitemap-input">
+                              <p>Select explicit verified sitemap URLs. Select the root first.</p>
+                              {BITKIMARK_VERIFIED_SITEMAP_URLS.map((url, index) => (
+                                <label key={url}>
+                                  <input
+                                    type="checkbox"
+                                    checked={presetSitemapUrls.includes(url)}
+                                    disabled={index > 0
+                                      && !presetSitemapUrls.includes(BITKIMARK_VERIFIED_SITEMAP_URLS[0])}
+                                    onChange={(event) => {
+                                      if (index === 0 && !event.target.checked) {
+                                        updatePresetSitemaps([]);
+                                        return;
+                                      }
+                                      const next = new Set(presetSitemapUrls);
+                                      if (event.target.checked) next.add(url);
+                                      else next.delete(url);
+                                      updatePresetSitemaps(
+                                        BITKIMARK_VERIFIED_SITEMAP_URLS.filter((item) => next.has(item)),
+                                      );
+                                    }}
+                                  />
+                                  <span>{url}</span>
+                                </label>
+                              ))}
+                              <p>{presetSitemapUrls.length} sitemap URLs selected.</p>
+                            </div>
+                          )}
+                          {presetSerpApiEnabled && (
+                            <div className="rr-file-input" data-testid="preset-serpapi-input">
+                              <p>Define explicit SerpApi query IDs and search text for this Preset.</p>
+                              {presetSerpApiQueries.map((row, index) => (
+                                <fieldset key={index}>
+                                  <legend>SERP query {index + 1}</legend>
+                                  <label>
+                                    <span>Query ID</span>
+                                    <input
+                                      aria-label={`Preset SERP query ${index + 1} ID`}
+                                      value={presetSerpApiDrafts[index].job_key}
+                                      onChange={(event) => updatePresetSerpApiQueries(
+                                        presetSerpApiQueries.map((item, i) => i === index
+                                          ? { ...item, job_key: event.target.value }
+                                          : item),
+                                      )}
+                                    />
+                                  </label>
+                                  <label>
+                                    <span>Query text</span>
+                                    <input
+                                      aria-label={`Preset SERP query ${index + 1} text`}
+                                      value={presetSerpApiDrafts[index].query}
+                                      onChange={(event) => updatePresetSerpApiQueries(
+                                        presetSerpApiQueries.map((item, i) => i === index
+                                          ? { ...item, query: event.target.value }
+                                          : item),
+                                      )}
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    className="rr-secondary-action"
+                                    onClick={() => updatePresetSerpApiQueries(
+                                      presetSerpApiQueries.filter((_, i) => i !== index),
+                                    )}
+                                  >
+                                    Remove SERP query {index + 1}
+                                  </button>
+                                </fieldset>
+                              ))}
+                              {!presetSerpApiValid && (
+                                <p className="rr-field-error">
+                                  Each SERP query requires a unique valid ID and search text.
+                                </p>
+                              )}
+                              <button
+                                type="button"
+                                className="rr-secondary-action"
+                                onClick={() => updatePresetSerpApiQueries([
+                                  ...presetSerpApiQueries,
+                                  { job_key: '', query: '' },
+                                ])}
+                              >
+                                Add SERP query
+                              </button>
+                            </div>
+                          )}
                           {presetIncludesIkasProducts && (
                             <div
                               className="rr-file-input"
@@ -5589,7 +5941,7 @@ export function DesktopMultiSourceView() {
                             <button
                               type="button"
                               className="rr-primary-action"
-                              disabled={busy || !presetEditorDirty || !presetEditorName.trim()}
+                              disabled={busy || !presetEditorDirty || !presetEditorName.trim() || !presetKwpValid || !presetSerpApiValid}
                               onClick={() => void updatePreset()}
                             >
                               Save Changes
@@ -5597,7 +5949,7 @@ export function DesktopMultiSourceView() {
                             <button
                               type="button"
                               className="rr-secondary-action"
-                              disabled={busy}
+                              disabled={busy || !presetKwpValid || !presetSerpApiValid}
                               onClick={() => void duplicatePreset()}
                             >
                               Duplicate

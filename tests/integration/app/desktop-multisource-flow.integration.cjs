@@ -48,6 +48,7 @@ const createFixture = (
   ],
   connectionRecords = [],
   availableCredentialRefs = new Set(),
+  useProductionPlanner = false,
 ) => {
   const workspaces = [
     { workspace_id: 'ws_a', workspace_name: 'A', created_at: '2026-09-11T00:00:00.000Z' },
@@ -125,7 +126,9 @@ const createFixture = (
     },
     application_version: 'test',
     source_order: sourceOrder,
-    job_planner: (source_id, source_config) => [{ source_id, job_key: `${source_id}-job`, query_group_id: null, source_context: { source_config } }],
+    ...(useProductionPlanner ? {} : {
+      job_planner: (source_id, source_config) => [{ source_id, job_key: `${source_id}-job`, query_group_id: null, source_context: { source_config } }],
+    }),
     execute_run: async (run_id) => executions.push(run_id),
     now,
   });
@@ -133,6 +136,261 @@ const createFixture = (
 };
 
 async function main() {
+  // P1-08: Real production planner rejects empty provider inputs.
+  {
+    const {
+      controller: productionPlannerController,
+      reservations: productionReservations,
+    } = createFixture(
+      undefined,
+      ['google-keyword-planner', 'bitkimark-sitemap', 'serpapi'],
+      [],
+      new Set(),
+      true,
+    );
+
+    const emptyProviderDraft = {
+      workspace_id: 'ws_a',
+      origin: { kind: 'SAVED_PRESET', preset_id: 'sp_a' },
+      reusable_configuration: {
+        sources: {
+          'google-keyword-planner': {
+            included: true,
+            task_id: 'keyword-planner-historical-metrics',
+            groups: [],
+          },
+          'bitkimark-sitemap': {
+            included: true,
+            task_id: 'bitkimark-sitemap',
+            sitemaps: [],
+          },
+          serpapi: {
+            included: true,
+            task_id: 'serpapi-serp-snapshot',
+            queries: [],
+          },
+        },
+      },
+      source_cards: [],
+    };
+
+    const emptyProviderReview =
+      await productionPlannerController.reviewDraft(emptyProviderDraft);
+
+    assert.equal(
+      emptyProviderReview.job_count,
+      0,
+      'Empty provider requests must produce zero production JobPlans.',
+    );
+
+    assert.deepEqual(
+      emptyProviderReview.planning_blocking_sources,
+      ['google-keyword-planner', 'bitkimark-sitemap', 'serpapi'],
+      'Each included source without planned Jobs must be identified.',
+    );
+
+    assert.equal(
+      emptyProviderReview.can_start,
+      false,
+      'Empty provider requests must block Start.',
+    );
+
+    await assert.rejects(
+      () => productionPlannerController.startDraft(emptyProviderDraft),
+      /not ready/i,
+      'An unplanned provider draft must not reserve or start a Run.',
+    );
+
+    assert.equal(
+      productionReservations.length,
+      0,
+      'Blocked planning must not reserve any Jobs.',
+    );
+
+    console.log(
+      'PASS P1-08-PLANNER-EMPTY: production planner blocks empty provider requests',
+    );
+  }
+
+  // P1-08: Real planner receives the actual Saved Preset input shapes.
+  {
+    const { BITKIMARK_VERIFIED_SITEMAP_URLS } = require(
+      `${process.argv[2]}/shared/bitkimark-sitemap.js`,
+    );
+
+    assert.ok(
+      BITKIMARK_VERIFIED_SITEMAP_URLS.length >= 2,
+      'The verified sitemap contract must provide a root and child.',
+    );
+
+    const [rootUrl, childUrl] = BITKIMARK_VERIFIED_SITEMAP_URLS;
+
+    const {
+      controller: validPlannerController,
+      reservations: validReservations,
+    } = createFixture(
+      undefined,
+      ['google-keyword-planner', 'bitkimark-sitemap', 'serpapi'],
+      [],
+      new Set(),
+      true,
+    );
+
+    // Match the exact reusable input shapes saved by the Preset UI.
+    const validProviderDraft = {
+      workspace_id: 'ws_a',
+      origin: { kind: 'SAVED_PRESET', preset_id: 'sp_a' },
+      reusable_configuration: {
+        sources: {
+          'google-keyword-planner': {
+            included: true,
+            task_id: 'keyword-planner-historical-metrics',
+            groups: [{
+              group_id: 'garden-basics',
+              group_name: 'Garden Basics',
+              keywords: ['seed packets'],
+            }],
+          },
+          'bitkimark-sitemap': {
+            included: true,
+            task_id: 'bitkimark-sitemap',
+            sitemaps: [
+              {
+                requested_url: rootUrl,
+                expected_host: 'bitkimark.com',
+                parent_sitemap_url: null,
+              },
+              {
+                requested_url: childUrl,
+                expected_host: 'bitkimark.com',
+                parent_sitemap_url: rootUrl,
+              },
+            ],
+          },
+          serpapi: {
+            included: true,
+            task_id: 'serpapi-serp-snapshot',
+            queries: [
+              { job_key: 'serp-query-one', query: 'first explicit search' },
+              { job_key: 'serp-query-two', query: 'second explicit search' },
+            ],
+          },
+        },
+      },
+      source_cards: [],
+    };
+
+    const review = await validPlannerController.reviewDraft(
+      validProviderDraft,
+    );
+
+    console.log(
+      'P1-08 VALID REVIEW:',
+      JSON.stringify({
+        job_count: review.job_count,
+        can_start: review.can_start,
+        blocking_sources: review.blocking_sources,
+        planning_blocking_sources: review.planning_blocking_sources,
+        reviewed_artifact_present: review.reviewed_draft !== null,
+      }),
+    );
+
+    assert.equal(
+      review.job_count,
+      5,
+      'One KWP group, two sitemaps, and two SERP queries must plan five Jobs.',
+    );
+
+    assert.deepEqual(
+      review.planning_blocking_sources,
+      [],
+      'Every included provider must produce its requested Jobs.',
+    );
+
+    assert.equal(
+      review.can_start,
+      true,
+      'Complete and ready source requests must permit Start.',
+    );
+
+    assert.ok(
+      review.reviewed_draft,
+      'Review must produce an accepted execution artifact.',
+    );
+
+    assert.deepEqual(
+      review.reviewed_draft.reusable_configuration.sources,
+      validProviderDraft.reusable_configuration.sources,
+      'Reviewed artifact must preserve the exact reusable source requests.',
+    );
+
+    await validPlannerController.startDraft(
+      review.reviewed_draft,
+    );
+
+    assert.equal(
+      validReservations.length,
+      1,
+      'Starting the reviewed artifact must create exactly one Run reservation.',
+    );
+
+    const plans = validReservations[0].job_plans;
+
+    assert.equal(
+      plans.length,
+      5,
+      'Run reservation must retain all five provider Jobs.',
+    );
+
+    const kwpPlans = plans.filter(
+      (plan) => plan.source_id === 'google-keyword-planner',
+    );
+
+    assert.equal(kwpPlans.length, 1);
+    assert.equal(kwpPlans[0].job_key, 'garden-basics');
+    assert.equal(kwpPlans[0].source_context.group_id, 'garden-basics');
+    assert.deepEqual(
+      kwpPlans[0].source_context.keywords,
+      ['seed packets'],
+    );
+
+    const sitemapPlans = plans.filter(
+      (plan) => plan.source_id === 'bitkimark-sitemap',
+    );
+
+    assert.deepEqual(
+      sitemapPlans.map((plan) => plan.source_context.requested_url),
+      [rootUrl, childUrl],
+      'Reserved sitemap Jobs must preserve requested URL order.',
+    );
+
+    assert.deepEqual(
+      sitemapPlans.map((plan) => plan.source_context.parent_sitemap_url),
+      [null, rootUrl],
+      'Reserved sitemap Jobs must preserve parent provenance.',
+    );
+
+    const serpPlans = plans.filter(
+      (plan) => plan.source_id === 'serpapi',
+    );
+
+    assert.deepEqual(
+      serpPlans.map((plan) => ({
+        job_key: plan.job_key,
+        query: plan.source_context.query,
+      })),
+      [
+        { job_key: 'serp-query-one', query: 'first explicit search' },
+        { job_key: 'serp-query-two', query: 'second explicit search' },
+      ],
+      'Reserved SERP Jobs must preserve explicit IDs and queries.',
+    );
+
+    console.log(
+      'PASS P1-08-PLANNER-VALID: reviewed source requests reserve provider-native Jobs',
+    );
+  }
+
   const multiSourceReviewedArtifact = {
     workspace_id:
       'ws_reviewed_contract',
