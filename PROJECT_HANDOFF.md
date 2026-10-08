@@ -1,11 +1,11 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Checkpoint date:** 2026-10-02
-**Current branch:** `feat/google-ads-campaign-settings-v1`
-**Production implementation checkpoint:** `08f3c43`
-**Repository state:** Google Ads Campaign Settings v1 production behavior is committed; this handoff update records the deterministic verification checkpoint and adopted contract documentation
-**Current stage:** Google Ads Campaign Settings v1 is implemented and deterministically verified; live-provider acceptance was not performed
-**Current action:** complete the canonical documentation checkpoint and retain future Google Ads configuration extensions as independent scoped work
+**Checkpoint date:** 2026-10-08
+**Current branch:** `feat/google-analytics-4-source-v1`
+**Production implementation checkpoint:** `0bc9156`
+**Repository state:** Growth provider-target execution binding is committed and deterministically verified
+**Current stage:** Growth Review now freezes required provider account/property/site identity into execution context and fails closed on missing or changed targets; packaged/runtime and live-provider acceptance were not performed for this checkpoint
+**Current action:** preserve the verified Growth execution boundary and select the next approved scope from the current repository state
 
 ---
 
@@ -296,7 +296,8 @@ Completed deterministic source checkpoints:
 - Google Keyword Planner validator migration;
 - Google Ads Campaign Settings v1 gate;
 - Google Ads Negatives v1 checkpoint;
-- Google Ads Search Reporting checkpoint.
+- Google Ads Search Reporting checkpoint;
+- Google Ads Growth provider-target execution binding.
 
 Next:
 
@@ -352,7 +353,9 @@ Current verified Saved Preset catalog for the Bitkimark Production Workspace:
 - `Blog - 14 Day`
 - `Blog - 30 Day`
 
-`Google Ads Growth` preserves the existing Growth preset identity while using the complete approved Growth evidence collection configuration.
+`Google Ads Growth` preserves the existing Growth preset identity and the approved Growth evidence-source configuration. That preset/configuration completeness must not be read as packaged/runtime or live-provider acceptance.
+
+The Growth execution contract is deterministically verified at the Review/Start boundary: required Google Ads `customer_id`, GA4 `property_id`, and GSC `site_url` values are hydrated from canonical Workspace connection metadata into resolved execution configuration, persisted into relevant immutable Job `source_context`, and validated against the active Workspace connection before provider interaction. Missing required target metadata blocks Growth planning, and post-Review Workspace target drift fails closed rather than silently retargeting collection.
 
 The three Blog presets share the same seven evidence families:
 
@@ -383,6 +386,7 @@ Deterministically verified:
 - 7/14/30 desktop date-policy resolution;
 - truthful GSC Query × Page and Ads Search Terms task identities;
 - exact Growth and Blog reusable configurations;
+- Growth provider-target hydration, immutable Job binding, missing-target planning blockers, and fail-closed target-drift protection;
 - multi-source Review/Start absolute-window resolution with reusable-relative / run-snapshot separation;
 - duplicate-free idempotent seed behavior and legacy identity preservation;
 - existing desktop multi-source regressions;

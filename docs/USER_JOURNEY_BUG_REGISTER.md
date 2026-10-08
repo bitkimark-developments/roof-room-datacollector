@@ -350,9 +350,19 @@ Verification:
 This establishes deterministic verification only. Packaged/runtime and live-provider verification were not performed.
 
 ### P1-10 — PROJECT_HANDOFF overstates current Growth completeness
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
-The handoff must be corrected after the new Growth execution contract is implemented and verified.
+Resolution:
+
+`PROJECT_HANDOFF.md` now distinguishes approved Growth preset/evidence-source configuration completeness from execution and acceptance status. It records the deterministically verified provider-target execution contract introduced by `0bc9156`: Review hydrates required Workspace target identity, Start persists it into relevant immutable Job context, missing targets block planning, and post-Review target drift fails closed before provider interaction.
+
+The handoff also records the current branch/checkpoint and explicitly states that packaged/runtime and live-provider acceptance were not performed for this checkpoint.
+
+Verification:
+
+- handoff wording no longer upgrades preset/configuration completeness into broader execution or live-provider completeness;
+- the current repository checkpoint is recorded as `0bc9156`;
+- documentation-only diff passes `git diff --check`.
 
 ---
 
