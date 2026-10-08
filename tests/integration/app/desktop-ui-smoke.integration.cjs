@@ -5127,6 +5127,61 @@ const main = async () => {
       .getByRole('button', { name: 'Select Products XLSX for Preset', exact: true })
       .click();
 
+
+    assert.equal(
+      await ikasPresetEditor.getByText(
+        'Unsaved preset changes.',
+        { exact: true },
+      ).count(),
+      0,
+      'Run-scoped file selection must not mark the Saved Preset dirty.',
+    );
+
+    assert.equal(
+      await ikasPresetEditor.getByRole(
+        'button',
+        { name: 'Save Changes', exact: true },
+      ).isDisabled(),
+      true,
+      'Run-scoped file selection must not enable Preset Save.',
+    );
+
+    let runInputDiscardMessage = null;
+
+    page.once('dialog', (dialog) => {
+      runInputDiscardMessage = dialog.message();
+      return dialog.dismiss();
+    });
+
+    await page.getByRole(
+      'button',
+      { name: 'HOME', exact: true },
+    ).click();
+
+    assert.equal(
+      runInputDiscardMessage,
+      'Discard current Run inputs?',
+      'A Run-scoped file must not be described as unsaved Preset edits.',
+    );
+
+    assert.equal(
+      await page.getByRole(
+        'heading',
+        { name: 'Presets', exact: true },
+      ).count(),
+      1,
+      'Dismissing the warning must preserve the current editor.',
+    );
+
+    assert.equal(
+      await ikasPresetEditor.getByRole(
+        'button',
+        { name: 'Replace Products XLSX for Preset', exact: true },
+      ).count(),
+      1,
+      'Dismissing the warning must preserve the selected Run file.',
+    );
+
     assert.deepEqual(
       await page.evaluate(() => window.__selectedDesktopInputRequest),
       { input_kind: 'IKAS_PRODUCTS_XLSX' },
@@ -5212,8 +5267,18 @@ const main = async () => {
     );
 
     await page.getByTestId('preset-editor').getByLabel('Edit preset name').fill('Unsaved rename');
-    page.once('dialog', (dialog) => dialog.dismiss());
+    let presetDiscardMessage = null;
+    page.once('dialog', (dialog) => {
+      presetDiscardMessage = dialog.message();
+      return dialog.dismiss();
+    });
     await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    assert.equal(
+      presetDiscardMessage,
+      'Discard unsaved preset edits?',
+      'A reusable Preset edit must retain its own discard warning.',
+    );
+
     assert.equal(
       await page.getByRole('heading', { name: 'Presets', exact: true }).count(),
       1,

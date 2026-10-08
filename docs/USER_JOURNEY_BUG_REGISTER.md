@@ -242,9 +242,29 @@ Verification:
 This establishes deterministic UI verification only. Packaged desktop runtime and live-provider verification were not performed.
 
 ### P1-02 — Unsaved changes warning conflates Run input and preset edits
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
-Run-scoped file selection should not be presented as an unsaved Saved Preset mutation.
+Observed:
+
+Selecting a run-scoped İkas Products XLSX did not modify the Saved Preset, but the navigation guard combined that transient file with unsaved Preset edits and displayed a misleading generic discard warning.
+
+Resolution:
+
+Navigation now distinguishes transient Run inputs from unsaved reusable Preset edits. Run-only inputs produce a Run-input discard warning, Preset-only edits produce a Preset-edit warning, and simultaneous changes have a combined warning.
+
+The confirmation guard remains fail-safe: canceling navigation preserves the editor and selected Run file. The selected XLSX remains run-scoped and is not persisted into reusable Preset configuration.
+
+Verification:
+
+- RED desktop UI regression reproduced the misleading warning for a run-scoped XLSX.
+- GREEN desktop UI regression verified the Run-only warning, unchanged Preset dirty state, disabled Preset Save, and preservation of the selected file after canceling navigation.
+- GREEN desktop UI regression verified the distinct warning for an unsaved Preset rename.
+- Existing reviewed Preset Start and desktop UI smoke flows passed.
+- TypeScript compilation passed.
+- git diff --check passed.
+- The simultaneous Run-input plus Preset-edit branch is implemented but was not independently exercised by a dedicated UI regression.
+
+Verification is deterministic only; packaged desktop runtime and live-provider verification were not performed.
 
 ### P1-03 — Previous completed Ikas Run semantics are unclear
 Status: OPEN

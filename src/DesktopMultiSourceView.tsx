@@ -3198,11 +3198,16 @@ export function DesktopMultiSourceView() {
       row.job_key.length > 0
       || row.query.length > 0
     ));
-  const hasUnsavedPresetInputs =
+  const hasUnsavedRunInputs =
+    hasUnsavedTaskInputs || presetSelectedIkasFile !== null;
+
+  const hasUnsavedPresetEdits =
     presetEditorDirty
-    || presetSelectedIkasFile !== null
     || newPresetName.trim().length > 0
     || newPresetTaskIds.length > 0;
+
+  const hasTransientEdits =
+    hasUnsavedRunInputs || hasUnsavedPresetEdits;
 
   const resetTransientEditors = () => {
     setSelectedIkasFile(null);
@@ -3229,15 +3234,21 @@ export function DesktopMultiSourceView() {
   };
 
   const confirmDiscardTransientEdits = () => (
-    !(hasUnsavedTaskInputs || hasUnsavedPresetInputs)
-    || window.confirm('Discard unsaved task and preset edits?')
+    hasTransientEdits === false
+    || window.confirm(
+      hasUnsavedRunInputs && hasUnsavedPresetEdits
+        ? 'Discard current Run inputs and unsaved preset edits?'
+        : hasUnsavedRunInputs
+          ? 'Discard current Run inputs?'
+          : 'Discard unsaved preset edits?',
+    )
   );
 
   const navigateTo = (
     nextView: View,
   ) => {
     if (!confirmDiscardTransientEdits()) return;
-    if (hasUnsavedTaskInputs || hasUnsavedPresetInputs) {
+    if (hasTransientEdits) {
       resetTransientEditors();
     }
     setSelectedTask(null);
