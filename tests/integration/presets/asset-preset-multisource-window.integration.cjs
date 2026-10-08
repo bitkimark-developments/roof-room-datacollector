@@ -1519,6 +1519,258 @@ assert.deepEqual(
 );
 
 
+const gscMultiWindowPreset = {
+  preset_id:
+    'sp_growth_gsc_query_page_windows',
+  workspace_id:
+    workspace.workspace_id,
+  preset_name:
+    'Growth GSC Query Page Windows',
+  reusable_configuration: {
+    sources: {
+      'google-search-console-query-page': {
+        included: true,
+        tasks: [
+          {
+            task_id:
+              'gsc-query-page-current-28-days',
+            date_policy:
+              'TODAY_MINUS_28_TO_YESTERDAY',
+          },
+          {
+            task_id:
+              'gsc-current-90-days',
+            date_policy:
+              'TODAY_MINUS_90_TO_YESTERDAY',
+          },
+          {
+            task_id:
+              'gsc-long-16-months',
+            date_policy:
+              'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+          },
+        ],
+        date_ranges: [],
+      },
+    },
+  },
+  created_at:
+    '2026-10-04T00:00:00.000Z',
+  updated_at:
+    '2026-10-04T00:00:00.000Z',
+};
+
+const gscMultiWindowController =
+  new DesktopMultiSourceController({
+    repository: {
+      ...repository,
+      listSavedCollectionPresets:
+        () => [
+          gscMultiWindowPreset,
+        ],
+      getSavedCollectionPreset:
+        (
+          workspaceId,
+          presetId,
+        ) =>
+          workspaceId
+            === workspace.workspace_id
+          && presetId
+            === gscMultiWindowPreset.preset_id
+            ? gscMultiWindowPreset
+            : null,
+    },
+    readiness: {
+      getReadiness:
+        async (
+          workspaceId,
+          sourceId,
+        ) => ({
+          workspace_id:
+            workspaceId,
+          source_id:
+            sourceId,
+          readiness_status:
+            'READY',
+          checked_at:
+            '2026-10-04T00:00:00.000Z',
+          message:
+            null,
+        }),
+    },
+    application_version:
+      'test',
+    source_order: [
+      'google-search-console-query-page',
+    ],
+    now:
+      () =>
+        new Date(
+          2026,
+          9,
+          4,
+          12,
+          0,
+          0,
+        ),
+  });
+
+const gscMultiWindowDraft =
+  await gscMultiWindowController
+    .createDraft({
+      workspace_id:
+        workspace.workspace_id,
+      origin: {
+        kind:
+          'SAVED_PRESET',
+        preset_id:
+          gscMultiWindowPreset.preset_id,
+      },
+    });
+
+const gscMultiWindowReview =
+  await gscMultiWindowController
+    .reviewDraft(
+      gscMultiWindowDraft,
+    );
+
+assert.equal(
+  gscMultiWindowReview.job_count,
+  3,
+  'One GSC Query x Page source must plan the approved 28D, 90D, and 16M windows as three Jobs.',
+);
+
+assert.deepEqual(
+  gscMultiWindowReview
+    .planning_blocking_sources,
+  [],
+);
+
+assert.equal(
+  gscMultiWindowReview.can_start,
+  true,
+);
+
+assert.ok(
+  gscMultiWindowReview.reviewed_draft,
+);
+
+assert.deepEqual(
+  gscMultiWindowReview
+    .reviewed_draft
+    .reusable_configuration
+    .sources['google-search-console-query-page'],
+  gscMultiWindowPreset
+    .reusable_configuration
+    .sources['google-search-console-query-page'],
+  'Review must preserve relative GSC multi-window intent unchanged.',
+);
+
+assert.deepEqual(
+  gscMultiWindowReview
+    .reviewed_draft
+    .resolved_configuration
+    .sources['google-search-console-query-page']
+    .date_ranges,
+  [
+    {
+      job_key:
+        'gsc-query-page-current-28-days',
+      task_id:
+        'gsc-query-page-current-28-days',
+      requested_date_start:
+        '2026-09-06',
+      requested_date_end:
+        '2026-10-03',
+    },
+    {
+      job_key:
+        'gsc-current-90-days',
+      task_id:
+        'gsc-current-90-days',
+      requested_date_start:
+        '2026-07-06',
+      requested_date_end:
+        '2026-10-03',
+    },
+    {
+      job_key:
+        'gsc-long-16-months',
+      task_id:
+        'gsc-long-16-months',
+      requested_date_start:
+        '2025-06-04',
+      requested_date_end:
+        '2026-10-03',
+    },
+  ],
+  'Review must freeze all three exact GSC Query x Page windows under one real source identity.',
+);
+
+const gscMultiWindowReservationsBeforeStart =
+  reservations.length;
+
+await gscMultiWindowController.startDraft(
+  gscMultiWindowReview.reviewed_draft,
+);
+
+assert.equal(
+  reservations.length,
+  gscMultiWindowReservationsBeforeStart + 1,
+);
+
+const gscMultiWindowReservation =
+  reservations.at(-1);
+
+assert.equal(
+  gscMultiWindowReservation
+    .configuration_snapshot
+    .source_id,
+  'google-search-console-query-page',
+  'Single-source multi-task Run snapshot must preserve the real source identity.',
+);
+
+assert.equal(
+  gscMultiWindowReservation
+    .configuration_snapshot
+    .task_id,
+  null,
+  'Single-source multi-task Run snapshot must not invent a singular root task identity.',
+);
+
+assert.deepEqual(
+  gscMultiWindowReservation.job_plans.map(
+    (plan) => ({
+      source_id:
+        plan.source_id,
+      job_key:
+        plan.job_key,
+    }),
+  ),
+  [
+    {
+      source_id:
+        'google-search-console-query-page',
+      job_key:
+        'gsc-query-page-current-28-days',
+    },
+    {
+      source_id:
+        'google-search-console-query-page',
+      job_key:
+        'gsc-current-90-days',
+    },
+    {
+      source_id:
+        'google-search-console-query-page',
+      job_key:
+        'gsc-long-16-months',
+    },
+  ],
+  'Start must preserve three Jobs under one GSC Query x Page source without synthetic duplicate sources.',
+);
+
+
 console.log(
   'PASS ASSET-PRESET-MULTISOURCE-001: multi-source preset review/start resolves relative Blog windows only into execution and snapshot context',
 );

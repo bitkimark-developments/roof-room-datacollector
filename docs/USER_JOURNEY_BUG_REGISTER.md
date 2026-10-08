@@ -277,10 +277,28 @@ Verification:
 
 No new production behavior was required for this checkpoint. No packaged-runtime or live-provider verification is claimed.
 
-### P1-07 — Multiple GSC Query x Page windows need one-source multi-job planning
-Status: OPEN
+### P1-07 — Multiple GSC Query t Page windows need one-source multi-job planning
+Status: DETERMINISTICALLY VERIFIED
 
 Growth needs 28D, 90D and 16M request ranges under the same source identity without inventing duplicate sources.
+
+Resolution:
+- The reusable `google-search-console-query-page` configuration preserves the three canonical task/date-policy intents under one real source identity.
+- Review validates the approved task/policy pairs and resolves all three from the same Review reference date into exact `date_ranges`.
+- Each resolved range preserves its canonical task ID as both `task_id` and `job_key`.
+- A single-source multi-task reviewed artifact preserves the real `source_id` and uses `task_id: null` at the root because no truthful singular task identity exists.
+- Start consumes the frozen reviewed configuration and reserves three Jobs under the same real source without inventing duplicate or synthetic source/task identities.
+
+Verification:
+- RED reproduced the gap as `0 !== 3` Jobs before the production resolver change.
+- With reference date `2026-10-04`, Review freezes:
+  - 28D: `2026-09-06` → `2026-10-03`
+  - 90D: `2026-07-06` → `2026-10-03`
+  - 16M: `2025-06-04` → `2026-10-03`
+- The focused multisource gate proves three Jobs are planned and preserved through Start under `google-search-console-query-page`.
+- The preset catalog gate, TypeScript compilation, and `git diff --check` pass.
+
+No packaged-runtime or live-provider verification is claimed.
 
 ### P1-08 — Blog KWP, Sitemap and SerpApi inputs are not execution-ready
 Status: OPEN

@@ -1247,11 +1247,9 @@ export class DesktopMultiSourceController {
 
     if (
       reviewedDraft.source_id === null
-      || reviewedDraft.task_id === null
     ) {
       if (
-        reviewedDraft.source_id !== null
-        || reviewedDraft.task_id !== null
+        reviewedDraft.task_id !== null
       ) {
         throw new Error(
           'Reviewed Run root task/source identity is inconsistent.',
@@ -1275,6 +1273,35 @@ export class DesktopMultiSourceController {
           null,
         source_id:
           null,
+        reference_date:
+          reviewedDraft.reference_date,
+        resolved_at:
+          reviewedDraft.resolved_at,
+      };
+    } else if (
+      reviewedDraft.task_id === null
+    ) {
+      if (
+        includedSources.length !== 1
+        || includedSources[0]
+          !== reviewedDraft.source_id
+      ) {
+        throw new Error(
+          'Reviewed Run root task/source identity is inconsistent.',
+        );
+      }
+
+      configurationSnapshot = {
+        ...cloneConfiguration(
+          reviewedDraft
+            .resolved_configuration,
+        ),
+        workspace_id:
+          reviewedDraft.workspace_id,
+        task_id:
+          null,
+        source_id:
+          reviewedDraft.source_id,
         reference_date:
           reviewedDraft.reference_date,
         resolved_at:
@@ -3133,6 +3160,139 @@ export class DesktopMultiSourceController {
         !== 'google-search-console-query-page'
     ) {
       return null;
+    }
+
+    if (Array.isArray(config.tasks)) {
+      if (config.tasks.length === 0) {
+        return null;
+      }
+
+      const supportedTaskPolicies =
+        new Map<string, string>([
+          [
+            'gsc-query-page-current-28-days',
+            'TODAY_MINUS_28_TO_YESTERDAY',
+          ],
+          [
+            'gsc-current-90-days',
+            'TODAY_MINUS_90_TO_YESTERDAY',
+          ],
+          [
+            'gsc-long-16-months',
+            'TODAY_MINUS_16_CALENDAR_MONTHS_TO_YESTERDAY',
+          ],
+        ]);
+
+      const requestedTasks =
+        config.tasks.map(
+          (task) =>
+            asObject(task),
+        );
+
+      const taskIds =
+        requestedTasks.map(
+          (task) =>
+            task.task_id,
+        );
+
+      if (
+        taskIds.some(
+          (taskId) =>
+            typeof taskId !== 'string',
+        )
+        || new Set(taskIds).size
+          !== taskIds.length
+        || requestedTasks.some(
+          (task) =>
+            typeof task.task_id !== 'string'
+            || supportedTaskPolicies.get(
+              task.task_id,
+            ) !== task.date_policy,
+        )
+      ) {
+        return null;
+      }
+
+      const referenceDate =
+        formatLocalReferenceDate(
+          resolvedAt,
+        );
+
+      const dateRanges =
+        requestedTasks.map(
+          (task) => {
+            const taskId =
+              task.task_id as string;
+
+            const datePolicy =
+              task.date_policy as Parameters<
+                typeof resolveDesktopDatePolicy
+              >[0];
+
+            const range =
+              resolveDesktopDatePolicy(
+                datePolicy,
+                referenceDate,
+              );
+
+            return {
+              job_key:
+                taskId,
+              task_id:
+                taskId,
+              requested_date_start:
+                range.requested_date_start,
+              requested_date_end:
+                range.requested_date_end,
+            };
+          },
+        );
+
+      const reusableConfiguration =
+        cloneConfiguration(
+          draft.reusable_configuration,
+        );
+
+      const resolvedConfiguration =
+        cloneConfiguration(
+          draft.reusable_configuration,
+        );
+
+      const resolvedSources =
+        asJsonObjectValue(
+          resolvedConfiguration.sources,
+        );
+
+      resolvedSources[sourceId] = {
+        ...asJsonObjectValue(
+          resolvedSources[sourceId],
+        ),
+        date_ranges:
+          dateRanges,
+      };
+
+      resolvedConfiguration.sources =
+        resolvedSources;
+
+      return {
+        workspace_id:
+          draft.workspace_id,
+        task_id:
+          null,
+        source_id:
+          sourceId,
+        included_sources: [
+          sourceId,
+        ],
+        reference_date:
+          referenceDate,
+        resolved_at:
+          resolvedAt.toISOString(),
+        reusable_configuration:
+          reusableConfiguration,
+        resolved_configuration:
+          resolvedConfiguration,
+      };
     }
 
     const taskId =

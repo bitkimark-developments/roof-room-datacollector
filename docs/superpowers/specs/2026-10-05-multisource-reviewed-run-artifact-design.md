@@ -50,11 +50,18 @@ It contains:
 - `reusable_configuration`
 - `resolved_configuration`
 
-For single-source Review:
+For single-source single-task Review:
 
 - `source_id` remains the real source ID
 - `task_id` remains the real task ID
 - `included_sources` contains that source
+
+For single-source multi-task Review:
+
+- `source_id` remains the real source ID
+- `task_id` is `null` because no truthful singular root task identity exists
+- `included_sources` contains that source
+- real task identities remain preserved in source-local resolved request/job context and JobPlans
 
 For multi-source Review:
 
