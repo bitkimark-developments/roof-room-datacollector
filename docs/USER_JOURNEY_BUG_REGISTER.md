@@ -291,10 +291,25 @@ Verification:
 Verification is deterministic UI verification only. Packaged desktop runtime and live-provider verification were not performed.
 
 ### P1-04 — HOME Saved Preset selector has no Review or Run action
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
 Desired path:
 HOME -> select preset -> Review Preset -> Start Preset Run
+
+Implementation:
+
+HOME now exposes Review Preset for the selected Saved Preset. The action enters the existing Presets review flow. Start continues to use the reviewed draft artifact and existing readiness gates; no separate execution path was added.
+
+Verification:
+
+- RED desktop UI regression confirmed that HOME lacked the Review Preset action.
+- GREEN desktop UI regression exercised HOME preset selection, Review, and Start.
+- The regression checked the selected Saved Preset origin and exact reviewed artifact at Start.
+- Existing desktop UI smoke suite passed.
+- TypeScript compilation passed.
+- git diff --check passed.
+
+This is deterministic UI verification only. Packaged desktop runtime and live-provider verification were not performed.
 
 ### P1-05 — Approved Google Ads Growth A-scope is not implemented
 Status: DETERMINISTICALLY VERIFIED

@@ -4905,6 +4905,18 @@ export function DesktopMultiSourceView() {
                       )}
                     </select>
                   </label>
+                  {/* P1-04 HOME: reuse the existing Saved Preset review flow. */}
+                  <button
+                    type="button"
+                    className="rr-primary-action"
+                    disabled={!workspaceId || !presetId || hasTransientEdits || busy}
+                    onClick={() => {
+                      navigateTo('PRESETS');
+                      void reviewPreset();
+                    }}
+                  >
+                    Review Preset
+                  </button>
                 </section>
 
                 {

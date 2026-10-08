@@ -4985,6 +4985,64 @@ const main = async () => {
     assert.deepEqual(await page.evaluate(() => window.__taskPackageOpenCalls.at(-1)), { package_id: 'pkg_published' });
     assert.equal(await page.evaluate(() => window.__taskPackageStartCalls.length >= 2), true);
 
+    // P1-04: HOME must enter the existing reviewed Saved Preset lifecycle.
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    await page.getByRole(
+      'heading',
+      { name: 'Collection Operations', exact: true },
+    ).waitFor();
+
+    await page.getByLabel('Saved Preset', { exact: true })
+      .selectOption('sp_fixture');
+
+    assert.equal(
+      await page.getByRole(
+        'button',
+        { name: 'Review Preset', exact: true },
+      ).count(),
+      1,
+      'HOME must expose Review Preset for the selected Saved Preset.',
+    );
+
+    await page.getByRole(
+      'button',
+      { name: 'Review Preset', exact: true },
+    ).click();
+
+    const homePresetReview = page.getByTestId('preset-review');
+    await homePresetReview.waitFor();
+
+    assert.deepEqual(
+      await page.evaluate(() => window.__reviewedDesktopDraft.origin),
+      { kind: 'SAVED_PRESET', preset_id: 'sp_fixture' },
+      'HOME Review must use the exact selected Saved Preset.',
+    );
+
+    assert.equal(
+      await homePresetReview.getByRole(
+        'button',
+        { name: 'Start Preset Run', exact: true },
+      ).isEnabled(),
+      true,
+      'HOME must reach the existing reviewed Start action.',
+    );
+
+    await homePresetReview.getByRole(
+      'button',
+      { name: 'Start Preset Run', exact: true },
+    ).click();
+
+    await page.getByRole(
+      'heading',
+      { name: 'Run Detail', exact: true },
+    ).waitFor();
+
+    assert.deepEqual(
+      await page.evaluate(() => window.__startedDesktopDraft),
+      await page.evaluate(() => window.__reviewedDesktopArtifact),
+      'HOME Preset Start must execute the exact reviewed artifact.',
+    );
+
     await page.getByRole('button', { name: 'PRESETS', exact: true }).click();
     await page.getByRole('heading', { name: 'Presets', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Open', exact: true }).first().click();
