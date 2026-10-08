@@ -3558,6 +3558,12 @@ const main = async () => {
       1,
     );
 
+    assert.equal(
+      await page.getByText('Previous completed İkas Runs remain separate evidence. They do not supply the Products XLSX input for this Run; select a file and Review before Start.', { exact: true }).count(),
+      1,
+      'Quick Run must explain previous Run evidence separation.',
+    );
+
     const selectProductsFileButton =
       page.getByRole(
         'button',
@@ -5121,6 +5127,15 @@ const main = async () => {
       ),
       undefined,
       'Saved İkas preset intent must not persist a current run file.',
+    );
+
+    assert.equal(
+      await ikasPresetEditor.getByText(
+        'Previous completed İkas Runs remain separate evidence. They do not supply the Products XLSX input for this Run; select a file and Review before Start.',
+        { exact: true },
+      ).count(),
+      1,
+      'Preset Review must explain previous Run evidence separation.',
     );
 
     await ikasPresetEditor

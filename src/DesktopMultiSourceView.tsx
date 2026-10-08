@@ -3906,6 +3906,9 @@ export function DesktopMultiSourceView() {
                           <p>
                             Products XLSX input is required for this task.
                           </p>
+                          <p>
+                            Previous completed İkas Runs remain separate evidence. They do not supply the Products XLSX input for this Run; select a file and Review before Start.
+                          </p>
 
                           <div className="rr-input-actions">
                             <button
@@ -5516,6 +5519,9 @@ export function DesktopMultiSourceView() {
                             >
                               <p>
                                 Select the current Products XLSX for this Run. The file is not saved in the preset.
+                              </p>
+                              <p>
+                                Previous completed İkas Runs remain separate evidence. They do not supply the Products XLSX input for this Run; select a file and Review before Start.
                               </p>
 
                               <div className="rr-input-actions">

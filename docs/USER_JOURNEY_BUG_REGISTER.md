@@ -267,9 +267,28 @@ Verification:
 Verification is deterministic only; packaged desktop runtime and live-provider verification were not performed.
 
 ### P1-03 — Previous completed Ikas Run semantics are unclear
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
 
-A completed Ikas Quick Run correctly does not automatically satisfy a later Blog Run, but the UI does not explain that a new reviewed file input is required.
+Observed:
+
+A completed İkas Quick Run preserves its own evidence but does not automatically supply the Products XLSX input for a subsequent Blog or other collection Run. The UI did not clearly explain why another file selection and Review were required.
+
+Resolution:
+
+Both İkas Quick Run and Saved Preset file-input surfaces now explain that completed İkas Runs remain separate evidence and do not automatically supply the input for the current Run.
+
+The user must select the Products XLSX for the new Run and complete Review before Start. No previous Run evidence is silently reused or copied into the new Run.
+
+Verification:
+
+- RED desktop UI regression confirmed the explanation was absent from the İkas Quick Run surface.
+- GREEN desktop UI regression confirmed the explanation appears in both İkas Quick Run and Saved Preset file-input surfaces.
+- Existing İkas file selection, reviewed input, and Start behavior remained GREEN.
+- Desktop UI smoke suite passed.
+- TypeScript compilation passed.
+- git diff --check passed.
+
+Verification is deterministic UI verification only. Packaged desktop runtime and live-provider verification were not performed.
 
 ### P1-04 — HOME Saved Preset selector has no Review or Run action
 Status: OPEN
