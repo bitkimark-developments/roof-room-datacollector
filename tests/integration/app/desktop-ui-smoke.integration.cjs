@@ -381,6 +381,52 @@ const main = async () => {
           created_at: '2026-09-14T00:00:02.000Z',
           updated_at: '2026-09-14T00:00:02.000Z',
         });
+        window.__presetState.push(
+          {
+            preset_id: 'sp_ga4_scope_fixture',
+            workspace_id: 'ws_fixture',
+            preset_name: 'GA4 Scope Fixture',
+            reusable_configuration: {
+              sources: {
+                'google-analytics-4': {
+                  included: true,
+                  task_id: 'google-analytics-4',
+                  start_date: '2026-09-01',
+                  end_date: '2026-09-30',
+                },
+              },
+            },
+            created_at: '2026-09-14T00:00:03.000Z',
+            updated_at: '2026-09-14T00:00:03.000Z',
+          },
+          {
+            preset_id: 'sp_trends_scope_fixture',
+            workspace_id: 'ws_fixture',
+            preset_name: 'Trends Scope Fixture',
+            reusable_configuration: {
+              sources: {
+                'google-trends': {
+                  included: true,
+                  task_id: 'google-trends-interest-over-time',
+                  query_groups: [
+                    {
+                      query_group_id: 'GT01',
+                      query_group_name: 'indoor_plants',
+                      queries: ['ficus', 'monstera'],
+                    },
+                    {
+                      query_group_id: 'GT02',
+                      query_group_name: 'plant_types',
+                      queries: ['ficus', 'sukulent'],
+                    },
+                  ],
+                },
+              },
+            },
+            created_at: '2026-09-14T00:00:04.000Z',
+            updated_at: '2026-09-14T00:00:04.000Z',
+          },
+        );
 
         window.__workspaceConnectionState = [
           {
@@ -597,33 +643,48 @@ const main = async () => {
 
           createDesktopDraft: async (input) => {
             window.__createDesktopDraftCalls += 1;
-            const preset = input.origin.kind === 'SAVED_PRESET'
-              ? window.__presetState.find((candidate) => candidate.preset_id === input.origin.preset_id)
-              : null;
-            const reusableConfiguration = preset?.reusable_configuration ?? blankDraft.reusable_configuration;
-            return {
-            ...blankDraft,
-            origin: structuredClone(input.origin),
-            reusable_configuration: structuredClone(reusableConfiguration),
-            source_cards: cards.map(
-              (card) =>
-                (
-                  card.source_id
-                    === 'google-search-console-query-page'
-                  || card.source_id
-                    === 'google-trends'
-                  || (card.source_id === 'google-ads-search-terms' && window.__adsReady)
-                  || (card.source_id === 'google-keyword-planner' && window.__keywordPlannerReady)
-                  || (card.source_id === 'serpapi' && window.__serpApiReady)
-                )
-                  ? {
-                      ...card,
-                      readiness_status:
-                        'READY',
-                    }
-                  : card,
-            ),
-          };
+            const createDraft = () => {
+              const preset = input.origin.kind === 'SAVED_PRESET'
+                ? window.__presetState.find((candidate) => candidate.preset_id === input.origin.preset_id)
+                : null;
+              const reusableConfiguration = preset?.reusable_configuration ?? blankDraft.reusable_configuration;
+              return {
+                ...blankDraft,
+                origin: structuredClone(input.origin),
+                reusable_configuration: structuredClone(reusableConfiguration),
+                source_cards: cards.map(
+                  (card) =>
+                    (
+                      card.source_id
+                        === 'google-search-console-query-page'
+                      || card.source_id
+                        === 'google-trends'
+                      || (card.source_id === 'google-ads-search-terms' && window.__adsReady)
+                      || (card.source_id === 'google-keyword-planner' && window.__keywordPlannerReady)
+                      || (card.source_id === 'serpapi' && window.__serpApiReady)
+                    )
+                      ? {
+                          ...card,
+                          readiness_status:
+                            'READY',
+                        }
+                      : card,
+                ),
+              };
+            };
+
+            if (
+              input.origin.kind === 'SAVED_PRESET'
+              && window.__delaySavedPresetDraftFor === input.origin.preset_id
+            ) {
+              window.__delaySavedPresetDraftFor = null;
+              delete window.__resolveSavedPresetDraft;
+              return new Promise((resolve) => {
+                window.__resolveSavedPresetDraft = () => resolve(createDraft());
+              });
+            }
+
+            return createDraft();
           },
 
           reviewDesktopTaskPackage: async (reviewIntent) => {
@@ -733,6 +794,8 @@ const main = async () => {
           },
 
           reviewDesktopDraft: async (reviewDraft) => {
+            window.__reviewDesktopDraftCalls =
+              (window.__reviewDesktopDraftCalls ?? 0) + 1;
             window.__reviewedDesktopDraft =
               reviewDraft;
 
@@ -865,6 +928,27 @@ const main = async () => {
                 ?.reusable_configuration
                 ?.sources
                 ?.['google-search-console-query-page'];
+
+            if (
+              window.__forceHomePresetConnectionBlock === true
+              && reviewDraft.origin?.kind === 'SAVED_PRESET'
+            ) {
+              return {
+                workspace: { workspace_id: 'ws_fixture', workspace_name: 'Acceptance Workspace' },
+                origin: reviewDraft.origin,
+                included_sources: ['google-search-console-query-page'],
+                source_cards: [{
+                  source_id: 'google-search-console-query-page',
+                  source_name: 'Google Search Console',
+                  included: true,
+                  readiness_status: 'CONNECTION_REQUIRED',
+                }],
+                job_count: 0,
+                can_start: false,
+                blocking_sources: ['google-search-console-query-page'],
+                reviewed_draft: null,
+              };
+            }
 
             const keywordPlannerConfig =
               reviewDraft
@@ -1224,6 +1308,8 @@ const main = async () => {
                     'SEARCH_TERM',
                   dataset_type:
                     'INTEREST_OVER_TIME',
+                  query_groups:
+                    selectedGroups,
                   selected_query_groups:
                     selectedGroups,
                   sources: {
@@ -2472,6 +2558,7 @@ const main = async () => {
     }).waitFor();
 
     const dashboard = page.getByTestId('operations-dashboard');
+    await dashboard.getByText('6 ready', { exact: true }).waitFor();
     assert.equal(await dashboard.getByText('6 ready', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('2 need connection', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('2 need import', { exact: true }).count(), 1);
@@ -5246,7 +5333,7 @@ const main = async () => {
     assert.deepEqual(await page.evaluate(() => window.__taskPackageOpenCalls.at(-1)), { package_id: 'pkg_published' });
     assert.equal(await page.evaluate(() => window.__taskPackageStartCalls.length >= 2), true);
 
-    // P1-04: HOME must enter the existing reviewed Saved Preset lifecycle.
+    // HOME must run a saved preset without entering its editor.
     await page.getByRole('button', { name: 'HOME', exact: true }).click();
     await page.getByRole(
       'heading',
@@ -5256,33 +5343,162 @@ const main = async () => {
     await page.getByLabel('Saved Preset', { exact: true })
       .selectOption('sp_fixture');
 
-    assert.equal(
-      await page.getByRole(
-        'button',
-        { name: 'Review Preset', exact: true },
-      ).count(),
-      1,
-      'HOME must expose Review Preset for the selected Saved Preset.',
+    const homeReviewButton = page.getByRole(
+      'button',
+      { name: 'Review Run', exact: true },
     );
 
-    await page.getByRole(
-      'button',
-      { name: 'Review Preset', exact: true },
-    ).click();
+    await page.evaluate(() => {
+      window.__delaySavedPresetDraftFor = 'sp_fixture';
+    });
+    const reviewsBeforeStaleResponse = await page.evaluate(
+      () => window.__reviewDesktopDraftCalls ?? 0,
+    );
+    await homeReviewButton.click();
+    await page.waitForFunction(
+      () => typeof window.__resolveSavedPresetDraft === 'function',
+    );
+    await page.getByLabel('Saved Preset', { exact: true })
+      .selectOption('sp_ikas_fixture');
+    await page.evaluate(() => window.__resolveSavedPresetDraft());
+    await page.waitForFunction(() => {
+      const button = [...document.querySelectorAll('button')]
+        .find((candidate) => candidate.textContent?.trim() === 'Review Run');
+      return button !== undefined && !button.disabled;
+    });
 
-    const homePresetReview = page.getByTestId('preset-review');
+    assert.equal(
+      await page.getByRole('heading', { name: 'Collection Operations', exact: true }).count(),
+      1,
+      'HOME-origin review must not navigate into the Preset editor.',
+    );
+    assert.equal(await page.getByTestId('home-preset-review').count(), 0);
+    assert.equal(
+      await page.evaluate(() => window.__reviewDesktopDraftCalls ?? 0),
+      reviewsBeforeStaleResponse,
+      'A stale Saved Preset draft must not proceed into review after selection changes.',
+    );
+
+    await page.getByLabel('Saved Preset', { exact: true }).selectOption('sp_fixture');
+    await page.evaluate(() => {
+      window.__delaySavedPresetDraftFor = 'sp_fixture';
+    });
+    await homeReviewButton.click();
+    await page.waitForFunction(
+      () => typeof window.__resolveSavedPresetDraft === 'function',
+    );
+    await page.getByLabel('Active Workspace', { exact: true }).selectOption('ws_other');
+    await page.evaluate(() => window.__resolveSavedPresetDraft());
+    await page.getByLabel('Active Workspace', { exact: true }).selectOption('ws_fixture');
+    await page.waitForFunction(() => (
+      [...document.querySelectorAll('select[aria-label="Saved Preset"] option')]
+        .some((option) => option.value === 'sp_fixture')
+    ));
+    await page.getByLabel('Saved Preset', { exact: true }).selectOption('sp_fixture');
+    await page.waitForFunction(() => {
+      const button = [...document.querySelectorAll('button')]
+        .find((candidate) => candidate.textContent?.trim() === 'Review Run');
+      return button !== undefined && !button.disabled;
+    });
+    assert.equal(
+      await page.getByTestId('home-preset-review').count(),
+      0,
+      'A delayed review from a previous Workspace must not appear after switching back.',
+    );
+
+    await page.getByLabel('Saved Preset', { exact: true }).selectOption('sp_fixture');
+    await page.evaluate(() => {
+      window.__forceHomePresetConnectionBlock = true;
+    });
+    await homeReviewButton.click();
+    const homePresetReview = page.getByTestId('home-preset-review');
     await homePresetReview.waitFor();
+    assert.equal(
+      await homePresetReview.getByText('Blocked: google-search-console-query-page', { exact: true }).count(),
+      1,
+      'HOME must identify saved-preset connection blockers.',
+    );
+    assert.equal(await homePresetReview.getByRole('button', { name: 'Start Run', exact: true }).isDisabled(), true);
+
+    await page.evaluate(() => {
+      window.__forceHomePresetConnectionBlock = false;
+    });
+    const homeStartCallsBeforeReview = await page.evaluate(
+      () => window.__startDesktopDraftCalls ?? 0,
+    );
+    await homeReviewButton.click();
+    await homePresetReview.getByRole('button', { name: 'Start Run', exact: true }).waitFor();
 
     assert.deepEqual(
       await page.evaluate(() => window.__reviewedDesktopDraft.origin),
       { kind: 'SAVED_PRESET', preset_id: 'sp_fixture' },
       'HOME Review must use the exact selected Saved Preset.',
     );
+    assert.deepEqual(
+      await page.evaluate(
+        () => window.__reviewedDesktopDraft.reusable_configuration.sources['google-search-console-query-page'],
+      ),
+      {
+        included: true,
+        task_id: 'gsc-current-90-days',
+        date_policy: 'TODAY_MINUS_90_TO_YESTERDAY',
+      },
+      'HOME review configuration must come from the selected Saved Preset.',
+    );
+    const reviewedArtifact = await page.evaluate(
+      () => window.__reviewedDesktopArtifact,
+    );
+    const gscScope = reviewedArtifact.resolved_configuration.sources[
+      'google-search-console-query-page'
+    ];
+    const gscDateRange = gscScope.date_ranges[0];
+    assert.equal(
+      await homePresetReview.getByText(
+        'Workspace: Acceptance Workspace · ws_fixture',
+        { exact: true },
+      ).count(),
+      1,
+      'HOME Review must identify the Workspace in the reviewed artifact.',
+    );
+    assert.equal(
+      await homePresetReview.getByText(
+        'Saved preset: Blog-Agentic-Beklentisi · sp_fixture',
+        { exact: true },
+      ).count(),
+      1,
+      'HOME Review must identify the selected saved preset.',
+    );
+    assert.equal(
+      await homePresetReview.getByText(
+        `Reference date: ${reviewedArtifact.reference_date}`,
+        { exact: true },
+      ).count(),
+      1,
+      'HOME Review must display the reviewed artifact reference date.',
+    );
+    assert.equal(
+      await homePresetReview.getByText('Task: GSC — Current 90 Days', { exact: true }).count(),
+      1,
+      'HOME Review must display the resolved task context.',
+    );
+    assert.equal(
+      await homePresetReview.getByText(
+        `Date window · ${gscDateRange.job_key}: ${gscDateRange.requested_date_start} → ${gscDateRange.requested_date_end}`,
+        { exact: true },
+      ).count(),
+      1,
+      'HOME Review date windows must match the reviewed artifact.',
+    );
+    assert.equal(
+      await page.evaluate(() => window.__startDesktopDraftCalls ?? 0),
+      homeStartCallsBeforeReview,
+      'HOME Review must not start collection before explicit Start Run.',
+    );
 
     assert.equal(
       await homePresetReview.getByRole(
         'button',
-        { name: 'Start Preset Run', exact: true },
+        { name: 'Start Run', exact: true },
       ).isEnabled(),
       true,
       'HOME must reach the existing reviewed Start action.',
@@ -5290,7 +5506,7 @@ const main = async () => {
 
     await homePresetReview.getByRole(
       'button',
-      { name: 'Start Preset Run', exact: true },
+      { name: 'Start Run', exact: true },
     ).click();
 
     await page.getByRole(
@@ -5303,6 +5519,92 @@ const main = async () => {
       await page.evaluate(() => window.__reviewedDesktopArtifact),
       'HOME Preset Start must execute the exact reviewed artifact.',
     );
+
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    await page.getByLabel('Saved Preset', { exact: true }).selectOption('sp_ga4_scope_fixture');
+    await homeReviewButton.click();
+    await homePresetReview.getByRole('button', { name: 'Start Run', exact: true }).waitFor();
+    const reviewedGa4Artifact = await page.evaluate(
+      () => window.__reviewedDesktopArtifact,
+    );
+    const reviewedGa4Source = reviewedGa4Artifact.resolved_configuration.sources[
+      'google-analytics-4'
+    ];
+    assert.equal(
+      await homePresetReview.getByText(`Start date: ${reviewedGa4Source.start_date}`, { exact: true }).count(),
+      1,
+      'HOME Review must display the actual resolved GA4 start_date.',
+    );
+    assert.equal(
+      await homePresetReview.getByText(`End date: ${reviewedGa4Source.end_date}`, { exact: true }).count(),
+      1,
+      'HOME Review must display the actual resolved GA4 end_date.',
+    );
+
+    await page.getByLabel('Saved Preset', { exact: true }).selectOption('sp_trends_scope_fixture');
+    await homeReviewButton.click();
+    await homePresetReview.getByRole('button', { name: 'Start Run', exact: true }).waitFor();
+    const reviewedTrendsArtifact = await page.evaluate(
+      () => window.__reviewedDesktopArtifact,
+    );
+    const reviewedTrendsSource = reviewedTrendsArtifact.resolved_configuration.sources[
+      'google-trends'
+    ];
+    const reviewedTrendsGroups = reviewedTrendsSource.query_groups
+      ?? reviewedTrendsArtifact.resolved_configuration.query_groups
+      ?? reviewedTrendsArtifact.resolved_configuration.selected_query_groups;
+    for (const group of reviewedTrendsGroups) {
+      const name = group.query_group_name ?? group.group_name
+        ?? group.query_group_id ?? group.group_id;
+      const queries = group.queries.join(', ');
+      assert.equal(
+        await homePresetReview.getByText(
+          `Query group: ${name} · Queries: ${queries}`,
+          { exact: true },
+        ).count(),
+        1,
+        'HOME Review must display each selected Google Trends group and its query text from the reviewed artifact.',
+      );
+    }
+
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    await page.getByLabel('Saved Preset', { exact: true }).selectOption('sp_ikas_fixture');
+    await page.getByRole('button', { name: 'Review Run', exact: true }).click();
+    const blockedHomePresetReview = page.getByTestId('home-preset-review');
+    await blockedHomePresetReview.waitFor();
+    assert.equal(await blockedHomePresetReview.getByText('Blocked: ikas-products', { exact: true }).count(), 1);
+    assert.equal(await blockedHomePresetReview.getByRole('button', { name: 'Start Run', exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'Select Products XLSX for Run', exact: true }).count(), 1);
+
+    await page.getByRole('button', { name: 'Select Products XLSX for Run', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__selectedDesktopInputRequest), {
+      input_kind: 'IKAS_PRODUCTS_XLSX',
+    });
+    assert.equal(await page.getByText('ikas-products.xlsx', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Review Run', exact: true }).click();
+    await blockedHomePresetReview.getByRole('button', { name: 'Start Run', exact: true }).waitFor();
+    assert.equal(await blockedHomePresetReview.getByText('İkas Products: READY', { exact: true }).count(), 1);
+    assert.equal(await blockedHomePresetReview.getByRole('button', { name: 'Start Run', exact: true }).isEnabled(), true);
+    assert.deepEqual(
+      await page.evaluate(() => window.__reviewedDesktopDraft.run_scoped_inputs),
+      { sources: { 'ikas-products': { file_path: '/fixture/imports/ikas-products.xlsx' } } },
+      'HOME Review must carry the explicitly selected run-scoped İkas input.',
+    );
+    const reviewedIkasArtifact = await page.evaluate(
+      () => window.__reviewedDesktopArtifact,
+    );
+    const reviewedIkasPath = reviewedIkasArtifact.resolved_configuration
+      .sources['ikas-products'].file_path;
+    assert.equal(
+      await blockedHomePresetReview.getByText(
+        `Run input: ${reviewedIkasPath.split(/[\\/]/u).pop()}`,
+        { exact: true },
+      ).count(),
+      1,
+      'HOME Review must display the selected run-scoped input from the reviewed artifact.',
+    );
+    await blockedHomePresetReview.getByRole('button', { name: 'Start Run', exact: true }).click();
+    await page.getByRole('heading', { name: 'Run Detail', exact: true }).waitFor();
 
     await page.getByRole('button', { name: 'PRESETS', exact: true }).click();
     await page.getByRole('heading', { name: 'Presets', exact: true }).waitFor();

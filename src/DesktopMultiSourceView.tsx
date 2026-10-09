@@ -304,6 +304,219 @@ const getReviewedDateSummary = (
   };
 };
 
+const getPresetReviewedScopes = (
+  review: DesktopReview,
+): Array<{
+  sourceId: string;
+  sourceName: string;
+  taskName: string | null;
+  details: string[];
+}> => {
+  const reviewed = review.reviewed_draft;
+  if (reviewed === null) return [];
+
+  const resolvedSources = reviewed.resolved_configuration.sources;
+  if (
+    typeof resolvedSources !== 'object'
+    || resolvedSources === null
+    || Array.isArray(resolvedSources)
+  ) {
+    return [];
+  }
+
+  const sourceNames = new Map(
+    review.source_cards.map((card) => [card.source_id, card.source_name]),
+  );
+  const displayFields: Array<[string, string]> = [
+    ['site_url', 'Site'],
+    ['property_id', 'Property'],
+    ['customer_id', 'Customer'],
+    ['country_code', 'Country'],
+    ['country_filter', 'Country filter'],
+    ['language_code', 'Language'],
+    ['device', 'Device'],
+    ['search_type', 'Search type'],
+    ['category_name', 'Category'],
+    ['selection_type', 'Selection type'],
+    ['campaign_type', 'Campaign type'],
+    ['source_mode', 'Source mode'],
+    ['date_policy', 'Date policy'],
+    ['datasets', 'Datasets'],
+    ['dimensions', 'Dimensions'],
+    ['metrics', 'Metrics'],
+    ['start_date', 'Start date'],
+    ['end_date', 'End date'],
+  ];
+
+  return review.included_sources.map((sourceId) => {
+    const source = resolvedSources[sourceId];
+    if (typeof source !== 'object' || source === null || Array.isArray(source)) {
+      return {
+        sourceId,
+        sourceName: sourceNames.get(sourceId) ?? sourceId,
+        taskName: null,
+        details: [],
+      };
+    }
+
+    const taskId = typeof source.task_id === 'string' ? source.task_id : null;
+    const taskName = taskId === null
+      ? null
+      : DESKTOP_TASK_CATALOG.find((task) => task.task_id === taskId)?.task_name ?? taskId;
+    const details: string[] = [];
+
+    for (const [field, label] of displayFields) {
+      const value = source[field];
+      if (typeof value === 'string' && value.length > 0) {
+        details.push(`${label}: ${value}`);
+      } else if (
+        Array.isArray(value)
+        && value.every((item) => typeof item === 'string')
+        && value.length > 0
+      ) {
+        details.push(`${label}: ${(value as string[]).join(', ')}`);
+      }
+    }
+
+    const ranges = source.date_ranges;
+    if (Array.isArray(ranges)) {
+      for (const [index, rawRange] of ranges.entries()) {
+        if (typeof rawRange !== 'object' || rawRange === null || Array.isArray(rawRange)) continue;
+        const start = rawRange.requested_date_start;
+        const end = rawRange.requested_date_end;
+        if (typeof start !== 'string' || typeof end !== 'string') continue;
+        const jobKey = typeof rawRange.job_key === 'string' ? ` · ${rawRange.job_key}` : '';
+        details.push(`Date window${ranges.length > 1 ? ` ${index + 1}` : ''}${jobKey}: ${start} → ${end}`);
+      }
+    } else if (
+      typeof source.requested_date_start === 'string'
+      && typeof source.requested_date_end === 'string'
+    ) {
+      details.push(`Date window: ${source.requested_date_start} → ${source.requested_date_end}`);
+    }
+
+    for (const [field, label] of [
+      ['groups', 'Group'],
+      ['queries', 'Query'],
+      ['sitemaps', 'Sitemap'],
+      ['selected_query_groups', 'Query group'],
+    ] as const) {
+      if (sourceId === 'google-trends' && field === 'selected_query_groups') continue;
+      const entries = source[field];
+      if (!Array.isArray(entries)) continue;
+
+      for (const entry of entries) {
+        if (typeof entry === 'string' && entry.length > 0) {
+          details.push(`${label}: ${entry}`);
+          continue;
+        }
+        if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) continue;
+        const value = entry as JsonObject;
+        const identity = typeof value.group_name === 'string'
+          ? value.group_name
+          : typeof value.group_id === 'string'
+            ? value.group_id
+          : typeof value.query_group_name === 'string'
+            ? value.query_group_name
+            : typeof value.query_group_id === 'string'
+              ? value.query_group_id
+              : typeof value.name === 'string'
+                ? value.name
+              : typeof value.job_key === 'string'
+                ? value.job_key
+                : typeof value.requested_url === 'string'
+                  ? value.requested_url
+                  : null;
+        const query = typeof value.query === 'string'
+          ? value.query
+          : typeof value.query_text === 'string'
+            ? value.query_text
+            : null;
+        const keywords = Array.isArray(value.keywords)
+          && value.keywords.every((item) => typeof item === 'string')
+          ? (value.keywords as string[]).join(', ')
+          : null;
+        const text = [identity, query, keywords].filter((item) => item !== null).join(': ');
+        if (text.length > 0) details.push(`${label}: ${text}`);
+      }
+    }
+
+    if (sourceId === 'google-trends') {
+      const rootConfiguration = reviewed.resolved_configuration;
+      const queryGroups = [
+        source.query_groups,
+        source.selected_query_groups,
+        rootConfiguration.query_groups,
+        rootConfiguration.selected_query_groups,
+      ].find((value) => Array.isArray(value) && value.length > 0);
+
+      if (Array.isArray(queryGroups)) {
+        for (const group of queryGroups) {
+          if (typeof group !== 'object' || group === null || Array.isArray(group)) continue;
+          const groupName = typeof group.query_group_name === 'string'
+            ? group.query_group_name
+            : typeof group.group_name === 'string'
+              ? group.group_name
+              : typeof group.query_group_id === 'string'
+                ? group.query_group_id
+                : typeof group.group_id === 'string'
+                  ? group.group_id
+                  : null;
+          const queries = Array.isArray(group.queries)
+            && group.queries.every((query) => typeof query === 'string')
+            ? group.queries.join(', ')
+            : typeof group.query_text === 'string'
+              ? group.query_text
+              : null;
+          const detailsText = [
+            groupName,
+            queries === null ? null : `Queries: ${queries}`,
+          ].filter((value) => value !== null).join(' · ');
+          if (detailsText.length > 0) details.push(`Query group: ${detailsText}`);
+        }
+      }
+    }
+
+    return {
+      sourceId,
+      sourceName: sourceNames.get(sourceId) ?? sourceId,
+      taskName,
+      details,
+    };
+  });
+};
+
+const getPresetReviewedInputNames = (
+  review: DesktopReview,
+): string[] => {
+  const reviewed = review.reviewed_draft;
+  if (reviewed === null) return [];
+
+  const sources = reviewed.resolved_configuration.sources;
+  if (
+    typeof sources !== 'object'
+    || sources === null
+    || Array.isArray(sources)
+  ) {
+    return [];
+  }
+
+  const ikasSource = sources['ikas-products'];
+  if (
+    typeof ikasSource !== 'object'
+    || ikasSource === null
+    || Array.isArray(ikasSource)
+    || typeof ikasSource.file_path !== 'string'
+    || ikasSource.file_path.length === 0
+  ) {
+    return [];
+  }
+
+  const pathParts = ikasSource.file_path.split(/[\\/]/u);
+  const fileName = pathParts[pathParts.length - 1];
+  return fileName.length > 0 ? [fileName] : [];
+};
+
 const getReviewedGoogleTrendsSummary = (
   review: DesktopReview,
 ): {
@@ -1068,6 +1281,16 @@ export function DesktopMultiSourceView() {
   } | null>(null);
 
   const [
+    homePresetReview,
+    setHomePresetReview,
+  ] = useState<{
+    workspace_id: string;
+    preset_id: string;
+    draft: DesktopRunDraft;
+    review: DesktopReview;
+  } | null>(null);
+
+  const [
     busy,
     setBusy,
   ] =
@@ -1083,6 +1306,7 @@ export function DesktopMultiSourceView() {
     >(null);
 
   const runHistoryRequestId = useRef(0);
+  const homePresetReviewRequestId = useRef(0);
 
   const loadRunHistory = async (
     targetWorkspaceId: string,
@@ -1380,6 +1604,9 @@ export function DesktopMultiSourceView() {
   }, []);
 
   useEffect(() => {
+    homePresetReviewRequestId.current += 1;
+    setHomePresetReview(null);
+
     const selectedPreset = presets.find((preset) => (
       preset.preset_id === presetId
       && preset.workspace_id === workspaceId
@@ -1701,6 +1928,8 @@ export function DesktopMultiSourceView() {
 
   const selectPresetIkasProductsFile =
     async () => {
+      const requestId = ++homePresetReviewRequestId.current;
+      setHomePresetReview(null);
       setMessage(null);
 
       try {
@@ -1719,6 +1948,10 @@ export function DesktopMultiSourceView() {
           return;
         }
 
+        if (requestId !== homePresetReviewRequestId.current) {
+          return;
+        }
+
         setPresetSelectedIkasFile({
           file_path: result.file_path,
           file_name: result.file_name,
@@ -1727,11 +1960,13 @@ export function DesktopMultiSourceView() {
         });
         setPresetReview(null);
       } catch (error) {
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : 'Preset Products XLSX seçilemedi.',
-        );
+        if (requestId === homePresetReviewRequestId.current) {
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : 'Preset Products XLSX seçilemedi.',
+          );
+        }
       }
     };
 
@@ -2823,48 +3058,175 @@ export function DesktopMultiSourceView() {
     }
   };
 
+  const createPresetReview = async (
+    targetWorkspaceId: string,
+    targetPresetId: string,
+    selectedIkasFile: typeof presetSelectedIkasFile,
+    isCurrent: () => boolean = () => true,
+  ): Promise<{
+    draft: DesktopRunDraft;
+    review: DesktopReview;
+  } | null> => {
+    const nextDraft = await window.roofroom.createDesktopDraft({
+      workspace_id: targetWorkspaceId,
+      origin: { kind: 'SAVED_PRESET', preset_id: targetPresetId },
+    });
+    if (!isCurrent()) return null;
+
+    const ikasConfiguration =
+      getReusableSources(
+        nextDraft.reusable_configuration,
+      )['ikas-products'];
+
+    const includesIkasProducts =
+      typeof ikasConfiguration === 'object'
+      && ikasConfiguration !== null
+      && !Array.isArray(ikasConfiguration)
+      && (ikasConfiguration as JsonObject).included === true
+      && (ikasConfiguration as JsonObject).task_id
+        === 'ikas-products-import';
+
+    if (includesIkasProducts && selectedIkasFile !== null) {
+      nextDraft.run_scoped_inputs = {
+        sources: {
+          'ikas-products': {
+            file_path: selectedIkasFile.file_path,
+          },
+        },
+      };
+    }
+
+    const review = await window.roofroom.reviewDesktopDraft(nextDraft);
+    if (!isCurrent()) return null;
+
+    return {
+      draft: nextDraft,
+      review,
+    };
+  };
+
+  const reviewHomePreset = async () => {
+    const selectedPreset = presets.find((preset) => (
+      preset.preset_id === presetId
+      && preset.workspace_id === workspaceId
+    ));
+    if (!workspaceId || !presetId || selectedPreset === undefined || busy) return;
+
+    const targetWorkspaceId = workspaceId;
+    const targetPresetId = presetId;
+    const requestId = ++homePresetReviewRequestId.current;
+    setHomePresetReview(null);
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await createPresetReview(
+        targetWorkspaceId,
+        targetPresetId,
+        presetSelectedIkasFile,
+        () => (
+          requestId === homePresetReviewRequestId.current
+          && workspaceId === targetWorkspaceId
+          && presetId === targetPresetId
+        ),
+      );
+      if (
+        result === null
+        || requestId !== homePresetReviewRequestId.current
+        || workspaceId !== targetWorkspaceId
+        || presetId !== targetPresetId
+      ) {
+        return;
+      }
+
+      setHomePresetReview({
+        workspace_id: targetWorkspaceId,
+        preset_id: targetPresetId,
+        ...result,
+      });
+    } catch (error) {
+      if (
+        requestId === homePresetReviewRequestId.current
+        && workspaceId === targetWorkspaceId
+        && presetId === targetPresetId
+      ) {
+        setMessage(error instanceof Error ? error.message : 'Preset review could not be created.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const reviewPreset = async () => {
     if (!workspaceId || !presetId || presetEditorDirty || busy) return;
 
     setBusy(true);
     setMessage(null);
     try {
-      const nextDraft = await window.roofroom.createDesktopDraft({
-        workspace_id: workspaceId,
-        origin: { kind: 'SAVED_PRESET', preset_id: presetId },
-      });
-
-      const ikasConfiguration =
-        getReusableSources(
-          nextDraft.reusable_configuration,
-        )['ikas-products'];
-
-      const includesIkasProducts =
-        typeof ikasConfiguration === 'object'
-        && ikasConfiguration !== null
-        && !Array.isArray(ikasConfiguration)
-        && (ikasConfiguration as JsonObject).included === true
-        && (ikasConfiguration as JsonObject).task_id
-          === 'ikas-products-import';
-
-      if (
-        includesIkasProducts
-        && presetSelectedIkasFile !== null
-      ) {
-        nextDraft.run_scoped_inputs = {
-          sources: {
-            'ikas-products': {
-              file_path:
-                presetSelectedIkasFile.file_path,
-            },
-          },
-        };
+      const result = await createPresetReview(
+        workspaceId,
+        presetId,
+        presetSelectedIkasFile,
+      );
+      if (result !== null) {
+        setPresetReview(result);
       }
-
-      const review = await window.roofroom.reviewDesktopDraft(nextDraft);
-      setPresetReview({ draft: nextDraft, review });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Preset review could not be created.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startHomeReviewedPreset = async () => {
+    if (
+      homePresetReview === null
+      || homePresetReview.workspace_id !== workspaceId
+      || homePresetReview.preset_id !== presetId
+      || homePresetReview.draft.workspace_id !== workspaceId
+      || homePresetReview.draft.origin.kind !== 'SAVED_PRESET'
+      || homePresetReview.draft.origin.preset_id !== presetId
+      || homePresetReview.review.origin.kind !== 'SAVED_PRESET'
+      || homePresetReview.review.origin.preset_id !== presetId
+      || homePresetReview.review.workspace.workspace_id !== workspaceId
+      || !homePresetReview.review.can_start
+      || homePresetReview.review.job_count <= 0
+      || homePresetReview.review.reviewed_draft === null
+      || homePresetReview.review.reviewed_draft.workspace_id !== workspaceId
+      || busy
+      || !presets.some((preset) => (
+        preset.preset_id === homePresetReview.preset_id
+        && preset.workspace_id === homePresetReview.workspace_id
+      ))
+    ) {
+      return;
+    }
+
+    const requestId = homePresetReviewRequestId.current;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const state = await window.roofroom.startDesktopDraft(
+        homePresetReview.review.reviewed_draft,
+      );
+      if (
+        requestId !== homePresetReviewRequestId.current
+        || homePresetReview.workspace_id !== workspaceId
+        || homePresetReview.preset_id !== presetId
+      ) {
+        return;
+      }
+      setActiveRunState(state);
+      setHomePresetReview(null);
+      setPresetSelectedIkasFile(null);
+      setView('RUNS');
+    } catch (error) {
+      if (
+        requestId === homePresetReviewRequestId.current
+        && homePresetReview.workspace_id === workspaceId
+        && homePresetReview.preset_id === presetId
+      ) {
+        setMessage(error instanceof Error ? error.message : 'Preset run could not be started.');
+      }
     } finally {
       setBusy(false);
     }
@@ -3396,7 +3758,18 @@ export function DesktopMultiSourceView() {
 
   const selectedPreset = presets.find((preset) => (
     preset.preset_id === presetId
+    && preset.workspace_id === workspaceId
   )) ?? null;
+  const selectedHomePresetSources = getReusableSources(
+    selectedPreset?.reusable_configuration ?? { sources: {} },
+  );
+  const homePresetIkasConfiguration = selectedHomePresetSources['ikas-products'];
+  const homePresetIncludesIkasProducts =
+    typeof homePresetIkasConfiguration === 'object'
+    && homePresetIkasConfiguration !== null
+    && !Array.isArray(homePresetIkasConfiguration)
+    && homePresetIkasConfiguration.included === true
+    && homePresetIkasConfiguration.task_id === 'ikas-products-import';
   const dashboardSourceCards = draft?.source_cards ?? [];
   const dashboardReadyCount = dashboardSourceCards.filter((card) => (
     card.readiness_status === 'READY'
@@ -3480,6 +3853,8 @@ export function DesktopMultiSourceView() {
     nextView: View,
   ) => {
     if (!confirmDiscardTransientEdits()) return;
+    homePresetReviewRequestId.current += 1;
+    setHomePresetReview(null);
     if (hasTransientEdits) {
       resetTransientEditors();
     }
@@ -3492,6 +3867,8 @@ export function DesktopMultiSourceView() {
     nextWorkspaceId: string,
   ) => {
     if (!confirmDiscardTransientEdits()) return;
+    homePresetReviewRequestId.current += 1;
+    setHomePresetReview(null);
     resetTransientEditors();
     setWorkspaceId(nextWorkspaceId);
     setSelectedTask(null);
@@ -5157,12 +5534,16 @@ export function DesktopMultiSourceView() {
                         === 0
                       }
                       onChange={
-                        (event) =>
+                        (event) => {
+                          homePresetReviewRequestId.current += 1;
+                          setHomePresetReview(null);
+                          setPresetSelectedIkasFile(null);
                           setPresetId(
                             event
                               .target
                               .value,
-                          )
+                          );
+                        }
                       }
                     >
                       {presets.length
@@ -5178,7 +5559,7 @@ export function DesktopMultiSourceView() {
                       {presets.map(
                         (
                           preset,
-                        ) => (
+                        ) => preset.workspace_id === workspaceId && (
                           <option
                             key={
                               preset
@@ -5198,19 +5579,120 @@ export function DesktopMultiSourceView() {
                       )}
                     </select>
                   </label>
-                  {/* P1-04 HOME: reuse the existing Saved Preset review flow. */}
                   <button
                     type="button"
                     className="rr-primary-action"
-                    disabled={!workspaceId || !presetId || hasTransientEdits || busy}
-                    onClick={() => {
-                      navigateTo('PRESETS');
-                      void reviewPreset();
-                    }}
+                    disabled={
+                      !workspaceId
+                      || selectedPreset === null
+                      || hasUnsavedTaskInputs
+                      || hasUnsavedPresetEdits
+                      || busy
+                    }
+                    onClick={() => void reviewHomePreset()}
                   >
-                    Review Preset
+                    Review Run
                   </button>
+
+                  {homePresetIncludesIkasProducts && (
+                    <div className="rr-file-input" data-testid="home-preset-ikas-input">
+                      <p>İkas Products needs a current XLSX selected for this Run; it is not stored in the Saved Preset.</p>
+                      <div className="rr-input-actions">
+                        <button
+                          type="button"
+                          className="rr-secondary-action"
+                          onClick={() => void selectPresetIkasProductsFile()}
+                        >
+                          {presetSelectedIkasFile === null
+                            ? 'Select Products XLSX for Run'
+                            : 'Replace Products XLSX for Run'}
+                        </button>
+                      </div>
+                      {presetSelectedIkasFile && (
+                        <div className="rr-selected-file">
+                          <strong>{presetSelectedIkasFile.file_name}</strong>
+                          <span>{presetSelectedIkasFile.file_type} · {formatFileSize(presetSelectedIkasFile.file_size_bytes)}</span>
+                          <code>{presetSelectedIkasFile.file_path}</code>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </section>
+
+                {homePresetReview
+                  && homePresetReview.workspace_id === workspaceId
+                  && homePresetReview.preset_id === presetId
+                  && (
+                    <div className="rr-preset-review" data-testid="home-preset-review">
+                      <strong>
+                        {homePresetReview.review.included_sources.length}
+                        {' sources · '}
+                        {homePresetReview.review.job_count}
+                        {' jobs'}
+                      </strong>
+                      <p>
+                        Workspace: {homePresetReview.review.workspace.workspace_name}
+                        {' · '}
+                        {homePresetReview.review.workspace.workspace_id}
+                      </p>
+                      <p>
+                        Saved preset: {selectedPreset?.preset_name ?? homePresetReview.preset_id}
+                        {' · '}
+                        {homePresetReview.preset_id}
+                      </p>
+                      {homePresetReview.review.reviewed_draft !== null && (
+                        <>
+                          <p>
+                            Reference date:{' '}
+                            {homePresetReview.review.reviewed_draft.reference_date}
+                          </p>
+                          {getPresetReviewedScopes(homePresetReview.review).map((scope) => (
+                            <div key={scope.sourceId}>
+                              <strong>{scope.sourceName}</strong>
+                              {scope.taskName !== null && <p>Task: {scope.taskName}</p>}
+                              {scope.details.map((detail) => <p key={detail}>{detail}</p>)}
+                            </div>
+                          ))}
+                          {getPresetReviewedInputNames(homePresetReview.review).map((name) => (
+                            <p key={name}>Run input: {name}</p>
+                          ))}
+                        </>
+                      )}
+                      {homePresetReview.review.source_cards
+                        .filter((card) => card.included)
+                        .map((card) => (
+                          <p key={card.source_id}>
+                            {card.source_name}: {formatStatus(card.readiness_status)}
+                          </p>
+                        ))}
+                      {homePresetReview.review.blocking_sources.length > 0 && (
+                        <p className="rr-field-error">
+                          Blocked: {homePresetReview.review.blocking_sources.join(', ')}
+                        </p>
+                      )}
+                      {Boolean(homePresetReview.review.planning_blocking_sources?.length) && (
+                        <p className="rr-field-error">
+                          Planning blocked: {homePresetReview.review.planning_blocking_sources.join(', ')}
+                        </p>
+                      )}
+                      {homePresetReview.review.planning_blocking_reasons?.map((reason) => (
+                        <p className="rr-field-error" key={reason}>{reason}</p>
+                      ))}
+                      <button
+                        type="button"
+                        className="rr-primary-action"
+                        disabled={
+                          busy
+                          || !homePresetReview.review.can_start
+                          || homePresetReview.review.job_count <= 0
+                          || homePresetReview.review.reviewed_draft === null
+                        }
+                        onClick={() => void startHomeReviewedPreset()}
+                      >
+                        Start Run
+                      </button>
+                    </div>
+                  )}
 
                 {
                   renderTaskCatalog()
