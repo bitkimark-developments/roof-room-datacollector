@@ -6,6 +6,14 @@ export interface SharedCoreRunExecutor {
     run_id: string,
   ): Promise<OrchestrationRunResult>;
 
+  requestCancellation?(
+    run_id: string,
+  ): void;
+
+  clearCancellationRequest?(
+    run_id: string,
+  ): void;
+
   executeStartedAttempt(
     run_id: string,
     job_id: string,
@@ -77,6 +85,10 @@ export class DesktopExecutionService {
         `Run ${run_id} has no active cancellation capability.`,
       );
     }
+
+    this.executor.requestCancellation?.(
+      run_id,
+    );
 
     await active.cancel();
 
@@ -221,6 +233,10 @@ export class DesktopExecutionService {
             },
           )
           .finally(() => {
+            this.executor.clearCancellationRequest?.(
+              run_id,
+            );
+
             const active =
               this.active.get(
                 run_id,

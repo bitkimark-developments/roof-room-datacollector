@@ -1853,6 +1853,46 @@ export class DesktopMultiSourceController {
         ): unknown;
       };
 
+  let jobs: ReturnType<
+    DesktopMultiSourceRepository['listJobs']
+  >;
+
+  if (isActive) {
+    await this.dependencies
+      .cancel_active_run!(
+        run_id,
+      );
+
+    const persistedRun =
+      repository.getRun(
+        run_id,
+      );
+
+    jobs = repository.listJobs(
+      run_id,
+    );
+
+    if (!persistedRun) {
+      throw new Error(
+        `Unknown Run: ${run_id}`,
+      );
+    }
+
+    if (
+      isTerminalRunStatus(
+        persistedRun.run_status,
+      )
+    ) {
+      return this.getRunState(
+        run_id,
+      );
+    }
+  } else {
+    jobs = repository.listJobs(
+      run_id,
+    );
+  }
+
   const cancellableStatuses =
     new Set([
       'PENDING',
@@ -1862,12 +1902,7 @@ export class DesktopMultiSourceController {
       'RETRY_PENDING',
     ]);
 
-  for (
-    const job
-    of repository.listJobs(
-      run_id,
-    )
-  ) {
+  for (const job of jobs) {
     if (
       !cancellableStatuses.has(
         job.execution_status,
@@ -1880,12 +1915,6 @@ export class DesktopMultiSourceController {
       .transitionJobExecution(
         job.job_id,
         'CANCELLED',
-        {
-          error_code:
-            'USER_CANCELLED',
-          error_message:
-            'Run cancelled by user.',
-        },
       );
   }
 
@@ -1894,17 +1923,6 @@ export class DesktopMultiSourceController {
 ).cancelRun(
   run_id,
 );
-
-  if (
-    isActive
-    && this.dependencies
-      .cancel_active_run
-  ) {
-    await this.dependencies
-      .cancel_active_run(
-        run_id,
-      );
-  }
 
   return this.getRunState(
     run_id,

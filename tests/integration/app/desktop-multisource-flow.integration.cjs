@@ -4,6 +4,8 @@ const {
   DesktopMultiSourceController,
 } = require(`${process.argv[2]}/main/app/desktop-multisource-controller.js`);
 const { DesktopExecutionService } = require(`${process.argv[2]}/main/app/desktop-execution-service.js`);
+const { CollectionOrchestrator } = require(`${process.argv[2]}/main/core/collection-orchestrator.js`);
+const { RunManager } = require(`${process.argv[2]}/main/core/run-manager.js`);
 
 const {
   isDesktopReviewedRunDraft,
@@ -845,6 +847,762 @@ async function main() {
     ['serpapi'],
     'Review must identify the included source that produced zero Jobs without misclassifying it as a readiness blocker.',
   );
+
+
+  // Cancellation must respect the persisted Job transition contract.
+  {
+    const run = {
+      run_id: 'rr_cancel_contract',
+      workspace_id: 'ws_a',
+      run_status: 'PENDING',
+    };
+
+    const job = {
+      job_id: 'job_cancel_contract',
+      execution_status: 'PENDING',
+    };
+
+    const repository = {
+      getRun: () => run,
+      listJobs: () => [job],
+      transitionJobExecution: (jobId, nextStatus, options = {}) => {
+        assert.equal(jobId, job.job_id);
+        assert.equal(nextStatus, 'CANCELLED');
+        assert.equal(
+          options.error_code,
+          undefined,
+          'CANCELLED must not receive FAILED-only error_code.',
+        );
+        job.execution_status = nextStatus;
+        return job;
+      },
+      transitionRunStatus: (runId, nextStatus) => {
+        assert.equal(runId, run.run_id);
+        run.run_status = nextStatus;
+        return run;
+      },
+    };
+
+    const controller = new DesktopMultiSourceController({
+      repository,
+      readiness: {
+        getReadiness: async (workspaceId, sourceId) =>
+          READY(workspaceId, sourceId),
+      },
+      application_version: 'test',
+      source_order: ['google-trends'],
+    });
+
+    controller.getRunState = () => ({
+      run,
+      jobs: [job],
+      job_attempts: [],
+      completed_jobs: 0,
+      failed_jobs: 0,
+      can_resume: false,
+      can_retry: false,
+      can_cancel: false,
+    });
+
+    await controller.cancelRun(run.run_id);
+
+    assert.equal(run.run_status, 'CANCELLED');
+    assert.equal(job.execution_status, 'CANCELLED');
+
+    console.log(
+      'PASS DESKTOP-CONTROLLER-CANCEL-CONTRACT-001: cancellation respects persisted transition options',
+    );
+  }
+
+
+  // A rejected physical cancellation must not fabricate cancellation.
+  {
+    const run = {
+      run_id: 'rr_cancel_failure',
+      workspace_id: 'ws_a',
+      run_status: 'RUNNING',
+    };
+
+    const job = {
+      job_id: 'job_cancel_failure',
+      execution_status: 'RUNNING',
+    };
+
+    let physicalCancelCalls = 0;
+
+    const repository = {
+      getRun: (runId) => runId === run.run_id ? run : null,
+      listJobs: (runId) => runId === run.run_id ? [job] : [],
+      transitionJobExecution: (jobId, nextStatus) => {
+        assert.equal(jobId, job.job_id);
+        job.execution_status = nextStatus;
+        return job;
+      },
+      transitionRunStatus: (runId, nextStatus) => {
+        assert.equal(runId, run.run_id);
+        run.run_status = nextStatus;
+        return run;
+      },
+    };
+
+    const controller = new DesktopMultiSourceController({
+      repository,
+      readiness: {
+        getReadiness: async (workspaceId, sourceId) =>
+          READY(workspaceId, sourceId),
+      },
+      application_version: 'test',
+      source_order: ['google-trends'],
+      is_run_active: (runId) => runId === run.run_id,
+      can_cancel_run: (runId) => runId === run.run_id,
+      cancel_active_run: async () => {
+        physicalCancelCalls += 1;
+        throw new Error('SIMULATED_PHYSICAL_CANCEL_REFUSAL');
+      },
+    });
+
+    await assert.rejects(
+      () => controller.cancelRun(run.run_id),
+      /SIMULATED_PHYSICAL_CANCEL_REFUSAL/u,
+    );
+
+    assert.equal(
+      physicalCancelCalls,
+      1,
+      'Physical cancellation must have been attempted.',
+    );
+
+    assert.equal(
+      run.run_status,
+      'RUNNING',
+      'Rejected physical cancellation must not mark Run CANCELLED.',
+    );
+
+    assert.equal(
+      job.execution_status,
+      'RUNNING',
+      'Rejected physical cancellation must not mark Job CANCELLED.',
+    );
+
+    console.log(
+      'PASS DESKTOP-CONTROLLER-CANCEL-FAILURE-001: failed physical cancellation does not fabricate persisted cancellation',
+    );
+  }
+
+  // Active Runs persist cancellation only after physical cancellation succeeds.
+  {
+    const run = {
+      run_id: 'rr_cancel_active_success',
+      workspace_id: 'ws_a',
+      run_status: 'RUNNING',
+    };
+
+    const job = {
+      job_id: 'job_cancel_active_success',
+      execution_status: 'RUNNING',
+    };
+
+    const events = [];
+    let physicalCancellationFinished = false;
+    let postCancellationRunReads = 0;
+    let postCancellationJobReads = 0;
+
+    const repository = {
+      getRun: (runId) => {
+        assert.equal(runId, run.run_id);
+        if (physicalCancellationFinished) {
+          postCancellationRunReads += 1;
+        }
+        events.push('read-run');
+        return run;
+      },
+      listJobs: (runId) => {
+        assert.equal(runId, run.run_id);
+        if (physicalCancellationFinished) {
+          postCancellationJobReads += 1;
+        }
+        events.push('read-jobs');
+        return [job];
+      },
+      transitionJobExecution: (jobId, nextStatus) => {
+        assert.equal(jobId, job.job_id);
+        events.push('cancel-job');
+        job.execution_status = nextStatus;
+        return job;
+      },
+      transitionRunStatus: (runId, nextStatus) => {
+        assert.equal(runId, run.run_id);
+        events.push('cancel-run');
+        run.run_status = nextStatus;
+        return run;
+      },
+    };
+
+    const controller = new DesktopMultiSourceController({
+      repository,
+      readiness: {
+        getReadiness: async (workspaceId, sourceId) =>
+          READY(workspaceId, sourceId),
+      },
+      application_version: 'test',
+      source_order: ['google-trends'],
+      is_run_active: (runId) => runId === run.run_id,
+      can_cancel_run: (runId) => runId === run.run_id,
+      cancel_active_run: async () => {
+        events.push('physical-cancel');
+        physicalCancellationFinished = true;
+      },
+    });
+
+    controller.getRunState = () => ({
+      run,
+      jobs: [job],
+      job_attempts: [],
+      completed_jobs: 0,
+      failed_jobs: 0,
+      can_resume: false,
+      can_retry: false,
+      can_cancel: false,
+    });
+
+    await controller.cancelRun(run.run_id);
+
+    assert.ok(
+      events.indexOf('physical-cancel')
+        < events.indexOf('cancel-job'),
+      'Physical cancellation must succeed before Job cancellation is persisted.',
+    );
+    assert.ok(postCancellationRunReads >= 1);
+    assert.ok(postCancellationJobReads >= 1);
+    assert.equal(run.run_status, 'CANCELLED');
+    assert.equal(job.execution_status, 'CANCELLED');
+
+    console.log(
+      'PASS DESKTOP-CONTROLLER-CANCEL-ACTIVE-001: successful physical cancellation precedes persisted cancellation',
+    );
+  }
+
+  // A naturally terminal Run during physical cancellation keeps its outcome.
+  {
+    const run = {
+      run_id: 'rr_cancel_natural_completion',
+      workspace_id: 'ws_a',
+      run_status: 'RUNNING',
+    };
+
+    const job = {
+      job_id: 'job_cancel_natural_completion',
+      execution_status: 'RUNNING',
+    };
+
+    let physicalCancellationFinished = false;
+    let postCancellationRunReads = 0;
+    let postCancellationJobReads = 0;
+    let persistedTransitions = 0;
+
+    const repository = {
+      getRun: (runId) => {
+        assert.equal(runId, run.run_id);
+        if (physicalCancellationFinished) {
+          postCancellationRunReads += 1;
+        }
+        return run;
+      },
+      listJobs: (runId) => {
+        assert.equal(runId, run.run_id);
+        if (physicalCancellationFinished) {
+          postCancellationJobReads += 1;
+        }
+        return [job];
+      },
+      transitionJobExecution: () => {
+        persistedTransitions += 1;
+        throw new Error('Terminal Run Jobs must not be overwritten.');
+      },
+      transitionRunStatus: () => {
+        persistedTransitions += 1;
+        throw new Error('Terminal Run status must not be overwritten.');
+      },
+    };
+
+    const controller = new DesktopMultiSourceController({
+      repository,
+      readiness: {
+        getReadiness: async (workspaceId, sourceId) =>
+          READY(workspaceId, sourceId),
+      },
+      application_version: 'test',
+      source_order: ['google-trends'],
+      is_run_active: (runId) => runId === run.run_id,
+      can_cancel_run: (runId) => runId === run.run_id,
+      cancel_active_run: async () => {
+        job.execution_status = 'COMPLETED';
+        run.run_status = 'COMPLETED';
+        physicalCancellationFinished = true;
+      },
+    });
+
+    controller.getRunState = () => ({
+      run,
+      jobs: [job],
+      job_attempts: [],
+      completed_jobs: 1,
+      failed_jobs: 0,
+      can_resume: false,
+      can_retry: false,
+      can_cancel: false,
+    });
+
+    await controller.cancelRun(run.run_id);
+
+    assert.equal(postCancellationRunReads, 1);
+    assert.equal(postCancellationJobReads, 1);
+    assert.equal(persistedTransitions, 0);
+    assert.equal(run.run_status, 'COMPLETED');
+    assert.equal(job.execution_status, 'COMPLETED');
+
+    console.log(
+      'PASS DESKTOP-CONTROLLER-CANCEL-TERMINAL-001: natural terminal completion is preserved during cancellation',
+    );
+  }
+
+  // A failed in-flight result during cancellation must not schedule later Jobs.
+  {
+    const run = {
+      run_id: 'rr_cancel_scheduling_race',
+      workspace_id: 'ws_a',
+      run_status: 'RUNNING',
+      requested_configuration: {},
+    };
+
+    const jobs = [
+      {
+        job_id: 'job_cancel_race_accepted',
+        run_id: run.run_id,
+        source_id: 'cancel-race-source',
+        job_key: 'ACCEPTED',
+        execution_status: 'COMPLETED',
+        attempt_count: 1,
+        accepted_artifact_id: 'artifact_preserved',
+      },
+      {
+        job_id: 'job_cancel_race_active',
+        run_id: run.run_id,
+        source_id: 'cancel-race-source',
+        job_key: 'ACTIVE',
+        execution_status: 'PENDING',
+        attempt_count: 0,
+        accepted_artifact_id: null,
+      },
+      {
+        job_id: 'job_cancel_race_later',
+        run_id: run.run_id,
+        source_id: 'cancel-race-source',
+        job_key: 'LATER',
+        execution_status: 'PENDING',
+        attempt_count: 0,
+        accepted_artifact_id: null,
+      },
+    ];
+
+    const attempts = [
+      {
+        attempt_id: 'attempt_preserved',
+        job_id: jobs[0].job_id,
+        attempt_number: 1,
+        execution_status: 'COMPLETED',
+      },
+    ];
+    const acceptedAttemptBeforeCancellation = {
+      ...attempts[0],
+    };
+    const acceptedArtifactBeforeCancellation =
+      jobs[0].accepted_artifact_id;
+    const laterJobStarts = [];
+    const events = [];
+    let physicalCancelCalls = 0;
+    let resolveActiveCollection;
+    let notifyActiveCollectionStarted;
+
+    const activeCollectionStarted = new Promise((resolve) => {
+      notifyActiveCollectionStarted = resolve;
+    });
+
+    const repository = {
+      getRun: (runId) =>
+        runId === run.run_id ? run : null,
+      getJob: (jobId) =>
+        jobs.find((job) => job.job_id === jobId) ?? null,
+      listJobs: (runId) =>
+        runId === run.run_id ? jobs : [],
+      startAttempt: (jobId) => {
+        const job = jobs.find((candidate) => candidate.job_id === jobId);
+        assert.ok(job);
+        assert.equal(job.execution_status, 'PENDING');
+        job.execution_status = 'RUNNING';
+        job.attempt_count += 1;
+        const attempt = {
+          attempt_id: `attempt_${job.job_key.toLowerCase()}`,
+          job_id: jobId,
+          attempt_number: job.attempt_count,
+          execution_status: 'RUNNING',
+        };
+        attempts.push(attempt);
+        events.push(`attempt-start:${job.job_key}`);
+        return attempt;
+      },
+      transitionJobExecution: (jobId, nextStatus) => {
+        const job = jobs.find((candidate) => candidate.job_id === jobId);
+        assert.ok(job);
+        job.execution_status = nextStatus;
+        if (nextStatus === 'FAILED' || nextStatus === 'CANCELLED') {
+          const attempt = [...attempts].reverse().find(
+            (candidate) => candidate.job_id === jobId
+              && candidate.execution_status === 'RUNNING',
+          );
+          if (attempt) {
+            attempt.execution_status = nextStatus;
+          }
+        }
+        return job;
+      },
+      transitionRunStatus: (runId, nextStatus) => {
+        assert.equal(runId, run.run_id);
+        run.run_status = nextStatus;
+        return run;
+      },
+    };
+
+    const source = {
+      id: 'cancel-race-source',
+      name: 'Cancellation Race Test Source',
+      sourceMode: 'TEST',
+      datasetTypes: [],
+      getCapabilities: () => ({
+        requires_browser: false,
+        requires_oauth: false,
+        may_require_manual_login: false,
+        supports_custom_date_range: false,
+        supports_direct_export: false,
+        supports_api: false,
+        supports_resume: false,
+        max_concurrency: 1,
+      }),
+      checkReadiness: async () => ({
+        source_id: 'cancel-race-source',
+        readiness_status: 'READY',
+        checked_at: '2026-10-09T00:00:00.000Z',
+        message: null,
+      }),
+      collect: async (context) => {
+        if (context.job_key === 'ACTIVE') {
+          events.push('collect-start:ACTIVE');
+          notifyActiveCollectionStarted();
+          const result = await new Promise((resolve) => {
+            resolveActiveCollection = resolve;
+          });
+          events.push('collect-result:ACTIVE-FAILED');
+          return result;
+        }
+
+        if (context.job_key === 'LATER') {
+          events.push('collect-start:LATER');
+          laterJobStarts.push(context.job_key);
+        }
+
+        return {
+          result_type: 'FAILED',
+          error_code: 'CONTROLLED_COLLECTION_FAILURE',
+          message: 'Controlled failed result during cancellation.',
+        };
+      },
+    };
+
+    const orchestrator = new CollectionOrchestrator(
+      repository,
+      {},
+      { get: (sourceId) => sourceId === source.id ? source : null },
+      { get: () => { throw new Error('Validator must not run for failed collection.'); } },
+      new RunManager(repository),
+    );
+
+    const executionService = new DesktopExecutionService(orchestrator);
+    const controller = new DesktopMultiSourceController({
+      repository,
+      readiness: {
+        getReadiness: async (workspaceId, sourceId) =>
+          READY(workspaceId, sourceId),
+      },
+      application_version: 'test',
+      source_order: ['cancel-race-source'],
+      is_run_active: (runId) =>
+        executionService.isActive(runId),
+      can_cancel_run: (runId) =>
+        executionService.canCancel(runId),
+      cancel_active_run: (runId) =>
+        executionService.cancelActive(runId),
+    });
+
+    controller.getRunState = () => ({
+      run,
+      jobs,
+      job_attempts: attempts,
+      completed_jobs: jobs.filter(
+        (job) => job.execution_status === 'COMPLETED',
+      ).length,
+      failed_jobs: jobs.filter(
+        (job) => job.execution_status === 'FAILED',
+      ).length,
+      can_resume: false,
+      can_retry: false,
+      can_cancel: false,
+    });
+
+    const executionPromise = executionService.execute(
+      run.run_id,
+      async () => {
+        physicalCancelCalls += 1;
+        events.push('physical-cancel');
+        resolveActiveCollection({
+          result_type: 'FAILED',
+          error_code: 'CANCELLED_IN_FLIGHT_OPERATION',
+          message: 'Provider operation settled as failed during cancellation.',
+        });
+      },
+    );
+
+    await activeCollectionStarted;
+    const cancellationState = await controller.cancelRun(run.run_id);
+    await executionPromise;
+
+    assert.equal(physicalCancelCalls, 1);
+    assert.ok(
+      events.indexOf('physical-cancel')
+        < events.indexOf('collect-result:ACTIVE-FAILED'),
+      'The controlled provider failure must settle after cancellation is requested.',
+    );
+    assert.deepEqual(
+      laterJobStarts,
+      [],
+      'No later pending Job may begin after cancellation takes effect.',
+    );
+    assert.equal(
+      attempts.some((attempt) => attempt.job_id === jobs[2].job_id),
+      false,
+      'Cancellation must not create an Attempt for later pending work.',
+    );
+    assert.equal(jobs[1].execution_status, 'FAILED');
+    assert.equal(
+      attempts.find((attempt) => attempt.job_id === jobs[1].job_id)
+        .execution_status,
+      'FAILED',
+      'The in-flight provider failure must remain in immutable Attempt history.',
+    );
+    assert.equal(jobs[0].execution_status, 'COMPLETED');
+    assert.equal(jobs[0].accepted_artifact_id, acceptedArtifactBeforeCancellation);
+    assert.deepEqual(attempts[0], acceptedAttemptBeforeCancellation);
+    assert.equal(run.run_status, 'CANCELLED');
+    assert.equal(cancellationState.run.run_status, 'CANCELLED');
+
+    console.log(
+      'PASS DESKTOP-CONTROLLER-CANCEL-SCHEDULING-001: failed in-flight result does not start later pending work after cancellation',
+    );
+  }
+
+  // Rejection before continuation starts must release the Run cancellation signal.
+  {
+    const run = {
+      run_id: 'rr_cancel_started_attempt_rejection',
+      workspace_id: 'ws_a',
+      run_status: 'RUNNING',
+      requested_configuration: {},
+    };
+
+    const jobs = [
+      {
+        job_id: 'job_cancel_started_attempt',
+        run_id: run.run_id,
+        source_id: 'cancel-started-attempt-source',
+        job_key: 'STARTED',
+        execution_status: 'RUNNING',
+        attempt_count: 1,
+        accepted_artifact_id: null,
+      },
+      {
+        job_id: 'job_cancel_started_attempt_later',
+        run_id: run.run_id,
+        source_id: 'cancel-started-attempt-source',
+        job_key: 'LATER',
+        execution_status: 'PENDING',
+        attempt_count: 0,
+        accepted_artifact_id: null,
+      },
+    ];
+    const attempts = [
+      {
+        attempt_id: 'attempt_started_rejects',
+        job_id: jobs[0].job_id,
+        attempt_number: 1,
+        execution_status: 'RUNNING',
+      },
+    ];
+    let rejectStartedAttempt;
+    let notifyStartedAttempt;
+    let startedAttemptCalls = 0;
+    let laterCollectionCalls = 0;
+
+    const startedAttempt = new Promise((resolve) => {
+      notifyStartedAttempt = resolve;
+    });
+
+    const repository = {
+      getRun: (runId) =>
+        runId === run.run_id ? run : null,
+      getJob: (jobId) =>
+        jobs.find((job) => job.job_id === jobId) ?? null,
+      listJobs: (runId) =>
+        runId === run.run_id ? jobs : [],
+      startAttempt: (jobId) => {
+        const job = jobs.find((candidate) => candidate.job_id === jobId);
+        assert.ok(job);
+        job.execution_status = 'RUNNING';
+        job.attempt_count += 1;
+        const attempt = {
+          attempt_id: `attempt_later_${job.attempt_count}`,
+          job_id: jobId,
+          attempt_number: job.attempt_count,
+          execution_status: 'RUNNING',
+        };
+        attempts.push(attempt);
+        return attempt;
+      },
+      transitionJobExecution: (jobId, nextStatus) => {
+        const job = jobs.find((candidate) => candidate.job_id === jobId);
+        assert.ok(job);
+        job.execution_status = nextStatus;
+        const activeAttempt = [...attempts].reverse().find(
+          (attempt) =>
+            attempt.job_id === jobId
+            && attempt.execution_status === 'RUNNING',
+        );
+        if (activeAttempt && nextStatus === 'FAILED') {
+          activeAttempt.execution_status = 'FAILED';
+        }
+        return job;
+      },
+      transitionRunStatus: (runId, nextStatus) => {
+        assert.equal(runId, run.run_id);
+        run.run_status = nextStatus;
+        return run;
+      },
+    };
+
+    const source = {
+      id: 'cancel-started-attempt-source',
+      name: 'Cancellation Started Attempt Test Source',
+      sourceMode: 'TEST',
+      datasetTypes: [],
+      getCapabilities: () => ({
+        requires_browser: false,
+        requires_oauth: false,
+        may_require_manual_login: false,
+        supports_custom_date_range: false,
+        supports_direct_export: false,
+        supports_api: false,
+        supports_resume: false,
+        max_concurrency: 1,
+      }),
+      checkReadiness: async () => ({
+        source_id: 'cancel-started-attempt-source',
+        readiness_status: 'READY',
+        checked_at: '2026-10-09T00:00:00.000Z',
+        message: null,
+      }),
+      collect: async (context) => {
+        if (context.job_key === 'LATER') {
+          laterCollectionCalls += 1;
+        }
+        return {
+          result_type: 'FAILED',
+          error_code: 'CONTROLLED_LATER_FAILURE',
+          message: 'Controlled later Job result.',
+        };
+      },
+    };
+
+    const orchestrator = new CollectionOrchestrator(
+      repository,
+      {},
+      {
+        get: (sourceId) =>
+          sourceId === source.id ? source : null,
+      },
+      {
+        get: () => {
+          throw new Error('Validator must not run for a failed collection.');
+        },
+      },
+      new RunManager(repository),
+    );
+
+    const executeStartedAttempt =
+      orchestrator.executeStartedAttempt.bind(orchestrator);
+    orchestrator.executeStartedAttempt = async (...args) => {
+      startedAttemptCalls += 1;
+      if (startedAttemptCalls === 1) {
+        notifyStartedAttempt();
+        return new Promise((_resolve, reject) => {
+          rejectStartedAttempt = reject;
+        });
+      }
+      return executeStartedAttempt(...args);
+    };
+
+    const executionService = new DesktopExecutionService(orchestrator);
+    const initialExecution = executionService.executeStartedAttemptAndContinue(
+      run.run_id,
+      jobs[0].job_id,
+      attempts[0],
+      async () => {
+        jobs[0].execution_status = 'FAILED';
+        attempts[0].execution_status = 'FAILED';
+        rejectStartedAttempt(new Error('SIMULATED_STARTED_ATTEMPT_REJECTION'));
+      },
+    );
+
+    await startedAttempt;
+    const cancellation = executionService.cancelActive(run.run_id);
+
+    await assert.rejects(
+      initialExecution,
+      /SIMULATED_STARTED_ATTEMPT_REJECTION/u,
+    );
+    await cancellation;
+
+    assert.equal(executionService.isActive(run.run_id), false);
+    assert.equal(jobs[0].execution_status, 'FAILED');
+    assert.equal(attempts[0].execution_status, 'FAILED');
+
+    const laterExecution = await executionService.execute(run.run_id);
+
+    assert.equal(
+      laterCollectionCalls,
+      1,
+      'A later permitted execution must not inherit the previous cancellation request.',
+    );
+    assert.equal(
+      attempts.some(
+        (attempt) => attempt.job_id === jobs[1].job_id,
+      ),
+      true,
+      'The later permitted execution must begin its own Attempt.',
+    );
+    assert.equal(laterExecution.stopped_because, 'RETRY_REQUIRED');
+
+    console.log(
+      'PASS DESKTOP-CONTROLLER-CANCEL-STARTED-REJECTION-001: rejected started Attempt does not leave a stale cancellation request',
+    );
+  }
 
   let releaseCancellationExecution;
   let physicalCancelCalls = 0;

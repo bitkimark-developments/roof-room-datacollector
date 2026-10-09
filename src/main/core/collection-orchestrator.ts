@@ -170,6 +170,9 @@ const requireNonEmptyErrorCode = (
 };
 
 export class CollectionOrchestrator {
+  private readonly cancellationRequests =
+    new Set<string>();
+
   constructor(
     private readonly store:
       CollectionOrchestratorStateStore,
@@ -184,6 +187,22 @@ export class CollectionOrchestrator {
     private readonly logger:
       StructuredLogSink | null = null,
   ) {}
+
+  requestCancellation(
+    runId: string,
+  ): void {
+    this.cancellationRequests.add(
+      runId,
+    );
+  }
+
+  clearCancellationRequest(
+    runId: string,
+  ): void {
+    this.cancellationRequests.delete(
+      runId,
+    );
+  }
 
   async runNext(
     runId: string,
@@ -326,33 +345,61 @@ export class CollectionOrchestrator {
         initialJobs.length + 2,
       );
 
-    for (
-      let index = 0;
-      index < safetyLimit;
-      index += 1
-    ) {
-      const current =
-        await this.runNext(runId);
-
-      steps.push(current);
-
-      if (
-        current.outcome ===
-          'JOB_COMPLETED' ||
-        current.outcome === 'JOB_FAILED'
+    try {
+      for (
+        let index = 0;
+        index < safetyLimit;
+        index += 1
       ) {
-        continue;
+        if (
+          this.cancellationRequests.has(
+            runId,
+          )
+        ) {
+          return {
+            steps,
+            stopped_because: 'CANCELLATION_REQUESTED',
+          };
+        }
+
+        const current =
+          await this.runNext(runId);
+
+        steps.push(current);
+
+        if (
+          current.outcome ===
+            'JOB_COMPLETED' ||
+          current.outcome === 'JOB_FAILED'
+        ) {
+          if (
+            this.cancellationRequests.has(
+              runId,
+            )
+          ) {
+            return {
+              steps,
+              stopped_because: 'CANCELLATION_REQUESTED',
+            };
+          }
+
+          continue;
+        }
+
+        return {
+          steps,
+          stopped_because: current.outcome,
+        };
       }
 
-      return {
-        steps,
-        stopped_because: current.outcome,
-      };
+      throw new Error(
+        `Sequential orchestration exceeded safety limit for run ${runId}.`,
+      );
+    } finally {
+      this.cancellationRequests.delete(
+        runId,
+      );
     }
-
-    throw new Error(
-      `Sequential orchestration exceeded safety limit for run ${runId}.`,
-    );
   }
 
   async executeStartedAttempt(

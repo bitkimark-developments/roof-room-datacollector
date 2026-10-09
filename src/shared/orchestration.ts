@@ -16,6 +16,10 @@ export const ORCHESTRATION_STEP_OUTCOMES = [
 export type OrchestrationStepOutcome =
   (typeof ORCHESTRATION_STEP_OUTCOMES)[number];
 
+export type OrchestrationRunStopReason =
+  | OrchestrationStepOutcome
+  | 'CANCELLATION_REQUESTED';
+
 export interface OrchestrationStepResult {
   outcome: OrchestrationStepOutcome;
   job: JobRecord | null;
@@ -26,5 +30,5 @@ export interface OrchestrationStepResult {
 
 export interface OrchestrationRunResult {
   steps: OrchestrationStepResult[];
-  stopped_because: OrchestrationStepOutcome;
+  stopped_because: OrchestrationRunStopReason;
 }
