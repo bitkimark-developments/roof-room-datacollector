@@ -96,6 +96,16 @@ const sourceCards = [
     configuration_summary: 'Query × Page',
   },
   {
+    source_id: 'google-search-console-query',
+    source_name: 'Google Search Console Queries',
+    included: false,
+    readiness_status: 'READY',
+    freshness_status: 'DUE',
+    last_successful_at: null,
+    next_due_at: null,
+    configuration_summary: 'Current + Previous 28 Days',
+  },
+  {
     source_id: 'google-ads-search-terms',
     source_name: 'Google Ads Search Terms',
     included: false,
@@ -725,6 +735,32 @@ const main = async () => {
           reviewDesktopDraft: async (reviewDraft) => {
             window.__reviewedDesktopDraft =
               reviewDraft;
+
+            const gscQueryConfig = reviewDraft?.reusable_configuration?.sources?.['google-search-console-query'];
+            if (gscQueryConfig?.task_id === 'gsc-query-current-previous-28-days') {
+              const reviewedArtifact = {
+                workspace_id: 'ws_fixture', task_id: gscQueryConfig.task_id,
+                source_id: 'google-search-console-query',
+                included_sources: ['google-search-console-query'],
+                reference_date: '2026-09-14', resolved_at: '2026-09-14T09:30:00.000Z',
+                reusable_configuration: reviewDraft.reusable_configuration,
+                resolved_configuration: { sources: { 'google-search-console-query': {
+                  ...gscQueryConfig, site_url: 'sc-domain:bitkimark.com', country_filter: 'TUR',
+                  date_ranges: [
+                    { job_key: 'gsc-query-current-28', task_id: gscQueryConfig.task_id,
+                      period: 'CURRENT_28_DAYS', requested_date_start: '2026-08-17', requested_date_end: '2026-09-13' },
+                    { job_key: 'gsc-query-previous-28', task_id: gscQueryConfig.task_id,
+                      period: 'PREVIOUS_28_DAYS', requested_date_start: '2026-07-20', requested_date_end: '2026-08-16' },
+                  ],
+                } } },
+              };
+              window.__reviewedDesktopArtifact = reviewedArtifact;
+              return { workspace: { workspace_id: 'ws_fixture', workspace_name: 'Acceptance Workspace' },
+                origin: reviewDraft.origin, included_sources: ['google-search-console-query'],
+                source_cards: [{ source_id: 'google-search-console-query', included: true, readiness_status: 'READY' }],
+                job_count: 2, can_start: true, blocking_sources: [], planning_blocking_sources: [],
+                reviewed_draft: reviewedArtifact };
+            }
 
             const conversionConfig = reviewDraft?.reusable_configuration?.sources?.['google-ads-search-reporting'];
             if (conversionConfig?.task_id === 'google-ads-conversion-date-performance') {
@@ -2416,7 +2452,7 @@ const main = async () => {
     }).waitFor();
 
     const dashboard = page.getByTestId('operations-dashboard');
-    assert.equal(await dashboard.getByText('5 ready', { exact: true }).count(), 1);
+    assert.equal(await dashboard.getByText('6 ready', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('2 need connection', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('2 need import', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('1 needs attention', { exact: true }).count(), 1);
@@ -4038,6 +4074,42 @@ const main = async () => {
           true,
       },
     ).waitFor();
+
+    const gscQueryTaskCard = page.getByTestId('task-card')
+      .filter({ hasText: 'GSC — Queries Current + Previous 28 Days' });
+    assert.equal(await gscQueryTaskCard.count(), 1, 'The two-window GSC task must be discoverable');
+    await gscQueryTaskCard.click();
+    await page.getByRole('button', { name: 'Review Quick Run', exact: true }).click();
+    assert.deepEqual(
+      await page.evaluate(() => window.__reviewedDesktopDraft?.reusable_configuration?.sources?.['google-search-console-query']),
+      { included: true, task_id: 'gsc-query-current-previous-28-days' },
+      'Task selection must preserve the two-window GSC task identity through Review.',
+    );
+    assert.equal(
+        await page.getByText('Jobs', { exact: true })
+          .locator('..').locator('dd').innerText(),
+        '2',
+        'GSC Review must display exactly two planned Jobs.',
+      );
+    assert.equal(await page.getByText('Current: 2026-08-17 → 2026-09-13', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Previous: 2026-07-20 → 2026-08-16', { exact: true }).count(), 1);
+    assert.deepEqual(await page.evaluate(() => window.__reviewedDesktopArtifact.resolved_configuration.sources['google-search-console-query'].date_ranges.map((range) => range.job_key)),
+      ['gsc-query-current-28', 'gsc-query-previous-28']);
+    await page.getByRole('button', { name: 'Start Run', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft),
+      await page.evaluate(() => window.__reviewedDesktopArtifact),
+      'Start must consume the exact reviewed two-window artifact.');
+    await page.reload();
+    await page.getByRole('button', { name: 'PRESETS', exact: true }).click();
+    const twoWindowPresetTask = page.getByTestId('new-preset')
+      .getByLabel('GSC — Queries Current + Previous 28 Days', { exact: true });
+    assert.equal(await twoWindowPresetTask.isEnabled(), true);
+    await twoWindowPresetTask.check();
+    await page.getByTestId('new-preset').getByLabel('New preset name').fill('GSC Two Windows');
+    await page.getByTestId('new-preset').getByRole('button', { name: 'Create Preset', exact: true }).click();
+    assert.equal(await page.evaluate(() => window.__createdDesktopPresetInput.reusable_configuration.sources['google-search-console-query'].task_id),
+      'gsc-query-current-previous-28-days');
+    await page.reload();
 
     const gscCurrentTaskCard =
       page

@@ -1894,6 +1894,10 @@ export function DesktopMultiSourceView() {
   const buildCurrentTaskSourceConfiguration = (
     task: CollectionDesktopTaskDefinition,
   ): JsonObject | null => {
+    if (task.task_id === 'gsc-query-current-previous-28-days') {
+      return { included: true, task_id: task.task_id };
+    }
+
     if (
       (
         task.source_id === 'google-search-console-query-page'
@@ -3874,6 +3878,9 @@ export function DesktopMultiSourceView() {
 
             const hasReviewableQuickRunConfiguration =
               (
+                selectedTask.task_id === 'gsc-query-current-previous-28-days'
+              )
+              || (
                 selectedTask.source_id === 'ikas-products'
                 && selectedIkasFile !== null
               )
@@ -4769,6 +4776,20 @@ export function DesktopMultiSourceView() {
                     <p>Planning: {quickRunReview.review.can_start ? 'Complete' : 'Blocked'}</p>
                   </section>
                 )}
+
+                {selectedTask.task_id === 'gsc-query-current-previous-28-days' && (() => {
+                  const source = (quickRunReview.review.reviewed_draft?.resolved_configuration.sources as JsonObject | undefined)?.['google-search-console-query'] as JsonObject | undefined;
+                  const ranges = source?.date_ranges;
+                  if (!Array.isArray(ranges) || ranges.length !== 2) return null;
+                  const [current, previous] = ranges as JsonObject[];
+                  return (
+                    <section className="rr-panel rr-detail-panel">
+                      <h2>Exact GSC Query Windows</h2>
+                      <p>Current: {String(current.requested_date_start)} → {String(current.requested_date_end)}</p>
+                      <p>Previous: {String(previous.requested_date_start)} → {String(previous.requested_date_end)}</p>
+                    </section>
+                  );
+                })()}
 
                 {(() => {
                   const summary =
