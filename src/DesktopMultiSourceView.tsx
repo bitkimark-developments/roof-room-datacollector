@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -1081,6 +1082,36 @@ export function DesktopMultiSourceView() {
       | null
     >(null);
 
+  const runHistoryRequestId = useRef(0);
+
+  const loadRunHistory = async (
+    targetWorkspaceId: string,
+    isCurrent: () => boolean = () => true,
+  ) => {
+    const requestId = ++runHistoryRequestId.current;
+    const canApplyResponse = () => (
+      requestId === runHistoryRequestId.current
+      && isCurrent()
+    );
+
+    setRunHistory([]);
+
+    try {
+      const nextRuns = await window.roofroom.listDesktopRuns(targetWorkspaceId);
+      if (canApplyResponse()) {
+        setRunHistory(nextRuns);
+      }
+    } catch (error) {
+      if (canApplyResponse()) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Run History yüklenemedi.',
+        );
+      }
+    }
+  };
+
   useEffect(() => {
     if (
       view !== 'RUNS'
@@ -1094,34 +1125,7 @@ export function DesktopMultiSourceView() {
     let mounted =
       true;
 
-    setRunHistory(
-      [],
-    );
-
-    void window.roofroom
-      .listDesktopRuns(
-        workspaceId,
-      )
-      .then(
-        (nextRuns) => {
-          if (mounted === true) {
-            setRunHistory(
-              nextRuns,
-            );
-          }
-        },
-      )
-      .catch(
-        (error) => {
-          if (mounted === true) {
-            setMessage(
-              error instanceof Error
-                ? error.message
-                : 'Run History yüklenemedi.',
-            );
-          }
-        },
-      );
+    void loadRunHistory(workspaceId, () => mounted);
 
     return () => {
       mounted =
@@ -5252,6 +5256,17 @@ export function DesktopMultiSourceView() {
               <section
                 className="rr-panel"
               >
+                <button
+                  type="button"
+                  className="rr-back-button"
+                  onClick={() => {
+                    setActiveRunState(null);
+                    void loadRunHistory(workspaceId);
+                  }}
+                >
+                  Back to Run History
+                </button>
+
                 <span
                   className="rr-kicker"
                 >

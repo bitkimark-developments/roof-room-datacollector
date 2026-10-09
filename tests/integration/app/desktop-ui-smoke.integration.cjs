@@ -1659,11 +1659,14 @@ const main = async () => {
           },
 
           listDesktopRuns: async (workspaceId) => {
+            window.__desktopRunHistoryRequests =
+              [...(window.__desktopRunHistoryRequests ?? []), workspaceId];
             window.__listDesktopRunsWorkspaceId =
               workspaceId;
+            window.__listDesktopRunsCallCount =
+              (window.__listDesktopRunsCallCount ?? 0) + 1;
 
-
-            return [
+            const runs = [
               {
                 run_id: 'rr_fixture_cancel_001',
                 workspace_id: 'ws_fixture',
@@ -1714,6 +1717,23 @@ const main = async () => {
                 },
               },
             ];
+
+            if (workspaceId === 'ws_other') {
+              return [{
+                ...runs[0],
+                run_id: 'rr_fixture_other_workspace_001',
+                workspace_id: 'ws_other',
+              }];
+            }
+
+            if (window.__delayNextDesktopRunHistory === true) {
+              window.__delayNextDesktopRunHistory = false;
+              return new Promise((resolve) => {
+                window.__resolveDelayedDesktopRunHistory = () => resolve(runs);
+              });
+            }
+
+            return runs;
           },
 
 
@@ -3284,6 +3304,10 @@ const main = async () => {
       'Run History must not lead with a raw machine timestamp.',
     );
 
+    const historyListCallCount = await page.evaluate(
+      () => window.__listDesktopRunsCallCount,
+    );
+
     await historyRunButton.click();
 
     await page.getByRole(
@@ -3319,6 +3343,41 @@ const main = async () => {
     assert.equal(await page.getByText('Execution: FAILED', { exact: true }).count(), 1);
     assert.equal(await page.getByText('Validation: INVALID SCHEMA', { exact: true }).count(), 1);
     assert.equal(await page.getByText('Error: INVALID_SCHEMA', { exact: true }).count(), 1);
+
+    await page.getByRole(
+      'button',
+      {
+        name: 'Back to Run History',
+        exact: true,
+      },
+    ).click();
+
+    await page.getByRole(
+      'heading',
+      {
+        name: 'Runs',
+        exact: true,
+      },
+    ).waitFor();
+
+    assert.equal(
+      await page.evaluate(() => window.__listDesktopRunsCallCount),
+      historyListCallCount + 1,
+      'Returning to Run History must reload persisted Runs.',
+    );
+    assert.equal(
+      await page.getByRole('button', { name: /rr_fixture_history_001/ }).count(),
+      1,
+      'Returning to Run History must retain the same Run in the refreshed list.',
+    );
+
+    await page.getByRole('button', { name: /rr_fixture_history_001/ }).click();
+    await page.getByRole('heading', { name: 'Run Detail', exact: true }).waitFor();
+    assert.equal(
+      await page.evaluate(() => window.__openedHistoryRunId),
+      'rr_fixture_history_001',
+      'Run History must reopen the same persisted Run after returning from Detail.',
+    );
 
     const openAcceptedEvidenceButton = page.getByRole(
       'button',
@@ -3406,7 +3465,49 @@ const main = async () => {
       false,
       'Blog package UI must not expose an absolute package path.',
     );
+
+    await page.evaluate(() => {
+      window.__delayNextDesktopRunHistory = true;
+    });
+    await page.getByRole('button', { name: 'Back to Run History', exact: true }).click();
+    await page.waitForFunction(
+      () => typeof window.__resolveDelayedDesktopRunHistory === 'function',
+    );
+    assert.equal(
+      await page.evaluate(() => window.__desktopRunHistoryRequests.at(-1)),
+      'ws_fixture',
+      'The delayed response must belong to the previous Workspace.',
+    );
+
     await page.getByLabel('Active Workspace').selectOption('ws_other');
+    await page.getByRole('button', { name: 'RUNS', exact: true }).click();
+
+    const otherWorkspaceRun = page.getByRole(
+      'button',
+      { name: /rr_fixture_other_workspace_001/ },
+    );
+    await otherWorkspaceRun.waitFor();
+    assert.equal(await otherWorkspaceRun.count(), 1);
+    assert.equal(
+      await page.evaluate(() => window.__desktopRunHistoryRequests.at(-1)),
+      'ws_other',
+      'The current Workspace request must complete before the stale response.',
+    );
+
+    await page.evaluate(() => window.__resolveDelayedDesktopRunHistory());
+    await page.waitForTimeout(50);
+
+    assert.equal(
+      await page.getByRole('button', { name: /rr_fixture_other_workspace_001/ }).count(),
+      1,
+      'A delayed previous-Workspace response must not overwrite the current Run History.',
+    );
+    assert.equal(
+      await page.getByRole('button', { name: /rr_fixture_history_001/ }).count(),
+      0,
+      'The stale previous-Workspace Run must not appear in current Run History.',
+    );
+
     await page.getByLabel('Active Workspace').selectOption('ws_fixture');
     await page.getByRole('button', { name: 'RUNS', exact: true }).click();
     await page.getByRole('button', { name: /rr_fixture_history_001/ }).click();
