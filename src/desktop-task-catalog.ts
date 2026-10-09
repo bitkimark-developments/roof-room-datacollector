@@ -263,6 +263,15 @@ export const DESKTOP_TASK_CATALOG:
     },
     {
       task_kind: 'COLLECTION',
+      task_id: 'google-ads-conversion-date-performance',
+      source_id: 'google-ads-search-reporting',
+      task_name: 'Google Ads — Conversion-Date Performance',
+      description: 'Conversion-date metrics alongside standard conversions for SEARCH campaigns, ad groups, and keywords.',
+      group: 'GOOGLE',
+      default_summary: 'Explicit absolute dates · Campaign + Ad Group + Keyword Performance',
+    },
+    {
+      task_kind: 'COLLECTION',
       task_id:
         'keyword-planner-historical-metrics',
       source_id:

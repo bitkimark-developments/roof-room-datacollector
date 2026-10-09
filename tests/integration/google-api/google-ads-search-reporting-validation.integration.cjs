@@ -141,6 +141,24 @@ const validationContext = (datasetType, body, overrides = {}) => {
     });
   }
 
+  for (const datasetType of ['CAMPAIGN_PERFORMANCE', 'AD_GROUP_PERFORMANCE', 'KEYWORD_PERFORMANCE']) {
+    const row = structuredClone(rowsByDataset[datasetType]);
+    Object.assign(row.metrics, {
+      conversionsByConversionDate: '0',
+      conversionsValueByConversionDate: null,
+      allConversionsByConversionDate: '1.5',
+      allConversionsValueByConversionDate: '10',
+    });
+    const base = validationContext(datasetType, [{ results: [row] }]);
+    const v3Context = { ...base.source_context, dataset_schema_version: 3 };
+    const valid = await validator.validate({ ...base, source_context: v3Context });
+    assert.equal(valid.validation_status, 'VALID', `${datasetType} v3 metrics must validate`);
+    delete row.metrics.conversionsByConversionDate;
+    const missingBase = validationContext(datasetType, [{ results: [row] }]);
+    const missing = await validator.validate({ ...missingBase, source_context: v3Context });
+    assert.equal(missing.validation_status, 'INVALID_SCHEMA', `${datasetType} missing v3 field must fail`);
+  }
+
   const noData = await validator.validate(validationContext(
     'CAMPAIGN_PERFORMANCE',
     [{ results: [] }, {}],

@@ -232,6 +232,7 @@ async function main() {
     makeCandidate({ id: 'wrong_dataset', context: { dataset_type: 'SEARCH_TERMS' } }),
     makeCandidate({ id: 'wrong_mode', context: { resource_mode: 'search_term_view' } }),
     makeCandidate({ id: 'historical_v1_schema', context: { dataset_schema_version: 1 } }),
+    makeCandidate({ id: 'conversion_date_v3_schema', context: { dataset_schema_version: 3 } }),
     makeCandidate({ id: 'wrong_scope', context: { campaign_type: 'PERFORMANCE_MAX' } }),
     makeCandidate({ id: 'invalid_validation', validation: 'INVALID_SCHEMA', artifact: { artifact_state: 'REJECTED' } }),
     makeCandidate({ id: 'missing_artifact', job: { accepted_artifact_id: null } }),

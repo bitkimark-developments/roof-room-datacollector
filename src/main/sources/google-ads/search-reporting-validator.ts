@@ -46,14 +46,15 @@ const failure = (
 const normalizeRows = (
   datasetType: GoogleAdsSearchReportingDatasetType,
   rows: Record<string, unknown>[],
+  datasetSchemaVersion: 1 | 2 | 3,
 ): GoogleAdsSearchReportingNormalizedRow[] => {
   switch (datasetType) {
     case 'CAMPAIGN_PERFORMANCE':
-      return normalizeCampaignPerformanceRows(rows);
+      return normalizeCampaignPerformanceRows(rows, datasetSchemaVersion);
     case 'AD_GROUP_PERFORMANCE':
-      return normalizeAdGroupPerformanceRows(rows);
+      return normalizeAdGroupPerformanceRows(rows, datasetSchemaVersion);
     case 'KEYWORD_PERFORMANCE':
-      return normalizeKeywordPerformanceRows(rows);
+      return normalizeKeywordPerformanceRows(rows, datasetSchemaVersion);
     case 'SEARCH_TERMS':
       return normalizeSearchTermPerformanceRows(rows);
     case 'AD_PERFORMANCE':
@@ -113,6 +114,7 @@ export class GoogleAdsSearchReportingValidator implements CollectionValidator {
       normalizedRows = normalizeRows(
         jobContext.dataset_type,
         flattenGoogleAdsSearchStream(body),
+        jobContext.dataset_schema_version,
       );
     } catch (error) {
       return failure(

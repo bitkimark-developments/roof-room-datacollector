@@ -1,6 +1,7 @@
 import type { GoogleAdsCampaignPerformanceRow } from '../../../shared/google-ads-search-reporting';
 import {
   normalizeCommonPerformanceMetrics,
+  normalizeConversionDateMetrics,
   normalizeConversionEfficiencyMetrics,
   normalizeSearchShareMetrics,
   optionalReportingRecord,
@@ -13,6 +14,7 @@ import {
 
 export const normalizeCampaignPerformanceRows = (
   value: unknown,
+  datasetSchemaVersion: 1 | 2 | 3 = 2,
 ): GoogleAdsCampaignPerformanceRow[] => {
   if (!Array.isArray(value)) {
     throw new Error('Google Ads campaign rows must be an array.');
@@ -54,6 +56,7 @@ export const normalizeCampaignPerformanceRows = (
       ),
       performance_date: requirePerformanceDate(segments.date),
       ...normalizeCommonPerformanceMetrics(metrics),
+      ...(datasetSchemaVersion === 3 ? normalizeConversionDateMetrics(metrics) : {}),
       ...normalizeConversionEfficiencyMetrics(metrics),
       ...normalizeSearchShareMetrics(metrics),
     };

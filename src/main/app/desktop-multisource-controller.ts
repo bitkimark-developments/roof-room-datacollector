@@ -86,6 +86,11 @@ import {
   createGoogleAnalytics4JobPlans,
 } from '../sources/google-analytics-4/google-analytics-4-job-plans';
 
+const GOOGLE_ADS_CONVERSION_DATE_TASK_ID = 'google-ads-conversion-date-performance';
+const GOOGLE_ADS_CONVERSION_DATE_DATASETS = [
+  'CAMPAIGN_PERFORMANCE', 'AD_GROUP_PERFORMANCE', 'KEYWORD_PERFORMANCE',
+] as const;
+
 export interface DesktopReadinessReader {
   getReadiness(
     workspace_id: string,
@@ -152,6 +157,14 @@ const asObject = (value: unknown): Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {}
+);
+
+const includesConversionDateTask = (config: Record<string, unknown>): boolean => (
+  Array.isArray(config.tasks)
+  && config.tasks.some((task) => (
+    task === GOOGLE_ADS_CONVERSION_DATE_TASK_ID
+    || asObject(task).task_id === GOOGLE_ADS_CONVERSION_DATE_TASK_ID
+  ))
 );
 
 const asJsonObjectValue = (
@@ -469,6 +482,15 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
   }
 
   if (sourceId === 'google-ads-search-reporting') {
+    if (includesConversionDateTask(config)) return [];
+    const conversionDateTask = config.task_id === GOOGLE_ADS_CONVERSION_DATE_TASK_ID;
+    if (conversionDateTask && (
+      config.dataset_schema_version !== 3
+      || config.tasks !== undefined
+      || !Array.isArray(config.datasets)
+      || config.datasets.length !== GOOGLE_ADS_CONVERSION_DATE_DATASETS.length
+      || config.datasets.some((dataset, index) => dataset !== GOOGLE_ADS_CONVERSION_DATE_DATASETS[index])
+    )) return [];
     if (
       !Array.isArray(config.datasets)
       || typeof config.customer_id !== 'string'
@@ -500,6 +522,7 @@ const productionPlanner = (sourceId: string, config: Record<string, unknown>): J
                 requestedDateStart as string,
               requested_date_end:
                 requestedDateEnd as string,
+              dataset_schema_version: conversionDateTask ? 3 : 2,
             }),
           );
 
@@ -841,6 +864,11 @@ export class DesktopMultiSourceController {
             credential_status,
             readiness_status:
               readiness.readiness_status,
+            ...(source_id === 'google-ads-search-reporting' ? {
+              customer_id: typeof asObject(connection?.safe_metadata).customer_id === 'string'
+                ? String(asObject(connection?.safe_metadata).customer_id).replace(/-/gu, '')
+                : null,
+            } : {}),
           };
         },
       ),
@@ -1120,11 +1148,29 @@ export class DesktopMultiSourceController {
           plannedSourceIds.has(
             sourceId,
           ) === false
+          || (sourceId === 'google-ads-search-reporting'
+            && includedSources.length > 1
+            && sourceConfig(draft.reusable_configuration, sourceId).task_id
+              === GOOGLE_ADS_CONVERSION_DATE_TASK_ID)
           || missingGrowthProviderTargetSources
             .includes(
               sourceId,
             ),
       );
+
+    const reportingConfig = sourceConfig(
+      draft.reusable_configuration,
+      'google-ads-search-reporting',
+    );
+    let conversionDateBlocker: string | null = null;
+    if (planningBlockingSources.includes('google-ads-search-reporting')) {
+      if (includesConversionDateTask(reportingConfig)) {
+        conversionDateBlocker = 'Google Ads standard and conversion-date tasks cannot share the same Run because their Jobs collide.';
+      } else if (reportingConfig.task_id === GOOGLE_ADS_CONVERSION_DATE_TASK_ID
+        && includedSources.length > 1) {
+        conversionDateBlocker = 'Conversion-Date Performance is a separate task; multi-source presets are not supported.';
+      }
+    }
 
     const canStart =
       blockingSources.length === 0
@@ -1176,6 +1222,9 @@ export class DesktopMultiSourceController {
         blockingSources,
       planning_blocking_sources:
         planningBlockingSources,
+      ...(conversionDateBlocker === null ? {} : {
+        planning_blocking_reasons: [conversionDateBlocker],
+      }),
       reviewed_draft:
         includedSources.length > 1
           ? multiSourceReviewedDraft
@@ -1319,6 +1368,12 @@ export class DesktopMultiSourceController {
         includedSources,
       );
 
+    if (includedSources.length > 1
+      && sourceConfig(reviewedDraft.resolved_configuration, 'google-ads-search-reporting').task_id
+        === GOOGLE_ADS_CONVERSION_DATE_TASK_ID) {
+      throw new Error('Conversion-Date Performance must be reviewed as a separate task.');
+    }
+
     const missingResolvedSources =
       includedSources.filter(
         (sourceId) =>
@@ -1366,6 +1421,21 @@ export class DesktopMultiSourceController {
           .resolved_configuration,
         includedSources,
       );
+
+    if (reviewedDraft.task_id === GOOGLE_ADS_CONVERSION_DATE_TASK_ID) {
+      const reviewedCustomerId = sourceConfig(
+        reviewedDraft.resolved_configuration,
+        'google-ads-search-reporting',
+      ).customer_id;
+      const connection = this.dependencies.repository.listSourceConnections(
+        reviewedDraft.workspace_id,
+      ).find((entry) => entry.source_id === 'google-ads-search-reporting');
+      const currentCustomerId = asObject(connection?.safe_metadata).customer_id;
+      if (typeof currentCustomerId !== 'string'
+        || currentCustomerId.replace(/-/gu, '') !== reviewedCustomerId) {
+        throw new Error('Reviewed Google Ads account changed; Review again before Start.');
+      }
+    }
 
     const plannedSourceIds =
       new Set(
@@ -2537,6 +2607,53 @@ export class DesktopMultiSourceController {
     }
 
     if (sourceId === 'google-ads-search-reporting') {
+      const conversionDateTask = config.task_id === GOOGLE_ADS_CONVERSION_DATE_TASK_ID;
+      if (conversionDateTask && (
+        config.tasks !== undefined
+        || config.datasets !== undefined
+        || config.dataset_schema_version !== undefined
+        || config.customer_id !== undefined
+      )) return null;
+      if (conversionDateTask) {
+        const connection = this.dependencies.repository.listSourceConnections(
+          draft.workspace_id,
+        ).find((entry) => entry.source_id === sourceId);
+        const rawCustomerId = asObject(connection?.safe_metadata).customer_id;
+        if (typeof rawCustomerId !== 'string') return null;
+        const customerId = rawCustomerId.replace(/-/gu, '');
+        try {
+          const jobs = GOOGLE_ADS_CONVERSION_DATE_DATASETS.map((dataset_type) =>
+            googleAdsReportingContextAsJson(createGoogleAdsReportingJobContext({
+              dataset_type,
+              customer_id: customerId,
+              requested_date_start: config.requested_date_start as string,
+              requested_date_end: config.requested_date_end as string,
+              dataset_schema_version: 3,
+            })),
+          );
+          const reusableConfiguration = cloneConfiguration(draft.reusable_configuration);
+          const resolvedConfiguration = cloneConfiguration(draft.reusable_configuration);
+          const sources = asJsonObjectValue(resolvedConfiguration.sources);
+          sources[sourceId] = {
+            ...asJsonObjectValue(sources[sourceId]),
+            customer_id: customerId,
+            datasets: [...GOOGLE_ADS_CONVERSION_DATE_DATASETS],
+            dataset_schema_version: 3,
+            jobs,
+          };
+          resolvedConfiguration.sources = sources;
+          return {
+            workspace_id: draft.workspace_id,
+            task_id: GOOGLE_ADS_CONVERSION_DATE_TASK_ID,
+            source_id: sourceId,
+            included_sources: [sourceId],
+            reference_date: formatLocalReferenceDate(resolvedAt),
+            resolved_at: resolvedAt.toISOString(),
+            reusable_configuration: reusableConfiguration,
+            resolved_configuration: resolvedConfiguration,
+          };
+        } catch { return null; }
+      }
       if (
         !Array.isArray(config.datasets)
         || typeof config.customer_id !== 'string'

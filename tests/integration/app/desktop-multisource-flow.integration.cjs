@@ -136,6 +136,63 @@ const createFixture = (
 };
 
 async function main() {
+  // P2-02: a separate task freezes three v3 Jobs from the Workspace Ads account.
+  {
+    const adsConnections = [{ workspace_id: 'ws_a', source_id: 'google-ads-search-reporting',
+      credential_ref: 'ads-fixture', safe_metadata: { customer_id: '123-456-7890' } }];
+    const { controller, reservations } = createFixture(
+      undefined,
+      ['google-ads-search-reporting'],
+      adsConnections,
+      new Set(['ads-fixture']),
+      true,
+    );
+    const config = { included: true, task_id: 'google-ads-conversion-date-performance',
+      requested_date_start: '2026-09-01', requested_date_end: '2026-09-07' };
+    const draft = { workspace_id: 'ws_a', origin: { kind: 'BLANK' },
+      reusable_configuration: { sources: { 'google-ads-search-reporting': config } }, source_cards: [] };
+    assert.equal((await controller.getWorkspaceConnections('ws_a'))
+      .find((connection) => connection.source_id === 'google-ads-search-reporting').customer_id,
+    '1234567890');
+    const review = await controller.reviewDraft(draft);
+    assert.equal(review.can_start, true);
+    assert.equal(review.job_count, 3);
+    assert.equal(review.reviewed_draft.task_id, 'google-ads-conversion-date-performance');
+    assert.equal(review.reviewed_draft.resolved_configuration.sources['google-ads-search-reporting'].customer_id, '1234567890');
+    assert.equal(config.customer_id, undefined, 'Review must not rewrite reusable configuration');
+    await controller.startDraft(review.reviewed_draft);
+    assert.equal(reservations.length, 1);
+    assert.deepEqual(reservations[0].job_plans.map((plan) => plan.job_key),
+      ['CAMPAIGN_PERFORMANCE', 'AD_GROUP_PERFORMANCE', 'KEYWORD_PERFORMANCE']);
+    assert.ok(reservations[0].job_plans.every((plan) => plan.source_context.dataset_schema_version === 3));
+    adsConnections[0].safe_metadata.customer_id = '999-999-9999';
+    await assert.rejects(() => controller.startDraft(review.reviewed_draft), /account changed/u);
+    assert.equal(reservations.length, 1, 'A changed account must not reserve another Run');
+    const mixed = await controller.reviewDraft({ ...draft, reusable_configuration: { sources: {
+      'google-ads-search-reporting': { ...config, tasks: ['google-ads-search-reporting', 'google-ads-conversion-date-performance'] },
+    } } });
+    assert.equal(mixed.can_start, false);
+    assert.deepEqual(mixed.planning_blocking_sources, ['google-ads-search-reporting']);
+    assert.match(mixed.planning_blocking_reasons.join(' '), /standard and conversion-date.*same Run/u);
+    const reverseMixed = await controller.reviewDraft({ ...draft, reusable_configuration: { sources: {
+      'google-ads-search-reporting': { included: true, task_id: 'google-ads-search-reporting',
+        customer_id: '9999999999', requested_date_start: '2026-09-01', requested_date_end: '2026-09-07',
+        datasets: ['CAMPAIGN_PERFORMANCE'],
+        tasks: ['google-ads-search-reporting', 'google-ads-conversion-date-performance'] },
+    } } });
+    assert.equal(reverseMixed.can_start, false);
+    assert.match(reverseMixed.planning_blocking_reasons.join(' '), /standard and conversion-date.*same Run/u);
+    const multiFixture = createFixture(undefined,
+      ['google-ads-search-reporting', 'serpapi'], adsConnections, new Set(['ads-fixture']), true);
+    const multiReview = await multiFixture.controller.reviewDraft({ ...draft, reusable_configuration: {
+      sources: { 'google-ads-search-reporting': { ...config, customer_id: '9999999999',
+        datasets: ['CAMPAIGN_PERFORMANCE', 'AD_GROUP_PERFORMANCE', 'KEYWORD_PERFORMANCE'],
+        dataset_schema_version: 3 }, serpapi: { included: true, queries: [] } },
+    } });
+    assert.equal(multiReview.can_start, false);
+    assert.match(multiReview.planning_blocking_reasons.join(' '), /separate task.*multi-source/u);
+  }
+
   // P2-01: Real planner preserves GSC country scope in a multi-source Run.
   {
     const gscConnection = [{
@@ -1932,6 +1989,7 @@ async function main() {
           'NOT_CONFIGURED',
         readiness_status:
           'READY',
+        customer_id: null,
       },
       {
         source_id:

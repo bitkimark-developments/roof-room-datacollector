@@ -48,7 +48,12 @@ export const buildCampaignPerformanceQuery = (
     throw new Error('Campaign reporting requires the SEARCH campaign dataset contract.');
   }
   return [
-    `SELECT ${CAMPAIGN_FIELDS.join(', ')}`,
+    `SELECT ${[...CAMPAIGN_FIELDS, ...(context.dataset_schema_version === 3 ? [
+      'metrics.conversions_by_conversion_date',
+      'metrics.conversions_value_by_conversion_date',
+      'metrics.all_conversions_by_conversion_date',
+      'metrics.all_conversions_value_by_conversion_date',
+    ] : [])].join(', ')}`,
     'FROM campaign',
     "WHERE campaign.advertising_channel_type = 'SEARCH'",
     `AND segments.date BETWEEN '${context.requested_date_start}' AND '${context.requested_date_end}'`,

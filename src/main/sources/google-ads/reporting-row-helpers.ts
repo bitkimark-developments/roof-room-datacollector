@@ -1,6 +1,7 @@
 import type {
   GoogleAdsCommonPerformanceMetrics,
   GoogleAdsConversionEfficiencyMetrics,
+  GoogleAdsConversionDateMetrics,
   GoogleAdsSearchShareMetrics,
 } from '../../../shared/google-ads-search-reporting';
 
@@ -115,6 +116,28 @@ export const normalizeConversionEfficiencyMetrics = (
     'metrics.conversionsValuePerCost',
   ),
 });
+
+export const normalizeConversionDateMetrics = (
+  metrics: Record<string, unknown>,
+): GoogleAdsConversionDateMetrics => {
+  const fields = [
+    'conversionsByConversionDate',
+    'conversionsValueByConversionDate',
+    'allConversionsByConversionDate',
+    'allConversionsValueByConversionDate',
+  ] as const;
+  for (const field of fields) {
+    if (!Object.hasOwn(metrics, field)) {
+      throw new Error(`Google Ads conversion-date metric ${field} is missing.`);
+    }
+  }
+  return {
+    conversions_by_conversion_date: reportingNumberOrNull(metrics.conversionsByConversionDate, fields[0]),
+    conversions_value_by_conversion_date: reportingNumberOrNull(metrics.conversionsValueByConversionDate, fields[1]),
+    all_conversions_by_conversion_date: reportingNumberOrNull(metrics.allConversionsByConversionDate, fields[2]),
+    all_conversions_value_by_conversion_date: reportingNumberOrNull(metrics.allConversionsValueByConversionDate, fields[3]),
+  };
+};
 
 export const normalizeSearchShareMetrics = (
   metrics: Record<string, unknown>,

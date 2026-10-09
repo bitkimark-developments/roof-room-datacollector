@@ -1,11 +1,11 @@
 # RoofRoom Data Collector — Project Handoff
 
-**Checkpoint date:** 2026-10-08
+**Checkpoint date:** 2026-10-09
 **Current branch:** `feat/google-analytics-4-source-v1`
-**Production implementation checkpoint:** `0bc9156`
-**Repository state:** Growth provider-target execution binding is committed and deterministically verified
-**Current stage:** Growth Review now freezes required provider account/property/site identity into execution context and fails closed on missing or changed targets; packaged/runtime and live-provider acceptance were not performed for this checkpoint
-**Current action:** preserve the verified Growth execution boundary and select the next approved scope from the current repository state
+**Production implementation checkpoint:** P2-02 conversion-date reporting on `feat/google-analytics-4-source-v1`
+**Repository state:** P2-02 conversion-date task and source path are deterministically verified; the pre-existing RED test changes were preserved and completed
+**Current stage:** P2-02 source, export, controller, Playwright UI, typecheck, targeted lint, and ADS_OPTIMIZATION_PACK v2 Slice B gates passed; adjacent desktop Task Package Slice C still has a checked-in v1 fixture versus active v2 recipe mismatch
+**Current action:** review the focused P2-02 checkpoint; keep packaged/runtime and live Google Ads acceptance separate
 
 ---
 
@@ -29,8 +29,8 @@ Authoritative repository:
 
 Observed current state:
 
-    branch:                     feat/google-ads-campaign-settings-v1
-    production implementation:  08f3c43
+    branch:                     feat/google-analytics-4-source-v1
+    production implementation:  P2-02 conversion-date reporting checkpoint
 
 The Conversion Configuration production implementation is committed. The focused Conversion Configuration gate and this canonical documentation update form the slice-closing checkpoint that contains this handoff revision.
 
@@ -141,7 +141,7 @@ Also implemented:
   - `SEARCH_TERMS`
   - `AD_PERFORMANCE`
   - `RSA_ASSET_PERFORMANCE`
-- reporting schema v2 for current acquisition, with historical schema v1 evidence remaining readable but not reacquirable;
+- reporting schema v2 remains the default; the separate Conversion-Date Performance task explicitly acquires three schema-v3 datasets; historical schema v1 evidence remains readable but not reacquirable;
 - schema v2 Campaign/Ad Group/Keyword reporting preserves conversion-efficiency metrics plus Search Top/Absolute Top impression share as distinct provider-native fields;
 - eleven-dataset `google-ads-configuration` snapshot family composed of:
   - Negatives v1:

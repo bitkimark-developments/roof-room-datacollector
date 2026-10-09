@@ -251,11 +251,11 @@ export class ProductionDataPackageLoader {
         const normalized = (() => {
           switch (context.dataset_type) {
             case 'CAMPAIGN_PERFORMANCE':
-              return normalizeCampaignPerformanceRows(providerRows);
+              return normalizeCampaignPerformanceRows(providerRows, context.dataset_schema_version);
             case 'AD_GROUP_PERFORMANCE':
-              return normalizeAdGroupPerformanceRows(providerRows);
+              return normalizeAdGroupPerformanceRows(providerRows, context.dataset_schema_version);
             case 'KEYWORD_PERFORMANCE':
-              return normalizeKeywordPerformanceRows(providerRows);
+              return normalizeKeywordPerformanceRows(providerRows, context.dataset_schema_version);
             case 'SEARCH_TERMS':
               return normalizeSearchTermPerformanceRows(providerRows);
             case 'AD_PERFORMANCE':

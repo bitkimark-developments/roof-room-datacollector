@@ -358,7 +358,7 @@ RSA_ASSET_PERFORMANCE
 
 Preserve dataset/resource identity, provider-native units, date/segment context, and raw SearchStream evidence.
 
-Current `google-ads-search-reporting` acquisition emits dataset schema v2. Historical schema v1 Job contexts remain readable for preserved evidence, but current provider reacquisition must not run under a v1 context.
+Existing `google-ads-search-reporting` tasks acquire dataset schema v2 by default. Historical schema v1 Job contexts remain readable for preserved evidence, but current provider reacquisition must not run under a v1 context. The separate Google Ads — Conversion-Date Performance task explicitly acquires schema v3 only for `CAMPAIGN_PERFORMANCE`, `AD_GROUP_PERFORMANCE`, and `KEYWORD_PERFORMANCE`; other v3 dataset selections fail before provider access.
 
 For `CAMPAIGN_PERFORMANCE`, `AD_GROUP_PERFORMANCE`, and `KEYWORD_PERFORMANCE`, schema v2 additionally preserves provider-native:
 
@@ -371,6 +371,10 @@ For `CAMPAIGN_PERFORMANCE`, `AD_GROUP_PERFORMANCE`, and `KEYWORD_PERFORMANCE`, s
 `search_top_impression_share` and `search_absolute_top_impression_share` remain distinct from `top_impression_percentage` and `absolute_top_impression_percentage`.
 
 `cost_per_conversion` preserves the provider field as a numeric value and is not renamed into the `_micros` canonical field family.
+
+Schema v3 retains all standard v2 conversion fields and adds four distinct provider-native numeric fields: `conversions_by_conversion_date`, `conversions_value_by_conversion_date`, `all_conversions_by_conversion_date`, and `all_conversions_value_by_conversion_date`. A provider `null` remains null and a true zero remains zero. A missing selected v3 metric fails validation rather than becoming zero. Raw SearchStream artifacts and immutable Job context preserve the source, account, exact requested dates, and schema version. Accepted v3 rows remain available through the Production Data Package loader; they do not satisfy `ADS_OPTIMIZATION_PACK v2` schema-v2 requirements.
+
+The conversion-date desktop task fixes the three v3 datasets and uses the existing Google Ads reporting connection. Review resolves the connected customer ID and exact dates into its Job plans without changing reusable configuration. Start rejects a changed account. A selection that attempts colliding v2/v3 Jobs under the same `source_id + job_key` is blocked before Run creation.
 
 Legacy `google-ads-search-terms` remains compatible.
 

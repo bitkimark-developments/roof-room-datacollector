@@ -286,6 +286,32 @@ async function main() {
   assert.equal(campaignDataset.provenance.snapshot_observed_at, '2026-09-19T12:00:01.000Z');
   assert.equal(campaignDataset.provenance.raw_artifact_sha256.length, 64);
   assert.equal(campaignDataset.provenance.requested_context.dataset_type, 'CAMPAIGN_PERFORMANCE');
+  const originalCampaignContext = campaignJob.source_context;
+  const originalCampaignArtifactId = campaignJob.accepted_artifact_id;
+  const conversionDateRaw = structuredClone(adsReportingRows.CAMPAIGN_PERFORMANCE);
+  Object.assign(conversionDateRaw.metrics, {
+    conversionsByConversionDate: '0', conversionsValueByConversionDate: null,
+    allConversionsByConversionDate: '2', allConversionsValueByConversionDate: '10',
+  });
+  const conversionDateArtifact = await storage.persistRawArtifact({
+    run_id: run.run_id, source_id: 'google-ads-search-reporting', attempt_number: 1,
+    preferred_filename: 'campaign-conversion-date.json', media_type: 'application/json',
+    bytes: jsonBytes([{ results: [conversionDateRaw] }]),
+  });
+  campaignJob.source_context = { ...originalCampaignContext, dataset_schema_version: 3 };
+  campaignJob.accepted_artifact_id = 'artifact_conversion_date';
+  artifacts.set('artifact_conversion_date', {
+    ...artifacts.get(originalCampaignArtifactId), artifact_id: 'artifact_conversion_date',
+    filename: conversionDateArtifact.filename, relative_path: conversionDateArtifact.relative_path,
+    byte_size: conversionDateArtifact.byte_size, sha256: conversionDateArtifact.sha256,
+  });
+  const conversionDateDataset = await loader.loadAcceptedJobDataset(run.run_id, campaignJob.job_id);
+  assert.equal(conversionDateDataset.rows[0].conversions_by_conversion_date, 0);
+  assert.equal(conversionDateDataset.rows[0].conversions_value_by_conversion_date, null);
+  assert.equal(conversionDateDataset.rows[0].all_conversions_by_conversion_date, 2);
+  assert.equal(conversionDateDataset.rows[0].all_conversions_value_by_conversion_date, 10);
+  campaignJob.source_context = originalCampaignContext;
+  campaignJob.accepted_artifact_id = originalCampaignArtifactId;
   await assert.rejects(
     () => loader.loadAcceptedJobDataset('rr_unknown', campaignJob.job_id),
     /Unknown Run/i,

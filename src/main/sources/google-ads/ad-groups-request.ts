@@ -48,7 +48,12 @@ export const buildAdGroupPerformanceQuery = (
     throw new Error('Ad group reporting requires the SEARCH ad_group dataset contract.');
   }
   return [
-    `SELECT ${AD_GROUP_FIELDS.join(', ')}`,
+    `SELECT ${[...AD_GROUP_FIELDS, ...(context.dataset_schema_version === 3 ? [
+      'metrics.conversions_by_conversion_date',
+      'metrics.conversions_value_by_conversion_date',
+      'metrics.all_conversions_by_conversion_date',
+      'metrics.all_conversions_value_by_conversion_date',
+    ] : [])].join(', ')}`,
     'FROM ad_group',
     "WHERE campaign.advertising_channel_type = 'SEARCH'",
     `AND segments.date BETWEEN '${context.requested_date_start}' AND '${context.requested_date_end}'`,

@@ -475,7 +475,13 @@ Verification: GSC integration 13/13 PASS; SQLite reopen and mocked production HT
 Boundary: Deterministic verification only. No live-provider or packaged-runtime verification.
 
 ### P2-02 — Ads conversion-date metric variants are not supported
-Status: OPEN
+Status: DETERMINISTICALLY VERIFIED
+
+Implemented: The separate Google Ads Conversion-Date Performance desktop task reviews an exact account/date scope and plans three schema-v3 SEARCH Jobs. Campaign, ad group, and keyword rows preserve four provider-native conversion-date metrics alongside standard conversions. Existing schema-v2 acquisition stays the default; historical v1 evidence remains readable. Mixed v2/v3 Job selection fails before Run creation, and `ADS_OPTIMIZATION_PACK v2` remains schema-v2 only.
+
+Verification: Google Ads SEARCH reporting gate, Production Data Package loader, desktop multi-source flow, Playwright desktop UI smoke, ADS_OPTIMIZATION_PACK v2 gate, TypeScript, targeted lint, and diff integrity passed. The adjacent desktop Task Package Slice C gate retains a pre-existing checked-in v1 fixture versus active v2 recipe mismatch; it is not a P2-02 acceptance gate.
+
+Boundary: Deterministic verification only. No packaged-runtime or live Google Ads acceptance.
 
 ### P2-03 — GA4 event-grain raw dataset gap
 Status: OPEN

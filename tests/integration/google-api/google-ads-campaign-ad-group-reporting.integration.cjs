@@ -23,6 +23,22 @@ const {
 const {
   createGoogleAdsReportingJobContext,
 } = load('main/sources/google-ads/search-reporting-request.js');
+const { normalizeConversionDateMetrics } = load('main/sources/google-ads/reporting-row-helpers.js');
+
+assert.deepEqual(normalizeConversionDateMetrics({
+  conversionsByConversionDate: '0',
+  conversionsValueByConversionDate: null,
+  allConversionsByConversionDate: '2.5',
+  allConversionsValueByConversionDate: '42',
+}), {
+  conversions_by_conversion_date: 0,
+  conversions_value_by_conversion_date: null,
+  all_conversions_by_conversion_date: 2.5,
+  all_conversions_value_by_conversion_date: 42,
+});
+assert.throws(() => normalizeConversionDateMetrics({
+  conversionsByConversionDate: '0',
+}), /allConversionsByConversionDate|conversionsValueByConversionDate/u);
 
 const campaignContext = createGoogleAdsReportingJobContext({
   dataset_type: 'CAMPAIGN_PERFORMANCE',
@@ -31,6 +47,26 @@ const campaignContext = createGoogleAdsReportingJobContext({
   requested_date_end: '2026-09-07',
 });
 const campaignQuery = buildCampaignPerformanceQuery(campaignContext);
+const legacy_campaignQuery = buildCampaignPerformanceQuery({
+  ...campaignContext,
+  dataset_schema_version: 2,
+});
+const conversionDate_campaignQuery = buildCampaignPerformanceQuery({
+  ...campaignContext,
+  dataset_schema_version: 3,
+});
+for (const field of [
+  'metrics.conversions_by_conversion_date',
+  'metrics.conversions_value_by_conversion_date',
+  'metrics.all_conversions_by_conversion_date',
+  'metrics.all_conversions_value_by_conversion_date',
+]) {
+  assert.equal(legacy_campaignQuery.includes(field), false,
+    `Historical v2 must not silently acquire ${field}`);
+  assert.ok(conversionDate_campaignQuery.includes(field),
+    `Conversion-date v3 must select ${field}`);
+}
+
 for (const field of [
   'customer.currency_code',
   'customer.time_zone',
@@ -80,6 +116,26 @@ const adGroupContext = createGoogleAdsReportingJobContext({
   requested_date_end: '2026-09-07',
 });
 const adGroupQuery = buildAdGroupPerformanceQuery(adGroupContext);
+const legacy_adGroupQuery = buildAdGroupPerformanceQuery({
+  ...adGroupContext,
+  dataset_schema_version: 2,
+});
+const conversionDate_adGroupQuery = buildAdGroupPerformanceQuery({
+  ...adGroupContext,
+  dataset_schema_version: 3,
+});
+for (const field of [
+  'metrics.conversions_by_conversion_date',
+  'metrics.conversions_value_by_conversion_date',
+  'metrics.all_conversions_by_conversion_date',
+  'metrics.all_conversions_value_by_conversion_date',
+]) {
+  assert.equal(legacy_adGroupQuery.includes(field), false,
+    `Historical v2 must not silently acquire ${field}`);
+  assert.ok(conversionDate_adGroupQuery.includes(field),
+    `Conversion-date v3 must select ${field}`);
+}
+
 for (const field of [
   'campaign.id',
   'campaign.name',

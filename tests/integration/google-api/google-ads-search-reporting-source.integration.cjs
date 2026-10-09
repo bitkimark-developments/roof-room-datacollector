@@ -40,6 +40,22 @@ const historicalV1Context = requireGoogleAdsReportingJobContext({
 });
 assert.equal(historicalV1Context.dataset_schema_version, 1);
 assert.equal(Object.isFrozen(historicalV1Context), true);
+const conversionDateContext = createGoogleAdsReportingJobContext({
+  dataset_type: 'CAMPAIGN_PERFORMANCE',
+  customer_id: '1234567890',
+  requested_date_start: '2026-09-01',
+  requested_date_end: '2026-09-07',
+  dataset_schema_version: 3,
+});
+assert.equal(conversionDateContext.dataset_schema_version, 3);
+assert.equal(Object.isFrozen(conversionDateContext), true);
+assert.throws(() => createGoogleAdsReportingJobContext({
+  dataset_type: 'SEARCH_TERMS',
+  customer_id: '1234567890',
+  requested_date_start: '2026-09-01',
+  requested_date_end: '2026-09-07',
+  dataset_schema_version: 3,
+}), /does not support this dataset/u);
 
 assert.deepEqual(
   Object.keys(baseContext).sort(),
@@ -108,7 +124,7 @@ const collectionContext = {
     { ...baseContext, dataset_type: 'SHOPPING_PERFORMANCE' },
     { ...baseContext, customer_id: '9999999999' },
     { ...baseContext, dataset_schema_version: 1 },
-    { ...baseContext, dataset_schema_version: 3 },
+    { ...baseContext, dataset_type: 'SEARCH_TERMS', resource_mode: 'search_term_view', dataset_schema_version: 3 },
     { ...baseContext, recommendation_score: 0.7 },
   ];
   for (const invalidContext of invalidContexts) {
@@ -120,6 +136,19 @@ const collectionContext = {
     assert.equal(invalidResult.error_code, 'SOURCE_CONFIGURATION_INVALID');
   }
   assert.equal(providerRequests.length, 1, 'invalid contexts must fail before requester invocation');
+
+  const v3Requests = [];
+  const v3Source = new GoogleAdsSearchReportingSource('1234567890', async (request) => {
+    v3Requests.push(request);
+    return { status: 200, body: [], raw_body: rawBytes };
+  }, [{ ...descriptor, buildQuery: (context) => {
+    assert.deepEqual(context, conversionDateContext);
+    return 'SELECT metrics.conversions_by_conversion_date FROM campaign';
+  } }]);
+  const v3Result = await v3Source.collect({ ...collectionContext, source_context: conversionDateContext });
+  assert.equal(v3Result.result_type, 'ARTIFACT_PRODUCED');
+  assert.equal(new TextDecoder().decode(v3Result.bytes), rawText);
+  assert.equal(v3Requests.length, 1);
 
   assert.throws(
     () => createGoogleAdsReportingJobContext({
@@ -158,7 +187,7 @@ const collectionContext = {
   );
   const runtimeSource = runtimeFactory.createSearchReportingSource({ workspace_id: 'workspace-a' });
   assert.equal(runtimeSource.id, 'google-ads-search-reporting');
-  assert.deepEqual(requestedConnectionSourceIds, ['google-ads-search-terms']);
+  assert.deepEqual(requestedConnectionSourceIds, ['google-ads-search-reporting']);
 
   console.log(
     'PASS GOOGLE-ADS-SEARCH-REPORTING-SOURCE-001: immutable SEARCH contexts dispatch raw evidence through the existing Ads connection boundary and reject unsupported scope before requests',

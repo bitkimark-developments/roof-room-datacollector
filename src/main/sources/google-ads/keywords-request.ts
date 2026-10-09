@@ -55,7 +55,12 @@ export const buildKeywordPerformanceQuery = (
     throw new Error('Keyword reporting requires the SEARCH keyword_view dataset contract.');
   }
   return [
-    `SELECT ${KEYWORD_FIELDS.join(', ')}`,
+    `SELECT ${[...KEYWORD_FIELDS, ...(context.dataset_schema_version === 3 ? [
+      'metrics.conversions_by_conversion_date',
+      'metrics.conversions_value_by_conversion_date',
+      'metrics.all_conversions_by_conversion_date',
+      'metrics.all_conversions_value_by_conversion_date',
+    ] : [])].join(', ')}`,
     'FROM keyword_view',
     "WHERE campaign.advertising_channel_type = 'SEARCH'",
     `AND segments.date BETWEEN '${context.requested_date_start}' AND '${context.requested_date_end}'`,

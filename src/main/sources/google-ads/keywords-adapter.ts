@@ -1,6 +1,7 @@
 import type { GoogleAdsKeywordPerformanceRow } from '../../../shared/google-ads-search-reporting';
 import {
   normalizeCommonPerformanceMetrics,
+  normalizeConversionDateMetrics,
   normalizeConversionEfficiencyMetrics,
   normalizeSearchShareMetrics,
   optionalReportingRecord,
@@ -19,6 +20,7 @@ const reportingTextOrNull = (value: unknown, field: string): string | null => (
 
 export const normalizeKeywordPerformanceRows = (
   value: unknown,
+  datasetSchemaVersion: 1 | 2 | 3 = 2,
 ): GoogleAdsKeywordPerformanceRow[] => {
   if (!Array.isArray(value)) {
     throw new Error('Google Ads keyword rows must be an array.');
@@ -90,6 +92,7 @@ export const normalizeKeywordPerformanceRows = (
       ),
       performance_date: requirePerformanceDate(segments.date),
       ...normalizeCommonPerformanceMetrics(metrics),
+      ...(datasetSchemaVersion === 3 ? normalizeConversionDateMetrics(metrics) : {}),
       ...normalizeConversionEfficiencyMetrics(metrics),
       ...normalizeSearchShareMetrics(metrics),
     };

@@ -13,6 +13,7 @@ export interface CreateGoogleAdsReportingJobContextInput {
   customer_id: string;
   requested_date_start: string;
   requested_date_end: string;
+  dataset_schema_version?: 2 | 3;
 }
 
 const CONTEXT_KEYS = new Set([
@@ -96,8 +97,14 @@ export const requireGoogleAdsReportingJobContext = (
   if (
     value.dataset_schema_version !== 1
     && value.dataset_schema_version !== 2
+    && value.dataset_schema_version !== 3
   ) {
     throw new Error('Google Ads reporting dataset schema version is unsupported.');
+  }
+  if (value.dataset_schema_version === 3 && ![
+    'CAMPAIGN_PERFORMANCE', 'AD_GROUP_PERFORMANCE', 'KEYWORD_PERFORMANCE',
+  ].includes(datasetType)) {
+    throw new Error('Google Ads conversion-date schema v3 does not support this dataset.');
   }
 
   return Object.freeze({
@@ -122,7 +129,7 @@ export const createGoogleAdsReportingJobContext = (
   customer_id: input.customer_id,
   requested_date_start: input.requested_date_start,
   requested_date_end: input.requested_date_end,
-  dataset_schema_version: 2,
+  dataset_schema_version: input.dataset_schema_version ?? 2,
 });
 
 export const googleAdsReportingContextAsJson = (

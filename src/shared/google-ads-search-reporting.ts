@@ -41,7 +41,7 @@ export interface GoogleAdsSearchReportingJobContext {
   customer_id: string;
   requested_date_start: string;
   requested_date_end: string;
-  dataset_schema_version: 1 | 2;
+  dataset_schema_version: 1 | 2 | 3;
 }
 
 export interface GoogleAdsCommonPerformanceMetrics {
@@ -54,6 +54,13 @@ export interface GoogleAdsCommonPerformanceMetrics {
   conversions_value: number | null;
   all_conversions: number | null;
   all_conversions_value: number | null;
+}
+
+export interface GoogleAdsConversionDateMetrics {
+  conversions_by_conversion_date: number | null;
+  conversions_value_by_conversion_date: number | null;
+  all_conversions_by_conversion_date: number | null;
+  all_conversions_value_by_conversion_date: number | null;
 }
 
 export interface GoogleAdsConversionEfficiencyMetrics {
@@ -79,7 +86,8 @@ export interface GoogleAdsSearchShareMetrics extends GoogleAdsTopImpressionMetri
 export interface GoogleAdsCampaignPerformanceRow
   extends GoogleAdsCommonPerformanceMetrics,
     GoogleAdsConversionEfficiencyMetrics,
-    GoogleAdsSearchShareMetrics {
+    GoogleAdsSearchShareMetrics,
+    Partial<GoogleAdsConversionDateMetrics> {
   currency_code: string;
   time_zone: string;
   campaign_id: string;
@@ -98,7 +106,8 @@ export interface GoogleAdsCampaignPerformanceRow
 export interface GoogleAdsAdGroupPerformanceRow
   extends GoogleAdsCommonPerformanceMetrics,
     GoogleAdsConversionEfficiencyMetrics,
-    GoogleAdsSearchShareMetrics {
+    GoogleAdsSearchShareMetrics,
+    Partial<GoogleAdsConversionDateMetrics> {
   campaign_id: string;
   campaign_name: string;
   campaign_advertising_channel_type: string;
@@ -117,7 +126,8 @@ export interface GoogleAdsAdGroupPerformanceRow
 export interface GoogleAdsKeywordPerformanceRow
   extends GoogleAdsCommonPerformanceMetrics,
     GoogleAdsConversionEfficiencyMetrics,
-    GoogleAdsSearchShareMetrics {
+    GoogleAdsSearchShareMetrics,
+    Partial<GoogleAdsConversionDateMetrics> {
   campaign_id: string;
   campaign_name: string;
   campaign_advertising_channel_type: string;

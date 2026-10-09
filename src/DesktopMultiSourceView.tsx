@@ -912,6 +912,9 @@ export function DesktopMultiSourceView() {
     setGa4EndDate,
   ] = useState('');
 
+  const [conversionDateStart, setConversionDateStart] = useState('');
+  const [conversionDateEnd, setConversionDateEnd] = useState('');
+
   const [
     keywordPlannerGroupDrafts,
     setKeywordPlannerGroupDrafts,
@@ -1922,6 +1925,16 @@ export function DesktopMultiSourceView() {
       };
     }
 
+    if (task.task_id === 'google-ads-conversion-date-performance') {
+      if (!isValidAbsoluteDateRange(conversionDateStart, conversionDateEnd)) return null;
+      return {
+        included: true,
+        task_id: task.task_id,
+        requested_date_start: conversionDateStart,
+        requested_date_end: conversionDateEnd,
+      };
+    }
+
     if (task.source_id === 'ikas-products' && selectedIkasFile !== null) {
       return {
         included: true,
@@ -1982,6 +1995,12 @@ export function DesktopMultiSourceView() {
         setMessage(
           'Select a current Products XLSX before Review.',
         );
+        return;
+      }
+
+      if (selectedTask.task_id === 'google-ads-conversion-date-performance'
+        && !isValidAbsoluteDateRange(conversionDateStart, conversionDateEnd)) {
+        setMessage('Enter valid conversion-date start and end dates before Review.');
         return;
       }
 
@@ -3891,6 +3910,10 @@ export function DesktopMultiSourceView() {
                 )
               )
               || (
+                selectedTask.task_id === 'google-ads-conversion-date-performance'
+                && isValidAbsoluteDateRange(conversionDateStart, conversionDateEnd)
+              )
+              || (
                 selectedTask.source_id
                   === 'google-keyword-planner'
                 && parseKeywordPlannerGroups(
@@ -4056,6 +4079,14 @@ export function DesktopMultiSourceView() {
                       </>
                     )}
 
+                    {selectedTask.task_id === 'google-ads-conversion-date-performance' && (
+                      <>
+                        <p>Conversion-date metrics assign conversions to the date they occurred; standard conversion metrics remain separate.</p>
+                        <p>Datasets: Campaign Performance · Ad Group Performance · Keyword Performance.</p>
+                        <p>Account: {workspaceConnections.find((connection) => connection.source_id === 'google-ads-search-reporting')?.customer_id ?? 'Connect Google Ads in Workspace'}</p>
+                      </>
+                    )}
+
                     {selectedTask.source_id === 'google-keyword-planner'
                       && preparedKeywordPlannerGroups !== null
                       && (
@@ -4196,6 +4227,24 @@ export function DesktopMultiSourceView() {
                                   );
                                 }}
                               />
+                            </label>
+                          </div>
+                        )
+                      : selectedTask.task_id === 'google-ads-conversion-date-performance'
+                        ? (
+                          <div className="rr-structured-editor">
+                            <p>The connected Google Ads account is resolved during Review.</p>
+                            <label className="rr-field">
+                              <span>Conversion-Date start date</span>
+                              <input aria-label="Conversion-Date start date" type="text"
+                                value={conversionDateStart} placeholder="YYYY-MM-DD"
+                                onChange={(event) => setConversionDateStart(event.target.value)} />
+                            </label>
+                            <label className="rr-field">
+                              <span>Conversion-Date end date</span>
+                              <input aria-label="Conversion-Date end date" type="text"
+                                value={conversionDateEnd} placeholder="YYYY-MM-DD"
+                                onChange={(event) => setConversionDateEnd(event.target.value)} />
                             </label>
                           </div>
                         )
@@ -4710,6 +4759,17 @@ export function DesktopMultiSourceView() {
                   </section>
                 </div>
 
+                {selectedTask.task_id === 'google-ads-conversion-date-performance' && (
+                  <section className="rr-panel rr-detail-panel">
+                    <span className="rr-kicker">CONVERSION-DATE SCOPE</span>
+                    <h2>Google Ads — Conversion-Date Performance</h2>
+                    <p>Datasets: Campaign Performance · Ad Group Performance · Keyword Performance.</p>
+                    <p>Schema v3 acquisition is explicit for these three datasets. Standard conversion metrics remain separate.</p>
+                    <p>Account: {String((((quickRunReview.review.reviewed_draft?.resolved_configuration.sources as JsonObject | undefined)?.['google-ads-search-reporting']) as JsonObject | undefined)?.customer_id ?? 'Unavailable')}</p>
+                    <p>Planning: {quickRunReview.review.can_start ? 'Complete' : 'Blocked'}</p>
+                  </section>
+                )}
+
                 {(() => {
                   const summary =
                     getReviewedDateSummary(
@@ -4945,6 +5005,9 @@ export function DesktopMultiSourceView() {
                     Planning blocked: {quickRunReview.review.planning_blocking_sources.join(', ')}
                   </p>
                 )}
+                {quickRunReview.review.planning_blocking_reasons?.map((reason) => (
+                  <p className="rr-alert" key={reason}>{reason}</p>
+                ))}
 
                 <div
                   className="rr-task-detail-actions"
@@ -5990,6 +6053,9 @@ export function DesktopMultiSourceView() {
                                   Planning blocked: {presetReview.review.planning_blocking_sources.join(', ')}
                                 </p>
                               )}
+                              {presetReview.review.planning_blocking_reasons?.map((reason) => (
+                                <p className="rr-field-error" key={reason}>{reason}</p>
+                              ))}
                               <button
                                 type="button"
                                 className="rr-primary-action"

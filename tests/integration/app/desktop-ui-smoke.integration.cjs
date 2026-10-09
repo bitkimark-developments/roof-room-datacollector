@@ -128,6 +128,14 @@ const sourceCards = [
       'Content Performance + Paid Funnel',
   },
   {
+    source_id: 'google-ads-search-reporting',
+    source_name: 'Google Ads SEARCH Reporting',
+    included: false,
+    readiness_status: 'READY',
+    freshness_status: 'UNKNOWN', last_successful_at: null, next_due_at: null,
+    configuration_summary: 'SEARCH reporting',
+  },
+  {
     source_id: 'google-keyword-planner-csv',
     source_name: 'Keyword Planner Manual CSV',
     included: false,
@@ -376,6 +384,11 @@ const main = async () => {
             source_id: 'google-ads-search-terms',
             credential_status: 'MISSING',
             readiness_status: 'CONNECTION_REQUIRED',
+          },
+          {
+            source_id: 'google-ads-search-reporting',
+            credential_status: 'AVAILABLE', readiness_status: 'READY',
+            customer_id: '1234567890',
           },
           {
             source_id: 'google-keyword-planner',
@@ -712,6 +725,28 @@ const main = async () => {
           reviewDesktopDraft: async (reviewDraft) => {
             window.__reviewedDesktopDraft =
               reviewDraft;
+
+            const conversionConfig = reviewDraft?.reusable_configuration?.sources?.['google-ads-search-reporting'];
+            if (conversionConfig?.task_id === 'google-ads-conversion-date-performance') {
+              const reviewedArtifact = {
+                workspace_id: 'ws_fixture', task_id: conversionConfig.task_id,
+                source_id: 'google-ads-search-reporting',
+                included_sources: ['google-ads-search-reporting'],
+                reference_date: '2026-09-30', resolved_at: '2026-09-30T12:00:00.000Z',
+                reusable_configuration: reviewDraft.reusable_configuration,
+                resolved_configuration: { sources: { 'google-ads-search-reporting': {
+                  ...conversionConfig, customer_id: '1234567890',
+                  datasets: ['CAMPAIGN_PERFORMANCE', 'AD_GROUP_PERFORMANCE', 'KEYWORD_PERFORMANCE'],
+                  dataset_schema_version: 3,
+                } } },
+              };
+              window.__reviewedDesktopArtifact = reviewedArtifact;
+              return { workspace: { workspace_id: 'ws_fixture', workspace_name: 'Acceptance Workspace' },
+                origin: reviewDraft.origin, included_sources: ['google-ads-search-reporting'],
+                source_cards: [{ source_id: 'google-ads-search-reporting', included: true, readiness_status: 'READY' }],
+                job_count: 3, can_start: true, blocking_sources: [], planning_blocking_sources: [],
+                reviewed_draft: reviewedArtifact };
+            }
 
             const ga4Config =
               reviewDraft
@@ -2381,7 +2416,7 @@ const main = async () => {
     }).waitFor();
 
     const dashboard = page.getByTestId('operations-dashboard');
-    assert.equal(await dashboard.getByText('4 ready', { exact: true }).count(), 1);
+    assert.equal(await dashboard.getByText('5 ready', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('2 need connection', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('2 need import', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('1 needs attention', { exact: true }).count(), 1);
@@ -2455,7 +2490,7 @@ const main = async () => {
       await page.getByText('Credential: AVAILABLE', {
         exact: true,
       }).count(),
-      2,
+      3,
       'Credential status must be rendered separately from readiness.',
     );
 
@@ -2463,7 +2498,7 @@ const main = async () => {
       await page.getByText('Readiness: READY', {
         exact: true,
       }).count(),
-      1,
+      2,
       'Readiness status must remain a separate safe state.',
     );
 
@@ -3451,7 +3486,7 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      19,
+      20,
     );
 
     const homeGscCard = page.getByTestId('task-card').filter({ hasText: 'GSC — Current 90 Days' });
@@ -3501,7 +3536,7 @@ const main = async () => {
 
     assert.equal(
       await page.locator('[data-testid="task-card"]').count(),
-      19,
+      20,
     );
 
     await page.getByText(
@@ -4655,6 +4690,32 @@ const main = async () => {
     await page.getByRole('button', { name: 'Start Run', exact: true }).click();
     assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'Ads Start must forward the exact reviewed artifact');
     console.log('PASS ADS-REVIEW-UI-001: Ads task sends date policy and starts the exact reviewed artifact');
+
+    await page.reload();
+
+    const conversionTaskCard = page.getByTestId('task-card')
+      .filter({ hasText: 'Google Ads — Conversion-Date Performance' });
+    assert.equal(await conversionTaskCard.count(), 1, 'Conversion-Date task must be discoverable');
+    await conversionTaskCard.click();
+    assert.equal(await page.getByText('Conversion-date metrics assign conversions to the date they occurred; standard conversion metrics remain separate.', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Account: 1234567890', { exact: true }).count(), 1);
+    const conversionReview = page.getByRole('button', { name: 'Review Quick Run', exact: true });
+    assert.equal(await conversionReview.isEnabled(), false);
+    await page.getByLabel('Conversion-Date start date', { exact: true }).fill('2026-09-01');
+    await page.getByLabel('Conversion-Date end date', { exact: true }).fill('2026-09-30');
+    assert.equal(await conversionReview.isEnabled(), true);
+    await conversionReview.click();
+    await page.getByRole('heading', { name: 'Review Quick Run', exact: true }).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__reviewedDesktopDraft.reusable_configuration.sources['google-ads-search-reporting']), {
+      included: true, task_id: 'google-ads-conversion-date-performance',
+      requested_date_start: '2026-09-01', requested_date_end: '2026-09-30',
+    });
+    assert.equal(await page.getByText('Account: 1234567890', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Resolved range: 2026-09-01 → 2026-09-30', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Start Run', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft),
+      await page.evaluate(() => window.__reviewedDesktopArtifact));
+    console.log('PASS P2-02-CONVERSION-DATE-UI: task detail, exact review, and reviewed start');
 
     await page.reload();
 

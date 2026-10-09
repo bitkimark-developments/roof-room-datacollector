@@ -31,6 +31,26 @@ const keywordContext = createGoogleAdsReportingJobContext({
   requested_date_end: '2026-09-07',
 });
 const keywordQuery = buildKeywordPerformanceQuery(keywordContext);
+const legacy_keywordQuery = buildKeywordPerformanceQuery({
+  ...keywordContext,
+  dataset_schema_version: 2,
+});
+const conversionDate_keywordQuery = buildKeywordPerformanceQuery({
+  ...keywordContext,
+  dataset_schema_version: 3,
+});
+for (const field of [
+  'metrics.conversions_by_conversion_date',
+  'metrics.conversions_value_by_conversion_date',
+  'metrics.all_conversions_by_conversion_date',
+  'metrics.all_conversions_value_by_conversion_date',
+]) {
+  assert.equal(legacy_keywordQuery.includes(field), false,
+    `Historical v2 must not silently acquire ${field}`);
+  assert.ok(conversionDate_keywordQuery.includes(field),
+    `Conversion-date v3 must select ${field}`);
+}
+
 for (const field of [
   'campaign.id',
   'campaign.name',

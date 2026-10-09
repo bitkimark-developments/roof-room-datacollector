@@ -69,6 +69,7 @@ export interface DesktopWorkspaceConnectionView {
   source_id: DesktopCredentialManagedSourceId;
   credential_status: DesktopCredentialStatus;
   readiness_status: DesktopReadinessStatus;
+  customer_id?: string | null;
 }
 
 export type DesktopReadinessRemediation =
@@ -133,6 +134,7 @@ export interface DesktopReview {
   can_start: boolean;
   blocking_sources: string[];
   planning_blocking_sources: string[];
+  planning_blocking_reasons?: string[];
   reviewed_draft:
     DesktopReviewedRunDraft | null;
 }
