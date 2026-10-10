@@ -1219,6 +1219,26 @@ export function DesktopMultiSourceView() {
     );
 
   const [
+    homeUnfinishedRunStates,
+    setHomeUnfinishedRunStates,
+  ] = useState<{
+    workspace_id: string;
+    loading: boolean;
+    error: string | null;
+    detailError: string | null;
+    runs: DesktopRunState[];
+  } | null>(null);
+
+  const [
+    runHistoryLoadState,
+    setRunHistoryLoadState,
+  ] = useState<{
+    workspace_id: string;
+    status: 'LOADING' | 'LOADED' | 'FAILED';
+    error: string | null;
+  } | null>(null);
+
+  const [
     taskRecentRunStates,
     setTaskRecentRunStates,
   ] = useState<Record<string, DesktopRunState>>({});
@@ -1306,7 +1326,11 @@ export function DesktopMultiSourceView() {
     >(null);
 
   const runHistoryRequestId = useRef(0);
+  const runDetailRequestId = useRef(0);
+  const homeRunStatesRequestId = useRef(0);
   const homePresetReviewRequestId = useRef(0);
+  const workspaceIdRef = useRef(workspaceId);
+  workspaceIdRef.current = workspaceId;
 
   const loadRunHistory = async (
     targetWorkspaceId: string,
@@ -1319,18 +1343,34 @@ export function DesktopMultiSourceView() {
     );
 
     setRunHistory([]);
+    setRunHistoryLoadState({
+      workspace_id: targetWorkspaceId,
+      status: 'LOADING',
+      error: null,
+    });
 
     try {
       const nextRuns = await window.roofroom.listDesktopRuns(targetWorkspaceId);
       if (canApplyResponse()) {
         setRunHistory(nextRuns);
+        setRunHistoryLoadState({
+          workspace_id: targetWorkspaceId,
+          status: 'LOADED',
+          error: null,
+        });
       }
     } catch (error) {
       if (canApplyResponse()) {
+        const detail = error instanceof Error
+          ? error.message
+          : 'Run History could not be loaded.';
+        setRunHistoryLoadState({
+          workspace_id: targetWorkspaceId,
+          status: 'FAILED',
+          error: detail,
+        });
         setMessage(
-          error instanceof Error
-            ? error.message
-            : 'Run History yüklenemedi.',
+          detail,
         );
       }
     }
@@ -1356,6 +1396,87 @@ export function DesktopMultiSourceView() {
         false;
     };
   }, [
+    view,
+    workspaceId,
+  ]);
+
+  useEffect(() => {
+    if (view !== 'HOME' || workspaceId.length === 0) {
+      homeRunStatesRequestId.current += 1;
+      setHomeUnfinishedRunStates(null);
+      return;
+    }
+
+    let mounted = true;
+    const requestId = ++homeRunStatesRequestId.current;
+    const canApplyResponse = () => (
+      mounted
+      && requestId === homeRunStatesRequestId.current
+      && workspaceIdRef.current === workspaceId
+    );
+    const unfinishedStatuses = new Set([
+      'PENDING',
+      'RUNNING',
+      'MANUAL_ACTION_REQUIRED',
+      'RETRY_REQUIRED',
+    ]);
+
+    const historyLoadState = runHistoryLoadState?.workspace_id === workspaceId
+      ? runHistoryLoadState
+      : null;
+    setHomeUnfinishedRunStates({
+      workspace_id: workspaceId,
+      loading: historyLoadState === null || historyLoadState.status !== 'FAILED',
+      error: historyLoadState?.status === 'FAILED'
+        ? historyLoadState.error ?? 'Run History could not be loaded.'
+        : null,
+      detailError: null,
+      runs: [],
+    });
+
+    if (
+      historyLoadState === null
+      || historyLoadState.status === 'LOADING'
+      || historyLoadState.status === 'FAILED'
+    ) {
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const candidateRuns = runHistory.filter((run) => (
+      run.workspace_id === workspaceId
+      && unfinishedStatuses.has(run.run_status)
+    ));
+
+    void Promise.allSettled(
+      candidateRuns.map((run) => window.roofroom.getDesktopRunState(run.run_id)),
+    ).then((results) => {
+      if (!canApplyResponse()) return;
+      const states = results.flatMap((result) => (
+        result.status === 'fulfilled' ? [result.value] : []
+      ));
+      const failedCount = results.filter((result) => result.status === 'rejected').length;
+      setHomeUnfinishedRunStates({
+        workspace_id: workspaceId,
+        loading: false,
+        error: null,
+        detailError: failedCount === 0
+          ? null
+          : `Could not load persisted state for ${failedCount} unfinished Run${failedCount === 1 ? '' : 's'}.`,
+        runs: states.filter((state) => (
+          state.run.workspace_id === workspaceId
+          && unfinishedStatuses.has(state.run.run_status)
+        )),
+      });
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    runHistory,
+    runHistoryLoadState,
     view,
     workspaceId,
   ]);
@@ -2560,9 +2681,12 @@ export function DesktopMultiSourceView() {
     async (
       runId: string,
     ) => {
+      const requestId = ++runDetailRequestId.current;
+      const targetWorkspaceId = workspaceIdRef.current;
       setBusy(
         true,
       );
+      setActiveRunState(null);
 
       setMessage(
         null,
@@ -2576,19 +2700,33 @@ export function DesktopMultiSourceView() {
               runId,
             );
 
+        if (
+          requestId !== runDetailRequestId.current
+          || targetWorkspaceId !== workspaceIdRef.current
+          || nextState.run.workspace_id !== targetWorkspaceId
+        ) {
+          return;
+        }
+
         setActiveRunState(
           nextState,
         );
       } catch (error) {
+        if (
+          requestId !== runDetailRequestId.current
+          || targetWorkspaceId !== workspaceIdRef.current
+        ) {
+          return;
+        }
         setMessage(
           error instanceof Error
             ? error.message
             : 'Run Detail yüklenemedi.',
         );
       } finally {
-        setBusy(
-          false,
-        );
+        if (requestId === runDetailRequestId.current) {
+          setBusy(false);
+        }
       }
     };
 
@@ -3756,9 +3894,11 @@ export function DesktopMultiSourceView() {
     && (presetIkasConfiguration as JsonObject).task_id
       === 'ikas-products-import';
 
-  const selectedPreset = presets.find((preset) => (
+  const workspacePresets = presets.filter((preset) => (
+    preset.workspace_id === workspaceId
+  ));
+  const selectedPreset = workspacePresets.find((preset) => (
     preset.preset_id === presetId
-    && preset.workspace_id === workspaceId
   )) ?? null;
   const selectedHomePresetSources = getReusableSources(
     selectedPreset?.reusable_configuration ?? { sources: {} },
@@ -3870,11 +4010,17 @@ export function DesktopMultiSourceView() {
     homePresetReviewRequestId.current += 1;
     setHomePresetReview(null);
     resetTransientEditors();
+    workspaceIdRef.current = nextWorkspaceId;
+    runDetailRequestId.current += 1;
     setWorkspaceId(nextWorkspaceId);
     setSelectedTask(null);
     setQuickRunReview(null);
     setActiveRunState(null);
     setRunHistory([]);
+    setRunHistoryLoadState(null);
+    homeRunStatesRequestId.current += 1;
+    setHomeUnfinishedRunStates(null);
+    setBusy(false);
     setView('HOME');
   };
 
@@ -5500,6 +5646,62 @@ export function DesktopMultiSourceView() {
                   </button>
                 </section>
 
+                <button
+                  type="button"
+                  className="rr-secondary-action"
+                  onClick={() => navigateTo('TASKS')}
+                >
+                  Browse all tasks
+                </button>
+
+                <section className="rr-panel" data-testid="home-active-runs">
+                  <span className="rr-kicker">ACTIVE / UNFINISHED RUNS</span>
+                  <h2>Work in this Workspace</h2>
+                  {homeUnfinishedRunStates?.workspace_id !== workspaceId
+                    || homeUnfinishedRunStates.loading
+                    ? <p>Loading persisted Run state...</p>
+                    : homeUnfinishedRunStates.error !== null
+                      ? <p className="rr-field-error">
+                          Persisted Run History could not be loaded: {homeUnfinishedRunStates.error}
+                        </p>
+                      : (
+                        <>
+                          {homeUnfinishedRunStates.detailError !== null && (
+                            <p className="rr-field-error">
+                              {homeUnfinishedRunStates.detailError}
+                            </p>
+                          )}
+                          {homeUnfinishedRunStates.runs.length === 0
+                            ? homeUnfinishedRunStates.detailError === null
+                              ? <p>No active or unfinished Runs in this Workspace.</p>
+                              : null
+                            : (
+                          <div className="rr-operational-list">
+                            {homeUnfinishedRunStates.runs.map((state) => (
+                              <article key={state.run.run_id} data-testid="home-unfinished-run">
+                                <strong>{getRunDisplayName(state.run)}</strong>
+                                <span>Run status: {formatStatus(state.run.run_status)}</span>
+                                <small>{state.run.run_id}</small>
+                                <p>Sources: {state.run.selected_sources.join(', ')}</p>
+                                <button
+                                  type="button"
+                                  className="rr-secondary-action"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    setView('RUNS');
+                                    void openHistoryRun(state.run.run_id);
+                                  }}
+                                >
+                                  Open Run
+                                </button>
+                              </article>
+                            ))}
+                          </div>
+                            )}
+                        </>
+                      )}
+                </section>
+
                 <section
                   className="rr-preset-run"
                 >
@@ -5530,7 +5732,7 @@ export function DesktopMultiSourceView() {
                         presetId
                       }
                       disabled={
-                        presets.length
+                        workspacePresets.length
                         === 0
                       }
                       onChange={
@@ -5546,7 +5748,7 @@ export function DesktopMultiSourceView() {
                         }
                       }
                     >
-                      {presets.length
+                      {workspacePresets.length
                         === 0
                         && (
                           <option
@@ -5556,34 +5758,29 @@ export function DesktopMultiSourceView() {
                           </option>
                         )}
 
-                      {presets.map(
+                      {workspacePresets.map(
                         (
                           preset,
-                        ) => preset.workspace_id === workspaceId && (
+                        ) => (
                           <option
-                            key={
-                              preset
-                                .preset_id
-                            }
-                            value={
-                              preset
-                                .preset_id
-                            }
+                            key={preset.preset_id}
+                            value={preset.preset_id}
                           >
-                            {
-                              preset
-                                .preset_name
-                            }
+                            {preset.preset_name}
                           </option>
                         ),
                       )}
                     </select>
                   </label>
+                  {workspacePresets.length === 0 && (
+                    <p>No Saved Presets in this Workspace.</p>
+                  )}
                   <button
                     type="button"
                     className="rr-primary-action"
                     disabled={
                       !workspaceId
+                      || workspacePresets.length === 0
                       || selectedPreset === null
                       || hasUnsavedTaskInputs
                       || hasUnsavedPresetEdits
@@ -5694,9 +5891,6 @@ export function DesktopMultiSourceView() {
                     </div>
                   )}
 
-                {
-                  renderTaskCatalog()
-                }
               </>
             )}
 

@@ -1752,6 +1752,10 @@ const main = async () => {
             window.__listDesktopRunsCallCount =
               (window.__listDesktopRunsCallCount ?? 0) + 1;
 
+            if (window.__failRunHistoryForWorkspace === workspaceId) {
+              throw new Error('Fixture Run History request failed.');
+            }
+
             const runs = [
               {
                 run_id: 'rr_fixture_cancel_001',
@@ -1764,6 +1768,18 @@ const main = async () => {
                 selected_sources: [
                   'google-trends',
                 ],
+                requested_configuration: null,
+                configuration_snapshot: {},
+              },
+              {
+                run_id: 'rr_fixture_home_terminal_001',
+                workspace_id: 'ws_fixture',
+                run_status: 'RUNNING',
+                created_at: '2026-09-13T11:00:00.000Z',
+                started_at: '2026-09-13T11:00:01.000Z',
+                completed_at: null,
+                application_version: '1.0.0',
+                selected_sources: ['google-trends'],
                 requested_configuration: null,
                 configuration_snapshot: {},
               },
@@ -1805,6 +1821,7 @@ const main = async () => {
             ];
 
             if (workspaceId === 'ws_other') {
+              if (window.__emptyWorkspaceRunHistory === true) return [];
               return [{
                 ...runs[0],
                 run_id: 'rr_fixture_other_workspace_001',
@@ -1824,8 +1841,91 @@ const main = async () => {
 
 
           getDesktopRunState: async (runId) => {
+            if (window.__failRunStateForRunId === runId) {
+              throw new Error(`Fixture Run state request failed for ${runId}.`);
+            }
+            if (
+              runId === 'rr_fixture_cancel_001'
+              && window.__delayOpenRunStateOnce === true
+            ) {
+              window.__delayOpenRunStateOnce = false;
+              return new Promise((resolve) => {
+                window.__resolveDelayedOpenRunState = () => resolve({
+                  run: {
+                    run_id: runId,
+                    workspace_id: 'ws_fixture',
+                    run_status: 'RUNNING',
+                    created_at: '2026-09-13T14:00:00.000Z',
+                    started_at: '2026-09-13T14:00:01.000Z',
+                    completed_at: null,
+                    application_version: '1.0.0',
+                    selected_sources: ['google-trends'],
+                    requested_configuration: null,
+                    configuration_snapshot: {},
+                  },
+                  jobs: [],
+                });
+              });
+            }
+            if (
+              runId === 'rr_fixture_cancel_001'
+              && window.__delayHomeRunStateOnce === true
+            ) {
+              window.__delayHomeRunStateOnce = false;
+              return new Promise((resolve) => {
+                window.__resolveDelayedHomeRunState = () => resolve({
+                  run: {
+                    run_id: runId,
+                    workspace_id: 'ws_fixture',
+                    run_status: 'RUNNING',
+                    created_at: '2026-09-13T14:00:00.000Z',
+                    started_at: '2026-09-13T14:00:01.000Z',
+                    completed_at: null,
+                    application_version: '1.0.0',
+                    selected_sources: ['google-trends'],
+                    requested_configuration: null,
+                    configuration_snapshot: {},
+                  },
+                  jobs: [],
+                });
+              });
+            }
             if (runId === 'rr_fixture_package_001') {
               return taskPackageRunState(false);
+            }
+            if (runId === 'rr_fixture_home_terminal_001') {
+              return {
+                run: {
+                  run_id: runId,
+                  workspace_id: 'ws_fixture',
+                  run_status: 'COMPLETED',
+                  created_at: '2026-09-13T11:00:00.000Z',
+                  started_at: '2026-09-13T11:00:01.000Z',
+                  completed_at: '2026-09-13T11:00:05.000Z',
+                  application_version: '1.0.0',
+                  selected_sources: ['google-trends'],
+                  requested_configuration: null,
+                  configuration_snapshot: {},
+                },
+                jobs: [],
+              };
+            }
+            if (runId === 'rr_fixture_other_workspace_001') {
+              return {
+                run: {
+                  run_id: runId,
+                  workspace_id: 'ws_other',
+                  run_status: 'RUNNING',
+                  created_at: '2026-09-13T14:00:00.000Z',
+                  started_at: '2026-09-13T14:00:01.000Z',
+                  completed_at: null,
+                  application_version: '1.0.0',
+                  selected_sources: ['google-trends'],
+                  requested_configuration: null,
+                  configuration_snapshot: {},
+                },
+                jobs: [],
+              };
             }
             if (runId === 'rr_fixture_cancel_001') {
               window.__openedCancelRunId =
@@ -2564,6 +2664,156 @@ const main = async () => {
     assert.equal(await dashboard.getByText('2 need import', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('1 needs attention', { exact: true }).count(), 1);
     assert.equal(await dashboard.getByText('Recent completed work', { exact: true }).count(), 1);
+    assert.equal(
+      await page.getByTestId('task-card').count(),
+      0,
+      'HOME must not duplicate the full task catalog.',
+    );
+    assert.equal(
+      await page.getByRole('button', { name: 'Browse all tasks', exact: true }).count(),
+      1,
+      'HOME must provide a clear entry point to the TASKS catalog.',
+    );
+    const homeActiveRuns = page.getByTestId('home-active-runs');
+    await homeActiveRuns.getByText('rr_fixture_cancel_001', { exact: true }).waitFor();
+    assert.equal(
+      await homeActiveRuns.getByText('rr_fixture_resume_001', { exact: true }).count(),
+      1,
+      'HOME must surface persisted active Run work.',
+    );
+    assert.equal(
+      await homeActiveRuns.getByText('rr_fixture_home_terminal_001', { exact: true }).count(),
+      0,
+      'A Run whose persisted detail is completed must not be presented as active, even when history was stale.',
+    );
+    assert.equal(
+      await homeActiveRuns.getByText('No active or unfinished Runs in this Workspace.', { exact: true }).count(),
+      0,
+    );
+
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
+    await page.evaluate(() => {
+      window.__failRunStateForRunId = 'rr_fixture_resume_001';
+    });
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    await homeActiveRuns.getByText('rr_fixture_cancel_001', { exact: true }).waitFor();
+    assert.equal(
+      await homeActiveRuns.getByText('rr_fixture_resume_001', { exact: true }).count(),
+      0,
+      'A failed persisted detail read must not fabricate a Run entry.',
+    );
+    assert.equal(
+      await homeActiveRuns.getByText(
+        'Could not load persisted state for 1 unfinished Run.',
+        { exact: true },
+      ).count(),
+      1,
+      'HOME must report an individual Run state read failure while retaining other successful unfinished Runs.',
+    );
+    assert.equal(
+      await homeActiveRuns.getByText('No active or unfinished Runs in this Workspace.', { exact: true }).count(),
+      0,
+      'A partial detail failure must not be presented as an empty Run list.',
+    );
+    await page.evaluate(() => {
+      window.__failRunStateForRunId = null;
+    });
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    await homeActiveRuns.getByText('rr_fixture_resume_001', { exact: true }).waitFor();
+
+    await page.getByRole('button', { name: 'Browse all tasks', exact: true }).click();
+    await page.getByRole('heading', { name: 'Tasks', exact: true }).waitFor();
+    assert.equal(
+      await page.getByTestId('task-card').count(),
+      20,
+      'TASKS must retain the complete desktop task catalog.',
+    );
+    assert.equal(await page.getByTestId('task-card').filter({ hasText: 'Google Analytics 4' }).count(), 1);
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    await homeActiveRuns.getByText('rr_fixture_cancel_001', { exact: true }).waitFor();
+
+    await page.evaluate(() => {
+      window.__delayHomeRunStateOnce = true;
+    });
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    await page.waitForFunction(
+      () => typeof window.__resolveDelayedHomeRunState === 'function',
+    );
+    await page.getByLabel('Active Workspace', { exact: true }).selectOption('ws_other');
+    const otherWorkspaceActiveRuns = page.getByTestId('home-active-runs');
+    await otherWorkspaceActiveRuns.getByText('rr_fixture_other_workspace_001', { exact: true }).waitFor();
+    await page.evaluate(() => window.__resolveDelayedHomeRunState());
+    await page.waitForTimeout(50);
+    assert.equal(
+      await otherWorkspaceActiveRuns.getByText('rr_fixture_cancel_001', { exact: true }).count(),
+      0,
+      'A delayed active Run response from another Workspace must not leak into HOME.',
+    );
+    assert.equal(
+      await page.getByText('No Saved Presets in this Workspace.', { exact: true }).count(),
+      1,
+      'HOME must show an empty state when the Workspace has no Saved Presets.',
+    );
+    assert.equal(
+      await page.getByLabel('Saved Preset', { exact: true }).isDisabled(),
+      true,
+      'HOME must not offer preset review when the active Workspace has no Saved Presets.',
+    );
+    await page.evaluate(() => {
+      window.__emptyWorkspaceRunHistory = true;
+    });
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    await page.getByTestId('home-active-runs')
+      .getByText('No active or unfinished Runs in this Workspace.', { exact: true })
+      .waitFor();
+    await page.getByLabel('Active Workspace', { exact: true }).selectOption('ws_fixture');
+    await homeActiveRuns.getByText('rr_fixture_cancel_001', { exact: true }).waitFor();
+
+    await page.evaluate(() => {
+      window.__delayOpenRunStateOnce = true;
+      window.__failRunHistoryForWorkspace = 'ws_other';
+    });
+    await homeActiveRuns.getByTestId('home-unfinished-run')
+      .filter({ hasText: 'rr_fixture_cancel_001' })
+      .getByRole('button', { name: 'Open Run', exact: true })
+      .click();
+    await page.waitForFunction(
+      () => typeof window.__resolveDelayedOpenRunState === 'function',
+    );
+    await page.getByLabel('Active Workspace', { exact: true }).selectOption('ws_other');
+    await page.getByTestId('home-active-runs')
+      .getByText(/^Persisted Run History could not be loaded:/u)
+      .waitFor();
+    await page.evaluate(() => window.__resolveDelayedOpenRunState());
+    await page.waitForTimeout(50);
+    await page.getByRole('button', { name: 'RUNS', exact: true }).click();
+    assert.equal(
+      await page.getByRole('heading', { name: 'Run Detail', exact: true }).count(),
+      0,
+      'A delayed Run detail response from Workspace A must not appear after switching to Workspace B.',
+    );
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    assert.equal(
+      await page.getByTestId('home-active-runs')
+        .getByText('No active or unfinished Runs in this Workspace.', { exact: true })
+        .count(),
+      0,
+      'A failed Run History request must not be represented as no unfinished Runs.',
+    );
+    await page.evaluate(() => {
+      window.__failRunHistoryForWorkspace = null;
+      window.__emptyWorkspaceRunHistory = false;
+    });
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
+    await page.getByTestId('home-active-runs')
+      .getByText('rr_fixture_other_workspace_001', { exact: true })
+      .waitFor();
+    await page.getByLabel('Active Workspace', { exact: true }).selectOption('ws_fixture');
+    await homeActiveRuns.getByText('rr_fixture_cancel_001', { exact: true }).waitFor();
 
     for (const navigationItem of [
       'HOME',
@@ -3042,12 +3292,12 @@ const main = async () => {
 
     assert.equal(
       await page.evaluate(() => window.__workspaceConnectionReadCount),
-      18,
-      'Initial read, the OAuth provider update, and every connection mutation must reread exactly once.',
+      22,
+      'Initial read, HOME and Run Detail Workspace isolation changes, the OAuth provider update, and every connection mutation must reread exactly once.',
     );
     assert.deepEqual(
       await page.evaluate(() => window.__workspaceConnectionReadsAfterMutation),
-      [0, 0, ...Array.from({ length: 16 }, (_, index) => index + 1)],
+      [0, 0, 0, 0, 0, 0, ...Array.from({ length: 16 }, (_, index) => index + 1)],
       'The OAuth provider update and every connection mutation branch must perform exactly one final reread.',
     );
     assert.deepEqual(
@@ -3683,6 +3933,8 @@ const main = async () => {
         exact: true,
       },
     ).click();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
+    await page.getByRole('heading', { name: 'Tasks', exact: true }).waitFor();
 
     const releaseOneTasks = [
       'Google Trends — Interest Over Time',
@@ -3704,7 +3956,7 @@ const main = async () => {
           exact: true,
         }).count(),
         1,
-        `Expected HOME task card: ${taskName}`,
+        `Expected TASKS catalog card: ${taskName}`,
       );
     }
 
@@ -3713,20 +3965,21 @@ const main = async () => {
       20,
     );
 
-    const homeGscCard = page.getByTestId('task-card').filter({ hasText: 'GSC — Current 90 Days' });
-    assert.equal(await homeGscCard.getByText('DUE', { exact: true }).count(), 1);
-    const homeAdsCard = page.getByTestId('task-card').filter({
+    const taskGscCard = page.getByTestId('task-card').filter({ hasText: 'GSC — Current 90 Days' });
+    assert.equal(await taskGscCard.getByText('DUE', { exact: true }).count(), 1);
+    const taskAdsCard = page.getByTestId('task-card').filter({
       has: page.getByText('Google Ads — Search Terms', {
         exact: true,
       }),
     });
-    assert.equal(await homeAdsCard.getByText('CONNECTION REQUIRED', { exact: true }).count(), 1);
-    assert.equal(await homeAdsCard.getByText('DUE', { exact: true }).count(), 1, 'Freshness DUE remains visible while readiness is blocked.');
-    const homeIkasCard = page.getByTestId('task-card').filter({ hasText: 'İkas — Products Import' });
-    assert.equal(await homeIkasCard.getByText('IMPORT NEEDED', { exact: true }).count(), 1);
-    const homeSerpCard = page.getByTestId('task-card').filter({ hasText: 'SerpApi — SERP Snapshot' });
-    assert.equal(await homeSerpCard.getByText('ON DEMAND', { exact: true }).count(), 1);
+    assert.equal(await taskAdsCard.getByText('CONNECTION REQUIRED', { exact: true }).count(), 1);
+    assert.equal(await taskAdsCard.getByText('DUE', { exact: true }).count(), 1, 'Freshness DUE remains visible while readiness is blocked.');
+    const taskIkasCard = page.getByTestId('task-card').filter({ hasText: 'İkas — Products Import' });
+    assert.equal(await taskIkasCard.getByText('IMPORT NEEDED', { exact: true }).count(), 1);
+    const taskSerpCard = page.getByTestId('task-card').filter({ hasText: 'SerpApi — SERP Snapshot' });
+    assert.equal(await taskSerpCard.getByText('ON DEMAND', { exact: true }).count(), 1);
     console.log('PASS FRESHNESS-UI-001: readiness and freshness remain separately visible across due, import-needed, and on-demand tasks');
+    await page.getByRole('button', { name: 'HOME', exact: true }).click();
 
     assert.equal(
       await page.getByText('Blog-Agentic-Beklentisi', {
@@ -3751,6 +4004,7 @@ const main = async () => {
 
     await page.getByRole('button', {
       name: 'TASKS',
+      exact: true,
     }).click();
 
     await page.getByRole('heading', {
@@ -4262,6 +4516,7 @@ const main = async () => {
           true,
       },
     ).waitFor();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
 
     const gscQueryTaskCard = page.getByTestId('task-card')
       .filter({ hasText: 'GSC — Queries Current + Previous 28 Days' });
@@ -4298,6 +4553,7 @@ const main = async () => {
     assert.equal(await page.evaluate(() => window.__createdDesktopPresetInput.reusable_configuration.sources['google-search-console-query'].task_id),
       'gsc-query-current-previous-28-days');
     await page.reload();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
 
     const gscCurrentTaskCard =
       page
@@ -4477,6 +4733,7 @@ const main = async () => {
       },
     ).waitFor();
 
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
     const gscLongTaskCard =
       page
         .getByTestId(
@@ -4617,6 +4874,7 @@ const main = async () => {
       },
     ).waitFor();
 
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
     const googleTrendsTaskCard =
       page
         .getByTestId(
@@ -4896,6 +5154,7 @@ const main = async () => {
         ),
     );
     await page.reload();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
 
     const blockedAdsCard = page.getByTestId('task-card').filter({
       has: page.getByText('Google Ads — Search Terms', {
@@ -4929,6 +5188,7 @@ const main = async () => {
 
     await page.addInitScript(() => { window.__adsReady = true; });
     await page.reload();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
     const adsCard = page.getByTestId('task-card').filter({
       has: page.getByText('Google Ads — Search Terms', {
         exact: true,
@@ -4952,6 +5212,7 @@ const main = async () => {
     console.log('PASS ADS-REVIEW-UI-001: Ads task sends date policy and starts the exact reviewed artifact');
 
     await page.reload();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
 
     const conversionTaskCard = page.getByTestId('task-card')
       .filter({ hasText: 'Google Ads — Conversion-Date Performance' });
@@ -4978,6 +5239,7 @@ const main = async () => {
     console.log('PASS P2-02-CONVERSION-DATE-UI: task detail, exact review, and reviewed start');
 
     await page.reload();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
 
     const ga4TaskCard =
       page.getByTestId('task-card')
@@ -5101,6 +5363,7 @@ const main = async () => {
     );
 
     await page.reload();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
 
     const unreadyPlannerCard = page.getByTestId('task-card').filter({ hasText: 'Keyword Planner — Historical Metrics' });
     await unreadyPlannerCard.getByText('CONNECTION REQUIRED', { exact: true }).waitFor();
@@ -5126,6 +5389,7 @@ const main = async () => {
 
     await page.addInitScript(() => { window.__keywordPlannerReady = true; });
     await page.reload();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
     const plannerCard = page.getByTestId('task-card').filter({ hasText: 'Keyword Planner — Historical Metrics' });
     await plannerCard.getByText('READY', { exact: true }).waitFor();
     await plannerCard.click();
@@ -5162,6 +5426,7 @@ const main = async () => {
     console.log('PASS KEYWORD-PLANNER-REVIEW-UI-001: explicit groups are reviewed and started unchanged');
 
     await page.reload();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
     const plannerCsvCard = page.getByTestId('task-card').filter({ hasText: 'Keyword Planner — Manual CSV Import' });
     await plannerCsvCard.getByText('FILE REQUIRED', { exact: true }).waitFor();
     await plannerCsvCard.click();
@@ -5191,6 +5456,7 @@ const main = async () => {
     console.log('PASS KEYWORD-PLANNER-CSV-UI-001: selected manual export is reviewed and started unchanged');
 
     await page.reload();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
     const bitkimarkCard = page.getByTestId('task-card').filter({ hasText: 'Bitkimark — Sitemap/XML' });
     await bitkimarkCard.getByText('READY', { exact: true }).waitFor();
     await bitkimarkCard.click();
@@ -5224,6 +5490,7 @@ const main = async () => {
 
     await page.addInitScript(() => { window.__serpApiReady = true; });
     await page.reload();
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
     const serpApiCard = page.getByTestId('task-card').filter({ hasText: 'SerpApi — SERP Snapshot' });
     await serpApiCard.getByText('READY', { exact: true }).waitFor();
     await serpApiCard.click();
@@ -5257,6 +5524,7 @@ const main = async () => {
     assert.deepEqual(await page.evaluate(() => window.__startedDesktopDraft), await page.evaluate(() => window.__reviewedDesktopArtifact), 'SerpApi Start must forward the exact reviewed on-demand batch.');
     console.log('PASS SERPAPI-REVIEW-UI-001: explicit on-demand queries are reviewed and started unchanged');
 
+    await page.getByRole('button', { name: 'TASKS', exact: true }).click();
     await page.getByRole('button', { name: 'TASKS', exact: true }).click();
     const packageCard = page.getByTestId('task-card').filter({ hasText: 'Kampanya Gelişim' });
     assert.equal(await packageCard.count(), 1);

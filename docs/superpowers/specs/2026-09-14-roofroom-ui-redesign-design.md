@@ -72,33 +72,23 @@ It contains:
 
 - active Workspace context
 - Preset Run area
-- all Release 1.0 task cards
-- recent Runs summary
+- persisted active or unfinished Run work for the active Workspace
+- a clear entry point to TASKS for individual-task Quick Runs
+- recent completed work where available
 
-Task cards are lightly grouped under non-interactive visual headings such as:
+HOME does not duplicate the Task Catalog. It must distinguish active/unfinished
+work from completed, failed, and cancelled Runs using persisted Run state, not
+the mere presence of a Run in history. Run state requests and delayed responses
+must remain scoped to the current Workspace. Show an explicit empty state when
+the Workspace has no active/unfinished Runs or no Saved Presets.
 
-- GOOGLE
-- COMMERCE / SITE
-- SEARCH INTELLIGENCE
+Individual task flow remains available from TASKS:
 
-The group headings do not become a source-centric navigation hierarchy.
+TASKS Catalog → Task Detail → Review Quick Run → Start Run
 
-Each task card shows:
+HOME Saved Preset flow remains:
 
-- task name
-- short dataset description
-- readiness/status
-- default date policy or input summary
-- last successful Run when available
-- blocking/problem text when relevant
-
-The whole card is clickable.
-
-There is no direct provider-call button on HOME.
-
-Flow:
-
-Task Card → Task Detail → Review Quick Run → Start Run
+Select Saved Preset → Review Run → Explicit Start Run → Run Detail
 
 ## 4. TASKS and Task Detail
 
